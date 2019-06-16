@@ -19,36 +19,33 @@ def generate_avp(avp_code, avp_flags, avp_content):
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
     print("Generating AVP")
-    avp_code = format(avp_code,"x").zfill(8)
+
     print("\tAVP Code:   " + str(avp_code))
+    avp_code = format(avp_code,"x").zfill(8)
+    
 
     print("\tAVP Flags:  " + str(avp_flags))
 
     avp_length = 1 ##This is a placeholder that's overwritten later
 
-
-
-
-    #ToDo - AVP Must always be a multiple of 4 - Round up.
-    avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_content.decode("utf-8"))
+    #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
+    avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_content)
     avp_length = int(len(avp)/2)
     print("\tAVP Length: " + str(avp_length))
 
     if avp_length % 4  == 0:
-        print("Multiple of 4 - No Padding needed")
+        #print("Multiple of 4 - No Padding needed")
         avp_padding = ''
     else:
-        print("Not multiple of 4 - Padding needed")
+        #print("Not multiple of 4 - Padding needed")
         rounded_value = myround(avp_length)
-        print("Rounded value is " + str(rounded_value))
-        print("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
+        #print("Rounded value is " + str(rounded_value))
+        #print("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
         avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
-
-    
     print("\tAVP Padding: " + str(avp_padding))
     
-    avp = str(avp_code) + str(avp_flags) + str(avp_length) + str(avp_content.decode("utf-8") + avp_padding)
+    avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
     print("\tAVP Data   :" + str(avp) + '\n')
     return avp
 

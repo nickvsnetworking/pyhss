@@ -30,25 +30,28 @@ while True:
                 data_sum = data_sum + data
                 pass
             else:
-##                print("Decoding complete packet: " + str(data_sum))
-##                packet_vars, avps = diameter.decode_diameter_packet(data_sum)
-##                print(packet_vars)
+                print("Decoding complete packet: " + str(data_sum))
+                packet_vars, avps = diameter.decode_diameter_packet(data_sum)
+                print(packet_vars)
                 print('\n\n\nno more data from' + str(client_address))
                 print("Sending response")
-                avp = str("0000010c4000000c000007d1")
-                packet_version = "01"
-                packet_flags = "00" #(Proxyable only for flags header)
-                packet_command_code = 257
-                packet_application_id = 0
-                avp = str("0000010c4000000c000007d100000108400000177067772e6c6f63616c646f6d61696e0000000128400000136c6f63616c646f6d61696e00000001164000000c5d00a8a9000001014000000e00017f00000300000000010a4000000c000000000000010d00000014667265654469616d657465720000010b0000000c000027d90000010440000020000001024000000c010000160000010a4000000c000028af000001024000000cffffffff000001094000000c0000159f000001094000000c000028af000001094000000c000032db")
-                print("Correct AVP: " + str(avp))
-                avp = diameter.generate_avp(268, 40, "000007d1", 00)
-                print("Generated AVP: " + str(avp))
-                response = diameter.generate_diameter_packet(packet_version, packet_flags, packet_command_code, packet_application_id, avp)
+                
 
-                #response = diameter.generate_diameter_packet("01", "00", 257, 0, avp)
-                #response = "010000e40000010100000000256aa8348a8511320000010c4000000c000007d100000108400000177067772e6c6f63616c646f6d61696e0000000128400000136c6f63616c646f6d61696e00000001164000000c5d00a8a9000001014000000e00017f00000300000000010a4000000c000000000000010d00000014667265654469616d657465720000010b0000000c000027d90000010440000020000001024000000c010000160000010a4000000c000028af000001024000000cffffffff000001094000000c0000159f000001094000000c000028af000001094000000c000032db"
-                #connection.sendall(b'Spain')
+                avp = diameter.generate_avp(268, 40, "000007d1")    #Result Code
+                avp = avp + diameter.generate_avp(264, 40, "7067772e6c6f63616c646f6d61696e") #Origin Host
+                avp = avp + diameter.generate_avp(278, 40, "5d00a8a9") #Origin State
+                avp = avp + diameter.generate_avp(257, 40, "00017f000003") #Host-IP-Address
+                avp = avp + diameter.generate_avp(266, 40, "00000000") #Vendor-Id
+                avp = avp + diameter.generate_avp(269, 40, "667265654469616d65746572") #Product-Name
+                avp = avp + diameter.generate_avp(267, 40, "000027d9") #Firmware-Revision
+                avp = avp + diameter.generate_avp(260, 40, "000001024000000c010000160000010a4000000c000028af") #Vendor-Specific-Application-ID
+                avp = avp + diameter.generate_avp(258, 40, "ffffffff") #Auth-Application-ID
+                avp = avp + diameter.generate_avp(265, 40, "0000159f") #Supported-Vendor-ID (3GGP v2)
+                avp = avp + diameter.generate_avp(265, 40, "000028af") #Supported-Vendor-ID (3GPP)
+                avp = avp + diameter.generate_avp(265, 40, "000032db") #Supported-Vendor-ID (ETSI)
+
+                
+                response = diameter.generate_diameter_packet("01", "00", 257, 0, avp)
                 connection.sendall(bytes.fromhex(response))
                 break
             
