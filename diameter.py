@@ -25,8 +25,6 @@ def ip_to_hex(ip):
 def string_to_hex(string):
     
     string_bytes = string.encode('utf-8')
-    #print(string_bytes)
-    #print(str(type(string_bytes)))
     return str(binascii.hexlify(string_bytes), 'ascii')
 
 
