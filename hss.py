@@ -34,13 +34,13 @@ while True:
                 packet_vars, avps = diameter.decode_diameter_packet(data_sum)
                 print(packet_vars)
                 print('\n\n\nno more data from' + str(client_address))
-                print("Sending response with Hop-by-Hop Identifier: " + str(packet_vars['hop-by-hop-identifier']))
-                print("Sending response with End-to-End Identifier: " + str(packet_vars['end-to-end-identifier']))
+
+                print(diameter.AVP_278_Origin_State_Incriment(avps))
                 
 
                 avp = diameter.generate_avp(268, 40, "000007d1")    #Result Code
                 avp = avp + diameter.generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii')) #Origin Host
-                avp = avp + diameter.generate_avp(278, 40, "5d00a8a9") #Origin State (Must be incrimented)
+                avp = avp + diameter.generate_avp(278, 40, diameter.AVP_278_Origin_State_Incriment(avps)) #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
                 avp = avp + diameter.generate_avp(257, 40, diameter.ip_to_hex("10.0.0.5")) #Host-IP-Address
                 avp = avp + diameter.generate_avp(266, 40, "00000000") #Vendor-Id
                 avp = avp + diameter.generate_avp(269, 40, diameter.string_to_hex("PyHSS")) #Product-Name

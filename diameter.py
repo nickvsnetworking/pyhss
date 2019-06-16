@@ -156,4 +156,13 @@ def decode_avp_packet(data):
     remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
 
     return avp_vars, remaining_avps
-    
+
+
+def AVP_278_Origin_State_Incriment(avps):
+    print("Decoding AVP 278 to find Origin State")
+    for avp_dicts in avps:
+        if avp_dicts['avp_code'] == 278:
+            origin_state_incriment_int = int(avp_dicts['misc_data'], 16)
+            origin_state_incriment_int = origin_state_incriment_int + 1
+            origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
+            return origin_state_incriment_hex
