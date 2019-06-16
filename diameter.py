@@ -12,7 +12,22 @@ def myround(n, base=4):
     else:
         return 4;
 
+def ip_to_hex(ip):
+    ip = ip.split('.')
+    ip_hex = "0001"         #Only works for IPv4
+    ip_hex = ip_hex + str(format(int(ip[0]), 'x').zfill(2))
+    ip_hex = ip_hex + str(format(int(ip[1]), 'x').zfill(2))
+    ip_hex = ip_hex + str(format(int(ip[2]), 'x').zfill(2))
+    ip_hex = ip_hex + str(format(int(ip[3]), 'x').zfill(2))
+    return ip_hex
 
+
+def string_to_hex(string):
+    
+    string_bytes = string.encode('utf-8')
+    #print(string_bytes)
+    #print(str(type(string_bytes)))
+    return str(binascii.hexlify(string_bytes), 'ascii')
 
 
 def generate_avp(avp_code, avp_flags, avp_content):
@@ -70,10 +85,6 @@ def generate_diameter_packet(packet_version, packet_flags, packet_command_code, 
     packet_application_id = format(packet_application_id,"x").zfill(8)
     print("\tPacket Application ID: " + str(packet_application_id))
 
-
-    #packet_hop_by_hop_id = str("256aa834")
-    #packet_end_to_end_id = str("8a851132")
-
     
     packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
     packet_length = int(round(len(packet_hex))/2)
@@ -96,7 +107,7 @@ def decode_diameter_packet(data):
 
     packet_vars['packet_version'] = data[0:2]
     packet_vars['length'] = int(data[2:8], 16)
-    packet_vars['flags'] = data[8:10]       #Work out why this isn't decoding...
+    packet_vars['flags'] = data[8:10]       
     packet_vars['command_code'] = int(data[10:16], 16)
     packet_vars['ApplicationId'] = int(data[16:24], 16)
     packet_vars['hop-by-hop-identifier'] = data[24:32]
@@ -146,14 +157,3 @@ def decode_avp_packet(data):
 
     return avp_vars, remaining_avps
     
-packet_version = "01"
-##packet_flags = "40" #(Proxyable only for flags header)
-##packet_command_code = 272
-##packet_application_id = 4
-###avp = str("000001074000003b47617465776179536572766963652d352d312e73706a6b746e3030322e3b313438313032373335313b3231373831363935303700")
-##avp = generate_avp(263, 40, "GatewayService-5-1.spjktn002.;1481027351;2178169507", 00)
-##generate_diameter_packet(packet_version, packet_flags, packet_command_code, packet_application_id, avp)
-##
-##
-##
-##

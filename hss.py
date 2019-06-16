@@ -1,7 +1,7 @@
 import sys
 import socket
 import diameter
-
+import binascii
 
 
 # Create a TCP/IP socket
@@ -39,11 +39,11 @@ while True:
                 
 
                 avp = diameter.generate_avp(268, 40, "000007d1")    #Result Code
-                avp = avp + diameter.generate_avp(264, 40, "7067772e6c6f63616c646f6d61696e") #Origin Host
-                avp = avp + diameter.generate_avp(278, 40, "5d00a8a9") #Origin State
-                avp = avp + diameter.generate_avp(257, 40, "00017f000003") #Host-IP-Address
+                avp = avp + diameter.generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii')) #Origin Host
+                avp = avp + diameter.generate_avp(278, 40, "5d00a8a9") #Origin State (Must be incrimented)
+                avp = avp + diameter.generate_avp(257, 40, diameter.ip_to_hex("10.0.0.5")) #Host-IP-Address
                 avp = avp + diameter.generate_avp(266, 40, "00000000") #Vendor-Id
-                avp = avp + diameter.generate_avp(269, 40, "667265654469616d65746572") #Product-Name
+                avp = avp + diameter.generate_avp(269, 40, diameter.string_to_hex("PyHSS")) #Product-Name
                 avp = avp + diameter.generate_avp(267, 40, "000027d9") #Firmware-Revision
                 avp = avp + diameter.generate_avp(260, 40, "000001024000000c010000160000010a4000000c000028af") #Vendor-Specific-Application-ID
                 avp = avp + diameter.generate_avp(258, 40, "ffffffff") #Auth-Application-ID
