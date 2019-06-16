@@ -34,7 +34,8 @@ while True:
                 packet_vars, avps = diameter.decode_diameter_packet(data_sum)
                 print(packet_vars)
                 print('\n\n\nno more data from' + str(client_address))
-                print("Sending response")
+                print("Sending response with Hop-by-Hop Identifier: " + str(packet_vars['hop-by-hop-identifier']))
+                print("Sending response with End-to-End Identifier: " + str(packet_vars['end-to-end-identifier']))
                 
 
                 avp = diameter.generate_avp(268, 40, "000007d1")    #Result Code
@@ -51,7 +52,7 @@ while True:
                 avp = avp + diameter.generate_avp(265, 40, "000032db") #Supported-Vendor-ID (ETSI)
 
                 
-                response = diameter.generate_diameter_packet("01", "00", 257, 0, avp)
+                response = diameter.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)
                 connection.sendall(bytes.fromhex(response))
                 break
             

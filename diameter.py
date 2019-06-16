@@ -53,7 +53,7 @@ def generate_avp(avp_code, avp_flags, avp_content):
 
 
 
-def generate_diameter_packet(packet_version, packet_flags, packet_command_code, packet_application_id, avp):
+def generate_diameter_packet(packet_version, packet_flags, packet_command_code, packet_application_id, packet_hop_by_hop_id, packet_end_to_end_id, avp):
     #Placeholder that is updated later on
     packet_length = 228
     packet_length = format(packet_length,"x").zfill(6)
@@ -71,8 +71,8 @@ def generate_diameter_packet(packet_version, packet_flags, packet_command_code, 
     print("\tPacket Application ID: " + str(packet_application_id))
 
 
-    packet_hop_by_hop_id = str("256aa834")
-    packet_end_to_end_id = str("8a851132")
+    #packet_hop_by_hop_id = str("256aa834")
+    #packet_end_to_end_id = str("8a851132")
 
     
     packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
@@ -86,7 +86,6 @@ def generate_diameter_packet(packet_version, packet_flags, packet_command_code, 
 
 
 
-#data = "010000e4800001010000000053da91a8ad31586400000108400000176873732e6c6f63616c646f6d61696e0000000128400000136c6f63616c646f6d61696e00000001164000000c5d05aad3000001014000000e00017f00000400000000010a4000000c000000000000010d00000014667265654469616d657465720000010b0000000c000027d90000012b4000000c000000000000010440000020000001024000000c010000230000010a4000000c000028af000001024000000cffffffff000001094000000c0000159f000001094000000c000028af000001094000000c000032db"
 
 def decode_diameter_packet(data):
     packet_vars = {}
