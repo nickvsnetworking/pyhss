@@ -48,6 +48,7 @@ while True:
                     #Generate AVPs
                     avp = diameter.generate_avp(268, 40, "000007d1")    #Result Code
                     avp = avp + diameter.generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii')) #Origin Host
+                    avp = avp + diameter.generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii')) #Origin Realm
                     avp = avp + diameter.generate_avp(278, 40, diameter.AVP_278_Origin_State_Incriment(avps)) #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
                     avp = avp + diameter.generate_avp(257, 40, diameter.ip_to_hex("10.0.0.5")) #Host-IP-Address
                     avp = avp + diameter.generate_avp(266, 40, "00000000") #Vendor-Id
