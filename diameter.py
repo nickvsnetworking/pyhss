@@ -156,6 +156,21 @@ def decode_avp_packet(data):
     return avp_vars, remaining_avps
 
 
+def decode_diameter_packet_length(data):
+    packet_vars = {}
+    avps = []
+    print(data)
+    print(type(data))
+    data = data.hex()
+
+    packet_vars['packet_version'] = data[0:2]
+    packet_vars['length'] = int(data[2:8], 16)
+    if packet_vars['packet_version'] == "01":
+        return packet_vars['length']
+    else:
+        return False
+
+
 def AVP_278_Origin_State_Incriment(avps):
     print("Decoding AVP 278 to find Origin State")
     for avp_dicts in avps:

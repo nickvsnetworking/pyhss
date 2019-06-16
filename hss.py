@@ -8,8 +8,10 @@ import binascii
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Bind the socket to the port
 server_address = ('10.0.1.5', 3868)
+
 print('listening')
-sock.bind(server_address) 
+sock.bind(server_address)
+
 
 # Listen for incoming connections
 sock.listen(1)
@@ -24,12 +26,18 @@ while True:
         data_sum = b''
         # Receive the data in small chunks and retransmit it
         while True:
-            data = connection.recv(16)
+            data = connection.recv(32)
+            packet_length = diameter.decode_diameter_packet_length(data)
+            print("Packet Length is: " + str(packet_length))
             print(data)
-            if data:
+            data_sum = data + connection.recv(packet_length - 32)
+
+            if data == 7:
                 data_sum = data_sum + data
                 pass
             else:
+                print("Got All Data: " + str(data_sum))
+                
                 print("Decoding complete packet: " + str(data_sum))
                 packet_vars, avps = diameter.decode_diameter_packet(data_sum)
                 print(packet_vars)
