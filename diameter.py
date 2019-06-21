@@ -3,6 +3,7 @@ import socket
 import sys
 import binascii
 import math
+import uuid
 
 def myround(n, base=4):
     if(n > 0):
@@ -23,9 +24,13 @@ def ip_to_hex(ip):
 
 
 def string_to_hex(string):
-    
     string_bytes = string.encode('utf-8')
     return str(binascii.hexlify(string_bytes), 'ascii')
+
+
+def generate_id(length):
+    length = length * 2
+    return str(uuid.uuid4().hex[:length])
 
 
 def generate_avp(avp_code, avp_flags, avp_content):
@@ -172,7 +177,7 @@ def decode_diameter_packet_length(data):
         return False
 
 
-def AVP_278_Origin_State_Incriment(avps):
+def AVP_278_Origin_State_Incriment(avps):                                               #Capabilities Exchange Answer incriment AVP body
     for avp_dicts in avps:
         if avp_dicts['avp_code'] == 278:
             origin_state_incriment_int = int(avp_dicts['misc_data'], 16)
@@ -183,19 +188,49 @@ def AVP_278_Origin_State_Incriment(avps):
 
 def Answer_257(packet_vars, avps):
     avp = ''
-    avp += generate_avp(268, 40, "000007d1")    #Result Code (DIAMETER_SUCESS (2001))
-    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii')) #Origin Host
-    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii')) #Origin Realm
-    avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps)) #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
-    avp += generate_avp(257, 40, ip_to_hex("10.0.0.5")) #Host-IP-Address
-    avp += generate_avp(266, 40, "00000000") #Vendor-Id
-    avp += generate_avp(269, 40, string_to_hex("PyHSS")) #Product-Name
-    avp += generate_avp(267, 40, "000027d9") #Firmware-Revision
-    avp += generate_avp(260, 40, "000001024000000c010000160000010a4000000c000028af") #Vendor-Specific-Application-ID
-    avp += generate_avp(258, 40, "ffffffff") #Auth-Application-ID
-    avp += generate_avp(265, 40, "0000159f") #Supported-Vendor-ID (3GGP v2)
-    avp += generate_avp(265, 40, "000028af") #Supported-Vendor-ID (3GPP)
-    avp += generate_avp(265, 40, "000032db") #Supported-Vendor-ID (ETSI)
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                          #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+    avp += generate_avp(257, 40, ip_to_hex("10.0.0.5"))                                         #Host-IP-Address
+    avp += generate_avp(266, 40, "00000000")                                                    #Vendor-Id
+    avp += generate_avp(269, 40, string_to_hex("PyHSS"))                                        #Product-Name
+    avp += generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
+    avp += generate_avp(260, 40, "000001024000000c010000160000010a4000000c000028af")            #Vendor-Specific-Application-ID
+    avp += generate_avp(258, 40, "ffffffff")                                                    #Auth-Application-ID
+    avp += generate_avp(265, 40, "0000159f")                                                    #Supported-Vendor-ID (3GGP v2)
+    avp += generate_avp(265, 40, "000028af")                                                    #Supported-Vendor-ID (3GPP)
+    avp += generate_avp(265, 40, "000032db")                                                    #Supported-Vendor-ID (ETSI)
 
-    response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)
+    response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)  #Generate Diameter packet
+    return response
+
+
+def Answer_280(packet_vars, avps):                                                      #Device Watchdog Answer
+    avp = ''
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                          #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+
+    response = generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)  #Generate Diameter packet
+    return response
+    
+def Answer_282(packet_vars, avps):                                                      #Disconnect Peer Request
+    avp = ''
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))        #Origin Realm
+    avp += generate_avp(268, 40, "000007d1")                                           #Result Code (DIAMETER_SUCESS (2001))
+
+    response = generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)  #Generate Diameter packet
+    return response
+
+
+def Request_282():
+    avp = ''
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))        #Origin Realm
+    avp += generate_avp(273, 40, "00000000")                                           #Disconnect-Cause (REBOOTING (0))
+    
+    response = generate_diameter_packet("01", "80", 282, 0, generate_id(4), "3c80c3fb", avp)  #Generate Diameter packet
     return response
