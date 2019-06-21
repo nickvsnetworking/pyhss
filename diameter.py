@@ -253,24 +253,36 @@ def Answer_282(packet_vars, avps):                                              
 
 
 
-def Answer_16777251_318(packet_vars_avps):                                              #3GPP S6a/S6d Authentication Information Request
+def Answer_16777251_318(packet_vars, avps):                                              #3GPP S6a/S6d Authentication Information Answer  (ToDo - Test)
     avp = ''                                                                                    #Initiate empty var AVP 
-    avp += generate_avp(263, 40, str(binascii.hexlify(b'epc.mnc001.mcc001.3gppnetwork.org;1549292539;1080021066'),'ascii'))            #Session-ID
+    avp += generate_avp(263, 40, str(binascii.hexlify(b'kjhfdskjhfdskjhkjhs'),'ascii'))         #Session-ID
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
                                                                                                 #Authentication-Info (10415 / 3GPP)
-    avp += generate_vendor_avp(1413, c0, 10415, "00000586c0000084000028af000005a7c000001c000028af2939fc6ac77bef3e721606bd97ffad05000005a8c0000014000028aff0db1f4ebbea81c0000005a9c000001c000028af16ba4ac4bce7800087467250e06de20e000005aac000002c000028afa02d2cf229567bfcfa2ad18869e03713881027abe0df7d602967823205d7ebfa")  
+    avp += generate_vendor_avp(1413, "c0", 10415, "00000586c0000084000028af000005a7c000001c000028af2939fc6ac77bef3e721606bd97ffad05000005a8c0000014000028aff0db1f4ebbea81c0000005a9c000001c000028af16ba4ac4bce7800087467250e06de20e000005aac000002c000028afa02d2cf229567bfcfa2ad18869e03713881027abe0df7d602967823205d7ebfa")  
     response = generate_diameter_packet("01", "00", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
     return response
 
 
 
-
-
-
+def Answer_16777238_272(packet_vars, avps):                                             #3GPP Gx Credit Control Answer (ToDo - Test)
+    avp = ''                                                                                    #Initiate empty var AVP
+    avp += generate_avp(263, 40, str(binascii.hexlify(b'fdsfds6'),'ascii'))                     #Session-ID (ToDo - Match request Session-ID)
+    avp += generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
+    avp += generate_avp(416, 40, "00000001")                                                    #CC-Request-Type (ToDo - Match request CC-Request-Type)
+    avp += generate_avp(415, 40, "00000000")                                                    #CC-Request-Number (ToDo - Match request CC-Request-Number)
+                                                                                                #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
+    avp += generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
+                                                                                                #Supported-Features(628) (Gx feature list)
+    avp += generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    response = generate_diameter_packet("01", "00", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+    return response
 
 
 
@@ -285,10 +297,11 @@ def Request_282():                                                              
     return response
 
 
-def Request_16777251_318():
+
+def Request_16777251_318():                                                             #3GPP S6a/S6d Authentication Information Request (ToDo - Test)
     avp = ''                                                                                    #Initiate empty var AVP
                                                                                                 #Session-ID
-    avp += generate_avp(263, 40, str(binascii.hexlify(b'epc.mnc001.mcc001.3gppnetwork.org;1549292539;1080021066'),'ascii'))            
+    avp += generate_avp(263, 40, str(binascii.hexlify(b'nickpc.localhost;1549292539;1080021066'),'ascii'))            
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
@@ -298,6 +311,10 @@ def Request_16777251_318():
     avp += generate_avp(1, 40, str(binascii.hexlify(b'001011234567081'),'ascii'))               #Username (IMSI)
                                                                                                 #Requested-EUTRAN-Authentication-Info(1408)
     avp += generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000000")
-    avp += generate_vendor_avp(1407, "c0", 10415, "00f110")                                       #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)
+    avp += generate_vendor_avp(1407, "c0", 10415, "00f110")                                     #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)
     response = generate_diameter_packet("01", "80", 318, 16777251, generate_id(4), generate_id(4), avp)     #Generate Diameter packet
     return response
+
+
+
+def Request_
