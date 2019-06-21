@@ -31,20 +31,20 @@ def string_to_hex(string):
 def generate_avp(avp_code, avp_flags, avp_content):
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
-    print("Generating AVP")
+    #print("Generating AVP")
 
-    print("\tAVP Code:   " + str(avp_code))
+    #print("\tAVP Code:   " + str(avp_code))
     avp_code = format(avp_code,"x").zfill(8)
     
 
-    print("\tAVP Flags:  " + str(avp_flags))
+    #print("\tAVP Flags:  " + str(avp_flags))
 
     avp_length = 1 ##This is a placeholder that's overwritten later
 
     #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
     avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_content)
     avp_length = int(len(avp)/2)
-    print("\tAVP Length: " + str(avp_length))
+    #print("\tAVP Length: " + str(avp_length))
 
     if avp_length % 4  == 0:
         #print("Multiple of 4 - No Padding needed")
@@ -56,10 +56,10 @@ def generate_avp(avp_code, avp_flags, avp_content):
         #print("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
         avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
-    print("\tAVP Padding: " + str(avp_padding))
+    #print("\tAVP Padding: " + str(avp_padding))
     
     avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
-    print("\tAVP Data   :" + str(avp) + '\n')
+    #print("\tAVP Data   :" + str(avp) + '\n')
     return avp
 
     
@@ -71,26 +71,26 @@ def generate_diameter_packet(packet_version, packet_flags, packet_command_code, 
     packet_length = 228
     packet_length = format(packet_length,"x").zfill(6)
 
-    print("Generating Diamter Packet")
+    #print("Generating Diamter Packet")
     
-    print("\tPacket Flags       : " + str(packet_flags))
+    #print("\tPacket Flags       : " + str(packet_flags))
 
     
     packet_command_code = format(packet_command_code,"x").zfill(6)
-    print("\tPacket Command Code: " + str(packet_command_code))
+    #print("\tPacket Command Code: " + str(packet_command_code))
 
     
     packet_application_id = format(packet_application_id,"x").zfill(8)
-    print("\tPacket Application ID: " + str(packet_application_id))
+    #print("\tPacket Application ID: " + str(packet_application_id))
 
     
     packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
     packet_length = int(round(len(packet_hex))/2)
-    print("\tPacket Length: " + str(packet_length))
+    #print("\tPacket Length: " + str(packet_length))
     packet_length = format(packet_length,"x").zfill(6)
     
     packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
-    print("\tPacket Bytes over the wire are: " + packet_hex  + '\n')
+    #print("\tPacket Bytes over the wire are: " + packet_hex  + '\n')
     return packet_hex
 
 
@@ -99,8 +99,8 @@ def generate_diameter_packet(packet_version, packet_flags, packet_command_code, 
 def decode_diameter_packet(data):
     packet_vars = {}
     avps = []
-    print(data)
-    print(type(data))
+    #print(data)
+    #print(type(data))
     data = data.hex()
 
     packet_vars['packet_version'] = data[0:2]
@@ -113,9 +113,10 @@ def decode_diameter_packet(data):
 
     avp_sum = data[40:]
 
-    print("Decoded Diameter values are:" )
+    #print("Decoded Diameter values are:" )
     for keys in packet_vars:
-        print("\t" + keys + "\t" + str(packet_vars[keys]) + "\t(" + str(type(packet_vars[keys])) + ")")
+        #print("\t" + keys + "\t" + str(packet_vars[keys]) + "\t(" + str(type(packet_vars[keys])) + ")")
+        pass
     avp_vars, remaining_avps = decode_avp_packet(avp_sum)
     avps.append(avp_vars)
     #print("Length of remaining AVPs is: " + str(len(remaining_avps)))
@@ -123,7 +124,8 @@ def decode_diameter_packet(data):
         avp_vars, remaining_avps = decode_avp_packet(remaining_avps)
         avps.append(avp_vars)
     else:
-        print("Complete - Decoded all AVPs in Diameter Packet")
+        #print("Complete - Decoded all AVPs in Diameter Packet")
+        pass
 
     return packet_vars, avps
 
@@ -146,9 +148,10 @@ def decode_avp_packet(data):
         avp_vars['padding'] = int( rounded_value - avp_vars['avp_length']) * 2
     avp_vars['padded_data'] = data[(avp_vars['avp_length']*2):(avp_vars['avp_length']*2)+avp_vars['padding']]
 
-    print("Decoded AVP values are:" )
+    #print("Decoded AVP values are:" )
     for keys in avp_vars:
-        print("\t" + keys + "\t" + str(avp_vars[keys]) + "\t" + str(type(avp_vars[keys])))
+        #print("\t" + keys + "\t" + str(avp_vars[keys]) + "\t" + str(type(avp_vars[keys])))
+        pass
 
 
     remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
@@ -159,8 +162,6 @@ def decode_avp_packet(data):
 def decode_diameter_packet_length(data):
     packet_vars = {}
     avps = []
-    print(data)
-    print(type(data))
     data = data.hex()
 
     packet_vars['packet_version'] = data[0:2]
@@ -172,7 +173,6 @@ def decode_diameter_packet_length(data):
 
 
 def AVP_278_Origin_State_Incriment(avps):
-    print("Decoding AVP 278 to find Origin State")
     for avp_dicts in avps:
         if avp_dicts['avp_code'] == 278:
             origin_state_incriment_int = int(avp_dicts['misc_data'], 16)
