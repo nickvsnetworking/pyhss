@@ -179,3 +179,23 @@ def AVP_278_Origin_State_Incriment(avps):
             origin_state_incriment_int = origin_state_incriment_int + 1
             origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
             return origin_state_incriment_hex
+
+
+def Answer_257(packet_vars, avps):
+    avp = ''
+    avp += generate_avp(268, 40, "000007d1")    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii')) #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii')) #Origin Realm
+    avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps)) #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+    avp += generate_avp(257, 40, ip_to_hex("10.0.0.5")) #Host-IP-Address
+    avp += generate_avp(266, 40, "00000000") #Vendor-Id
+    avp += generate_avp(269, 40, string_to_hex("PyHSS")) #Product-Name
+    avp += generate_avp(267, 40, "000027d9") #Firmware-Revision
+    avp += generate_avp(260, 40, "000001024000000c010000160000010a4000000c000028af") #Vendor-Specific-Application-ID
+    avp += generate_avp(258, 40, "ffffffff") #Auth-Application-ID
+    avp += generate_avp(265, 40, "0000159f") #Supported-Vendor-ID (3GGP v2)
+    avp += generate_avp(265, 40, "000028af") #Supported-Vendor-ID (3GPP)
+    avp += generate_avp(265, 40, "000032db") #Supported-Vendor-ID (ETSI)
+
+    response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)
+    return response
