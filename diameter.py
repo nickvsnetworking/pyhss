@@ -36,38 +36,59 @@ def generate_id(length):
 def generate_avp(avp_code, avp_flags, avp_content):
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
-    #print("Generating AVP")
 
-    #print("\tAVP Code:   " + str(avp_code))
+
     avp_code = format(avp_code,"x").zfill(8)
     
-
-    #print("\tAVP Flags:  " + str(avp_flags))
-
     avp_length = 1 ##This is a placeholder that's overwritten later
 
     #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
     avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_content)
     avp_length = int(len(avp)/2)
-    #print("\tAVP Length: " + str(avp_length))
 
-    if avp_length % 4  == 0:
-        #print("Multiple of 4 - No Padding needed")
+    if avp_length % 4  == 0:    #Multiple of 4 - No Padding needed
         avp_padding = ''
-    else:
-        #print("Not multiple of 4 - Padding needed")
+    else:                       #Not multiple of 4 - Padding needed
         rounded_value = myround(avp_length)
         #print("Rounded value is " + str(rounded_value))
         #print("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
         avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
-    #print("\tAVP Padding: " + str(avp_padding))
-    
-    avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
-    #print("\tAVP Data   :" + str(avp) + '\n')
-    return avp
 
     
+    avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
+
+    return avp
+
+def generate_vendor_avp(avp_code, avp_flags, avp_vendorid, avp_content):
+    #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
+    #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
+
+
+    avp_code = format(avp_code,"x").zfill(8)
+    
+    avp_length = 1 ##This is a placeholder that's overwritten later
+
+    avp_vendorid = format(int(avp_vendorid),"x").zfill(8)
+    
+    #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
+    avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_vendorid) + str(avp_content)
+    avp_length = int(len(avp)/2)
+
+    if avp_length % 4  == 0:    #Multiple of 4 - No Padding needed
+        avp_padding = ''
+    else:                       #Not multiple of 4 - Padding needed
+        rounded_value = myround(avp_length)
+        #print("Rounded value is " + str(rounded_value))
+        #print("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
+        avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
+
+
+    
+    avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_vendorid) + str(avp_content) + str(avp_padding)
+
+    return avp
+
 
 
 
@@ -186,8 +207,14 @@ def AVP_278_Origin_State_Incriment(avps):                                       
             return origin_state_incriment_hex
 
 
+
+
+
+
+#### Diameter Answers ####
+
 def Answer_257(packet_vars, avps):
-    avp = ''
+    avp = ''                                                                                    #Initiate empty var AVP 
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
@@ -201,36 +228,76 @@ def Answer_257(packet_vars, avps):
     avp += generate_avp(265, 40, "0000159f")                                                    #Supported-Vendor-ID (3GGP v2)
     avp += generate_avp(265, 40, "000028af")                                                    #Supported-Vendor-ID (3GPP)
     avp += generate_avp(265, 40, "000032db")                                                    #Supported-Vendor-ID (ETSI)
-
-    response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)  #Generate Diameter packet
+    response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
     return response
 
 
 def Answer_280(packet_vars, avps):                                                      #Device Watchdog Answer
-    avp = ''
+    avp = ''                                                                                    #Initiate empty var AVP 
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
     avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                          #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
-
-    response = generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)  #Generate Diameter packet
-    return response
-    
-def Answer_282(packet_vars, avps):                                                      #Disconnect Peer Request
-    avp = ''
-    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
-    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))        #Origin Realm
-    avp += generate_avp(268, 40, "000007d1")                                           #Result Code (DIAMETER_SUCESS (2001))
-
-    response = generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)  #Generate Diameter packet
+    response = generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
     return response
 
 
-def Request_282():
-    avp = ''
-    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
-    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))        #Origin Realm
-    avp += generate_avp(273, 40, "00000000")                                           #Disconnect-Cause (REBOOTING (0))
     
-    response = generate_diameter_packet("01", "80", 282, 0, generate_id(4), "3c80c3fb", avp)  #Generate Diameter packet
+def Answer_282(packet_vars, avps):                                                      #Disconnect Peer Answer
+    avp = ''                                                                                    #Initiate empty var AVP 
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    response = generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
+    return response
+
+
+
+def Answer_16777251_318(packet_vars_avps):                                              #3GPP S6a/S6d Authentication Information Request
+    avp = ''                                                                                    #Initiate empty var AVP 
+    avp += generate_avp(263, 40, str(binascii.hexlify(b'epc.mnc001.mcc001.3gppnetwork.org;1549292539;1080021066'),'ascii'))            #Session-ID
+    avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+    avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+                                                                                                #Authentication-Info (10415 / 3GPP)
+    avp += generate_vendor_avp(1413, c0, 10415, "00000586c0000084000028af000005a7c000001c000028af2939fc6ac77bef3e721606bd97ffad05000005a8c0000014000028aff0db1f4ebbea81c0000005a9c000001c000028af16ba4ac4bce7800087467250e06de20e000005aac000002c000028afa02d2cf229567bfcfa2ad18869e03713881027abe0df7d602967823205d7ebfa")  
+    response = generate_diameter_packet("01", "00", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+    return response
+
+
+
+
+
+
+
+
+
+#### Diameter Requests ####
+
+def Request_282():                                                                      #Disconnect Peer Request
+    avp = ''                                                                                    #Initiate empty var AVP 
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(273, 40, "00000000")                                                    #Disconnect-Cause (REBOOTING (0))
+    response = generate_diameter_packet("01", "80", 282, 0, generate_id(4), generate_id(4), avp)                                                            #Generate Diameter packet
+    return response
+
+
+def Request_16777251_318():
+    avp = ''                                                                                    #Initiate empty var AVP
+                                                                                                #Session-ID
+    avp += generate_avp(263, 40, str(binascii.hexlify(b'epc.mnc001.mcc001.3gppnetwork.org;1549292539;1080021066'),'ascii'))            
+    avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+    avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localhost'),'ascii'))            #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(283, 40, str(binascii.hexlify(b'hss.localdomain'),'ascii'))             #Destination Host
+    avp += generate_avp(293, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+    avp += generate_avp(1, 40, str(binascii.hexlify(b'001011234567081'),'ascii'))               #Username (IMSI)
+                                                                                                #Requested-EUTRAN-Authentication-Info(1408)
+    avp += generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000000")
+    avp += generate_vendor_avp(1407, "c0", 10415, "00f110")                                       #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)
+    response = generate_diameter_packet("01", "80", 318, 16777251, generate_id(4), generate_id(4), avp)     #Generate Diameter packet
     return response
