@@ -299,8 +299,7 @@ def Request_282():                                                              
 
 
 def Request_16777251_318():                                                             #3GPP S6a/S6d Authentication Information Request (ToDo - Test)
-    avp = ''                                                                                    #Initiate empty var AVP
-                                                                                                #Session-ID
+    avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
     avp += generate_avp(263, 40, str(binascii.hexlify(b'nickpc.localhost;1549292539;1080021066'),'ascii'))            
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
@@ -317,4 +316,3 @@ def Request_16777251_318():                                                     
 
 
 
-def Request_

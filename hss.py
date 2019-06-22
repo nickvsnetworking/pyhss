@@ -45,21 +45,24 @@ while True:
                 response = diameter.Answer_257(packet_vars, avps)   #Generate Diameter packet
                 connection.sendall(bytes.fromhex(response))         #Send it
 
+
             #Send Device Watchdog Answer (DWA) to Device Watchdog Requests (DWR)
             elif packet_vars['command_code'] == 280 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
                 print("Received Request with command code 280 (DWR) from " + str(client_address) + "\n\tSending response (DWA)")
                 response = diameter.Answer_280(packet_vars, avps)   #Generate Diameter packet
                 connection.sendall(bytes.fromhex(response))         #Send it
 
-##                time.sleep(1)
-##                request = diameter.Request_16777251_318()
-##                connection.sendall(bytes.fromhex(request))
-
 
             #Send Disconnect Peer Answer (DPA) to Disconnect Peer Request (DPR)
             elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
                 print("Received Request with command code 282 (DPR) from " + str(client_address) + "\n\tSending response (DWA)")
                 response = diameter.Answer_282(packet_vars, avps)   #Generate Diameter packet
+                connection.sendall(bytes.fromhex(response))         #Send it
+
+
+            elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "80":
+                print("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + str(client_address) + "\n\tSending response (AIA)")
+                response = diameter.Answer_16777251_318(packet_vars, avps)   #Generate Diameter packet
                 connection.sendall(bytes.fromhex(response))         #Send it
 
 
