@@ -3,16 +3,14 @@ import socket
 import diameter
 import binascii
 import time
-from threading import Thread
-import signal
-signal.signal(signal.SIGINT, signal.default_int_handler)
-
+from threading import Thread, Lock
 
 
 
 def on_new_client(clientsocket,client_address):
     print('New connection from ' + str(client_address))
     data_sum = b''
+    firstloop = 0
     while True:
         try:
             data = clientsocket.recv(32)
@@ -24,6 +22,7 @@ def on_new_client(clientsocket,client_address):
             packet_length = diameter.decode_diameter_packet_length(data)    #Calculate length of packet from start of packet
             data_sum = data + clientsocket.recv(packet_length - 32)           #Recieve remainder of packet from buffer
             packet_vars, avps = diameter.decode_diameter_packet(data_sum)   #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
+
 
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
@@ -38,6 +37,13 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_280(packet_vars, avps)   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))         #Send it
 
+                origin_host = bytes.fromhex(diameter.get_avp_data(avps, 264)[0]).decode('utf-8')
+                if firstloop == 0 and origin_host == "hss.localdomain":
+                    print("Talking to HSS - Asking HSS for authentication vectors")
+                    request = diameter.Request_16777251_318()
+                    clientsocket.sendall(bytes.fromhex(request))
+                    firstloop = 1
+
 
             #Send Disconnect Peer Answer (DPA) to Disconnect Peer Request (DPR)
             elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
@@ -48,10 +54,22 @@ def on_new_client(clientsocket,client_address):
 
             #S6a Authentication Information Request
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
-                print("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + str(client_address) + "\n\tProxying (AIA)")
+                print("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + str(client_address) + "\n\tGenerating (AIA)")
+                response = diameter.Answer_16777251_318(packet_vars, avps)   #Generate Diameter packet
+                clientsocket.sendall(bytes.fromhex(response))         #Send it
 
-                
-
+            #S6a Authentication Information Response
+            elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251:  #removed  and packet_vars['flags'] == "40"
+                print("Searching for Vectors")
+                for avp in avps:
+                    print(avp['avp_code'])
+                    if int(avp['avp_code']) == 1413:
+                        print("Found vectors")
+                        vectors = avp['misc_data']
+                        file = open("vectors.txt", "w")
+                        file.write(vectors)
+                        file.close()
+                    
 
             else:
                 print("Recieved packet with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
@@ -79,9 +97,9 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Bind the socket to the port
 server_address = ('0.0.0.0', 3868)
 
-print('listening')
-sock.bind(server_address)
 
+sock.bind(server_address)
+print('PyHSS listening on port ' + str(server_address[1]))
 
 # Listen for up to 1 incoming connection
 sock.listen(1)
