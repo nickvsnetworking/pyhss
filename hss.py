@@ -3,7 +3,7 @@ import socket
 import diameter
 import binascii
 import time
-import _thread
+from threading import Thread
 import signal
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
@@ -88,9 +88,11 @@ sock.listen(1)
 
 while True:
     # Wait for a connection
-    print('Waiting for a connection...')
+    print('\nWaiting for a connection...')
     connection, client_address = sock.accept()
-    _thread.start_new_thread(on_new_client,(connection,client_address))
+    t=Thread(target=on_new_client, args=(connection,client_address))
+    t.start()
+    #_thread.start_new_thread(on_new_client,(connection,client_address))
     
 
 
