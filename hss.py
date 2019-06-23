@@ -58,17 +58,23 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_16777251_318(packet_vars, avps)   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))         #Send it
 
-            #S6a Authentication Information Response
+            #S6a Update Location Request
+            elif packet_vars['command_code'] == 316 and packet_vars['ApplicationId'] == 16777251:
+                print("Received Request with command code 316 (3GPP Update Location-Request) from " + str(client_address) + "\n\tGenerating (ULA)")
+                response = diameter.Answer_16777251_316(packet_vars, avps)   #Generate Diameter packet
+                clientsocket.sendall(bytes.fromhex(response))         #Send it
+
+
+            #S6a Authentication Information Response (Stores vectors to text file for later use)
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251:  #removed  and packet_vars['flags'] == "40"
-                print("Searching for Vectors")
                 for avp in avps:
-                    print(avp['avp_code'])
                     if int(avp['avp_code']) == 1413:
-                        print("Found vectors")
+                        print("Found vectors!")
                         vectors = avp['misc_data']
                         file = open("vectors.txt", "w")
                         file.write(vectors)
                         file.close()
+                        print("Authentication vectors updated!")
                     
 
             else:

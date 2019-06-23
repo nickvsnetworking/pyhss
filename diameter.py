@@ -254,8 +254,8 @@ def Answer_280(packet_vars, avps):                                              
     return response
 
 
-    
-def Answer_282(packet_vars, avps):                                                      #Disconnect Peer Answer
+#Disconnect Peer Answer    
+def Answer_282(packet_vars, avps):                                                      
     avp = ''                                                                                    #Initiate empty var AVP 
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))            #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
@@ -264,23 +264,46 @@ def Answer_282(packet_vars, avps):                                              
     return response
 
 
-#3GPP S6a/S6d Authentication Information Answer  (ToDo - Test)
+#3GPP S6a/S6d Update Location Answer
+def Answer_16777251_316(packet_vars, avps):
+    avp = ''                                                                                    #Initiate empty var AVP
+    session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+    avp += generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+    avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+    avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+                                                                                                #Supported-Features
+    avp += generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000020000027680000010000028af00200000")
+    avp += generate_vendor_avp(1406, "co", 10415, "00000000")                                   #ULA Flags
+                                                                                                #Subscription-Data
+    avp += generate_vendor_avp(1406, "co", 10415, "00000590c0000010000028af0000000000000589c0000010000028af0000000000000593c000001e000028af6d6e633030312e6d63633030312e6770727300000000059bc000002c000028af00000204c0000010000028af3b9aca0000000203c0000010000028af3b9aca0000000595c00002b4000028af0000058fc0000010000028af0000000100000594c0000010000028af0000000000000596c00000a4000028af0000058fc0000010000028af00000001000005b0c0000010000028af00000000000001ed4000000f64656661756c740000000597c0000058000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af0000000f0000041780000010000028af000000010000041880000010000028af0000000100000598c0000010000028af0000000100000596c00000a4000028af0000058fc0000010000028af00000002000005b0c0000010000028af00000000000001ed40000010696e7465726e657400000597c0000058000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af0000000f0000041780000010000028af000000010000041880000010000028af0000000100000598c0000010000028af0000000100000596c00000a0000028af0000058fc0000010000028af00000003000005b0c0000010000028af00000002000001ed4000000b696d730000000597c0000058000028af00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af0000000f0000041780000010000028af000000010000041880000010000028af0000000100000598c0000010000028af0000000100000596c00000a0000028af0000058fc0000010000028af00000004000005b0c0000010000028af00000002000001ed4000000b736f730000000597c0000058000028af00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af0000000f0000041780000010000028af000000010000041880000010000028af0000000100000598c0000010000028af000000010000065380000010000028af00000708000006a58000002c000028af000006a680000010000028af00000002000006a78000000d000028af30000000")
+    print("Final AVP set: " + str(avp))
+    response = generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+    print("Final Response: " + str(response))
+    return response
+
+
+
+#3GPP S6a/S6d Authentication Information Answer  (ToDo - Generate Vectors dynamically)
 def Answer_16777251_318(packet_vars, avps):                                              
     avp = ''                                                                                    #Initiate empty var AVP
     session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
     avp += generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
                                                                                                 #Authentication-Info (10415 / 3GPP)
-    vectors_file = open("vectors.txt", "r")
+    vectors_file = open("vectors.txt", "r")                                                     #Load pregenerated authentication vectors from file
     for lines in vectors_file:
         print("Line: " )
         print(lines)
     vectors_file.close()
     avp += generate_vendor_avp(1413, "c0", 10415, lines)  
-    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))            #Origin Host
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+    
     response = generate_diameter_packet("01", "00", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
     return response
 
