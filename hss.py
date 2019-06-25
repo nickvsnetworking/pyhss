@@ -30,6 +30,12 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_257(packet_vars, avps)   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))         #Send it
 
+            #Send Credit Control Answer
+            elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
+                print("Received Request with command code 272 (3GPP Credit-Control-Request) from " + str(client_address) + "\n\tGenerating (CCA)")
+                response = diameter.Answer_16777251_272(packet_vars, avps)   #Generate Diameter packet
+                clientsocket.sendall(bytes.fromhex(response))         #Send it
+
 
             #Send Device Watchdog Answer (DWA) to Device Watchdog Requests (DWR)
             elif packet_vars['command_code'] == 280 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
@@ -42,7 +48,7 @@ def on_new_client(clientsocket,client_address):
                     print("Talking to HSS - Asking HSS for authentication vectors")
                     request = diameter.Request_16777251_318()
                     clientsocket.sendall(bytes.fromhex(request))
-                    firstloop = 1
+                    
 
 
             #Send Disconnect Peer Answer (DPA) to Disconnect Peer Request (DPR)
@@ -69,6 +75,7 @@ def on_new_client(clientsocket,client_address):
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251:  #removed  and packet_vars['flags'] == "40"
                 for avp in avps:
                     if int(avp['avp_code']) == 1413:
+                        firstloop = 1
                         print("Found vectors!")
                         vectors = avp['misc_data']
                         file = open("vectors.txt", "w")
