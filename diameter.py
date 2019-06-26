@@ -308,21 +308,25 @@ def Answer_16777251_318(packet_vars, avps):
     return response
 
 
-#3GPP Gx Credit Control Answer (ToDo - Test)
-def Answer_16777238_272(packet_vars, avps):                                             
+#3GPP Gx Credit Control Answer
+def Answer_16777238_272(packet_vars, avps):
+    CC-Request-Type = get_avp_data(avps, 416)[0]
+    print("CC Request Type is: " + str(CC-Request-Type))
     avp = ''                                                                                    #Initiate empty var AVP
-    avp += generate_avp(263, 40, str(binascii.hexlify(b''),'ascii'))                     #Session-ID (ToDo - Match request Session-ID)
+    session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+    avp += generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
     avp += generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
-    avp += generate_avp(416, 40, "00000001")                                                    #CC-Request-Type (ToDo - Match request CC-Request-Type)
+    avp += generate_avp(416, 40, str(binascii.hexlify(str.encode(str(CC-Request-Type))),'ascii'))                                                    #CC-Request-Type (ToDo - Check dyanmically generating)
     avp += generate_avp(415, 40, "00000000")                                                    #CC-Request-Number (ToDo - Match request CC-Request-Number)
-                                                                                                #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
-    avp += generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
-                                                                                                #Supported-Features(628) (Gx feature list)
-    avp += generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
-    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))            #Origin Host
+    if int(CC-Request-Type) == 1:
+                                                                                                    #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
+        avp += generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
+                                                                                                    #Supported-Features(628) (Gx feature list)
+        avp += generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'pcrf.localdomain'),'ascii'))            #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
-    response = generate_diameter_packet("01", "00", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+    response = generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
     return response
 
 
