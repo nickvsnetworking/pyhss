@@ -53,4 +53,4 @@ print(kasme_)
 #9999                                AMF
 #RAND 322708B8 5C7F31FC 0012F120 44EDBFDE
 #SQN 3660
-
+#Response = 
