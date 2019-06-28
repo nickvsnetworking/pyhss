@@ -1,4 +1,7 @@
 from milenage import Milenage
+import binascii
+import sys
+
 
 ##Derive OPc from OP
 # Inputs
@@ -7,13 +10,15 @@ op = b'\xcd\xc2\x02\xd5\x12> \xf6+mgj\xc7,\xb3\x18'
 sqn = b'\xff\x9b\xb4\xd0\xb6\x07'
 amf = b'\xb9\xb9'
 
+
+
 # Outputs
 opc = b'\xcdc\xcbq\x95J\x9fNH\xa5\x99N7\xa0+\xaf'
 mac_a = b'\x4a\x9f\xfa\xc3\x54\xdf\xaf\xb3'
 mac_s = b'\x01\xcf\xaf\x9e\xc4\xe8\x71\xe9'
 
-print("Derrived OPc is:")
-print(Milenage.generate_opc(k, op))
+
+#print(binascii.b2a_hex(opc_gen))
 
 
 
@@ -31,15 +36,19 @@ kasme = (b'\x87H\xc1\xc0\xa2\x82o\xa4\x05\xb1\xe2~\xa1\x04CJ\xe5V\xc7e'
          b'\xe8\xf0a\xeb\xdb\x8a\xe2\x86\xc4F\x16\xc2')
 
 crypto = Milenage(amf)
-print(crypto.generate_opc(key, op), op_c)
+#print(crypto.generate_opc(key, op), op_c)
+
+
+
 
 (rand_, xres_, autn_, kasme_) = crypto.generate_eutran_vector(key, op_c, sqn, plmn)
 
-print(rand_)
-print(xres_)
-print(autn_)
-print(kasme_)
+print("rand: " + binascii.hexlify(rand_).decode('utf-8'))
+print("xres: " + binascii.hexlify(xres_).decode('utf-8'))
+print("autn: " + binascii.hexlify(autn_).decode('utf-8'))
+print("kasme: " + binascii.hexlify(kasme_).decode('utf-8'))
 
+sys.exit()
 
 #This all works.
 #The answer as to why their keys are 16 bits long and ours are 32 is something to do with the encoding
@@ -48,9 +57,25 @@ print(kasme_)
 #Line 96 (js)  is base64ToHex(editingSubscriber.lte.auth_opc)
 
 #Real values
-#AC71EC5E1371AB89D6E2A427B6D7E9AD    K
-#BA10AB971166F9B28B8B73AE5DF1BACA    OP
+key = b'AC71EC5E1371AB89D6E2A427B6D7E9AD'
+key = binascii.unhexlify(key)
+op = b'BA10AB971166F9B28B8B73AE5DF1BACA'
+op = binascii.unhexlify(op)
 #9999                                AMF
 #RAND 322708B8 5C7F31FC 0012F120 44EDBFDE
-#SQN 3660
-#Response = 
+sqn = 3660
+#XRES = dba298fe58effb09
+
+print("Derrived OPc is:")
+op_c = Milenage.generate_opc(key, op)
+print(op_c)
+
+
+(rand_, xres_, autn_, kasme_) = crypto.generate_eutran_vector(key, op_c, sqn, plmn)
+print("Rand: " )
+
+print(xres_)
+print(autn_)
+print(kasme_)
+#AUTN = 37f6c414c0b799994a4fac34fb93bd42
+#KASME = b5805bcaabe35aafebe1cc6eb53341b96128d1fd6e555a8cc343214233dcfbb0
