@@ -1,7 +1,7 @@
 # PyHSS
 
 Python Home Subscriber Server implementing basic Diameter / 3GPP S6a Interfaces.
-![Shelly the PyHSS Snake](https://gitlab.com/nickvsnetworking/pyhss/raw/master/lib/shelly.png | width=100)
+![Shelly the PyHSS Snake](https://gitlab.com/nickvsnetworking/pyhss/raw/master/lib/shelly.png)
 
 ## Introduction
 PyHSS is a simple Home Subscriber Server (HSS) implementation written in Python.
