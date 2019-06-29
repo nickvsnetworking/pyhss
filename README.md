@@ -12,6 +12,8 @@ HSS communication is via the [DIAMETER](https://tools.ietf.org/html/rfc6733) pro
  * Capabilities Exchange Answer (CEA)
  * Device Watchdog Answer (DWA)
  * Disconnect Peer Answer (DPA)
+ * 3GPP Authentication Information Answer (AIA)
+ * 3GPP Update Location Answer (ULA)
 
  
 ## Structure

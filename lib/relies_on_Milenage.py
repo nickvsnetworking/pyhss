@@ -8,6 +8,7 @@ sqn = 3660
 op = b'BA10AB971166F9B28B8B73AE5DF1BACA'
 op = binascii.unhexlify(op)
 amf = binascii.unhexlify(b'9999')
+
 plmn = b'\x05\xf5\x39'      #505 93
 op_c = Milenage.generate_opc(key, op)
 

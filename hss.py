@@ -4,7 +4,7 @@ import diameter
 import binascii
 import time
 from threading import Thread, Lock
-
+import os
 
 
 def on_new_client(clientsocket,client_address):
@@ -43,13 +43,6 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_280(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
-                origin_host = bytes.fromhex(diameter.get_avp_data(avps, 264)[0]).decode('utf-8')
-                if firstloop == 0 and origin_host == "hss.localdomain":
-                    print("Talking to HSS - Asking HSS for authentication vectors")
-                    request = diameter.Request_16777251_318()
-                    clientsocket.sendall(bytes.fromhex(request))
-                    
-
 
             #Send Disconnect Peer Answer (DPA) to Disconnect Peer Request (DPR)
             elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
@@ -70,19 +63,6 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_16777251_316(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
-
-            #S6a Authentication Information Response (Stores vectors to text file for later use)
-            elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251:  #removed  and packet_vars['flags'] == "40"
-                for avp in avps:
-                    if int(avp['avp_code']) == 1413:        #If it contains the Vectors
-                        firstloop = 1                       #Set firstloop = 1 to not request additonal vectors
-                        print("Found vectors!")
-                        vectors = avp['misc_data']
-                        file = open("vectors.txt", "w")     #Open text file
-                        file.write(vectors)                 #Write vectors to it
-                        file.close()
-                        print("Authentication vectors updated!")
-                    
 
             else:
                 print("Recieved packet with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))

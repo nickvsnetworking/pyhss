@@ -254,10 +254,10 @@ class Milenage(BaseLTEAuthAlgo):
         Returns:
             (bytes) 128 random bits
         """
-        return bytearray(b"2\'\x08\xb8\\\x7f1\xfc\x00\x12\xf1 D\xed\xbf\xde")
+        #return bytearray(b"2\'\x08\xb8\\\x7f1\xfc\x00\x12\xf1 D\xed\xbf\xde")
         #Modified to confirm the result I'm getting is what I'm expecting by removing the random element...
         #RAND 322708B8 5C7F31FC 0012F120 44EDBFDE
-        #return bytearray.fromhex('{:032x}'.format(random.getrandbits(128)))
+        return bytearray.fromhex('{:032x}'.format(random.getrandbits(128)))
 
     @classmethod
     def generate_opc(cls, key, op):
