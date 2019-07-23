@@ -32,12 +32,13 @@ To implement a new response is simply a matter of adding the *packet_vars['comma
 You can then access each of it's AVPs from the *avp* array, and the packet variables from the dictionary called *packet_vars*.
 To add a new response you'd edit *diameter.py* and add a new function called Answer_YOURCOMMANDCODE, and build the AVPs and packet variables as required.
 
-##Dependancies 
-The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module, which can be installed with ```
+## Dependancies 
+The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module, which can be installed with 
+```
 pip3 install crypto
 ```
 
-The EUTRAN Authentication Vector generator is taken from Facebook Magma.
+The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
 
 ## About
 This was written to fix a problem (VoLTE implementation on an EPC with a HSS that couldn't be easily customized), but will hopefully be of some use to the community.
