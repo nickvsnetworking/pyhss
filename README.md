@@ -24,6 +24,8 @@ It relies on the *diameter.py* file to:
  
 The *subscribers.csv* file contains the IMSI and Crypto values of each subscriber.
 
+The IP address in AVP 257 (Host-IP-Address) is based upon the name of the machine in /etc/hosts on Linux enviroments. You can statically set this if required.
+
  
 ## Extending
 To implement a new response is simply a matter of adding the *packet_vars['command_code']* and *packet_vars['ApplicationId']* to the if/elif loop in *hss.py*.
@@ -31,7 +33,9 @@ You can then access each of it's AVPs from the *avp* array, and the packet varia
 To add a new response you'd edit *diameter.py* and add a new function called Answer_YOURCOMMANDCODE, and build the AVPs and packet variables as required.
 
 ##Dependancies 
-The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module.
+The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module, which can be installed with ```
+pip3 install crypto
+```
 
 The EUTRAN Authentication Vector generator is taken from Facebook Magma.
 

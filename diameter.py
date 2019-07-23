@@ -225,8 +225,10 @@ def Answer_257(packet_vars, avps):
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
-    avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                          #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
-    avp += generate_avp(257, 40, ip_to_hex("10.0.0.5"))                                         #Host-IP-Address
+    for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
+        if avps_to_check['avp_code'] == 278:                                
+            avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+    avp += generate_avp(257, 40, ip_to_hex(socket.gethostbyname(socket.gethostname())))         #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
     avp += generate_avp(266, 40, "00000000")                                                    #Vendor-Id
     avp += generate_avp(269, 40, string_to_hex("PyHSS"))                                        #Product-Name
     avp += generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
@@ -236,7 +238,12 @@ def Answer_257(packet_vars, avps):
     avp += generate_avp(265, 40, "000028af")                                                    #Supported-Vendor-ID (3GPP)
     avp += generate_avp(265, 40, "000032db")                                                    #Supported-Vendor-ID (ETSI)
     response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
+    print("Debug Response:" )
+    print(response)
+    print("\n")
+    
     return response
+
 
 
 #Device Watchdog Answer
@@ -245,7 +252,9 @@ def Answer_280(packet_vars, avps):
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))            #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
-    avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                          #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+    for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
+        if avps_to_check['avp_code'] == 278:                                
+            avp += generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
     response = generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
     return response
 
