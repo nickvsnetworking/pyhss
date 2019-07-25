@@ -232,7 +232,8 @@ def Answer_257(packet_vars, avps):
     avp += generate_avp(266, 40, "00000000")                                                    #Vendor-Id
     avp += generate_avp(269, 40, string_to_hex("PyHSS"))                                        #Product-Name
     avp += generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
-    avp += generate_avp(260, 40, "000001024000000c01000023" + "000001024000000c01000016" + "0000010a4000000c000028af")            #Vendor-Specific-Application-ID (Gx / S6a & Vendor ID)
+    avp += generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+    avp += generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx) 
     avp += generate_avp(258, 40, "ffffffff")                                                    #Auth-Application-ID
     avp += generate_avp(265, 40, "0000159f")                                                    #Supported-Vendor-ID (3GGP v2)
     avp += generate_avp(265, 40, "000028af")                                                    #Supported-Vendor-ID (3GPP)
