@@ -354,7 +354,26 @@ def Answer_16777238_272(packet_vars, avps):
     return response
 
 
-
+#3GPP Cx Multimedia Authentication Answer
+def Answer_16777216_303(packet_vars, avps):
+    avp = ''                                                                                    #Initiate empty var AVP
+    session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+    avp += generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+    avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID
+    avp += generate_avp(277, 40, "00000001")                                                    #Auth Session State
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Host
+    avp += generate_avp(293, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+    avp += generate_avp(1, 40, str(binascii.hexlify(b'001011234567081@ims.mnc001.mcc001.3gppnetwork.org'),'ascii'))               #Username
+    avp += generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
+    avp += generate_vendor_avp(612, "c0", 10415, "00000260c000001c000028af4469676573742d414b4176312d4d4435")    #3GPP-SIP-Auth-Data-Item
+    avp += generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
+    avp += generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(b'PyHSS'),'ascii'))       #Server Name
+    response = generate_diameter_packet("01", "c0", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+    return response
+    
+    
 #### Diameter Requests ####
 
 #Disconnect Peer Request
@@ -367,7 +386,7 @@ def Request_282():
     return response
 
 
-#3GPP S6a/S6d Authentication Information Request (ToDo - Test)
+#3GPP S6a/S6d Authentication Information Request
 def Request_16777251_318():                                                             
     avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
     sessionid = 'nickpc.localdomain;' + generate_id(5) + ';1;app_s6a'              #Session state generate
