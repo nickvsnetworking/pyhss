@@ -364,14 +364,28 @@ def Answer_16777216_303(packet_vars, avps):
     avp = ''                                                                                    #Initiate empty var AVP
     session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
     avp += generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
-    avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID
+    avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
     avp += generate_avp(277, 40, "00000001")                                                    #Auth Session State
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(1, 40, str(binascii.hexlify(b'001011234567081@ims.mnc001.mcc001.3gppnetwork.org'),'ascii'))               #Username
     avp += generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
-    avp += generate_vendor_avp(612, "c0", 10415, "00000260c000001c000028af4469676573742d414b4176312d4d443500000261c000002c000028af6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa14900000262c0000014000028af3344da564b8f010f00000271c000001c000028afe363a749ce898e2d76dc7767388d6c8400000272c000001c000028af2f1ebab3d3b2bfb052784f5fb3db7299")    #3GPP-SIP-Auth-Data-Item
+
+    #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
+    ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
+    avp_SIP_Authentication_Scheme = generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
+    ##AVP Code: 609 3GPP-SIP-Authenticate
+    avp_SIP_Authenticate = generate_vendor_avp(609, "c0", 10415, '6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa149')
+    ##AVP Code: 610 3GPP-SIP-Authorization
+    avp_SIP_Authorization = generate_vendor_avp(610, "c0", 10415, '3344da564b8f010f')
+    ##AVP Code: 625 Confidentiality-Key
+    avp_Confidentialility_Key = generate_vendor_avp(625, "c0", 10415, 'e363a749ce898e2d76dc7767388d6c84')
+    ##AVP Code: 626 Integrity-Key
+    avp_Integrity_Key = generate_vendor_avp(626, "c0", 10415, '2f1ebab3d3b2bfb052784f5fb3db7299')
+    auth_data_item = avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
+    avp += generate_vendor_avp(612, "c0", 10415, auth_data_item)    #3GPP-SIP-Auth-Data-Item
+    
     avp += generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
 
     experimental_avp = ''                                                                       #New empty avp for storing avp 297 contents
