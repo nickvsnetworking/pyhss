@@ -30,9 +30,9 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_257(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
-                time.sleep(1)
-                request = diameter.Request_16777251_318()
-                clientsocket.sendall(bytes.fromhex(request))                       #Send it
+##                time.sleep(1)
+##                request = diameter.Request_16777251_318()
+##                clientsocket.sendall(bytes.fromhex(request))                       #Send it
 
 
             #Send Credit Control Answer
@@ -70,8 +70,9 @@ def on_new_client(clientsocket,client_address):
 
             #Cx Multimedia Authentication Request
             elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
-                print("Received Request with command code 316 (3GPP Update Location-Request) from " + str(client_address) + "\n\tGenerating (ULA)")
+                print("Received Request with command code 303 (3GPP Multimedia Authentication Request) from " + str(client_address) + "\n\tGenerating (ULA)")
                 response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
+                print(response)
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
 

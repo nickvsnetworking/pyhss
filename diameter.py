@@ -216,6 +216,10 @@ def GetSubscriberInfo(imsi):
     return subscriber_details
 
 
+
+
+
+
 #### Diameter Answers ####
 
 
@@ -233,11 +237,12 @@ def Answer_257(packet_vars, avps):
     avp += generate_avp(269, 40, string_to_hex("PyHSS"))                                        #Product-Name
     avp += generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
     avp += generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
-    avp += generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx) 
-    avp += generate_avp(258, 40, "ffffffff")                                                    #Auth-Application-ID
-    avp += generate_avp(265, 40, "0000159f")                                                    #Supported-Vendor-ID (3GGP v2)
-    avp += generate_avp(265, 40, "000028af")                                                    #Supported-Vendor-ID (3GPP)
-    avp += generate_avp(265, 40, "000032db")                                                    #Supported-Vendor-ID (ETSI)
+    avp += generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
+    avp += generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
+    avp += generate_avp(258, 40, format(int(4294967295),"x").zfill(8))                          #Auth-Application-ID Relay
+    avp += generate_avp(265, 40, format(int(5535),"x").zfill(8))                               #Supported-Vendor-ID (3GGP v2)
+    avp += generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
+    avp += generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
     response = generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
     print("Debug Response:" )
     print(response)
@@ -363,14 +368,18 @@ def Answer_16777216_303(packet_vars, avps):
     avp += generate_avp(277, 40, "00000001")                                                    #Auth Session State
     avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
-    avp += generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Host
-    avp += generate_avp(293, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(1, 40, str(binascii.hexlify(b'001011234567081@ims.mnc001.mcc001.3gppnetwork.org'),'ascii'))               #Username
     avp += generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
-    avp += generate_vendor_avp(612, "c0", 10415, "00000260c000001c000028af4469676573742d414b4176312d4d4435")    #3GPP-SIP-Auth-Data-Item
+    avp += generate_vendor_avp(612, "c0", 10415, "00000260c000001c000028af4469676573742d414b4176312d4d443500000261c000002c000028af6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa14900000262c0000014000028af3344da564b8f010f00000271c000001c000028afe363a749ce898e2d76dc7767388d6c8400000272c000001c000028af2f1ebab3d3b2bfb052784f5fb3db7299")    #3GPP-SIP-Auth-Data-Item
     avp += generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
-    avp += generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(b'PyHSS'),'ascii'))       #Server Name
-    response = generate_diameter_packet("01", "c0", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+
+    experimental_avp = ''                                                                       #New empty avp for storing avp 297 contents
+    experimental_avp = experimental_avp + generate_vendor_avp(266, 40, 10415, '')               #3GPP Vendor ID
+    experimental_avp = experimental_avp + generate_avp(298, 40, "000007d1")                     #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+    avp += generate_avp(297, 40, experimental_avp)                                              #Expirmental-Result
+    
+    response = generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
     return response
     
     
