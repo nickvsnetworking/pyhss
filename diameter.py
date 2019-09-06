@@ -34,6 +34,11 @@ def string_to_hex(string):
     string_bytes = string.encode('utf-8')
     return str(binascii.hexlify(string_bytes), 'ascii')
 
+#Converts int to hex padded to required number of bytes
+def int_to_hex(input_int, output_bytes):
+    
+    return format(input_int,"x").zfill(output_bytes*2)
+
 #Generates a valid random ID to use
 def generate_id(length):
     length = length * 2
@@ -285,7 +290,41 @@ def Answer_16777251_316(packet_vars, avps):
     avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
     avp += generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
-    avp += generate_vendor_avp(1400, "c0", 10415, "00000592c0000010000028af0000002000000590c0000010000028af0000000000000589c0000010000028af000000020000059bc000002c000028af00000204c0000010000028af3e80000000000203c0000010000028af3e80000000000595c0000158000028af0000058fc0000010000028af0000000100000594c0000010000028af0000000000000596c0000094000028af0000058fc0000010000028af00000001000005b0c0000010000028af00000002000001ed40000010696e7465726e657400000597c0000058000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af0000000100000596c0000098000028af0000058fc0000010000028af00000002000005b0c0000010000028af00000002000001ed4000001374656c737472612e7761700000000597c0000058000028af00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")                                   #Subscription-Data
+
+    #Subscription Data:
+    subscription_data = ''
+    subscription_data += generate_vendor_avp(1426, "c0", 10415, "00000020")                     #Access Restriction Data
+    subscription_data += generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
+    subscription_data += generate_vendor_avp(1417, "c0", 10415, "00000002")                     #Network-Access-Mode (ONLY_PACKET)
+
+    #AMBR is a sub-AVP of Subscription Data
+    AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+    AMBR += generate_vendor_avp(516, "c0", 10415, int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
+    AMBR += generate_vendor_avp(515, "c0", 10415, int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
+    subscription_data += generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
+
+    #APN Configuration Profile is a sub AVP of Subscription Data
+    APN_Configuration_Profile = ''
+    APN_Configuration_Profile += generate_vendor_avp(1423, "c0", 10415, int_to_hex(1, 4))     #Context Identifier
+    APN_Configuration_Profile += generate_vendor_avp(1428, "c0", 10415, int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
+
+    #Sub AVPs of APN Configuration Profile
+    AVP_context_identifer = generate_vendor_avp(1423, "c0", 10415, int_to_hex(1, 4))
+    AVP_PDN_type = generate_vendor_avp(1456, "c0", 10415, int_to_hex(2, 4))
+    AVP_Service_Selection = generate_avp(493, "40",  string_to_hex('internet'))
+    
+    AVP_QoS = generate_vendor_avp(1028, "c0", 10415, int_to_hex(9, 4))
+
+    AVP_Priority_Level = generate_vendor_avp(1046, "80", 10415, int_to_hex(8, 4))
+    AVP_Preemption_Capability = generate_vendor_avp(1047, "80", 10415, int_to_hex(1, 4))
+    AVP_Preemption_Vulnerability = generate_vendor_avp(1048, "c0", 10415, int_to_hex(1, 4))
+    AVP_ARP = generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+    AVP_EPS_Subscribed_QoS_Profile = generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
+    APN_Configuration = generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
+    
+    subscription_data += generate_vendor_avp(1429, "c0", 10415, AVP_context_identifer + generate_vendor_avp(1428, "c0", 10415, int_to_hex(0, 4)) + APN_Configuration)
+    
+    avp += generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
     avp += generate_vendor_avp(1619, "80", 10415, "000002d0")                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID    
                                                                                                 #Supported-Features
