@@ -44,7 +44,9 @@ def generate_id(length):
     length = length * 2
     return str(uuid.uuid4().hex[:length])
 
-
+#Generates a random unsigned 32-bit integer field (in network byte order) for use in Hop-by-Hop Identifiers and End-to-End Identifiers
+def generate32bitint():
+    return generate_id(4)
 
 #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
 #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -438,6 +440,34 @@ def Answer_16777216_303(packet_vars, avps):
     
 #### Diameter Requests ####
 
+#Capabilities Exchange Request
+def Request_257():
+    avp = ''
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    avp += generate_avp(257, 40, ip_to_hex(socket.gethostbyname(socket.gethostname())))         #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
+    avp += generate_avp(266, 40, "00000000")                                                    #Vendor-Id
+    avp += generate_avp(269, 40, string_to_hex("PyHSS"))                                        #Product-Name
+    avp += generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
+    avp += generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+    avp += generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
+    avp += generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
+    avp += generate_avp(258, 40, format(int(4294967295),"x").zfill(8))                          #Auth-Application-ID Relay
+    avp += generate_avp(265, 40, format(int(5535),"x").zfill(8))                               #Supported-Vendor-ID (3GGP v2)
+    avp += generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
+    avp += generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
+    response = generate_diameter_packet("01", "80", 257, 0, generate_id(4), generate_id(4), avp)            #Generate Diameter packet
+    return response
+
+#Device Watchdog Request
+def Request_280():
+    avp = ''
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
+    avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
+    response = generate_diameter_packet("01", "80", 280, 0, generate_id(4), generate_id(4), avp)#Generate Diameter packet
+    return response
+
+    
 #Disconnect Peer Request
 def Request_282():                                                                      
     avp = ''                                                                                    #Initiate empty var AVP 
@@ -451,12 +481,12 @@ def Request_282():
 #3GPP S6a/S6d Authentication Information Request
 def Request_16777251_318():                                                             
     avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-    sessionid = 'nickpc.localdomain;' + generate_id(5) + ';1;app_s6a'              #Session state generate
+    sessionid = 'nickpc.localdomain;' + generate_id(5) + ';1;app_s6a'                           #Session state generate
     avp += generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))            #Origin Host
+    avp += generate_avp(264, 40, str(binascii.hexlify(b'nickpc.localdomain'),'ascii'))          #Origin Host
     avp += generate_avp(296, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Origin Realm
-    avp += generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))             #Destination Host
+    avp += generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Host
     avp += generate_avp(1, 40, str(binascii.hexlify(b'505931111111116'),'ascii'))               #Username (IMSI)
     avp += generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
     avp += generate_vendor_avp(1407, "c0", 10415, "05f539")                                     #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)    
