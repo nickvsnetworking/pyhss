@@ -49,8 +49,9 @@ while True:
         print("Sending Device Watchdog Request to " + str(hostname))
         SendRequest(diameter.Request_280())
     elif request == "AIR":
+        imsi = str(input("IMSI:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_318())
+        SendRequest(diameter.Request_16777251_318(imsi))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:

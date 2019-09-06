@@ -206,6 +206,7 @@ def AVP_278_Origin_State_Incriment(avps):                                       
             origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
             return origin_state_incriment_hex
 
+
 #Loads a subscriber's information from CSV file into dict for referencing
 def GetSubscriberInfo(imsi):
     subscriber_details = {}
@@ -226,8 +227,9 @@ def GetSubscriberInfo(imsi):
                 return
             subscriber_details['AMF'] = subscribers[3].rstrip()
             subscriber_details['SQN'] = subscribers[4].rstrip()
+            return subscriber_details
     subs_file.close()
-    return subscriber_details
+    raise ValueError("Subscriber not present in CSV")
 
 
 
@@ -240,7 +242,7 @@ def GetSubscriberInfo(imsi):
 #Capabilities Exchange Answer
 def Answer_257(packet_vars, avps):
     avp = ''                                                                                    #Initiate empty var AVP 
-    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(268, 40, int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
     for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -269,7 +271,7 @@ def Answer_257(packet_vars, avps):
 #Device Watchdog Answer
 def Answer_280(packet_vars, avps):                                                      
     avp = ''                                                                                    #Initiate empty var AVP 
-    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(268, 40, int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
     for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -296,7 +298,7 @@ def Answer_16777251_316(packet_vars, avps):
     avp += generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
-    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(268, 40, int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
     avp += generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
 
@@ -351,7 +353,21 @@ def Answer_16777251_318(packet_vars, avps):
     imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Covert IMSI
     plmn = get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
-    subscriber_details = GetSubscriberInfo(imsi)                                                #Get subscriber details
+    try:
+        subscriber_details = GetSubscriberInfo(imsi)                                                #Get subscriber details
+    except:
+        #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+        avp = ''
+        session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+        avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
+        avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
+        avp += generate_avp(268, 40, int_to_hex(5001, 4))                                           #Result Code (DIAMETER_ERROR_USER_UNKNOWN (5001))
+        avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+        avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+        response = generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+    
     key = subscriber_details['K']                                                               #Format keys
     op = subscriber_details['OP']                                                               #Format keys
     amf = subscriber_details['AMF']                                                             #Format keys
@@ -367,12 +383,12 @@ def Answer_16777251_318(packet_vars, avps):
     eutranvector = generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
     
     avp = ''                                                                                    #Initiate empty var AVP
-    session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-
+    session_id = get_avp_data(avps, 263)[0]                                                     #Get Session-ID
     avp += generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
     avp += generate_vendor_avp(1413, "c0", 10415, eutranvector)                                 #Authentication-Info (3GPP)                                      
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
-    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(268, 40, int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
     
@@ -402,7 +418,7 @@ def Answer_16777238_272(packet_vars, avps):
         avp += generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
-    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(268, 40, int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
     response = generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
     return response
 
@@ -416,7 +432,7 @@ def Answer_16777216_303(packet_vars, avps):
     avp += generate_avp(277, 40, "00000001")                                                    #Auth Session State
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
-    avp += generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+    avp += generate_avp(268, 40, int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
     avp += generate_avp(1, 40, str(binascii.hexlify(b'001011234567081@ims.mnc001.mcc001.3gppnetwork.org'),'ascii'))               #Username
     avp += generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
 
@@ -486,7 +502,7 @@ def Request_282():
 
 
 #3GPP S6a/S6d Authentication Information Request
-def Request_16777251_318():                                                             
+def Request_16777251_318(imsi):                                                             
     avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
     sessionid = 'nickpc.localdomain;' + generate_id(5) + ';1;app_s6a'                           #Session state generate
     avp += generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
@@ -494,7 +510,7 @@ def Request_16777251_318():
     avp += generate_avp(264, 40, OriginHost)                                                    #Origin Host
     avp += generate_avp(296, 40, OriginRealm)                                                   #Origin Realm
     avp += generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Host
-    avp += generate_avp(1, 40, str(binascii.hexlify(b'505931111111116'),'ascii'))               #Username (IMSI)
+    avp += generate_avp(1, 40, string_to_hex(imsi))                                             #Username (IMSI)
     avp += generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
     avp += generate_vendor_avp(1407, "c0", 10415, "05f539")                                     #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)    
     avp += generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
