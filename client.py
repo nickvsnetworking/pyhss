@@ -6,9 +6,9 @@ import diameter
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
 hostname = "localhost"
-domain = "localdomain"
+realm = "localdomain"
 
-supported_calls = ["CER", "DWR"]
+supported_calls = ["CER", "DWR", "AIR"]
 
 
 clientsocket = socket.socket()
@@ -39,7 +39,7 @@ def SendRequest(request):
         
 
 while True:
-    print("\n\nQuerying Diameter peer " + str(hostname) + " of domain " + str(domain))
+    print("\n\nQuerying Diameter peer " + str(hostname) + " of domain " + str(realm))
     request = input("Enter request type:\t")
 
     if request == "CER":
@@ -48,6 +48,9 @@ while True:
     elif request == "DWR":
         print("Sending Device Watchdog Request to " + str(hostname))
         SendRequest(diameter.Request_280())
+    elif request == "AIR":
+        print("Sending Authentication Information Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_318())
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
