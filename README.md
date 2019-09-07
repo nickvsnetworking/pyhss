@@ -4,8 +4,8 @@ Python Home Subscriber Server implementing basic Diameter / 3GPP S6a Interfaces.
 ![Shelly the PyHSS Snake](https://gitlab.com/nickvsnetworking/pyhss/raw/master/lib/shelly.png)
 
 ## Introduction
-PyHSS is a simple Home Subscriber Server (HSS) implementation written in Python.
-HSS communication is via the [DIAMETER](https://tools.ietf.org/html/rfc6733) protocol, with some extensions defined by 3GPP.
+PyHSS is a simple Home Subscriber Server (HSS) used by LTE (4G) Evolved Packet Core (EPC) networks, written in Python.
+3GPP network elements like the MME and PCRF communicate with the HSS via the [DIAMETER](https://tools.ietf.org/html/rfc6733) protocol, with some extensions defined by 3GPP.
 
 ## Implemented Responses 
  * Capabilities Exchange Answer (CEA)
@@ -16,15 +16,14 @@ HSS communication is via the [DIAMETER](https://tools.ietf.org/html/rfc6733) pro
 
  
 ## Structure
-The file *hss.py* runs a simple Sockets based listener to field Diameter requests.
-It relies on the *diameter.py* file to:
+The file *hss.py* runs a simple threaded Sockets based listener to take Diameter requests and send back Diameter responses.
+
+Most of the heavy lifting in this is managed by the Diameter class, in *diameter.py*. This:
  * Decode incoming packets (Requests)(Returns AVPs as an array, called *avp*, and a Dict containing the packet variables (called *packet_vars*)
  * Generates responses (Answer messages) to Requests (when provided with the AVP and packet_vars of the original Request)
  * Generates Requests to send to other peers
  
 The *subscribers.csv* file contains the IMSI and Crypto values of each subscriber.
-
-The IP address in AVP 257 (Host-IP-Address) is based upon the name of the machine in /etc/hosts on Linux enviroments. You can statically set this if required.
 
  
 ## Extending
