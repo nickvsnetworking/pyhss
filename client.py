@@ -10,6 +10,7 @@ realm = "localdomain"
 
 supported_calls = ["CER", "DWR", "AIR"]
 
+diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
 clientsocket = socket.socket()
 try:

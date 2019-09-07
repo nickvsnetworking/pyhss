@@ -6,6 +6,7 @@ import time
 from threading import Thread, Lock
 import os
 
+diameter = diameter.Diameter('nick-pc.localdomain', 'localdomain', 'PyHSS')
 
 def on_new_client(clientsocket,client_address):
     print('New connection from ' + str(client_address))
@@ -30,45 +31,41 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_257(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
-##                time.sleep(1)
-##                request = diameter.Request_16777251_318()
-##                clientsocket.sendall(bytes.fromhex(request))                       #Send it
 
-
-            #Send Credit Control Answer
+            #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
             elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:
                 print("Received 3GPP Credit-Control-Request from " + str(client_address) + "\n\tGenerating (CCA)")
                 response = diameter.Answer_16777238_272(packet_vars, avps)          #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
 
-            #Send Device Watchdog Answer (DWA) to Device Watchdog Requests (DWR)
+            #Send Device Watchdog Answer (DWA) response to Device Watchdog Requests (DWR)
             elif packet_vars['command_code'] == 280 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
                 print("Received Request with command code 280 (DWR) from " + str(client_address) + "\n\tSending response (DWA)")
                 response = diameter.Answer_280(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
 
-            #Send Disconnect Peer Answer (DPA) to Disconnect Peer Request (DPR)
+            #Send Disconnect Peer Answer (DPA) response to Disconnect Peer Request (DPR)
             elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
                 print("Received Request with command code 282 (DPR) from " + str(client_address) + "\n\tForwarding request...")
                 response = diameter.Answer_282(packet_vars, avps)               #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
 
-            #S6a Authentication Information Request
+            #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
                 print("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + str(client_address) + "\n\tGenerating (AIA)")
                 response = diameter.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
-            #S6a Update Location Request
+            #S6a Update Location Answer (ULA) response to Update Location Request (ULR)
             elif packet_vars['command_code'] == 316 and packet_vars['ApplicationId'] == 16777251:
                 print("Received Request with command code 316 (3GPP Update Location-Request) from " + str(client_address) + "\n\tGenerating (ULA)")
                 response = diameter.Answer_16777251_316(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
-            #Cx Multimedia Authentication Request
+            #Cx Multimedia Authentication Request (Unfinished)
             elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 303 (3GPP Multimedia Authentication Request) from " + str(client_address) + "\n\tGenerating (ULA)")
                 response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
