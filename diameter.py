@@ -186,12 +186,17 @@ class Diameter:
               sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
               #Sanity check!
               print("length of sub avp is " + str(sub_avp_vars['avp_length']) + " while length of data is " + str(len(sub_avp_vars)))
-              avp_vars['misc_data'] = []
-              avp_vars['misc_data'].append(sub_avp_vars)
-              #While there are more AVPs to be decoded, decode them:
-              while len(sub_remaining_avps) > 0:
-                  sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
+              print(sub_avp_vars['avp_code'])
+              if int(sub_avp_vars['avp_code']) > 9999:
+                  print("data is probably invalid")
+              else:
+                  #If the decoded AVP is valid store it
+                  avp_vars['misc_data'] = []
                   avp_vars['misc_data'].append(sub_avp_vars)
+                  #While there are more AVPs to be decoded, decode them:
+                  while len(sub_remaining_avps) > 0:
+                      sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
+                      avp_vars['misc_data'].append(sub_avp_vars)
               
         except Exception as e:
             #print("failed to decode sub-avp - error: " + str(e))
@@ -371,6 +376,7 @@ class Diameter:
 
     #3GPP S6a/S6d Authentication Information Answer
     def Answer_16777251_318(self, packet_vars, avps):
+        print(self.get_avp_data(avps, 1))
         imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Covert IMSI
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request

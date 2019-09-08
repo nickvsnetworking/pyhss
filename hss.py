@@ -26,13 +26,7 @@ def on_new_client(clientsocket,client_address):
 
 
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
-            if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
-                for avp in avps:
-                    if type(avp['misc_data']) is list:
-                            print("Ding ding ding")
-                            print(avp)
-                            
-                    
+            if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
                 print("Received Request with command code 257 (CER) from " + str(client_address) + "\n\tSending response (CEA)")
                 response = diameter.Answer_257(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
@@ -62,6 +56,7 @@ def on_new_client(clientsocket,client_address):
             #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
                 print("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + str(client_address) + "\n\tGenerating (AIA)")
+                print(packet_vars)
                 response = diameter.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
