@@ -184,11 +184,9 @@ class Diameter:
         #If body of avp_vars['misc_data'] contains AVPs, then decode each of them as a list of dicts like avp_vars['misc_data'] = [avp_vars, avp_vars]
         try:
               sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
-              #Sanity check!
-              print("length of sub avp is " + str(sub_avp_vars['avp_length']) + " while length of data is " + str(len(sub_avp_vars)))
-              print(sub_avp_vars['avp_code'])
+              #Sanity check - If the avp code is greater than 9999 it's probably not an AVP after all...
               if int(sub_avp_vars['avp_code']) > 9999:
-                  print("data is probably invalid")
+                  pass
               else:
                   #If the decoded AVP is valid store it
                   avp_vars['misc_data'] = []
@@ -403,10 +401,18 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
 
-        print(avps)
+        
         for avp in avps:
-            print(avp['command_code'])
-            
+            if avp['avp_code'] == 1408:
+                print("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
+                EUTRAN_Authentication_Info = avp['misc_data']
+                for sub_avp in EUTRAN_Authentication_Info:
+                    print(sub_avp)
+                    #If resync request
+                    if sub_avp['avp_code'] == 1411:
+                        print("AVP: Re-Synchronization-Info(1411)")
+                        print(sub_avp['misc_data'])
+    
         
         key = subscriber_details['K']                                                               #Format keys
         op = subscriber_details['OP']                                                               #Format keys

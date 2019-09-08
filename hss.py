@@ -56,7 +56,6 @@ def on_new_client(clientsocket,client_address):
             #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
                 print("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + str(client_address) + "\n\tGenerating (AIA)")
-                print(packet_vars)
                 response = diameter.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
@@ -70,7 +69,6 @@ def on_new_client(clientsocket,client_address):
             elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 303 (3GPP Multimedia Authentication Request) from " + str(client_address) + "\n\tGenerating (ULA)")
                 response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
-                print(response)
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
 
