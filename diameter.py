@@ -367,7 +367,13 @@ class Diameter:
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
             avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-            avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER_ERROR_USER_UNKNOWN (5001))
+
+            #Experimental Result AVP(Response Code for Failure)
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            
             avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
             avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
             response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
