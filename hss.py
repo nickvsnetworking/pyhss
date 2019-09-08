@@ -27,6 +27,12 @@ def on_new_client(clientsocket,client_address):
 
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
+                for avp in avps:
+                    if type(avp['misc_data']) is list:
+                            print("Ding ding ding")
+                            print(avp)
+                            
+                    
                 print("Received Request with command code 257 (CER) from " + str(client_address) + "\n\tSending response (CEA)")
                 response = diameter.Answer_257(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it

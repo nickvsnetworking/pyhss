@@ -132,7 +132,6 @@ class Diameter:
     def decode_diameter_packet(self, data):
         packet_vars = {}
         avps = []
-        print(type(data))
         
         if type(data) is bytes:
             data = data.hex()
@@ -161,15 +160,16 @@ class Diameter:
 
     def decode_avp_packet(self, data):                       
         avp_vars = {}
-
         avp_vars['avp_code'] = int(data[0:8], 16)
+        
         avp_vars['avp_flags'] = data[8:10]
         avp_vars['avp_length'] = int(data[10:16], 16)
         if avp_vars['avp_flags'] == "c0":
-            print("Decoding Vendor AVP")
+            #If c0 is present AVP is Vendor AVP
             avp_vars['vendor_id'] = int(data[16:24], 16)
             avp_vars['misc_data'] = data[24:(avp_vars['avp_length']*2)]
         else:
+            #if is not a vendor AVP
             avp_vars['misc_data'] = data[16:(avp_vars['avp_length']*2)]
         if avp_vars['avp_length'] % 4  == 0:
             #Multiple of 4 - No Padding needed
@@ -179,6 +179,24 @@ class Diameter:
             rounded_value = self.myround(avp_vars['avp_length'])
             avp_vars['padding'] = int( rounded_value - avp_vars['avp_length']) * 2
         avp_vars['padded_data'] = data[(avp_vars['avp_length']*2):(avp_vars['avp_length']*2)+avp_vars['padding']]
+
+
+        #If body of avp_vars['misc_data'] contains AVPs, then decode each of them as a list of dicts like avp_vars['misc_data'] = [avp_vars, avp_vars]
+        try:
+              sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
+              #Sanity check!
+              print("length of sub avp is " + str(sub_avp_vars['avp_length']) + " while length of data is " + str(len(sub_avp_vars)))
+              avp_vars['misc_data'] = []
+              avp_vars['misc_data'].append(sub_avp_vars)
+              #While there are more AVPs to be decoded, decode them:
+              while len(sub_remaining_avps) > 0:
+                  sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
+                  avp_vars['misc_data'].append(sub_avp_vars)
+              
+        except Exception as e:
+            #print("failed to decode sub-avp - error: " + str(e))
+            pass
+
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
 
@@ -255,7 +273,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
             if avps_to_check['avp_code'] == 278:                                
-                avp += self.generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+                avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         avp += self.generate_avp(257, 40, self.ip_to_hex(socket.gethostbyname(socket.gethostname())))         #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                                    #Vendor-Id
         avp += self.generate_avp(269, 40, self.ProductName)                                                   #Product-Name
@@ -280,7 +298,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
             if avps_to_check['avp_code'] == 278:                                
-                avp += self.generate_avp(278, 40, AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
+                avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         return response
 
@@ -378,6 +396,11 @@ class Diameter:
             avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
             response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
+
+        print(avps)
+        for avp in avps:
+            print(avp['command_code'])
+            
         
         key = subscriber_details['K']                                                               #Format keys
         op = subscriber_details['OP']                                                               #Format keys
@@ -528,8 +551,4 @@ class Diameter:
         return response
 
 
-##D = Diameter('', '', '')
-##Request_282 = D.Request_282()
-##packet_vars, avps = D.decode_diameter_packet(Request_282)
-##print(packet_vars)
-##print(avps)
+
