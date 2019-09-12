@@ -8,7 +8,7 @@ import diameter
 hostname = "localhost"
 realm = "localdomain"
 
-supported_calls = ["CER", "DWR", "AIR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -49,6 +49,10 @@ while True:
     elif request == "DWR":
         print("Sending Device Watchdog Request to " + str(hostname))
         SendRequest(diameter.Request_280())
+    elif request == "ULR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending Update Location Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_318(imsi))
     elif request == "AIR":
         imsi = str(input("IMSI:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
