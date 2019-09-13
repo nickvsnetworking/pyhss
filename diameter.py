@@ -341,9 +341,10 @@ class Diameter:
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(128000000, 4))                    #Max-Requested-Bandwidth-UL
-        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(250000000, 4))                    #Max-Requested-Bandwidth-DL
-        subscription_data += self.generate_vendor_avp(1435, "c0", 10415, "00000203c0000010000028af0ee6b28000000204c0000010000028af07a12000")                           #Add AMBR AVP in two sub-AVPs
+        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
+        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
+        subscription_data += generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
+
 
         #APN Configuration Profile is a sub AVP of Subscription Data
         APN_Configuration_Profile = ''
