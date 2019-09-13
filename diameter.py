@@ -343,7 +343,7 @@ class Diameter:
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
         AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
         AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
-        subscription_data += generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
+        subscription_data += self.generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
 
 
         #APN Configuration Profile is a sub AVP of Subscription Data
@@ -356,6 +356,7 @@ class Diameter:
         AVP_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))                   #AVP: PDN-Type(1456) val=IPv4 (0)
         AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))               #AVP: Service-Selection(493) l=16 f=-M- val=internet
         
+
         #AVP_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)                                             #Add AMBR AVP in two sub-AVPs
         AVP_AMBR = self.generate_vendor_avp(1435, "c0", 10415, "00000204c0000010000028af3e80000000000203c0000010000028af3e800000")
                                             
@@ -369,9 +370,15 @@ class Diameter:
         AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
         AVP_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
+        APN_Configuration = self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
+
         AVP_VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, "c0", 10415, self.int_to_hex(0, 4)) #VPLMN-Dynamic-Address-Allowed: NOTALLOWED (0)
         
-        APN_Configuration = self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_AMBR + AVP_3GPP_Charging_Characteristics + AVP_EPS_Subscribed_QoS_Profile + AVP_VPLMN_Dynamic_Address_Allowed)
+
+        
+
+
+
 
         #All-APN-Configurations-Included-Indicator(1428)
         All_APN_Configurations_Included_Indicator = self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))

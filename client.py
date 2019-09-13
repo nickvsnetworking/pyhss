@@ -5,7 +5,7 @@ import diameter
 
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "hss.localdomain"
+hostname = "localhost"
 realm = "localdomain"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR"]
