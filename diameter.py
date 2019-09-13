@@ -329,15 +329,15 @@ class Diameter:
 
         #Subscription Data:
         subscription_data = ''
-        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                    #Access Restriction Data (No restriction)
+        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000020")                    #Access Restriction Data (No restriction)
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
         #subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000002")                   #Network-Access-Mode (ONLY_PACKET)
         
         #Replicated from SummaHSS
-        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                    #Network-Access-Mode (PACKET_AND_CIRCUIT)
-        subscription_data += self.generate_vendor_avp(701, "c0", 10415, self.int_to_hex(0, 6))  #MSISDN
-        subscription_data += self.generate_vendor_avp(13, "c0", 10415, "30383030")                      #3GPP-Charging-Characteristics
-        subscription_data += self.generate_vendor_avp(1491, "c0", 10415, "00000000")                    #ICS-Indicator
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000002")                    #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        #subscription_data += self.generate_vendor_avp(701, "c0", 10415, self.int_to_hex(0, 6))  #MSISDN
+        #subscription_data += self.generate_vendor_avp(13, "c0", 10415, "30383030")                      #3GPP-Charging-Characteristics
+        #subscription_data += self.generate_vendor_avp(1491, "c0", 10415, "00000000")                    #ICS-Indicator
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
