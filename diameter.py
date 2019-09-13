@@ -429,7 +429,12 @@ class Diameter:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
                         print("AVP: Re-Synchronization-Info(1411)")
-                        print(sub_avp['misc_data'])
+                        auts = sub_avp['misc_data']
+                        rand = 'e7280db0d27e73883018b3674d10f446'
+                        key = subscriber_details['K']
+                        op = subscriber_details['OP']
+                        
+                        S6a_crypt.generate_resync(key, op, auts, rand)
     
         
         key = subscriber_details['K']                                                               #Format keys
@@ -581,7 +586,7 @@ class Diameter:
         return response
 
     #3GPP S6a/S6d Update Location Request
-    def Request_16777251_318(self, imsi):                                                             
+    def Request_16777251_316(self, imsi):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
