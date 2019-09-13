@@ -441,7 +441,9 @@ class Diameter:
         op = subscriber_details['OP']                                                               #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
-        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn)               #Generate Authentication Vectors
+        plmn = self.get_avp_data(avps, 1407)[0]
+        print("PLMN is: " + str(plmn))
+        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn, plmn)               #Generate Authentication Vectors
 
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND

@@ -1,7 +1,7 @@
 from milenage import Milenage
 import binascii
 
-def generate_eutran_vector(key, op, amf, sqn):
+def generate_eutran_vector(key, op, amf, sqn, plmn):
     print("Generting EUTRAN Vectors")
     key = key.encode('utf-8')
     print("Input K:  " + str(key))
@@ -14,7 +14,13 @@ def generate_eutran_vector(key, op, amf, sqn):
     amf = binascii.unhexlify(amf)
     print("Input AMF: " + str(amf))
     sqn = int(sqn)
-    plmn = b'\x05\xf5\x39'      #505 93
+
+    plmn = plmn.encode('utf-8')
+    plmn = binascii.unhexlify(plmn)
+    #plmn = b'\x05\xf5\x39'      #505 93
+    #plmn = b'\x12\xf4\x10'      #214 01
+    print("PLMN: " )
+    print(plmn)
     #Derrive OPc
     op_c = Milenage.generate_opc(key, op)
 
@@ -67,17 +73,17 @@ def generate_resync_s6a(key, op, auts, rand):
 
 
 
-auts = 'ba2b497c45cdce3e38965f6ec76821577d92b1f29b753c492215b8706663'
-op = 'BA10AB971166F9B28B8B73AE5DF1BACA'
-rand = '1764d7bc135c8f72cbb039bd58b66bbd'
-key = '465B5CE8B199B49FAA5F0A2EE238A6BC'
-amf = '8000'
-sqn = '2480'
-rand, xres, autn, kasme = generate_eutran_vector(key, op, amf, sqn)
-print("Vector Computed RAND  : " + str(rand))
-print("Vector Computed XRES  : " + str(xres))
-print("Vector Computed AUTN  : " + str(autn))
-print("Vector Computed KASME : " + str(kasme))
-
-
-print(generate_resync_s6a(key, op, auts, rand))
+##auts = 'ba2b497c45cdce3e38965f6ec76821577d92b1f29b753c492215b8706663'
+##op = 'BA10AB971166F9B28B8B73AE5DF1BACA'
+##rand = '1764d7bc135c8f72cbb039bd58b66bbd'
+##key = '465B5CE8B199B49FAA5F0A2EE238A6BC'
+##amf = '8000'
+##sqn = '2480'
+##rand, xres, autn, kasme = generate_eutran_vector(key, op, amf, sqn)
+##print("Vector Computed RAND  : " + str(rand))
+##print("Vector Computed XRES  : " + str(xres))
+##print("Vector Computed AUTN  : " + str(autn))
+##print("Vector Computed KASME : " + str(kasme))
+##
+##
+##print(generate_resync_s6a(key, op, auts, rand))
