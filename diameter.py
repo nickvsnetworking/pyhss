@@ -405,6 +405,7 @@ class Diameter:
 
         try:
             subscriber_details = self.GetSubscriberInfo(imsi)                                                #Get subscriber details
+            self.UpdateSubscriberSQN(imsi, int(subscriber_details['SQN']) + 1)
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             print("Subscriber unknown")
@@ -434,7 +435,7 @@ class Diameter:
                     print(sub_avp)
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
-                        print("AVP: Re-Synchronization-Info(1411)")
+                        print("AVP: Re-Synchronization-Info(1411): ")
                         print(sub_avp['misc_data'])
     
         
