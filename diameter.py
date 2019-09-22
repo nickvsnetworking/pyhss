@@ -256,6 +256,7 @@ class Diameter:
                     return
                 subscriber_details['AMF'] = subscribers[3].rstrip()
                 subscriber_details['SQN'] = subscribers[4].rstrip()
+                subscriber_details['APN_list'] = subscribers[5].rstrip()
                 return subscriber_details
         subs_file.close()
         raise ValueError("Subscriber not present in CSV")
@@ -274,7 +275,7 @@ class Diameter:
                 subscriber_details['K'] = subscribers[1].rstrip()
                 subscribers[4] = str(sqn)
 
-            writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4].rstrip() + "\n")
+            writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5].rstrip() + "\n")
 
         subs_file.close()
         writeback_file.close()
@@ -368,32 +369,52 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
         #Sub AVPs of APN Configuration Profile
-        AVP_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
-        AVP_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(2, 4))
-        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('telstra.wap'))
-        
-        AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
+        APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
+        APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(2, 4))
+        APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
 
+        #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
         AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(8, 4))
         AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(1, 4))
         AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(1, 4))
         AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-        AVP_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
-        #first APN
-        APN_Configuration = self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
-        #second APN
-        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
-        APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
+        AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
+        APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
+
+
+        #APNs from CSV
+        APN_Configuration = ''
+        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
+        subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+        apn_list = subscriber_details['APN_list'].split(';')
+        print(str(apn_list))
+        for apns in apn_list:
+            apns = apns.rstrip()
+            print("APN from CSV: " + str(apns))
+            APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apns)))
+            APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_context_identifer + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile)
+            
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, "000002d0")                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
-        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, AVP_context_identifer + self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
         
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID    
-                                                                                                    #Supported-Features
-        avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af000001024000000c01000023")
-        
+
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)                                  #AVP: Auth-Application-Id(258) l=12 f=-M- val=3GPP S6a/S6d (16777251)  
+
+
+        #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
+        SupportedFeatures = ''
+        SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         
   
@@ -403,14 +424,13 @@ class Diameter:
 
     #3GPP S6a/S6d Authentication Information Answer
     def Answer_16777251_318(self, packet_vars, avps):
-        print(self.get_avp_data(avps, 1))
         imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
-        imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Covert IMSI
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = self.GetSubscriberInfo(imsi)                                                #Get subscriber details
-            self.UpdateSubscriberSQN(imsi, int(subscriber_details['SQN']) + 1)
+            subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            self.UpdateSubscriberSQN(imsi, int(subscriber_details['SQN']) + 1)                              #Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             print("Subscriber unknown")
