@@ -388,10 +388,8 @@ class Diameter:
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
         apn_list = subscriber_details['APN_list'].split(';')
-        print(str(apn_list))
         for apns in apn_list:
             apns = apns.rstrip()
-            print("APN from CSV: " + str(apns))
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apns)))
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_context_identifer + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile)
             
