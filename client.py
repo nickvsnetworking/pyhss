@@ -8,7 +8,7 @@ import diameter
 hostname = "localhost"
 realm = "localdomain"
 
-supported_calls = ["CER", "DWR", "AIR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -31,6 +31,15 @@ def SendRequest(request):
                 print("Got response from " + str(hostname))
                 for keys in packet_vars:
                     print("\t" + str(keys) + "\t" + str(packet_vars[keys]))
+
+                for avp in avps:
+                    print(avp['avp_code'])
+                    if int(avp['avp_code']) == 318:
+                        print("Received Authentication Information Answer - Store output of Crypto vectors?")
+                        file.open("vectors.txt", "w")
+                        file.write(avp['misc_data'])
+                        file.close()
+                    
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
                         print("\t\t" + str(avp))
@@ -49,6 +58,10 @@ while True:
     elif request == "DWR":
         print("Sending Device Watchdog Request to " + str(hostname))
         SendRequest(diameter.Request_280())
+    elif request == "ULR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending Update Location Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_316(imsi))
     elif request == "AIR":
         imsi = str(input("IMSI:\t"))
         print("Sending Authentication Information Request to " + str(hostname))

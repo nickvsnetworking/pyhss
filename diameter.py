@@ -260,6 +260,29 @@ class Diameter:
         subs_file.close()
         raise ValueError("Subscriber not present in CSV")
 
+    #Loads a subscriber's information from CSV file into dict for referencing
+    def UpdateSubscriberSQN(self, imsi, sqn):
+        subscriber_details = {}
+        #print("Looking up " + str(imsi))
+        subs_file = open("subscribers.csv", "r")
+        writeback_file = open("writeback.csv", "w")
+        for subscribers in subs_file:
+            subscribers = subscribers.split(",")
+            #Find specific IMSI config
+            if str(subscribers[0]) == str(imsi):
+                print("Found match for " + str(imsi))
+                subscriber_details['K'] = subscribers[1].rstrip()
+                subscribers[4] = str(sqn)
+
+            writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4].rstrip() + "\n")
+
+        subs_file.close()
+        writeback_file.close()
+        os.remove("subscribers.csv")
+        os.rename("writeback.csv", "subscribers.csv")
+        return(sqn)
+
+
 
 
 
@@ -330,14 +353,14 @@ class Diameter:
         #Subscription Data:
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000020")                     #Access Restriction Data
-        subscription_data += selfgenerate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
+        subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
         subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000002")                     #Network-Access-Mode (ONLY_PACKET)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
         AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
         AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
-        subscription_data += generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
+        subscription_data += self.generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
 
         #APN Configuration Profile is a sub AVP of Subscription Data
         APN_Configuration_Profile = ''
@@ -347,7 +370,7 @@ class Diameter:
         #Sub AVPs of APN Configuration Profile
         AVP_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
         AVP_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(2, 4))
-        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
+        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('telstra.wap'))
         
         AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
 
@@ -356,18 +379,24 @@ class Diameter:
         AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(1, 4))
         AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
         AVP_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
+        #first APN
         APN_Configuration = self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
+        #second APN
+        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
+        APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
         
-        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, AVP_context_identifer + generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, "000002d0")                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, AVP_context_identifer + self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
         
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
-        avp += self.generate_vendor_avp(1619, "80", 10415, "000002d0")                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID    
                                                                                                     #Supported-Features
         avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af000001024000000c01000023")
         
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         
+  
         return response
 
 
@@ -381,6 +410,7 @@ class Diameter:
 
         try:
             subscriber_details = self.GetSubscriberInfo(imsi)                                                #Get subscriber details
+            self.UpdateSubscriberSQN(imsi, int(subscriber_details['SQN']) + 1)
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             print("Subscriber unknown")
@@ -410,7 +440,7 @@ class Diameter:
                     print(sub_avp)
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
-                        print("AVP: Re-Synchronization-Info(1411)")
+                        print("AVP: Re-Synchronization-Info(1411): ")
                         print(sub_avp['misc_data'])
     
         
@@ -418,7 +448,8 @@ class Diameter:
         op = subscriber_details['OP']                                                               #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
-        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn)               #Generate Authentication Vectors
+        plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
+        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn, plmn) 
 
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
@@ -440,6 +471,7 @@ class Diameter:
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
+
 
 
 
@@ -477,7 +509,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
         avp += self.generate_avp(1, 40, str(binascii.hexlify(b'001011234567081@ims.mnc001.mcc001.3gppnetwork.org'),'ascii'))               #Username
-        avp += generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
 
         #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
         ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
@@ -552,7 +584,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Host
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         avp += self.generate_vendor_avp(1407, "c0", 10415, "05f539")                                     #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)    
@@ -562,5 +594,21 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 318, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
+    #3GPP S6a/S6d Update Location Request
+    def Request_16777251_316(self, imsi):                                                             
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        avp += self.generate_vendor_avp(1032, "80", 10415, self.int_to_hex(1004, 4))                    #RAT-Type val=EUTRAN (1004)
+        avp += self.generate_vendor_avp(1405, "c0", 10415, "00000002")                                  #ULR-Flags val=2
+        avp += self.generate_vendor_avp(1407, "c0", 10415, "05f539")                                  #Visited-PLMN-Id            ##FIXME
+        avp += self.generate_vendor_avp(1615, "80", 10415, "00000000")                                  #E-SRVCC-Capability val=UE-SRVCC-NOT-SUPPORTED (0)
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
 
-
+        response = self.generate_diameter_packet("01", "c0", 316, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
