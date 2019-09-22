@@ -370,7 +370,7 @@ class Diameter:
         #Sub AVPs of APN Configuration Profile
         AVP_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
         AVP_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(2, 4))
-        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
+        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('telstra.wap'))
         
         AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
 
@@ -379,9 +379,14 @@ class Diameter:
         AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(1, 4))
         AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
         AVP_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
+        #first APN
         APN_Configuration = self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
-        Periodic_RAU_Timer = self.generate_vendor_avp(1619, "80", 10415, "000002d0")                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
-        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, AVP_context_identifer + self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration + Periodic_RAU_Timer)
+        #second APN
+        AVP_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
+        APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, AVP_context_identifer + AVP_PDN_type + AVP_Service_Selection + AVP_EPS_Subscribed_QoS_Profile)
+        
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, "000002d0")                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, AVP_context_identifer + self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
         
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
