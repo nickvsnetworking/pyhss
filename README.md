@@ -23,8 +23,12 @@ Most of the heavy lifting in this is managed by the Diameter class, in *diameter
  * Generates responses (Answer messages) to Requests (when provided with the AVP and packet_vars of the original Request)
  * Generates Requests to send to other peers
  
-The *subscribers.csv* file contains the IMSI and Crypto values of each subscriber.
-This can alternatley be stored in a MongoDB database.
+
+ 
+## Subscriber Information Storage
+By default subscriber info is stored in the *subscribers.csv* file, which contains the IMSI, APN & Crypto values of each subscriber.
+
+Alternatley you can use [MongoDB](https://www.mongodb.com/) as a database backend, further information on setup is in *mongodb.yaml* file.
 
  
 ## Extending
