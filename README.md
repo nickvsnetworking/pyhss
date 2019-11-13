@@ -24,6 +24,7 @@ Most of the heavy lifting in this is managed by the Diameter class, in *diameter
  * Generates Requests to send to other peers
  
 The *subscribers.csv* file contains the IMSI and Crypto values of each subscriber.
+This can alternatley be stored in a MongoDB database.
 
  
 ## Extending

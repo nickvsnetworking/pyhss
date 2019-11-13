@@ -238,8 +238,18 @@ class Diameter:
 
     #Loads a subscriber's information from CSV file into dict for referencing
     def GetSubscriberInfo(self, imsi):
+
+
+        #Check if MongoDB config exists
+        import os
+        if os.path.exists('mongodb.cfg') == True:
+            print("Checking for subscriber info in MongoDB")
+            import mongo
+            import pymongo
+        else:
+            print("Checking for subscriber info in CSV")
+        
         subscriber_details = {}
-        #print("Looking up " + str(imsi))
         subs_file = open("subscribers.csv", "r")
         for subscribers in subs_file:
             subscribers = subscribers.split(",")
