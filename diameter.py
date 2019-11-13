@@ -11,7 +11,31 @@ import S6a_crypt
 class Diameter:
 
 
+    global use_mongodb
+    global mongo_conf
+
     ##Function Definitions
+
+
+    try:
+        #Load MongoDB Config from yaml file
+        import yaml
+        with open("mongodb.yaml", 'r') as stream:
+            mongo_conf = (yaml.safe_load(stream))
+
+            #Check if MongoDB in use
+            try:
+                if "mongodb_server" in mongo_conf and "mongodb_port" in mongo_conf:
+                    print("Using MongoDB for subscriber data")
+                    use_mongodb = 1
+            except:
+                print("MongoDB config file not populated - Using CSV as data source")
+                use_mongodb = 0
+    except:
+        print("Failed to load YAML config file for MongoDB - Using CSV as data source - Check pyyaml is installed and mongodb.yaml exists if you want to use MongoDB")
+        use_mongodb = 0
+
+
 
     #Generates rounding for calculating padding
     def myround(self, n, base=4):
@@ -241,13 +265,11 @@ class Diameter:
 
         subscriber_details = {}
 
-        #Load MongoDB Config File
-        import yaml
-        with open("mongodb.yaml", 'r') as stream:
-            mongo_conf = (yaml.safe_load(stream))
-
-        #Check if MongoDB in use
-        if "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mongodb_password" in mongo_conf and "mongodb_port" in mongo_conf:
+        print("Use MongoDB is:")
+        print(use_mongodb)
+        print("And after that we're still running")
+        
+        if use_mongodb == 1:
             print("MongoDB configured to use server: " + str(mongo_conf['mongodb_server']))
             import mongo
             import pymongo
@@ -268,6 +290,7 @@ class Diameter:
                 for keys in x['pdn']:
                     apn_list = apn_list + ";" + keys['apn']
                 subscriber_details['APN_list'] = apn_list
+                print(subscriber_details)
                 return subscriber_details
         else:
             print("Querying CSV database for subscriber " + str(imsi))
@@ -291,19 +314,16 @@ class Diameter:
                     return subscriber_details
             subs_file.close()
             raise ValueError("Subscriber not present in CSV")
+        print("How did I get here?")
+
 
     #Loads a subscriber's information from CSV file into dict for referencing
     def UpdateSubscriberSQN(self, imsi, sqn):
         subscriber_details = {}
         #print("Looking up " + str(imsi))
-
-        #Load MongoDB Config File
-        import yaml
-        with open("mongodb.yaml", 'r') as stream:
-            mongo_conf = (yaml.safe_load(stream))
-
+        
         #Check if MongoDB in use
-        if "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mongodb_password" in mongo_conf and "mongodb_port" in mongo_conf:
+        if use_mongodb == 1:
             print("Updating SQN on MongoDB server: " + str(mongo_conf['mongodb_server']))
             import mongo
             import pymongo

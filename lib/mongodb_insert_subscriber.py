@@ -1,14 +1,16 @@
 #Example subscriber added to MongoDB directly
 
+import sys
+sys.path.append("..")
 
 import yaml
 import mongo
 import pymongo
-with open("mongodb.yaml", 'r') as stream:
+with open("../mongodb.yaml", 'r') as stream:
     mongo_conf = (yaml.safe_load(stream))
 
 #Check if MongoDB in use
-if "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mongodb_password" in mongo_conf and "mongodb_port" in mongo_conf:
+if type(mongo_conf) == dict and "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mongodb_password" in mongo_conf and "mongodb_port" in mongo_conf:
     print("MongoDB configured to use server: " + str(mongo_conf['mongodb_server']))
     #Search for user in MongoDB database
     try:
@@ -30,6 +32,8 @@ if "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mong
 
     x = mycol.insert_one(sub_data)
     print("Added subscriber with Inserted ID : " + str(x.inserted_id))
+else:
+    print("Failed to get config data from YAML file")
 ##
 ##    imsi = "891012222222300"
 ##    myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
