@@ -238,50 +238,104 @@ class Diameter:
 
     #Loads a subscriber's information from CSV file into dict for referencing
     def GetSubscriberInfo(self, imsi):
+
         subscriber_details = {}
-        #print("Looking up " + str(imsi))
-        subs_file = open("subscribers.csv", "r")
-        for subscribers in subs_file:
-            subscribers = subscribers.split(",")
-            #Find specific IMSI config
-            if str(subscribers[0]) == str(imsi):
-                print("Found match for " + str(imsi))
-                subscriber_details['K'] = subscribers[1].rstrip()
-                if len(subscriber_details['K']) != 32:
-                    print("Invalid K Length")
-                    return
-                subscriber_details['OP'] = subscribers[2].rstrip()
-                if len(subscriber_details['OP']) != 32:
-                    print("Invalid OP Length")
-                    return
-                subscriber_details['AMF'] = subscribers[3].rstrip()
-                subscriber_details['SQN'] = subscribers[4].rstrip()
-                subscriber_details['APN_list'] = subscribers[5].rstrip()
+
+        #Load MongoDB Config File
+        import yaml
+        with open("mongodb.yaml", 'r') as stream:
+            mongo_conf = (yaml.safe_load(stream))
+
+        #Check if MongoDB in use
+        if "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mongodb_password" in mongo_conf and "mongodb_port" in mongo_conf:
+            print("MongoDB configured to use server: " + str(mongo_conf['mongodb_server']))
+            import mongo
+            import pymongo
+            #Search for user in MongoDB database
+            myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
+            mydb = myclient["open5gs"]
+            mycol = mydb["subscribers"]
+            myquery = { "imsi": str(imsi)}
+            print("Querying MongoDB for subscriber " + str(imsi))
+            mydoc = mycol.find(myquery)
+            for x in mydoc:
+                print("Got result from MongoDB")
+                subscriber_details['K'] = x['security']['k'].replace(' ', '')
+                subscriber_details['OP'] = x['security']['op'].replace(' ', '')
+                subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
+                subscriber_details['SQN'] = int(x['security']['sqn'])
+                apn_list = ''
+                for keys in x['pdn']:
+                    apn_list = apn_list + ";" + keys['apn']
+                subscriber_details['APN_list'] = apn_list
                 return subscriber_details
-        subs_file.close()
-        raise ValueError("Subscriber not present in CSV")
+        else:
+            print("Querying CSV database for subscriber " + str(imsi))
+            subs_file = open("subscribers.csv", "r")
+            for subscribers in subs_file:
+                subscribers = subscribers.split(",")
+                #Find specific IMSI in CSV file
+                if str(subscribers[0]) == str(imsi):
+                    print("Found match for " + str(imsi))
+                    subscriber_details['K'] = subscribers[1].rstrip()
+                    if len(subscriber_details['K']) != 32:
+                        print("Invalid K Length")
+                        return
+                    subscriber_details['OP'] = subscribers[2].rstrip()
+                    if len(subscriber_details['OP']) != 32:
+                        print("Invalid OP Length")
+                        return
+                    subscriber_details['AMF'] = subscribers[3].rstrip()
+                    subscriber_details['SQN'] = subscribers[4].rstrip()
+                    subscriber_details['APN_list'] = subscribers[5].rstrip()
+                    return subscriber_details
+            subs_file.close()
+            raise ValueError("Subscriber not present in CSV")
 
     #Loads a subscriber's information from CSV file into dict for referencing
     def UpdateSubscriberSQN(self, imsi, sqn):
         subscriber_details = {}
         #print("Looking up " + str(imsi))
-        subs_file = open("subscribers.csv", "r")
-        writeback_file = open("writeback.csv", "w")
-        for subscribers in subs_file:
-            subscribers = subscribers.split(",")
-            #Find specific IMSI config
-            if str(subscribers[0]) == str(imsi):
-                print("Found match for " + str(imsi))
-                subscriber_details['K'] = subscribers[1].rstrip()
-                subscribers[4] = str(sqn)
 
-            writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5].rstrip() + "\n")
+        #Load MongoDB Config File
+        import yaml
+        with open("mongodb.yaml", 'r') as stream:
+            mongo_conf = (yaml.safe_load(stream))
 
-        subs_file.close()
-        writeback_file.close()
-        os.remove("subscribers.csv")
-        os.rename("writeback.csv", "subscribers.csv")
-        return(sqn)
+        #Check if MongoDB in use
+        if "mongodb_server" in mongo_conf and "mongodb_username" in mongo_conf and "mongodb_password" in mongo_conf and "mongodb_port" in mongo_conf:
+            print("Updating SQN on MongoDB server: " + str(mongo_conf['mongodb_server']))
+            import mongo
+            import pymongo
+            #Search for user in MongoDB database
+            myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
+            mydb = myclient["open5gs"]
+            mycol = mydb["subscribers"]
+            mycol.find_one_and_update(
+                {'imsi': str(imsi)},
+                {'$inc': {'security.sqn': 1}}
+            )
+            return sqn + 1
+
+        else:
+            print("Updating SQN in CSV file")
+            subs_file = open("subscribers.csv", "r")
+            writeback_file = open("writeback.csv", "w")
+            for subscribers in subs_file:
+                subscribers = subscribers.split(",")
+                #Find specific IMSI config
+                if str(subscribers[0]) == str(imsi):
+                    print("Found match for " + str(imsi))
+                    subscriber_details['K'] = subscribers[1].rstrip()
+                    subscribers[4] = str(sqn)
+
+                writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5].rstrip() + "\n")
+
+            subs_file.close()
+            writeback_file.close()
+            os.remove("subscribers.csv")
+            os.rename("writeback.csv", "subscribers.csv")
+            return(sqn)
 
 
 
@@ -428,6 +482,7 @@ class Diameter:
 
         try:
             subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            print("Updating SQN")
             self.UpdateSubscriberSQN(imsi, int(subscriber_details['SQN']) + 1)                              #Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"

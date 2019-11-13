@@ -23,7 +23,12 @@ Most of the heavy lifting in this is managed by the Diameter class, in *diameter
  * Generates responses (Answer messages) to Requests (when provided with the AVP and packet_vars of the original Request)
  * Generates Requests to send to other peers
  
-The *subscribers.csv* file contains the IMSI and Crypto values of each subscriber.
+
+ 
+## Subscriber Information Storage
+By default subscriber info is stored in the *subscribers.csv* file, which contains the IMSI, APN & Crypto values of each subscriber.
+
+Alternatley you can use [MongoDB](https://www.mongodb.com/) as a database backend, further information on setup is in *mongodb.yaml* file.
 
  
 ## Extending
@@ -35,6 +40,11 @@ To add a new response you'd edit *diameter.py* and add a new function called Ans
 The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module, which can be installed with 
 ```
 pip3 install crypto
+```
+
+MongoDB backend relies on a MongoDB server to store the data on, and the Python libraries for pyyaml, mongo installed as:
+```
+pip3 install pyyaml mongo
 ```
 
 The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
