@@ -5,7 +5,7 @@ import diameter
 
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "localhost"
+hostname = "hss"
 realm = "localdomain"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR"]
@@ -50,6 +50,7 @@ def SendRequest(request):
 
 while True:
     print("\n\nQuerying Diameter peer " + str(hostname) + " of domain " + str(realm))
+    print("Note - You may need to exchange a CER before doing anything fun")
     request = input("Enter request type:\t")
 
     if request == "CER":

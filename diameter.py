@@ -76,6 +76,37 @@ class Diameter:
         return generate_id(4)
 
 
+
+    def Reverse(self, str):
+        stringlength=len(str)
+        slicedString=str[stringlength::-1]
+        return (slicedString)
+
+    def DecodePLMN(self, plmn):
+        #print("Decoded PLMN: " + str(plmn))
+        mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
+        #print("Decoded MCC: " + mcc)
+
+        mnc = self.Reverse(plmn[4:6])
+        #print("Decoded MNC: " + mnc)
+        return mcc, mnc
+
+    def EncodePLMN(self, mcc, mnc):
+        plmn = list('XXXXXX')
+        plmn[0] = self.Reverse(mcc)[1]
+        plmn[1] = self.Reverse(mcc)[2]
+        plmn[2] = "f"
+        plmn[3] = self.Reverse(mcc)[0]
+        plmn[4] = self.Reverse(mnc)[0]
+        plmn[5] = self.Reverse(mnc)[1]
+        plmn_list = plmn
+        plmn = ''
+        for bits in plmn_list:
+            plmn = plmn + bits
+        #print("Encoded PLMN: " + str(plmn))
+        return plmn
+
+
     #Hexify the vars we got when initializing the class
     def __init__(self, OriginHost, OriginRealm, ProductName):
         self.OriginHost = self.string_to_hex(OriginHost)
@@ -680,7 +711,9 @@ class Diameter:
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
-        avp += self.generate_vendor_avp(1407, "c0", 10415, "05f539")                                     #Visited-PLMN-Id(1407) (value MCC:1 MNC: 01)    
+        mcc = str(imsi)[:3]
+        mnc = str(imsi)[3:5]
+        avp += self.generate_vendor_avp(1407, "c0", 10415, self.EncodePLMN(mcc, mnc))                    #Visited-PLMN-Id(1407) (Derrived from start of IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID       
         
         
@@ -699,7 +732,7 @@ class Diameter:
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1032, "80", 10415, self.int_to_hex(1004, 4))                    #RAT-Type val=EUTRAN (1004)
         avp += self.generate_vendor_avp(1405, "c0", 10415, "00000002")                                  #ULR-Flags val=2
-        avp += self.generate_vendor_avp(1407, "c0", 10415, "05f539")                                  #Visited-PLMN-Id            ##FIXME
+        avp += self.generate_vendor_avp(1407, "c0", 10415, self.EncodePLMN(mcc, mnc))                    #Visited-PLMN-Id(1407) (Derrived from start of IMSI)
         avp += self.generate_vendor_avp(1615, "80", 10415, "00000000")                                  #E-SRVCC-Capability val=UE-SRVCC-NOT-SUPPORTED (0)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
 
