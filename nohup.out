@@ -1,1 +1,3 @@
 QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+13:32:42.043     Main Warn QXcbConnection: XCB error: 3 (BadWindow), sequence: 5064, resource id: 46238909, major code: 40 (TranslateCoords), minor code: 0
+13:33:00.591     Main Warn QXcbConnection: XCB error: 3 (BadWindow), sequence: 5257, resource id: 46239004, major code: 40 (TranslateCoords), minor code: 0

@@ -79,7 +79,11 @@ class Milenage(BaseLTEAuthAlgo):
             sqn_ms (int), 48 bit sequence number from client
             mac_s (bytes), 64 bit resync authentication code
         """
+        print("key is: " + str(type(key)) + " and has length of " + str(len(key)))
+        print("rand is: " + str(type(rand)) + " and has length of " + str(len(rand)))
+        print("opc is: " + str(type(opc)) + " and has length of " + str(len(opc)))
         ak = self.f5_star(key, rand, opc)
+        print("AK is: " + str(type(ak)) + " and has length of " + str(len(ak)))
         sqn_ms = xor(auts[:6], ak)
         sqn_ms_int = int.from_bytes(sqn_ms, byteorder='big')
         _, mac_s = self.f1(key, sqn_ms, rand, opc, self.amf)
@@ -256,9 +260,9 @@ class Milenage(BaseLTEAuthAlgo):
         """
         #Modified to confirm the result I'm getting is what I'm expecting by removing the random element...
         #RAND 1764d7bc135c8f72cbb039bd58b66bbd
-        return bytearray(b'\x17d\xd7\xbc\x13\\\x8fr\xcb\xb09\xbdX\xb6k\xbd')
+        #return bytearray(b'\x17d\xd7\xbc\x13\\\x8fr\xcb\xb09\xbdX\xb6k\xbd')
         #Origional below:
-        #return bytearray.fromhex('{:032x}'.format(random.getrandbits(128)))
+        return bytearray.fromhex('{:032x}'.format(random.getrandbits(128)))
 
     @classmethod
     def generate_opc(cls, key, op):

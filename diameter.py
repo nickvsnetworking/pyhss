@@ -316,6 +316,7 @@ class Diameter:
                 subscriber_details['K'] = x['security']['k'].replace(' ', '')
                 subscriber_details['OP'] = x['security']['op'].replace(' ', '')
                 subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
+                subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
                 subscriber_details['SQN'] = int(x['security']['sqn'])
                 apn_list = ''
                 for keys in x['pdn']:
@@ -341,15 +342,16 @@ class Diameter:
                         return
                     subscriber_details['AMF'] = subscribers[3].rstrip()
                     subscriber_details['SQN'] = subscribers[4].rstrip()
-                    subscriber_details['APN_list'] = subscribers[5].rstrip()
+                    subscriber_details['RAND'] = subscribers[5].rstrip()
+                    subscriber_details['APN_list'] = subscribers[6].rstrip()
                     return subscriber_details
             subs_file.close()
             raise ValueError("Subscriber not present in CSV")
-        print("How did I get here?")
+
 
 
     #Loads a subscriber's information from CSV file into dict for referencing
-    def UpdateSubscriberSQN(self, imsi, sqn):
+    def UpdateSubscriber(self, imsi, sqn, rand):
         subscriber_details = {}
         #print("Looking up " + str(imsi))
         
@@ -364,7 +366,11 @@ class Diameter:
             mycol = mydb["subscribers"]
             mycol.find_one_and_update(
                 {'imsi': str(imsi)},
-                {'$inc': {'security.sqn': 1}}
+                {'security.rand': str(rand)}
+            )
+            mycol.find_one_and_update(
+                {'imsi': str(imsi)},
+                {'security.sqn': int(sqn)}
             )
             return sqn + 1
 
@@ -377,10 +383,10 @@ class Diameter:
                 #Find specific IMSI config
                 if str(subscribers[0]) == str(imsi):
                     print("Found match for " + str(imsi))
-                    subscriber_details['K'] = subscribers[1].rstrip()
                     subscribers[4] = str(sqn)
+                    subscribers[5] = str(rand)
 
-                writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5].rstrip() + "\n")
+                writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5] + ","  + subscribers[6].rstrip() + "\n")
 
             subs_file.close()
             writeback_file.close()
@@ -534,7 +540,7 @@ class Diameter:
         try:
             subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
             print("Updating SQN")
-            self.UpdateSubscriberSQN(imsi, int(subscriber_details['SQN']) + 1)                              #Incriment SQN
+            self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))                              #Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             print("Subscriber unknown")
@@ -555,6 +561,11 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
 
+
+        key = subscriber_details['K']                                                               #Format keys
+        op = subscriber_details['OP']                                                               #Format keys
+        amf = subscriber_details['AMF']                                                             #Format keys
+        sqn = subscriber_details['SQN']                                                             #Format keys
         
         for avp in avps:
             if avp['avp_code'] == 1408:
@@ -564,17 +575,18 @@ class Diameter:
                     print(sub_avp)
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
-                        print("AVP: Re-Synchronization-Info(1411): ")
-                        print(sub_avp['misc_data'])
-    
+                        print("Re-Synchronization required - SQN is out of sync - UE has sent back AUTS:" + str(sub_avp['misc_data']))
+                        rand = subscriber_details['RAND']
+                        #Calculate correct SQN
+                        sqn, mac_s = S6a_crypt.generate_resync_s6a(key, op, auts, rand)
+                        #Write correct SQN back
+                        self.UpdateSubscriber(imsi, int(sqn), str(subscriber_details['RAND']))
+                        
         
-        key = subscriber_details['K']                                                               #Format keys
-        op = subscriber_details['OP']                                                               #Format keys
-        amf = subscriber_details['AMF']                                                             #Format keys
-        sqn = subscriber_details['SQN']                                                             #Format keys
+
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
         rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn, plmn) 
-
+        self.UpdateSubscriber(imsi, int(subscriber_details['SQN']), str(rand))
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
         eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
@@ -738,3 +750,9 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "c0", 316, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
+
+
+##d = Diameter('nick-pc.localdomain', 'localdomain', 'PyHSS')
+##imsi = '214010000000099'
+##subscriber_details = d.GetSubscriberInfo(imsi)
+##d.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))

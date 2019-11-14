@@ -44,17 +44,18 @@ def generate_eutran_vector(key, op, amf, sqn, plmn):
  
 
 def generate_resync_s6a(key, op, auts, rand):
-    print("\nGenerating correct SQN value from AUTS")
+    print("Generating correct SQN value from AUTS")
 
     key = key.encode('utf-8')
     print("Input K:  " + str(key))
     key = binascii.unhexlify(key)
+    
     op = op.encode('utf-8')
     print("Input OP:  " + str(op))
     op = binascii.unhexlify(op)
 
     auts = auts.encode('utf-8')
-    #auts = binascii.unhexlify(auts)
+    auts = binascii.unhexlify(auts)
 
     #Derrive OPc
     op_c = Milenage.generate_opc(key, op)
@@ -72,18 +73,10 @@ def generate_resync_s6a(key, op, auts, rand):
     return(sqn_ms_int, mac_s)
 
 
-
-##auts = 'ba2b497c45cdce3e38965f6ec76821577d92b1f29b753c492215b8706663'
+####Test code to get the Resync function working
+##auts = '23Cf36ba638196e2d686550df5ec'
 ##op = 'BA10AB971166F9B28B8B73AE5DF1BACA'
-##rand = '1764d7bc135c8f72cbb039bd58b66bbd'
+##rand = b'9b6e39b67d779654aa23b2c626847cb1'
+##rand = binascii.unhexlify(rand)
 ##key = '465B5CE8B199B49FAA5F0A2EE238A6BC'
-##amf = '8000'
-##sqn = '2480'
-##rand, xres, autn, kasme = generate_eutran_vector(key, op, amf, sqn)
-##print("Vector Computed RAND  : " + str(rand))
-##print("Vector Computed XRES  : " + str(xres))
-##print("Vector Computed AUTN  : " + str(autn))
-##print("Vector Computed KASME : " + str(kasme))
-##
-##
 ##print(generate_resync_s6a(key, op, auts, rand))
