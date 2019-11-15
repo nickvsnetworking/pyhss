@@ -295,13 +295,9 @@ class Diameter:
     def GetSubscriberInfo(self, imsi):
 
         subscriber_details = {}
-
-        print("Use MongoDB is:")
-        print(use_mongodb)
-        print("And after that we're still running")
         
         if use_mongodb == 1:
-            print("MongoDB configured to use server: " + str(mongo_conf['mongodb_server']))
+            print("Configured to use MongoDB server: " + str(mongo_conf['mongodb_server']))
             import mongo
             import pymongo
             #Search for user in MongoDB database
@@ -539,8 +535,7 @@ class Diameter:
 
         try:
             subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
-            print("Updating SQN")
-            self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))                              #Incriment SQN
+            self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             print("Subscriber unknown")
@@ -566,6 +561,7 @@ class Diameter:
         op = subscriber_details['OP']                                                               #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
+        print("SQN from database: " + str(sqn))
         
         for avp in avps:
             if avp['avp_code'] == 1408:
@@ -576,17 +572,24 @@ class Diameter:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
                         print("Re-Synchronization required - SQN is out of sync - UE has sent back AUTS:" + str(sub_avp['misc_data']))
-                        rand = subscriber_details['RAND']
+                        auts = str(sub_avp['misc_data'])[32:]
+                        rand = str(sub_avp['misc_data'])[:32]
+                        #rand = subscriber_details['RAND']
+                        rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
                         sqn, mac_s = S6a_crypt.generate_resync_s6a(key, op, auts, rand)
+                        print("SQN from resync: " + str(sqn))
                         #Write correct SQN back
-                        self.UpdateSubscriber(imsi, int(sqn), str(subscriber_details['RAND']))
+                        self.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
+                        sqn = str(int(sqn) - 1)
+                        
                         
         
 
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
+        print("SQN used in vector: " + str(sqn))
         rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn, plmn) 
-        self.UpdateSubscriber(imsi, int(subscriber_details['SQN']), str(rand))
+        self.UpdateSubscriber(imsi, str(int(sqn) + 1), str(rand))
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
         eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
@@ -755,4 +758,24 @@ class Diameter:
 ##d = Diameter('nick-pc.localdomain', 'localdomain', 'PyHSS')
 ##imsi = '214010000000099'
 ##subscriber_details = d.GetSubscriberInfo(imsi)
-##d.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))
+###d.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))
+##sqn = '9999'
+##rand = 'randrandrand'
+##print("Updating SQN in CSV file")
+##subs_file = open("subscribers.csv", "r")
+##writeback_file = open("writeback.csv", "w")
+##for subscribers in subs_file:
+##    subscribers = subscribers.split(",")
+##    #Find specific IMSI config
+##    if str(subscribers[0]) == str(imsi):
+##        print("Found match for " + str(imsi))
+##        subscribers[4] = str(sqn)
+##        subscribers[5] = str(rand)
+##
+##    writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5] + ","  + subscribers[6].rstrip() + "\n")
+##
+##subs_file.close()
+##writeback_file.close()
+##os.remove("subscribers.csv")
+##os.rename("writeback.csv", "subscribers.csv")
+

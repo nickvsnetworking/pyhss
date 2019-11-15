@@ -4,27 +4,27 @@ import binascii
 def generate_eutran_vector(key, op, amf, sqn, plmn):
     print("Generting EUTRAN Vectors")
     key = key.encode('utf-8')
-    print("Input K:  " + str(key))
+    #print("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     op = op.encode('utf-8')
-    print("Input OP:  " + str(op))
+    #print("Input OP:  " + str(op))
     op = binascii.unhexlify(op)
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
-    print("Input AMF: " + str(amf))
+    #print("Input AMF: " + str(amf))
     sqn = int(sqn)
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
     #plmn = b'\x05\xf5\x39'      #505 93
     #plmn = b'\x12\xf4\x10'      #214 01
-    print("PLMN: " )
-    print(plmn)
+    #print("PLMN: " )
+    #print(plmn)
     #Derrive OPc
     op_c = Milenage.generate_opc(key, op)
 
-    print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
+    #print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
 
     crypto = Milenage(amf)
 
@@ -32,13 +32,13 @@ def generate_eutran_vector(key, op, amf, sqn, plmn):
 
     rand = binascii.hexlify(rand).decode('utf-8')
 
-    print("output rand: " + str(rand))
+    #print("output rand: " + str(rand))
     xres = binascii.hexlify(xres).decode('utf-8')
-    print("output xres: " + str(xres))
+    #print("output xres: " + str(xres))
     autn = binascii.hexlify(autn).decode('utf-8')
-    print("output autn: " + str(autn))
+    #print("output autn: " + str(autn))
     kasme = binascii.hexlify(kasme).decode('utf-8')
-    print("output kasme: " + str(kasme))
+    #print("output kasme: " + str(kasme))
 
     return (rand, xres, autn, kasme)
  
@@ -47,25 +47,23 @@ def generate_resync_s6a(key, op, auts, rand):
     print("Generating correct SQN value from AUTS")
 
     key = key.encode('utf-8')
-    print("Input K:  " + str(key))
+    #print("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     
     op = op.encode('utf-8')
-    print("Input OP:  " + str(op))
+    #print("Input OP:  " + str(op))
     op = binascii.unhexlify(op)
 
     auts = auts.encode('utf-8')
+    #print("Input AUTS: " + str(auts))
     auts = binascii.unhexlify(auts)
 
     #Derrive OPc
     op_c = Milenage.generate_opc(key, op)
     crypto = Milenage(b'\x80\x00')
 
-    print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
-    print(type(op_c))
-    print(len(op_c))
+    #print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
 
-    print("here we go...")
     #Generate Resync
     sqn_ms_int, mac_s = crypto.generate_resync(auts, key, op_c, rand)
     print("SQN should be: " + str(sqn_ms_int))
@@ -73,10 +71,13 @@ def generate_resync_s6a(key, op, auts, rand):
     return(sqn_ms_int, mac_s)
 
 
-####Test code to get the Resync function working
+######Test code to get the Resync function working
 ##auts = '23Cf36ba638196e2d686550df5ec'
+##auts = '23cf36ba7ac1f567ba9d58426f14'
+##auts = '70bdbc4cbaf27c03c29f63d70bfaed834ee3ffc5918e8aa0aa42e667a90c'
+##auts = 'b2ea39bb12c2c669d533700bf279'
 ##op = 'BA10AB971166F9B28B8B73AE5DF1BACA'
-##rand = b'9b6e39b67d779654aa23b2c626847cb1'
+##rand = b'd7f4cef3dd814c9afd8f1d30b6153d2d'
 ##rand = binascii.unhexlify(rand)
 ##key = '465B5CE8B199B49FAA5F0A2EE238A6BC'
 ##print(generate_resync_s6a(key, op, auts, rand))
