@@ -75,7 +75,7 @@ while True:
     elif request == "MAR":
         #imsi = str(input("IMSI:\t"))
         #domain = str(input("Domain:\t"))
-        imsi = '214010000000001'
+        imsi = '214010000000099'
         domain = 'open-ims.test'
         print("Sending Multimedia Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_303(imsi, domain))

@@ -561,7 +561,6 @@ class Diameter:
         op = subscriber_details['OP']                                                               #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
-        print("SQN from database: " + str(sqn))
         
         for avp in avps:
             if avp['avp_code'] == 1408:
@@ -639,10 +638,29 @@ class Diameter:
 
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
-        username = self.get_avp_data(avps, 601)[0]                                                     #Get IMSI from User-Name AVP in request
-        username = binascii.unhexlify(username).decode('utf-8')                                                  #Convert IMSI
-        public_identity = username.split('@')[0]
-        print("Got MAR for public_identity : " + str(public_identity))
+        username = self.get_avp_data(avps, 601)[0]                                                     
+        username = binascii.unhexlify(username).decode('utf-8')
+        imsi = username.split('@')[0]
+        print("Got MAR for public_identity : " + str(username))
+
+
+        try:
+            subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
+        except:
+            #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+            print("Subscriber unknown")
+            sys.exit()          #ToDo - Handle this better
+        key = subscriber_details['K']                                                               #Format keys
+        op = subscriber_details['OP']                                                               #Format keys
+        amf = subscriber_details['AMF']                                                             #Format keys
+        sqn = subscriber_details['SQN']
+
+        mcc, mnc = imsi[0:3], imsi[3:5]
+        plmn = self.EncodePLMN(mcc, mnc)
+        
+        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, op, amf, sqn, plmn) 
+        
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -652,19 +670,33 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(username)),'ascii'))               #Username
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(public_identity)),'ascii'))               #Public Identity (IMSI)
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
 
         #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
         ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
         avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
+        
         ##AVP Code: 609 3GPP-SIP-Authenticate
+        print("SIP_Authenticate is type " + str(type(SIP_Authenticate)) + " value is " + str(SIP_Authenticate))
+        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(str.encode(SIP_Authenticate)),'ascii'))   #RAND + AUTN
+        print("SIP_Authenticate generated:")
+        print(str(binascii.hexlify(str.encode(SIP_Authenticate)),'ascii'))
         avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, '6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa149')   #RAND + AUTN
+        print("SIP_Authenticate used:")
+        print('6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa149')
+        
         ##AVP Code: 610 3GPP-SIP-Authorization
-        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, '3344da564b8f010f')  #XRES
+        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(str.encode(xres)),'ascii'))  #XRES
+        
         ##AVP Code: 625 Confidentiality-Key
-        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, 'e363a749ce898e2d76dc7767388d6c84')  #CK
+        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(str.encode(ck)),'ascii'))  #CK
+        #avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, 'e363a749ce898e2d76dc7767388d6c84')  #CK
+        
         ##AVP Code: 626 Integrity-Key
-        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, '2f1ebab3d3b2bfb052784f5fb3db7299')          #IK
+        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(str.encode(ik)),'ascii'))          #IK
+        #avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, '2f1ebab3d3b2bfb052784f5fb3db7299')          #IK
+
+        
         auth_data_item = avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
         avp += self.generate_vendor_avp(612, "c0", 10415, auth_data_item)    #3GPP-SIP-Auth-Data-Item
         

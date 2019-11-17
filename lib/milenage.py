@@ -49,6 +49,38 @@ class Milenage(BaseLTEAuthAlgo):
         kasme = Milenage.generate_kasme(ck, ik, plmn, sqn_bytes, ak)
         return rand, xres, autn, kasme
 
+
+    def generate_maa_vector(self, key, opc, sqn, plmn):
+        """
+        Generate the E-EUTRAN key vector.
+        Args:
+            key (bytes): 128 bit subscriber key
+            opc (bytes): 128 bit operator variant algorithm configuration field
+            sqn (int): 48 bit sequence number
+            plmn (bytes): 24 bit network identifer
+                Octet           Description
+                  1      MCC digit 2 | MCC digit 1
+                  2      MNC digit 3 | MCC digit 3
+                  3      MNC digit 2 | MNC digit 1
+        Returns:
+            rand (bytes): 128 bit random challenge
+            xres (bytes): 128 bit expected result
+            autn (bytes): 128 bit authentication token
+            kasme (bytes): 256 bit base network authentication code
+        """
+        sqn_bytes = bytearray.fromhex('{:012x}'.format(sqn))
+        rand = Milenage.generate_rand()
+
+        mac_a, _ = Milenage.f1(key, sqn_bytes, rand, opc, self.amf)
+        xres, ak = Milenage.f2_f5(key, rand, opc)
+        ck = Milenage.f3(key, rand, opc)
+        ik = Milenage.f4(key, rand, opc)
+
+        autn = Milenage.generate_autn(sqn_bytes, ak, mac_a, self.amf)
+        kasme = Milenage.generate_kasme(ck, ik, plmn, sqn_bytes, ak)
+        return rand, xres, autn, ck, ik
+
+
     def generate_auts(self, key, opc, rand, sqn):
         """
         Compute AUTS for re-synchronization using the formula
