@@ -754,28 +754,18 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 316, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
-
-##d = Diameter('nick-pc.localdomain', 'localdomain', 'PyHSS')
-##imsi = '214010000000099'
-##subscriber_details = d.GetSubscriberInfo(imsi)
-###d.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))
-##sqn = '9999'
-##rand = 'randrandrand'
-##print("Updating SQN in CSV file")
-##subs_file = open("subscribers.csv", "r")
-##writeback_file = open("writeback.csv", "w")
-##for subscribers in subs_file:
-##    subscribers = subscribers.split(",")
-##    #Find specific IMSI config
-##    if str(subscribers[0]) == str(imsi):
-##        print("Found match for " + str(imsi))
-##        subscribers[4] = str(sqn)
-##        subscribers[5] = str(rand)
-##
-##    writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5] + ","  + subscribers[6].rstrip() + "\n")
-##
-##subs_file.close()
-##writeback_file.close()
-##os.remove("subscribers.csv")
-##os.rename("writeback.csv", "subscribers.csv")
-
+    #3GPP Cx Multimedia Authentication Request
+    def Request_16777216_300(self, imsi, domain):
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
+        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(imsi + "@" + domain))  #Public-Identity
+        avp += self.generate_vendor_avp(600, "c0", 10415, self.string_to_hex(domain))               #Visited Network Identifier
+        response = self.generate_diameter_packet("01", "c0", 300, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+    

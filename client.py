@@ -8,7 +8,7 @@ import diameter
 hostname = "hss"
 realm = "localdomain"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -67,6 +67,11 @@ while True:
         imsi = str(input("IMSI:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777251_318(imsi))
+    elif request == "UAR":
+        imsi = str(input("IMSI:\t"))
+        domain = str(input("Domain:\t"))
+        print("Sending User Authentication Request to " + str(hostname))
+        SendRequest(diameter.Request_16777216_300(imsi, domain))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
