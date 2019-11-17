@@ -639,6 +639,10 @@ class Diameter:
 
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
+        username = self.get_avp_data(avps, 601)[0]                                                     #Get IMSI from User-Name AVP in request
+        username = binascii.unhexlify(username).decode('utf-8')                                                  #Convert IMSI
+        public_identity = username.split('@')[0]
+        print("Got MAR for public_identity : " + str(public_identity))
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -647,8 +651,8 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
-        avp += self.generate_avp(1, 40, str(binascii.hexlify(b'001011234567081@ims.mnc001.mcc001.3gppnetwork.org'),'ascii'))               #Username
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(b'001011234567081'),'ascii'))#Public Identity
+        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(username)),'ascii'))               #Username
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(public_identity)),'ascii'))               #Public Identity (IMSI)
 
         #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
         ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
