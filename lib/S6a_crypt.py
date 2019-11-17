@@ -73,15 +73,15 @@ def generate_maa_vector(key, op, amf, sqn, plmn):
 
     (rand, xres, autn, ck, ik) = crypto.generate_maa_vector(key, op_c, sqn, plmn)
 
-    rand = binascii.hexlify(rand).decode('utf-8')
-
+    #rand = binascii.hexlify(rand).decode('utf-8')
     #print("output rand: " + str(rand))
-    xres = binascii.hexlify(xres).decode('utf-8')
+    #print("rand type is : " + str(type(rand)))
+    #xres = binascii.hexlify(xres).decode('utf-8')
     #print("output xres: " + str(xres))
-    autn = binascii.hexlify(autn).decode('utf-8')
-    print("output autn: " + str(autn))
-    ck = binascii.hexlify(ck).decode('utf-8')
-    ik = binascii.hexlify(ik).decode('utf-8')
+    #autn = binascii.hexlify(autn).decode('utf-8')
+    #print("output autn: " + str(autn))
+    #ck = binascii.hexlify(ck).decode('utf-8')
+    #ik = binascii.hexlify(ik).decode('utf-8')
 
     SIP_Authenticate = rand + autn
     #SIP_Authenticate = base64.b64encode(SIP_Authenticate.encode("utf-8"))

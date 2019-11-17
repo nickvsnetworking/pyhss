@@ -677,24 +677,16 @@ class Diameter:
         avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
         
         ##AVP Code: 609 3GPP-SIP-Authenticate
-        print("SIP_Authenticate is type " + str(type(SIP_Authenticate)) + " value is " + str(SIP_Authenticate))
-        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(str.encode(SIP_Authenticate)),'ascii'))   #RAND + AUTN
-        print("SIP_Authenticate generated:")
-        print(str(binascii.hexlify(str.encode(SIP_Authenticate)),'ascii'))
-        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, '6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa149')   #RAND + AUTN
-        print("SIP_Authenticate used:")
-        print('6b22b83997afe941c07afc0337006e50081206ce13a280008212824af50aa149')
+        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(SIP_Authenticate),'ascii'))   #RAND + AUTN
         
         ##AVP Code: 610 3GPP-SIP-Authorization
-        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(str.encode(xres)),'ascii'))  #XRES
+        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(xres),'ascii'))  #XRES
         
         ##AVP Code: 625 Confidentiality-Key
-        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(str.encode(ck)),'ascii'))  #CK
-        #avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, 'e363a749ce898e2d76dc7767388d6c84')  #CK
+        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(ck),'ascii'))  #CK
         
         ##AVP Code: 626 Integrity-Key
-        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(str.encode(ik)),'ascii'))          #IK
-        #avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, '2f1ebab3d3b2bfb052784f5fb3db7299')          #IK
+        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(ik),'ascii'))          #IK
 
         
         auth_data_item = avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
