@@ -673,10 +673,10 @@ class Diameter:
         plmn = self.EncodePLMN(mcc, mnc)
         
         SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, op, amf, sqn, plmn) 
+        print("IMSI is " + str(imsi))        
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(imsi)),'ascii'))               #Public Identity (IMSI)
+        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(username)),'ascii'))                             #Username
         
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
-        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(username)),'ascii'))               #Username
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
 
 
         #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
@@ -797,7 +797,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
-        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(imsi + "@" + domain))  #Public-Identity
+        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(imsi))                 #Public-Identity
         avp += self.generate_vendor_avp(600, "c0", 10415, self.string_to_hex(domain))               #Visited Network Identifier
         response = self.generate_diameter_packet("01", "c0", 300, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
@@ -812,8 +812,8 @@ class Diameter:
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-        avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
-        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(imsi + "@" + domain))  #Public-Identity
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                         #User-Name
+        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(imsi))                      #Public-Identity
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
                                                                                                          #3GPP-SIP-Number-Auth-Data-Item
         avp += self.generate_vendor_avp(612, "c0", 10415, "00000260c000001c000028af4469676573742d414b4176312d4d4435")
