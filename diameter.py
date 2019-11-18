@@ -643,27 +643,14 @@ class Diameter:
         imsi = username.split('@')[0]
         print("Got MAR for public_identity : " + str(username))
 
-        avp = ''                                                                                    #Initiate empty var AVP
-        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
-        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
             subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
             self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            print("Subscriber " + str(imsi) + " unknown in HSS for MAA")
-            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
-            experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
-            #Experimental Result (297)
-            avp += self.generate_avp(297, 40, experimental_result)
-            response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            return response
-        
+            print("Subscriber unknown")
+            sys.exit()          #ToDo - Handle this better
         key = subscriber_details['K']                                                               #Format keys
         op = subscriber_details['OP']                                                               #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
@@ -674,10 +661,16 @@ class Diameter:
         
         SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, op, amf, sqn, plmn) 
         
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
+        avp = ''                                                                                    #Initiate empty var AVP
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(username)),'ascii'))               #Username
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
-
 
         #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
         ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
