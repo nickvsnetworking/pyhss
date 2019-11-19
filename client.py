@@ -6,7 +6,7 @@ import diameter
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
 hostname = "hss"
-realm = "localdomain"
+realm = "open-ims.test"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "MAR"]
 
@@ -75,7 +75,7 @@ while True:
     elif request == "MAR":
         #imsi = str(input("IMSI:\t"))
         #domain = str(input("Domain:\t"))
-        imsi = '214010000000099'
+        imsi = '214010000000001'
         domain = 'open-ims.test'
         print("Sending Multimedia Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_303(imsi, domain))
