@@ -640,7 +640,9 @@ class Diameter:
     def Answer_16777216_303(self, packet_vars, avps):
         username = self.get_avp_data(avps, 601)[0]                                                     
         username = binascii.unhexlify(username).decode('utf-8')
-        imsi = username.split('@')[0]
+        imsi = username.split('@')[0]   #Strip Domain
+        domain = username.split('@')[1] #Get Domain Part
+        imsi = imsi[4:]                 #Strip SIP: from start of string
         print("Got MAR for public_identity : " + str(username))
 
         avp = ''                                                                                    #Initiate empty var AVP
@@ -674,12 +676,15 @@ class Diameter:
         
         SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, op, amf, sqn, plmn) 
         print("IMSI is " + str(imsi))        
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(imsi)),'ascii'))               #Public Identity (IMSI)
-        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(username)),'ascii'))                             #Username
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username + "@" + domain)),'ascii'))               #Public Identity (IMSI)
+        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
         
 
 
-        #diameter.3GPP-SIP-Auth-Data-Item (ToDo - Make all these values dynamic)
+        #diameter.3GPP-SIP-Auth-Data-Items
+        ##AVP Code: 613 3GPP-SIP-Item-Number
+        avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
+        
         ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
         avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
         
@@ -696,15 +701,17 @@ class Diameter:
         avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(ik),'ascii'))          #IK
 
         
-        auth_data_item = avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
+        auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
         avp += self.generate_vendor_avp(612, "c0", 10415, auth_data_item)    #3GPP-SIP-Auth-Data-Item
         
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
 
-        experimental_avp = ''                                                                       #New empty avp for storing avp 297 contents
-        experimental_avp = experimental_avp + self.generate_vendor_avp(266, 40, 10415, '')               #3GPP Vendor ID
-        experimental_avp = experimental_avp + self.generate_avp(298, 40, "000007d1")                     #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
-        avp += self.generate_avp(297, 40, experimental_avp)                                              #Expirmental-Result
+        #experimental_avp = ''                                                                       #New empty avp for storing avp 297 contents
+        #experimental_avp = experimental_avp + self.generate_vendor_avp(266, 40, 10415, '')               #3GPP Vendor ID
+        #experimental_avp = experimental_avp + self.generate_avp(298, 40, "000007d1")                     #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+        #avp += self.generate_avp(297, 40, experimental_avp)                                              #Expirmental-Result
+
+        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
