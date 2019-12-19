@@ -646,10 +646,14 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
-                                                                                                        #Server Capabilities (ToDo - Make this dynamic)
-        avp += self.generate_vendor_avp(603, "c0", 10415, "0000025dc0000010000028af000000000000025dc0000010000028af000000010000025ac0000028000028af7369703a73637363662e6f70656e2d696d732e746573743a36303630")
         
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af0000012a4000000c000007d1")           #Experimental result (DIAMETER_FIRST_REGISTRATION)
+        avp += self.generate_vendor_avp(602, 1450, "c0", str(binascii.hexlify(str.encode("sip:scscf.mnc001.mcc001.3gppnetwork.org:6060")),'ascii'))
+
+        experimental_avp = ''                                                                       #New empty avp for storing avp 297 contents
+        experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
+        experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8))                     #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+        avp += self.generate_avp(297, 40, experimental_avp)                                              #Expermental-Result
+        
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
     
@@ -725,10 +729,7 @@ class Diameter:
         
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
 
-        #experimental_avp = ''                                                                       #New empty avp for storing avp 297 contents
-        #experimental_avp = experimental_avp + self.generate_vendor_avp(266, 40, 10415, '')               #3GPP Vendor ID
-        #experimental_avp = experimental_avp + self.generate_avp(298, 40, "000007d1")                     #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
-        #avp += self.generate_avp(297, 40, experimental_avp)                                              #Expirmental-Result
+
 
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         
@@ -823,11 +824,31 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
-        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(imsi))                 #Public-Identity
+        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
         avp += self.generate_vendor_avp(600, "c0", 10415, self.string_to_hex(domain))               #Visited Network Identifier
         response = self.generate_diameter_packet("01", "c0", 300, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
-    
+
+
+    #3GPP Cx Server Assignment Request
+    def Request_16777216_301(self, imsi, domain):
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session Session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        #494 AVP?
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
+        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc001.mcc001.3gppnetwork.org:6060'))                 #Public-Identity
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
+        avp += self.generate_vendor_avp(614, "c0", 10415, format(int(1),"x").zfill(8))              #Server Assignment Type
+        avp += self.generate_vendor_avp(624, "c0", 10415, "00000000")                               #User Data Already Available (Not Available)
+        response = self.generate_diameter_packet("01", "c0", 301, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
     #3GPP Cx Multimedia Authentication Request
     def Request_16777216_303(self, imsi, domain):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID

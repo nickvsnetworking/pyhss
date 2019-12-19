@@ -5,10 +5,10 @@ import diameter
 
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "localhost"
+hostname = "hss.localdomain"
 realm = "open-ims.test"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "MAR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -69,9 +69,16 @@ while True:
         SendRequest(diameter.Request_16777251_318(imsi))
     elif request == "UAR":
         imsi = '214010000000001'
-        domain = 'open-ims.test'
+        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
+        #imsi = 'nick'
+        #domain = 'open-ims.test'
         print("Sending User Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_300(imsi, domain))
+    elif request == "SAR":
+        imsi = str(input("IMSI:\t"))
+        domain = str(input("Domain:\t"))
+        print("Sending Server Assignment Request to " + str(hostname))
+        SendRequest(diameter.Request_16777216_301(imsi, domain))
     elif request == "MAR":
         #imsi = str(input("IMSI:\t"))
         #domain = str(input("Domain:\t"))
