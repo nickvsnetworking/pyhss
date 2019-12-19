@@ -570,6 +570,7 @@ class Diameter:
                     print(sub_avp)
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
+                        sqn_origional = sqn
                         print("Re-Synchronization required - SQN is out of sync - UE has sent back AUTS:" + str(sub_avp['misc_data']))
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
@@ -577,9 +578,10 @@ class Diameter:
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
                         sqn, mac_s = S6a_crypt.generate_resync_s6a(key, op, auts, rand)
-                        print("SQN from resync: " + str(sqn))
                         #Write correct SQN back
                         self.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
+                        #Print SQN correct value
+                        print("SQN from resync: " + str(sqn) + " SQN in HSS is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
                         sqn = str(int(sqn) - 1)
                         
                         
@@ -634,6 +636,23 @@ class Diameter:
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
         response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
+
+    #3GPP Cx User Authentication Answer
+    def Answer_16777216_300(self, packet_vars, avps):
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
+                                                                                                        #Server Capabilities (ToDo - Make this dynamic)
+        avp += self.generate_vendor_avp(603, "c0", 10415, "0000025dc0000010000028af000000000000025dc0000010000028af000000010000025ac0000028000028af7369703a73637363662e6f70656e2d696d732e746573743a36303630")
+        
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af0000012a4000000c000007d1")           #Experimental result (DIAMETER_FIRST_REGISTRATION)
+        response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+    
 
 
     #3GPP Cx Multimedia Authentication Answer

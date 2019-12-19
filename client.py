@@ -5,7 +5,7 @@ import diameter
 
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "hss"
+hostname = "localhost"
 realm = "open-ims.test"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "MAR"]
@@ -68,8 +68,8 @@ while True:
         print("Sending Authentication Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777251_318(imsi))
     elif request == "UAR":
-        imsi = str(input("IMSI:\t"))
-        domain = str(input("Domain:\t"))
+        imsi = '214010000000001'
+        domain = 'open-ims.test'
         print("Sending User Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_300(imsi, domain))
     elif request == "MAR":
