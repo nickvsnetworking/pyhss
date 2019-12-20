@@ -77,6 +77,7 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_16777216_301(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
+
             #Cx Multimedia Authentication Answer (Unfinished)
             elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 303 (3GPP Cx Multimedia Authentication Request) from " + str(client_address) + "\n\tGenerating (MAA)")
