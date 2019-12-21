@@ -111,11 +111,11 @@ class Milenage(BaseLTEAuthAlgo):
             sqn_ms (int), 48 bit sequence number from client
             mac_s (bytes), 64 bit resync authentication code
         """
-        print("key is: " + str(type(key)) + " and has length of " + str(len(key)))
-        print("rand is: " + str(type(rand)) + " and has length of " + str(len(rand)))
-        print("opc is: " + str(type(opc)) + " and has length of " + str(len(opc)))
+        #print("key is: " + str(type(key)) + " and has length of " + str(len(key)))
+        #print("rand is: " + str(type(rand)) + " and has length of " + str(len(rand)))
+        #print("opc is: " + str(type(opc)) + " and has length of " + str(len(opc)))
         ak = self.f5_star(key, rand, opc)
-        print("AK is: " + str(type(ak)) + " and has length of " + str(len(ak)))
+        #print("AK is: " + str(type(ak)) + " and has length of " + str(len(ak)))
         sqn_ms = xor(auts[:6], ak)
         sqn_ms_int = int.from_bytes(sqn_ms, byteorder='big')
         _, mac_s = self.f1(key, sqn_ms, rand, opc, self.amf)

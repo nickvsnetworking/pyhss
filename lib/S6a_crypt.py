@@ -90,7 +90,7 @@ def generate_maa_vector(key, op, amf, sqn, plmn):
 
 
 def generate_resync_s6a(key, op, auts, rand):
-    print("Generating correct SQN value from AUTS")
+    #print("Generating correct SQN value from AUTS")
 
     key = key.encode('utf-8')
     #print("Input K:  " + str(key))
@@ -113,7 +113,6 @@ def generate_resync_s6a(key, op, auts, rand):
     #Generate Resync
     sqn_ms_int, mac_s = crypto.generate_resync(auts, key, op_c, rand)
     print("SQN should be: " + str(sqn_ms_int))
-    print(mac_s)
     return(sqn_ms_int, mac_s)
 
 
