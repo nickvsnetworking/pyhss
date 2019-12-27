@@ -586,8 +586,8 @@ class Diameter:
                         if int(sqn_origional) == int(sqn):
                             print("SQN now matches")
                         else:
-                            print("SQNs still don't match - Subtracting 1 before vector generation")
-                            sqn = str(int(sqn) - 1)
+                            print("SQNs still don't match ")
+                            sqn = str(int(sqn) + 1)
                         
                         
         

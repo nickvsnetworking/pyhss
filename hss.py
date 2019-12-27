@@ -44,7 +44,7 @@ def on_new_client(clientsocket,client_address):
 
             #Send Device Watchdog Answer (DWA) response to Device Watchdog Requests (DWR)
             elif packet_vars['command_code'] == 280 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
-                print("Received Request with command code 280 (DWR) from " + orignHost + "\n\tSending response (DWA)")
+                #print("Received Request with command code 280 (DWR) from " + orignHost + "\n\tSending response (DWA)")
                 response = diameter.Answer_280(packet_vars, avps)                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
@@ -68,13 +68,13 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_16777251_316(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
-            #Cx Authentication Answer (Unfinished)
+            #Cx Authentication Answer
             elif packet_vars['command_code'] == 300 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 300 (3GPP Cx User Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
                 response = diameter.Answer_16777216_300(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
-            #Cx Server Assignment Answer (Unfinished)
+            #Cx Server Assignment Answer
             elif packet_vars['command_code'] == 301 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 301 (3GPP Cx Server Assignemnt Request) from " + orignHost + "\n\tGenerating (MAA)")
                 response = diameter.Answer_16777216_301(packet_vars, avps)      #Generate Diameter packet
