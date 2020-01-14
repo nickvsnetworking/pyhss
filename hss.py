@@ -80,6 +80,11 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_16777216_301(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
+            #Cx Location Information Answer
+            elif packet_vars['command_code'] == 302 and packet_vars['ApplicationId'] == 16777216:
+                print("Received Request with command code 302 (3GPP Cx Location Information Request) from " + orignHost + "\n\tGenerating (MAA)")
+                response = diameter.Answer_16777216_302(packet_vars, avps)      #Generate Diameter packet
+                clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
             #Cx Multimedia Authentication Answer (Unfinished)
             elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:

@@ -646,8 +646,8 @@ class Diameter:
     #3GPP Cx User Authentication Answer
     def Answer_16777216_300(self, packet_vars, avps):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
-        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
@@ -672,8 +672,8 @@ class Diameter:
         domain = username.split('@')[1] #Get Domain Part
         imsi = imsi[4:]                 #Strip SIP: from start of string
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
-        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
@@ -708,6 +708,27 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response    
 
+
+    #3GPP Cx Location Information Answer
+    def Answer_16777216_302(self, packet_vars, avps):
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
+        username = self.get_avp_data(avps, 601)[0]
+        username = binascii.unhexlify(username).decode('utf-8')
+        print("Public-Identity for Location Information Request is: " + str(username))
+        if str(username) == "tel:+12722123":
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:as.mnc001.mcc001.3gppnetwork.org:5060")),'ascii'))
+            print("Destination is 12722123 - Routing to Application Server")
+        else:
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc001.mcc001.3gppnetwork.org:6060")),'ascii'))
+        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+        response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
 
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
