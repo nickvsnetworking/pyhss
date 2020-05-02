@@ -813,7 +813,21 @@ class Diameter:
         
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
-        
+
+    #Generate a Command Unsupported response based on an unknown command code
+    def Respond_Command_Unsupported(self, packet_vars, avps):
+        avp = ''                                                                                    #Initiate empty var AVP
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        for avps_to_check in avps:                                                                  #Only include AVP 260 (Vendor-Specific-Application-ID) if inital request included it
+            if avps_to_check['avp_code'] == 260:
+                concat_subavp = ''
+                for sub_avp in avps_to_check['misc_data']:
+                    concat_subavp += self.generate_avp(sub_avp['avp_code'], sub_avp['avp_flags'], sub_avp['misc_data'])
+                avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
+        avp += self.generate_avp(268, 40, self.int_to_hex(3001, 4))                                                   #DIAMETER_COMMAND_UNSUPPORTED (3001)
+        response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
         
     #### Diameter Requests ####
 

@@ -95,14 +95,16 @@ def on_new_client(clientsocket,client_address):
 
 
             else:
-                print("Recieved packet with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
+                print("Recieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
                 for keys in packet_vars:
                     print(keys)
                     print("\t" + str(packet_vars[keys]))
                 print(avps)
-                print("Panicking and exiting")
-                clientsocket.close()
-                sys.exit()
+                print("Sending negative response")
+                packet_vars, avps
+                response = diameter.Respond_Command_Unsupported(packet_vars, avps)      #Generate Diameter packet
+                clientsocket.sendall(bytes.fromhex(response))                   #Send it
+
                 
         except KeyboardInterrupt:
             #Clean up the connection on keyboard interupt

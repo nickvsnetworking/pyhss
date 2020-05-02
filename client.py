@@ -28,7 +28,7 @@ def SendRequest(request):
                 data = clientsocket.recv(32)
                 packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
                 data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
-                packet_vars, avps = diameter.decode_diameter_packet(data_sum) 
+                packet_vars, avps = diameter.decode_diameter_packet(data_sum)
                 print("Got response from " + str(hostname))
                 for keys in packet_vars:
                     print("\t" + str(keys) + "\t" + str(packet_vars[keys]))
