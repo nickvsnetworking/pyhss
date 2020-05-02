@@ -22,7 +22,6 @@ except Exception as e:
 
 
 def SendRequest(request):
-
     clientsocket.sendall(bytes.fromhex(request))
     try:
                 data = clientsocket.recv(32)
@@ -95,6 +94,13 @@ while True:
         software_version = str(input("ME Software Version:\t"))
         print("Sending ME-Identity-Check Request " + str(hostname))
         SendRequest(diameter.Request_16777252_324(imsi, imei, software_version))
+    elif request == "RTR":
+        imsi = '214010000000001'
+        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
+        #imsi = 'alice'
+        #domain = 'open-ims.test'
+        print("Sending Registration Termination Request to " + str(hostname))
+        SendRequest(diameter.Request_16777216_287(imsi, domain))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:

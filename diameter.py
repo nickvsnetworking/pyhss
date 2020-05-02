@@ -828,6 +828,10 @@ class Diameter:
         avp += self.generate_avp(268, 40, self.int_to_hex(3001, 4))                                                   #DIAMETER_COMMAND_UNSUPPORTED (3001)
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
+
+
+
+
         
     #### Diameter Requests ####
 
@@ -960,6 +964,37 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 303, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
+    #3GPP Cx Registration Termination Request
+    def Request_16777216_287(self, imsi, domain):
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
+        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        
+        #SIP-Deregistration-Reason
+        reason_code_avp = self.generate_vendor_avp(616, "c0", 10415, "00000000")
+        reason_info_avp = self.generate_vendor_avp(617, "c0", 10415, self.string_to_hex("Test Reason"))
+        avp += self.generate_vendor_avp(615, "c0", 10415, reason_code_avp + reason_info_avp)
+        
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
+        avp += self.generate_avp(1, 40, self.string_to_hex(str(imsi) + "@" + domain))                         #User-Name
+        avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + str(imsi) + "@" + domain))                      #Public-Identity
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.ProductName)                         #Server-Name
+        #* [ Proxy-Info ]
+        proxy_host_avp = self.generate_avp(280, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
+        proxy_state_avp = self.generate_avp(33, "40", "0001")
+        avp += self.generate_avp(284, "40", proxy_host_avp + proxy_state_avp)                 #Proxy-Info  AVP ( 284 )
+        
+        #* [ Route-Record ]
+        avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
+        
+        print("Final AVP: " + str(avp))
+        response = self.generate_diameter_packet("01", "c0", 287, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        print("Final response" + str(response))
+        return response
 
     #3GPP S13 - ME-Identity-Check Request
     def Request_16777252_324(self, imsi, imei, software_version):
