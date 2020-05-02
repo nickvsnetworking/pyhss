@@ -9,7 +9,7 @@ import diameter
 hostname = "localhost"
 realm = "ims.mnc001.mcc001.3gppnetwork.org"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR", "MCR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -89,6 +89,12 @@ while True:
         domain = 'open-ims.test'
         print("Sending Multimedia Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_303(imsi, domain))
+    elif request == "MCR":
+        imsi = str(input("IMSI:\t"))
+        imei = str(input("IMEI:\t"))
+        software_version = str(input("ME Software Version:\t"))
+        print("Sending ME-Identity-Check Request " + str(hostname))
+        SendRequest(diameter.Request_16777252_324(imsi, imei, software_version))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
