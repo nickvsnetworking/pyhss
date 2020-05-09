@@ -9,7 +9,7 @@ import diameter
 hostname = "localhost"
 realm = "ims.mnc001.mcc001.3gppnetwork.org"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR", "MCR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR", "MCR", "LIR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -101,6 +101,12 @@ while True:
         #domain = 'open-ims.test'
         print("Sending Registration Termination Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_287(imsi, domain))
+    elif request == "LIR":
+        imsi = '214010000000001'
+        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
+        sipaor = "sip:" + str(imsi) + "@" + str(domain)
+        print("Sending Location-Information Request to " + str(hostname))
+        SendRequest(diameter.Request_16777216_285(sipaor))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
