@@ -5,8 +5,8 @@ import diameter
 
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-#hostname = "hss.localdomain"
-hostname = "localhost"
+hostname = "10.0.1.9"
+#hostname = "localhost"
 realm = "ims.mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR", "MCR", "LIR"]
@@ -97,14 +97,10 @@ while True:
     elif request == "RTR":
         imsi = '214010000000001'
         domain = 'ims.mnc001.mcc001.3gppnetwork.org'
-        #imsi = 'alice'
-        #domain = 'open-ims.test'
         print("Sending Registration Termination Request to " + str(hostname))
-        SendRequest(diameter.Request_16777216_287(imsi, domain))
+        SendRequest(diameter.Request_16777216_304(imsi, domain))
     elif request == "LIR":
-        imsi = '214010000000001'
-        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
-        sipaor = "sip:" + str(imsi) + "@" + str(domain)
+        sipaor = "sip:" + str(61412341234)
         print("Sending Location-Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_285(sipaor))
     else:

@@ -6,7 +6,7 @@ import time
 from threading import Thread, Lock
 import os
 
-diameter = diameter.Diameter('nick-pc.localdomain', 'localdomain', 'PyHSS')
+diameter = diameter.Diameter('hss', 'localdomain', 'PyHSS')
 
 def on_new_client(clientsocket,client_address):
     print('New connection from ' + str(client_address))
@@ -31,7 +31,7 @@ def on_new_client(clientsocket,client_address):
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
                 print("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
-                response = diameter.Answer_257(packet_vars, avps)                   #Generate Diameter packet
+                response = diameter.Answer_257(packet_vars, avps, "10.0.1.252")                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
 
@@ -86,12 +86,17 @@ def on_new_client(clientsocket,client_address):
                 response = diameter.Answer_16777216_302(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
-            #Cx Multimedia Authentication Answer (Unfinished)
+            #Cx Multimedia Authentication Answer
             elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 303 (3GPP Cx Multimedia Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
                 response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                   #Send it
 
+            #Cx Multimedia Authentication Answer
+            elif packet_vars['command_code'] == 304 and packet_vars['ApplicationId'] == 16777216:
+                print("Received Request with command code 304 (3GPP Cx Registration-Termination Request) from " + orignHost + "\n\tGenerating (MAA)")
+                response = diameter.Answer_16777216_304(packet_vars, avps)      #Generate Diameter packet
+                clientsocket.sendall(bytes.fromhex(response))   
 
 
             else:
