@@ -411,7 +411,6 @@ class Diameter:
         avp += self.generate_avp(257, 40, self.ip_to_hex(recv_ip))                                  #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
-
         avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
