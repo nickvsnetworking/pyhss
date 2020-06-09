@@ -5,11 +5,10 @@ import diameter
 
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "10.0.1.9"
-#hostname = "localhost"
-realm = "ims.mnc001.mcc001.3gppnetwork.org"
+hostname = "localhost"
+realm = "mnc001.mcc001.3gppnetwork.org"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "SAR", "MAR", "MCR", "LIR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]
 
 diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
 
@@ -74,6 +73,10 @@ while True:
         #domain = 'open-ims.test'
         print("Sending User Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_300(imsi, domain))
+    elif request == "PUR":
+        imsi = '214010000000001'
+        print("Sending User Purge Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_321(imsi))
     elif request == "SAR":
         imsi = '214010000000001'
         domain = 'ims.mnc001.mcc001.3gppnetwork.org'
