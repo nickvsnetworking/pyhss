@@ -2,15 +2,16 @@
 import socket
 import sys
 import diameter
-
+global recv_ip
+recv_ip = "192.168.20.235"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "localhost"
+hostname = "hss002"
 realm = "mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]
 
-diameter = diameter.Diameter('client.localdomain', 'localdomain', 'PyHSS-client')
+diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client')
 
 clientsocket = socket.socket()
 try:
@@ -20,8 +21,7 @@ except Exception as e:
     sys.exit()
 
 
-def SendRequest(request):
-    clientsocket.sendall(bytes.fromhex(request))
+def ReadBuffer():
     try:
                 data = clientsocket.recv(32)
                 packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
@@ -38,6 +38,13 @@ def SendRequest(request):
                         file.open("vectors.txt", "w")
                         file.write(avp['misc_data'])
                         file.close()
+                print("Command Code: " + str(packet_vars['command_code']))
+                if int(packet_vars['command_code']) == 280:
+                    print("Recieved DWR - Sending DWA")
+                    SendRequest(diameter.Answer_280(packet_vars, avps))
+                if int(packet_vars['command_code']) == 257:
+                    print("Recieved CER - Sending CEA")
+                    SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
                     
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
@@ -45,14 +52,19 @@ def SendRequest(request):
                         
     except Exception as e:
         print("failed to get all return data - Error " + str(e))
-        
+
+def SendRequest(request):
+    clientsocket.sendall(bytes.fromhex(request))
+    ReadBuffer()
 
 while True:
     print("\n\nQuerying Diameter peer " + str(hostname) + " of domain " + str(realm))
     print("Note - You may need to exchange a CER before doing anything fun")
     request = input("Enter request type:\t")
 
-    if request == "CER":
+    if request == "R":
+        ReadBuffer()
+    elif request == "CER":
         print("Sending Cabailites Exchange Request to " + str(hostname))
         SendRequest(diameter.Request_257())
     elif request == "DWR":
@@ -67,28 +79,22 @@ while True:
         print("Sending Authentication Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777251_318(imsi))
     elif request == "UAR":
-        imsi = '214010000000001'
-        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
-        #imsi = 'nick'
-        #domain = 'open-ims.test'
+        imsi = str(input("IMSI:\t"))
+        domain = str(input("Domain:\t"))
         print("Sending User Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_300(imsi, domain))
     elif request == "PUR":
-        imsi = '214010000000001'
+        imsi = str(input("IMSI:\t"))
         print("Sending User Purge Request to " + str(hostname))
         SendRequest(diameter.Request_16777251_321(imsi))
     elif request == "SAR":
-        imsi = '214010000000001'
-        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
-        #imsi = 'alice'
-        #domain = 'open-ims.test'
+        imsi = str(input("IMSI:\t"))
+        domain = str(input("Domain:\t"))
         print("Sending Server Assignment Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_301(imsi, domain))
     elif request == "MAR":
-        #imsi = str(input("IMSI:\t"))
-        #domain = str(input("Domain:\t"))
-        imsi = '214010000000001'
-        domain = 'open-ims.test'
+        imsi = str(input("IMSI:\t"))
+        domain = str(input("Domain:\t"))
         print("Sending Multimedia Authentication Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_303(imsi, domain))
     elif request == "MCR":
@@ -98,12 +104,13 @@ while True:
         print("Sending ME-Identity-Check Request " + str(hostname))
         SendRequest(diameter.Request_16777252_324(imsi, imei, software_version))
     elif request == "RTR":
-        imsi = '214010000000001'
-        domain = 'ims.mnc001.mcc001.3gppnetwork.org'
+        imsi = str(input("IMSI:\t"))
+        domain = str(input("Domain:\t"))
         print("Sending Registration Termination Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_304(imsi, domain))
     elif request == "LIR":
-        sipaor = "sip:" + str(61412341234)
+        msisdn = str(input("MSISDN:\t"))
+        sipaor = "sip:" + str(msisdn)
         print("Sending Location-Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_285(sipaor))
     else:
