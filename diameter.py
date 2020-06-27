@@ -872,6 +872,24 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 304, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
+    #3GPP S13 - ME-Identity-Check Answer
+    def Answer_16777252_324(self, packet_vars, avps):
+        avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
+        avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
+        avp += self.generate_avp(277, 40, "00000001")                                                   #Auth Session State        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
+        #Experimental Result AVP(Response Code for Failure)
+        avp_experimental_result = ''
+        avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
+        avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+        response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+
 
 
 
@@ -1102,3 +1120,4 @@ class Diameter:
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
+

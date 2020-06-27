@@ -108,15 +108,15 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
                 response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
                 self.request.sendall(bytes.fromhex(response))                   #Send it
 
-            #Cx Multimedia Authentication Answer
-            elif packet_vars['command_code'] == 304 and packet_vars['ApplicationId'] == 16777216:
-                print("Received Request with command code 304 (3GPP Cx Registration-Termination Request) from " + orignHost + "\n\tGenerating (MAA)")
-                response = diameter.Answer_16777216_304(packet_vars, avps)      #Generate Diameter packet
+            #S13 ME-Identity-Check Answer
+            elif packet_vars['command_code'] == 324 and packet_vars['ApplicationId'] == 16777252:
+                print("Received Request with command code 324 (3GPP S13 ME-Identity-Check Request) from " + orignHost + "\n\tGenerating (MICA)")
+                response = diameter.Answer_16777252_324(packet_vars, avps)      #Generate Diameter packet
                 self.request.sendall(bytes.fromhex(response))   
 
 
             else:
-                print("Recieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
+                print("\n\nRecieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
                 for keys in packet_vars:
                     print(keys)
                     print("\t" + str(packet_vars[keys]))
