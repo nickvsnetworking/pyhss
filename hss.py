@@ -75,7 +75,7 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
             elif packet_vars['command_code'] == 316 and packet_vars['ApplicationId'] == 16777251:
                 print("Received Request with command code 316 (3GPP Update Location-Request) from " + orignHost + "\n\tGenerating (ULA)")
                 response = diameter.Answer_16777251_316(packet_vars, avps)      #Generate Diameter packet
-                clientsocket.sendall(bytes.fromhex(response))                   #Send it
+                self.request.sendall(bytes.fromhex(response))                   #Send it
 
 
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
