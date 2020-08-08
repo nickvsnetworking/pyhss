@@ -461,7 +461,7 @@ class Diameter:
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000002")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -477,10 +477,9 @@ class Diameter:
         #Sub AVPs of APN Configuration Profile
         APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
         APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
-        #Cheating
-        APN_PDN_type += "00000350c0000012000028af00010a2d00020000"  #Static IP
-        APN_PDN_type += "0000059bc000002c000028af00000204c0000010000028af009c400000000203c0000010000028af009c4000"  #AMBR
-        
+        #Cheating - ToDo - Fix me
+        APN_PDN_type += self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
         APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
 
         #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
@@ -491,19 +490,23 @@ class Diameter:
         AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
         APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
+        
 
         #APNs from CSV
         APN_Configuration = ''
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+
+        Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex("45.45.0." + str(str(imsi)[-1])))
+
         apn_list = subscriber_details['APN_list'].split(';')
         APN_context_identifer_count = 1
         for apns in apn_list:
             apns = apns.rstrip()
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apns)))
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4)) \
-                 + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile)
+                 + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address)
             APN_context_identifer_count = APN_context_identifer_count + 1            
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
