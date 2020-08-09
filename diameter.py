@@ -27,13 +27,13 @@ class Diameter:
             #Check if MongoDB in use
             try:
                 if "mongodb_server" in mongo_conf and "mongodb_port" in mongo_conf:
-                    print("Using MongoDB for subscriber data")
+                    logging.info("Using MongoDB for subscriber data")
                     use_mongodb = 1
             except:
-                print("MongoDB config file not populated - Using CSV as data source")
+                logging.info("MongoDB config file not populated - Using CSV as data source")
                 use_mongodb = 0
     except:
-        print("Failed to load YAML config file for MongoDB - Using CSV as data source - Check pyyaml is installed and mongodb.yaml exists if you want to use MongoDB")
+        logging.info("Failed to load YAML config file for MongoDB - Using CSV as data source - Check pyyaml is installed and mongodb.yaml exists if you want to use MongoDB")
         use_mongodb = 0
 
 
@@ -84,12 +84,12 @@ class Diameter:
         return (slicedString)
 
     def DecodePLMN(self, plmn):
-        #print("Decoded PLMN: " + str(plmn))
+        logging.debug("Decoded PLMN: " + str(plmn))
         mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
-        #print("Decoded MCC: " + mcc)
+        logging.debug("Decoded MCC: " + mcc)
 
         mnc = self.Reverse(plmn[4:6])
-        #print("Decoded MNC: " + mnc)
+        logging.debug("Decoded MNC: " + mnc)
         return mcc, mnc
 
     def EncodePLMN(self, mcc, mnc):
@@ -104,7 +104,7 @@ class Diameter:
         plmn = ''
         for bits in plmn_list:
             plmn = plmn + bits
-        #print("Encoded PLMN: " + str(plmn))
+        logging.debug("Encoded PLMN: " + str(plmn))
         return plmn
 
 
@@ -153,8 +153,8 @@ class Diameter:
             avp_padding = ''
         else:                       #Not multiple of 4 - Padding needed
             rounded_value = self.myround(avp_length)
-            #print("Rounded value is " + str(rounded_value))
-            #print("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
+            logging.debug("Rounded value is " + str(rounded_value))
+            logging.debug("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
             avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
 
@@ -253,7 +253,7 @@ class Diameter:
                       avp_vars['misc_data'].append(sub_avp_vars)
               
         except Exception as e:
-            #print("failed to decode sub-avp - error: " + str(e))
+            logging.debug("failed to decode sub-avp - error: " + str(e))
             pass
 
 
@@ -297,8 +297,8 @@ class Diameter:
 
         subscriber_details = {}
         
-        if use_mongodb == 1:
-            print("Configured to use MongoDB server: " + str(mongo_conf['mongodb_server']))
+        try:
+            logging.debug("Configured to use MongoDB server: " + str(mongo_conf['mongodb_server']))
             import mongo
             import pymongo
             #Search for user in MongoDB database
@@ -306,10 +306,10 @@ class Diameter:
             mydb = myclient["open5gs"]
             mycol = mydb["subscribers"]
             myquery = { "imsi": str(imsi)}
-            print("Querying MongoDB for subscriber " + str(imsi))
+            logging.debug("Querying MongoDB for subscriber " + str(imsi))
             mydoc = mycol.find(myquery)
             for x in mydoc:
-                print("Got result from MongoDB")
+                logging.debug("Got result from MongoDB")
                 subscriber_details['K'] = x['security']['k'].replace(' ', '')
                 subscriber_details['OP'] = x['security']['op'].replace(' ', '')
                 subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
@@ -324,42 +324,22 @@ class Diameter:
                 for keys in x['pdn']:
                     apn_list += keys['apn'] + ";"
                 subscriber_details['APN_list'] = apn_list[:-1]      #Remove last semicolon
-                print(subscriber_details)
+                subscriber_details['pdn'] = x['pdn']
+                logging.debug(subscriber_details)
                 return subscriber_details
-        else:
-            print("Querying CSV database for subscriber " + str(imsi))
-            subs_file = open("subscribers.csv", "r")
-            for subscribers in subs_file:
-                subscribers = subscribers.split(",")
-                #Find specific IMSI in CSV file
-                if str(subscribers[0]) == str(imsi):
-                    print("Found match for " + str(imsi))
-                    subscriber_details['K'] = subscribers[1].rstrip()
-                    if len(subscriber_details['K']) != 32:
-                        print("Invalid K Length")
-                        return
-                    subscriber_details['OP'] = subscribers[2].rstrip()
-                    if len(subscriber_details['OP']) != 32:
-                        print("Invalid OP Length")
-                        return
-                    subscriber_details['AMF'] = subscribers[3].rstrip()
-                    subscriber_details['SQN'] = subscribers[4].rstrip()
-                    subscriber_details['RAND'] = subscribers[5].rstrip()
-                    subscriber_details['APN_list'] = subscribers[6].rstrip()
-                    return subscriber_details
-            subs_file.close()
-            raise ValueError("Subscriber not present in CSV")
+        except:
+            raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
 
 
 
     #Loads a subscriber's information from CSV file into dict for referencing
     def UpdateSubscriber(self, imsi, sqn, rand):
         subscriber_details = {}
-        #print("Looking up " + str(imsi))
+        logging.debug("Updating " + str(imsi))
         
         #Check if MongoDB in use
-        if use_mongodb == 1:
-            print("Updating SQN on MongoDB server: " + str(mongo_conf['mongodb_server']))
+        try:
+            logging.debug("Updating SQN on MongoDB server: " + str(mongo_conf['mongodb_server']))
             import mongo
             import pymongo
             #Search for user in MongoDB database
@@ -372,26 +352,9 @@ class Diameter:
             newvalues = { "$set": {'security.sqn': int(sqn)} }
             mycol.update_one(myquery, newvalues)
             return sqn
-
-        else:
-            print("Updating SQN in CSV file")
-            subs_file = open("subscribers.csv", "r")
-            writeback_file = open("writeback.csv", "w")
-            for subscribers in subs_file:
-                subscribers = subscribers.split(",")
-                #Find specific IMSI config
-                if str(subscribers[0]) == str(imsi):
-                    print("Found match for " + str(imsi))
-                    subscribers[4] = str(sqn)
-                    subscribers[5] = str(rand)
-
-                writeback_file.write(subscribers[0] + "," + subscribers[1] + ","  + subscribers[2] + ","  + subscribers[3] + ","  + subscribers[4] + ","  +  subscribers[5] + ","  + subscribers[6].rstrip() + "\n")
-
-            subs_file.close()
-            writeback_file.close()
-            os.remove("subscribers.csv")
-            os.rename("writeback.csv", "subscribers.csv")
-            return(sqn)
+        except:
+            raise ValueError("Failed update SQN for subscriber " + str(imsi) + " in MongoDB")
+        
 
 
 
@@ -495,7 +458,7 @@ class Diameter:
 
         
 
-        #APNs from CSV
+        #APNs from DB
         APN_Configuration = ''
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
@@ -503,10 +466,12 @@ class Diameter:
 
         Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex("45.45.0." + str(str(imsi)[-1])))
 
-        apn_list = subscriber_details['APN_list'].split(';')
+        apn_list = subscriber_details['pdn']
+        print(apn_list)
         APN_context_identifer_count = 1
-        for apns in apn_list:
-            apns = apns.rstrip()
+        for apn_profile in apn_list:
+            print(apn_profile)
+            apns = apn_profile['apn']
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apns)))
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4)) \
                  + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address)
@@ -550,7 +515,7 @@ class Diameter:
             
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            print("Subscriber " + str(imsi) + " is unknown in database")
+            logging.debug("Subscriber " + str(imsi) + " is unknown in database")
             avp = ''
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -576,38 +541,29 @@ class Diameter:
         
         for avp in avps:
             if avp['avp_code'] == 1408:
-                print("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
+                logging.debug("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
                 EUTRAN_Authentication_Info = avp['misc_data']
                 for sub_avp in EUTRAN_Authentication_Info:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
                         sqn_origional = sqn
-                        print("Re-Synchronization required - SQN is out of sync")
+                        logging.debug("Re-Synchronization required - SQN is out of sync")
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
+                        #ToDo - This is a vulnerability - fix it.
                         #rand = subscriber_details['RAND']
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
                         sqn, mac_s = S6a_crypt.generate_resync_s6a(key, op, auts, rand)
                         #Write correct SQN back
-                        print("SQN from Text DB: " + str(sqn_origional))
                         self.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
                         #Print SQN correct value
-                        print("SQN from resync: " + str(sqn) + " SQN in HSS is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
-                        
-                        if int(sqn_origional) == int(sqn):
-                            print("SQN now matches")
-                        else:
-                            print("SQNs still don't match ")
-                            sqn = str(int(sqn) + 1)
-                        
-                        
-        
+                        logging.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
+                        sqn = sqn + 100
 
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-        print("SQN used in vector: " + str(sqn))
+        logging.debug("SQN used in vector: " + str(sqn))
         rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn, plmn) 
-        self.UpdateSubscriber(imsi, str(int(sqn) + 1), str(rand))
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
         eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
@@ -627,7 +583,10 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.UpdateSubscriber(imsi, int(sqn) + 1, str(subscriber_details['RAND']))#Incriment SQN
+        if sub_avp['avp_code'] == 1411:
+            self.UpdateSubscriber(imsi, int(sqn), str(subscriber_details['RAND']))  #As has been re-synced do not incriment
+        else:
+            self.UpdateSubscriber(imsi, int(sqn + 1), str(subscriber_details['RAND']))  #Incriment SQN
         return response
 
     #Purge UE Answer (PUR)
@@ -759,10 +718,10 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         username = self.get_avp_data(avps, 601)[0]
         username = binascii.unhexlify(username).decode('utf-8')
-        print("Public-Identity for Location Information Request is: " + str(username))
+        logging.debug("Public-Identity for Location Information Request is: " + str(username))
         if str(username) == "tel:+12722123":
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:as.mnc001.mcc001.3gppnetwork.org:5060")),'ascii'))
-            print("Destination is 12722123 - Routing to Application Server")
+            logging.debug("Destination is 12722123 - Routing to Application Server")
         else:
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc001.mcc001.3gppnetwork.org:6060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -776,7 +735,7 @@ class Diameter:
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
         imsi = imsi[4:]                 #Strip SIP: from start of string
-        print("Got MAR for public_identity : " + str(username))
+        logging.debug("Got MAR for public_identity : " + str(username))
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -791,7 +750,7 @@ class Diameter:
             self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            print("Subscriber " + str(imsi) + " unknown in HSS for MAA")
+            logging.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
             experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
             #Experimental Result (297)
@@ -808,7 +767,7 @@ class Diameter:
         plmn = self.EncodePLMN(mcc, mnc)
         
         SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, op, amf, sqn, plmn) 
-        print("IMSI is " + str(imsi))        
+        logging.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username + "@" + domain)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
         
