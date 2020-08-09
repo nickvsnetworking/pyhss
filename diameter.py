@@ -440,11 +440,7 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))     #Context Identifier
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
-        #Sub AVPs of APN Configuration Profile
-        APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
-        APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
-        #Cheating - ToDo - Fix me
-        APN_PDN_type += self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
 
         APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
 
@@ -464,17 +460,33 @@ class Diameter:
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
 
-        Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex("45.45.0." + str(str(imsi)[-1])))
-
         apn_list = subscriber_details['pdn']
         print(apn_list)
         APN_context_identifer_count = 1
         for apn_profile in apn_list:
-            print(apn_profile)
-            apns = apn_profile['apn']
-            APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apns)))
-            APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4)) \
-                 + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address)
+            logging.debug("Processing APN profile " + str(apn_profile))
+            APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
+
+            
+            #Sub AVPs of APN Configuration Profile
+            APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
+            APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
+            APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+            #If static UE IP is specified
+            try:
+                apn_ip = apn_profile['ue']['addr']
+                logging.debug("Found static IP for UE " + str(apn_ip))
+                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
+            except:
+                Served_Party_Address = ""
+
+            APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
+                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address
+            
+            APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
+            
+            #Incriment Context Identifier Count to keep track of how many APN Profiles returned
             APN_context_identifer_count = APN_context_identifer_count + 1            
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
