@@ -1,5 +1,6 @@
 #Diameter Packet Decoder / Encoder & Tools
 import socket
+import logging
 import sys
 import binascii
 import math
@@ -312,12 +313,17 @@ class Diameter:
                 subscriber_details['K'] = x['security']['k'].replace(' ', '')
                 subscriber_details['OP'] = x['security']['op'].replace(' ', '')
                 subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
-                subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
-                subscriber_details['SQN'] = int(x['security']['sqn'])
+                try:
+                    subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
+                    subscriber_details['SQN'] = int(x['security']['sqn'])
+                except:
+                    logging.debug("Subscriber " + str() + " is new - Generating new SQN and RAND")
+                    subscriber_details['SQN'] = 1
+                    subscriber_details['RAND'] = ''
                 apn_list = ''
                 for keys in x['pdn']:
-                    apn_list = apn_list + ";" + keys['apn']
-                subscriber_details['APN_list'] = apn_list
+                    apn_list += keys['apn'] + ";"
+                subscriber_details['APN_list'] = apn_list[:-1]      #Remove last semicolon
                 print(subscriber_details)
                 return subscriber_details
         else:
@@ -360,15 +366,12 @@ class Diameter:
             myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
             mydb = myclient["open5gs"]
             mycol = mydb["subscribers"]
-            mycol.find_one_and_update(
-                {'imsi': str(imsi)},
-                {'security.rand': str(rand)}
-            )
-            mycol.find_one_and_update(
-                {'imsi': str(imsi)},
-                {'security.sqn': int(sqn)}
-            )
-            return sqn + 1
+            myquery = { 'imsi': str(imsi) }
+            newvalues = { "$set": {'security.rand': str(rand)} }
+            mycol.update_one(myquery, newvalues)
+            newvalues = { "$set": {'security.sqn': int(sqn)} }
+            mycol.update_one(myquery, newvalues)
+            return sqn
 
         else:
             print("Updating SQN in CSV file")
