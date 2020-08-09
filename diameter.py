@@ -254,6 +254,7 @@ class Diameter:
               
         except Exception as e:
             logging.debug("failed to decode sub-avp - error: " + str(e))
+            #logging.debug("Contents: " + str(sub_avp_vars))
             pass
 
 
@@ -620,6 +621,26 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
+    #Notify Answer (NOA)
+    def Answer_16777251_323(self, packet_vars, avps):
+        avp = ''
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)        
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
+        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+
+        #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
+        SupportedFeatures = ''
+        SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+        response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+
     #3GPP Gx Credit Control Answer
     def Answer_16777238_272(self, packet_vars, avps):
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
@@ -636,6 +657,8 @@ class Diameter:
             avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
                                                                                                     #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+                                                                                                    #QoS-Information
+            avp += "000003f8c000002c000028af0000041180000010000028af009c40000000041080000010000028af061a8000"
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
