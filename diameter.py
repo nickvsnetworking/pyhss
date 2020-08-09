@@ -1,5 +1,6 @@
 #Diameter Packet Decoder / Encoder & Tools
 import socket
+import logging
 import sys
 import binascii
 import math
@@ -312,12 +313,17 @@ class Diameter:
                 subscriber_details['K'] = x['security']['k'].replace(' ', '')
                 subscriber_details['OP'] = x['security']['op'].replace(' ', '')
                 subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
-                subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
-                subscriber_details['SQN'] = int(x['security']['sqn'])
+                try:
+                    subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
+                    subscriber_details['SQN'] = int(x['security']['sqn'])
+                except:
+                    logging.debug("Subscriber " + str() + " is new - Generating new SQN and RAND")
+                    subscriber_details['SQN'] = 1
+                    subscriber_details['RAND'] = ''
                 apn_list = ''
                 for keys in x['pdn']:
-                    apn_list = apn_list + ";" + keys['apn']
-                subscriber_details['APN_list'] = apn_list
+                    apn_list += keys['apn'] + ";"
+                subscriber_details['APN_list'] = apn_list[:-1]      #Remove last semicolon
                 print(subscriber_details)
                 return subscriber_details
         else:
@@ -360,15 +366,12 @@ class Diameter:
             myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
             mydb = myclient["open5gs"]
             mycol = mydb["subscribers"]
-            mycol.find_one_and_update(
-                {'imsi': str(imsi)},
-                {'security.rand': str(rand)}
-            )
-            mycol.find_one_and_update(
-                {'imsi': str(imsi)},
-                {'security.sqn': int(sqn)}
-            )
-            return sqn + 1
+            myquery = { 'imsi': str(imsi) }
+            newvalues = { "$set": {'security.rand': str(rand)} }
+            mycol.update_one(myquery, newvalues)
+            newvalues = { "$set": {'security.sqn': int(sqn)} }
+            mycol.update_one(myquery, newvalues)
+            return sqn
 
         else:
             print("Updating SQN in CSV file")
@@ -461,7 +464,7 @@ class Diameter:
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000002")                     #Network-Access-Mode (ONLY_PACKET)
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -476,7 +479,10 @@ class Diameter:
 
         #Sub AVPs of APN Configuration Profile
         APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))
-        APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(2, 4))
+        APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
+        #Cheating - ToDo - Fix me
+        APN_PDN_type += self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
         APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
 
         #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
@@ -487,23 +493,29 @@ class Diameter:
         AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
         APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
+        
 
         #APNs from CSV
         APN_Configuration = ''
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+
+        Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex("45.45.0." + str(str(imsi)[-1])))
+
         apn_list = subscriber_details['APN_list'].split(';')
+        APN_context_identifer_count = 1
         for apns in apn_list:
             apns = apns.rstrip()
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apns)))
-            APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_context_identifer + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile)
-            
+            APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4)) \
+                 + APN_PDN_type + APN_Service_Selection + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address)
+            APN_context_identifer_count = APN_context_identifer_count + 1            
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
-        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
-        #subscription_data += self.generate_vendor_avp(701, "80", 10415, self.string_to_hex('61412341234'))                                   #MSISDN (For Testing)
-        
+        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
+            self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
 
