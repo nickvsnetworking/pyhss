@@ -41,11 +41,11 @@ class Diameter:
     #Generates rounding for calculating padding
     def myround(self, n, base=4):
         if(n > 0):
-            return math.ceil(n/4.0) * 4;
+            return math.ceil(n/4.0) * 4
         elif( n < 0):
-            return math.floor(n/4.0) * 4;
+            return math.floor(n/4.0) * 4
         else:
-            return 4;
+            return 4
 
     #Converts a dotted-decimal IPv4 address to hex
     def ip_to_hex(self, ip):
@@ -71,12 +71,6 @@ class Diameter:
     def generate_id(self, length):
         length = length * 2
         return str(uuid.uuid4().hex[:length])
-
-    #Generates a random unsigned 32-bit integer field (in network byte order) for use in Hop-by-Hop Identifiers and End-to-End Identifiers
-    def generate32bitint(self):
-        return generate_id(4)
-
-
 
     def Reverse(self, str):
         stringlength=len(str)
@@ -273,7 +267,6 @@ class Diameter:
 
     def decode_diameter_packet_length(self, data):
         packet_vars = {}
-        avps = []
         data = data.hex()
 
         packet_vars['packet_version'] = data[0:2]
@@ -335,7 +328,6 @@ class Diameter:
 
     #Loads a subscriber's information from CSV file into dict for referencing
     def UpdateSubscriber(self, imsi, sqn, rand):
-        subscriber_details = {}
         logging.debug("Updating " + str(imsi))
         
         #Check if MongoDB in use
@@ -1120,7 +1112,6 @@ class Diameter:
     #3GPP S13 - ME-Identity-Check Request
     def Request_16777252_324(self, imsi, imei, software_version):
         avp = ''
-        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
