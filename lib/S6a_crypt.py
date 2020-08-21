@@ -1,19 +1,20 @@
 from milenage import Milenage
 import binascii
 import base64
+import logging
 
 def generate_eutran_vector(key, op, amf, sqn, plmn):
-    print("Generting EUTRAN Vectors")
+    logging.debug("Generting EUTRAN Vectors")
     key = key.encode('utf-8')
-    #print("Input K:  " + str(key))
+    logging.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     op = op.encode('utf-8')
-    #print("Input OP:  " + str(op))
+    logging.debug("Input OP:  " + str(op))
     op = binascii.unhexlify(op)
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
-    #print("Input AMF: " + str(amf))
+    logging.debug("Input AMF: " + str(amf))
     sqn = int(sqn)
 
     plmn = plmn.encode('utf-8')
@@ -21,11 +22,11 @@ def generate_eutran_vector(key, op, amf, sqn, plmn):
     #plmn = b'\x05\xf5\x39'      #505 93
     #plmn = b'\x12\xf4\x10'      #214 01
     #print("PLMN: " )
-    #print(plmn)
+    logging.debug(plmn)
     #Derrive OPc
     op_c = Milenage.generate_opc(key, op)
 
-    #print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
+    logging.debug("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
 
     crypto = Milenage(amf)
 
@@ -33,19 +34,19 @@ def generate_eutran_vector(key, op, amf, sqn, plmn):
 
     rand = binascii.hexlify(rand).decode('utf-8')
 
-    #print("output rand: " + str(rand))
+    logging.debug("output rand: " + str(rand))
     xres = binascii.hexlify(xres).decode('utf-8')
-    #print("output xres: " + str(xres))
+    logging.debug("output xres: " + str(xres))
     autn = binascii.hexlify(autn).decode('utf-8')
-    #print("output autn: " + str(autn))
+    logging.debug("output autn: " + str(autn))
     kasme = binascii.hexlify(kasme).decode('utf-8')
-    #print("output kasme: " + str(kasme))
+    logging.debug("output kasme: " + str(kasme))
 
     return (rand, xres, autn, kasme)
  
 
 def generate_maa_vector(key, op, amf, sqn, plmn):
-    print("Generting Multimedia Authentication Vector")
+    logging.debug("Generting Multimedia Authentication Vector")
     key = key.encode('utf-8')
     #print("Input K:  " + str(key))
     key = binascii.unhexlify(key)
@@ -90,7 +91,7 @@ def generate_maa_vector(key, op, amf, sqn, plmn):
 
 
 def generate_resync_s6a(key, op, auts, rand):
-    #print("Generating correct SQN value from AUTS")
+    logging.debug("Generating correct SQN value from AUTS")
 
     key = key.encode('utf-8')
     #print("Input K:  " + str(key))
@@ -112,7 +113,7 @@ def generate_resync_s6a(key, op, auts, rand):
 
     #Generate Resync
     sqn_ms_int, mac_s = crypto.generate_resync(auts, key, op_c, rand)
-    print("SQN should be: " + str(sqn_ms_int))
+    logging.debug("SQN should be: " + str(sqn_ms_int))
     return(sqn_ms_int, mac_s)
 
 

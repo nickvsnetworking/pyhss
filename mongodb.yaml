@@ -8,7 +8,7 @@
 ## Bind MongoDB to listen on a socket (edit /etc/mongodb.conf & set 'bind_ip = 127.0.0.1' and 'port = 27017' & restart MongoDB)
 ## Install Python requirements with Pip (pip3 install pyyaml mongo)
 ## Add some subscribers to the database using Open5Gs Web UI or Open5Gs Python Library (See example in /lib directory)
-#mongodb_server: 127.0.0.1
-#mongodb_username: root
-#mongodb_password: password
-#mongodb_port: 27017
+mongodb_server: 127.0.0.1
+mongodb_username: root
+mongodb_password: password
+mongodb_port: 27017

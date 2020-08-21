@@ -368,8 +368,11 @@ class Diameter:
 
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
+        logging.debug("packet_vars for CEA is " + str(packet_vars))
+        logging.debug("avps for CEA is " + str(avps))
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCESS (2001))
+        logging.debug("OriginHost is " + str(self.OriginHost))
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -645,7 +648,6 @@ class Diameter:
     def Answer_16777238_272(self, packet_vars, avps):
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
-        self.OriginHost = self.get_avp_data(avps, 264)[0]
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -653,12 +655,21 @@ class Diameter:
         avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type (ToDo - Check dyanmically generating)
         avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number (ToDo - Check dyanmically generating)
         if int(CC_Request_Type) == 1:
+            logging.info("Request type for CCA is 1")
                                                                                                     #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
             avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
                                                                                                     #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+            logging.info("Creating QoS Information")
                                                                                                     #QoS-Information
-            avp += "000003f8c000002c000028af0000041180000010000028af009c40000000041080000010000028af061a8000"
+            QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
+            QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
+            logging.info("Created both QoS AVPs")
+            logging.info("Populated QoS_Infomration")
+            avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+            logging.info("Added to AVP List")
+            
+            logging.debug("QoS Information: " + str(QoS_Information))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))

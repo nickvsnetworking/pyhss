@@ -26,9 +26,9 @@ Most of the heavy lifting in this is managed by the Diameter class, in *diameter
 
  
 ## Subscriber Information Storage
-By default subscriber info is stored in the *subscribers.csv* file, which contains the IMSI, APN & Crypto values of each subscriber.
+MongoDB is used to store all the subscriber data (IMSI, APN Profiles & Crypto values for each subscriber)
 
-Alternatley you can use [MongoDB](https://www.mongodb.com/) as a database backend, further information on setup is in *mongodb.yaml* file.
+Further information on setup is in *mongodb.yaml* file.
 
  
 ## Extending
