@@ -3,10 +3,10 @@ import socket
 import sys
 import diameter
 global recv_ip
-recv_ip = "192.168.20.235"
+recv_ip = "10.0.1.252"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "hss002"
+hostname = "10.0.1.252"
 realm = "mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]
@@ -14,6 +14,7 @@ supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR"
 diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client')
 
 clientsocket = socket.socket()
+print("Connecting to " + str(hostname))
 try:
     clientsocket.connect((hostname,3868))
 except Exception as e:

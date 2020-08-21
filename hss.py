@@ -1,5 +1,7 @@
 #PyHSS
 #This serves as a basic 3GPP Home Subscriber Server implimenting a EIR & IMS HSS functionality
+import logging
+logging.basicConfig(level=logging.DEBUG)
 import sys
 import socket
 import socketserver
@@ -9,11 +11,12 @@ import time
 from threading import Thread, Lock
 import os
 
+
 our_ip = "10.0.1.252"
 #need to get this dynamically
 
 
-diameter = diameter.Diameter('hss', 'localdomain', 'PyHSS')
+diameter = diameter.Diameter('hss.localdomain', 'localdomain', 'PyHSS')
 
 
 class DiameterRequestHandler(socketserver.BaseRequestHandler):
@@ -84,6 +87,13 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
                 response = diameter.Answer_16777251_321(packet_vars, avps)      #Generate Diameter packet
                 self.request.sendall(bytes.fromhex(response))                   #Send it
 
+            #S6a Purge UE Answer (NOA) response to Notify Request (NOR)
+            elif packet_vars['command_code'] == 323 and packet_vars['ApplicationId'] == 16777251:
+                print("Received Request with command code 323 (3GPP Notify Request) from " + orignHost + "\n\tGenerating (NOA)")
+                response = diameter.Answer_16777251_323(packet_vars, avps)      #Generate Diameter packet
+                self.request.sendall(bytes.fromhex(response))                   #Send it
+
+
             #Cx Authentication Answer
             elif packet_vars['command_code'] == 300 and packet_vars['ApplicationId'] == 16777216:
                 print("Received Request with command code 300 (3GPP Cx User Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
@@ -128,5 +138,5 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
 
 
 
-server = socketserver.ThreadingTCPServer(('0.0.0.0', 3868), DiameterRequestHandler)
+server = socketserver.ThreadingTCPServer(('10.0.1.252', 3868), DiameterRequestHandler)
 server.serve_forever()
