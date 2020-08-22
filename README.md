@@ -1,6 +1,6 @@
 # PyHSS
 
-Python Home Subscriber Server implementing basic Diameter / 3GPP S6a Interfaces.
+Python Home Subscriber Server implementing Diameter / 3GPP S6a Interfaces.
 ![Shelly the PyHSS Snake](https://gitlab.com/nickvsnetworking/pyhss/raw/master/lib/shelly.png)
 
 ## Introduction
@@ -11,8 +11,17 @@ PyHSS is a simple Home Subscriber Server (HSS) used by LTE (4G) Evolved Packet C
  * Capabilities Exchange Answer (CEA)
  * Device Watchdog Answer (DWA)
  * Disconnect Peer Answer (DPA)
- * 3GPP Authentication Information Answer (AIA)
- * 3GPP Update Location Answer (ULA)
+ * S6a Authentication Information Answer (AIA)
+ * S6a Update Location Answer (ULA)
+ * S6a Purge UE Answer (PUA)
+ * S6a Notify Answer (NOA)
+ * Cx Location Information Answer (LIA)
+ * Cx User Authentication Answer (UAA)
+ * Cx Server Assignment Answer (SAA)
+ * Cx Multimedia Authentication Answer (MAA)
+ * Cx Registration Termination Answer (RTA)
+ * S13 - ME-Identity-Check Request
+ * 
 
  
 ## Structure
