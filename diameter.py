@@ -912,6 +912,7 @@ class Diameter:
         avp += self.generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
+        avp += self.generate_avp(260, 40, "000001024000000c01000027" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLg)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(258, 40, format(int(4294967295),"x").zfill(8))                          #Auth-Application-ID Relay
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                               #Supported-Vendor-ID (3GGP v2)
@@ -1125,3 +1126,25 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
+    #3GPP SLg - Provide Subscriber Location Request
+    def Request_16777255_8388620(self, imsi):
+        avp = ''
+        #ToDo - Update the Vendor Specific Application ID
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(293, 40, str(binascii.hexlify(b'mme-slg.localdomain'),'ascii'))                 #Destination Host        
+        #SLg Location Type AVP
+        avp += self.generate_vendor_avp(2500, "c0", 10415, "00000000")
+        #Username (IMSI)
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        #LCS-EPS-Client-Name
+        LCS_EPS_Client_Name = self.generate_vendor_avp(1238, "c0", 10415, str(binascii.hexlify(b'PyHSS GMLC'),'ascii'))    #LCS Name String
+        LCS_EPS_Client_Name += self.generate_vendor_avp(1237, "c0", 10415, "00000002")     #LCS Format Indicator
+        avp += self.generate_vendor_avp(2501, "c0", 10415, LCS_EPS_Client_Name)
+        #LCS-Client-Type (Emergency Services)
+        avp += self.generate_vendor_avp(1241, "c0", 10415, "00000000")
+        response = self.generate_diameter_packet("01", "c0", 8388620, 16777255, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
