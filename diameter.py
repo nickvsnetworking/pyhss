@@ -30,10 +30,10 @@ class Diameter:
                     logging.info("Using MongoDB for subscriber data")
                     use_mongodb = 1
             except:
-                logging.info("MongoDB config file not populated - Using CSV as data source")
+                logging.info("MongoDB config file not populated - Please see Readme for information on configuing MongoDB")
                 use_mongodb = 0
     except:
-        logging.info("Failed to load YAML config file for MongoDB - Using CSV as data source - Check pyyaml is installed and mongodb.yaml exists if you want to use MongoDB")
+        logging.info("Failed to load YAML config file for MongoDB - Check pyyaml is installed and mongodb.yaml exists if you want to use MongoDB")
         use_mongodb = 0
 
 
@@ -286,7 +286,7 @@ class Diameter:
                 return origin_state_incriment_hex
 
 
-    #Loads a subscriber's information from CSV file into dict for referencing
+    #Loads a subscriber's information from MongoDB into dict for referencing
     def GetSubscriberInfo(self, imsi):
 
         subscriber_details = {}
@@ -326,7 +326,7 @@ class Diameter:
 
 
 
-    #Loads a subscriber's information from CSV file into dict for referencing
+    #Update a subscriber's information in MongoDB
     def UpdateSubscriber(self, imsi, sqn, rand):
         logging.debug("Updating " + str(imsi))
         
