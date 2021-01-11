@@ -16,7 +16,7 @@ our_ip = "10.0.1.252"
 #need to get this dynamically
 
 
-diameter = diameter.Diameter('hss.localdomain', 'localdomain', 'PyHSS')
+diameter = diameter.Diameter('hss.localdomain', 'localdomain', 'PyHSS', '01', '001')
 
 
 class DiameterRequestHandler(socketserver.BaseRequestHandler):
