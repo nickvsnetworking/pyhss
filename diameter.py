@@ -103,10 +103,12 @@ class Diameter:
 
 
     #Hexify the vars we got when initializing the class
-    def __init__(self, OriginHost, OriginRealm, ProductName):
+    def __init__(self, OriginHost, OriginRealm, ProductName, MNC, MCC):
         self.OriginHost = self.string_to_hex(OriginHost)
         self.OriginRealm = self.string_to_hex(OriginRealm)
         self.ProductName = self.string_to_hex(ProductName)
+        self.MNC = self.str(ProductName)
+        self.MCC = self.str(ProductName)
 
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
@@ -302,10 +304,14 @@ class Diameter:
             myquery = { "imsi": str(imsi)}
             logging.debug("Querying MongoDB for subscriber " + str(imsi))
             mydoc = mycol.find(myquery)
+
             for x in mydoc:
                 logging.debug("Got result from MongoDB")
                 subscriber_details['K'] = x['security']['k'].replace(' ', '')
-                subscriber_details['OP'] = x['security']['op'].replace(' ', '')
+                try:
+                    subscriber_details['OP'] = x['security']['op'].replace(' ', '')
+                except:
+                    subscriber_details['OPc'] = x['security']['opc'].replace(' ', '')
                 subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
                 try:
                     subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
@@ -543,7 +549,17 @@ class Diameter:
 
 
         key = subscriber_details['K']                                                               #Format keys
-        op = subscriber_details['OP']                                                               #Format keys
+        #If OP Present convert to OPc
+        try:
+            op = subscriber_details['OP']                                                               #Format keys
+            logging.debug("OP Key Present - Converting to OPc")
+            opc = S6a_crypt.generate_opc(key, op)
+            #convert from bytes to string
+            logging.debug("Generated OPc is of type " + str(type(opc)))
+            opc = opc.decode("utf-8") 
+        except:
+            opc = subscriber_details['OPc']
+            logging.debug("OPc Key Present")
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
         
@@ -561,7 +577,7 @@ class Diameter:
                         #rand = subscriber_details['RAND']
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
-                        sqn, mac_s = S6a_crypt.generate_resync_s6a(key, op, auts, rand)
+                        sqn, mac_s = S6a_crypt.generate_resync_s6a(key, opc, amf, auts, rand)
                         #Write correct SQN back
                         self.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
                         #Print SQN correct value
@@ -570,7 +586,7 @@ class Diameter:
 
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
         logging.debug("SQN used in vector: " + str(sqn))
-        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, op, amf, sqn, plmn) 
+        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
         eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
@@ -678,7 +694,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc001.mcc001.3gppnetwork.org:6060")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + self.MNC + ".mcc" + self.MCC + '.3gppnetwork.org:6060")),'ascii'))
 
         experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
         experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
@@ -754,10 +770,10 @@ class Diameter:
         username = binascii.unhexlify(username).decode('utf-8')
         logging.debug("Public-Identity for Location Information Request is: " + str(username))
         if str(username) == "tel:+12722123":
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:as.mnc001.mcc001.3gppnetwork.org:5060")),'ascii'))
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:as.mnc023.mcc505.3gppnetwork.org:5060")),'ascii'))
             logging.debug("Destination is 12722123 - Routing to Application Server")
         else:
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc001.mcc001.3gppnetwork.org:6060")),'ascii'))
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc023.mcc505.3gppnetwork.org:6060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -793,14 +809,28 @@ class Diameter:
             return response
         
         key = subscriber_details['K']                                                               #Format keys
-        op = subscriber_details['OP']                                                               #Format keys
+        #If OP Present convert to OPc
+        try:
+            op = subscriber_details['OP']                                                               #Format keys
+            logging.debug("OP Key Present - Converting to OPc")
+            opc = S6a_crypt.generate_opc(key, op)
+            #convert from bytes to string
+            logging.debug("Generated OPc is of type " + str(type(opc)))
+            logging.debug("Generated OPc value in bytes is:")
+            logging.debug(opc)
+            opc = opc.decode("utf-8")
+            logging.debug("Generated OPc value as string is:")
+            logging.debug(opc)
+        except:
+            opc = subscriber_details['OPc']
+            logging.debug("OPc Key Present")
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']
 
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
         
-        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, op, amf, sqn, plmn) 
+        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, opc, amf, sqn, plmn) 
         logging.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username + "@" + domain)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
@@ -1048,7 +1078,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
-        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc001.mcc001.3gppnetwork.org:6060'))                 #Public-Identity
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:6060'))                 #Public-Identity
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
         avp += self.generate_vendor_avp(614, "c0", 10415, format(int(1),"x").zfill(8))              #Server Assignment Type
         avp += self.generate_vendor_avp(624, "c0", 10415, "00000000")                               #User Data Already Available (Not Available)
