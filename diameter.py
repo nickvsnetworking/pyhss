@@ -107,9 +107,10 @@ class Diameter:
         self.OriginHost = self.string_to_hex(OriginHost)
         self.OriginRealm = self.string_to_hex(OriginRealm)
         self.ProductName = self.string_to_hex(ProductName)
-        self.MNC = self.str(ProductName)
-        self.MCC = self.str(ProductName)
-
+        self.MNC = str(MNC)
+        self.MCC = str(MCC)
+        logging.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
+        logging.info("PLMN is " + str(MCC) + "/" + str(MNC))
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -694,7 +695,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + self.MNC + ".mcc" + self.MCC + '.3gppnetwork.org:6060")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + self.MNC + ".mcc" + self.MCC + ".3gppnetwork.org:6060")),'ascii'))
 
         experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
         experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
