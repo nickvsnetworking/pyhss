@@ -13,8 +13,9 @@ logging:
   level: DEBUG
 
 ## Database Parameters
-mongodb:
-  mongodb_server: 127.0.0.1
-  mongodb_username: root
-  mongodb_password: password
-  mongodb_port: 27017
+database:
+  mongodb:
+    mongodb_server: 127.0.0.1
+    mongodb_username: root
+    mongodb_password: password
+    mongodb_port: 27017

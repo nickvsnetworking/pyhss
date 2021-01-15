@@ -12,30 +12,7 @@ import S6a_crypt
 class Diameter:
 
 
-    global use_mongodb
-    global mongo_conf
-
     ##Function Definitions
-
-
-    try:
-        #Load MongoDB Config from yaml file
-        import yaml
-        with open("mongodb.yaml", 'r') as stream:
-            mongo_conf = (yaml.safe_load(stream))
-
-            #Check if MongoDB in use
-            try:
-                if "mongodb_server" in mongo_conf and "mongodb_port" in mongo_conf:
-                    logging.info("Using MongoDB for subscriber data")
-                    use_mongodb = 1
-            except:
-                logging.info("MongoDB config file not populated - Please see Readme for information on configuing MongoDB")
-                use_mongodb = 0
-    except:
-        logging.info("Failed to load YAML config file for MongoDB - Check pyyaml is installed and mongodb.yaml exists if you want to use MongoDB")
-        use_mongodb = 0
-
 
 
     #Generates rounding for calculating padding
@@ -289,72 +266,6 @@ class Diameter:
                 return origin_state_incriment_hex
 
 
-    #Loads a subscriber's information from MongoDB into dict for referencing
-    def GetSubscriberInfo(self, imsi):
-
-        subscriber_details = {}
-        
-        try:
-            logging.debug("Configured to use MongoDB server: " + str(mongo_conf['mongodb_server']))
-            import mongo
-            import pymongo
-            #Search for user in MongoDB database
-            myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
-            mydb = myclient["open5gs"]
-            mycol = mydb["subscribers"]
-            myquery = { "imsi": str(imsi)}
-            logging.debug("Querying MongoDB for subscriber " + str(imsi))
-            mydoc = mycol.find(myquery)
-
-            for x in mydoc:
-                logging.debug("Got result from MongoDB")
-                subscriber_details['K'] = x['security']['k'].replace(' ', '')
-                try:
-                    subscriber_details['OP'] = x['security']['op'].replace(' ', '')
-                except:
-                    subscriber_details['OPc'] = x['security']['opc'].replace(' ', '')
-                subscriber_details['AMF'] = x['security']['amf'].replace(' ', '')
-                try:
-                    subscriber_details['RAND'] = x['security']['rand'].replace(' ', '')
-                    subscriber_details['SQN'] = int(x['security']['sqn'])
-                except:
-                    logging.debug("Subscriber " + str() + " is new - Generating new SQN and RAND")
-                    subscriber_details['SQN'] = 1
-                    subscriber_details['RAND'] = ''
-                apn_list = ''
-                for keys in x['pdn']:
-                    apn_list += keys['apn'] + ";"
-                subscriber_details['APN_list'] = apn_list[:-1]      #Remove last semicolon
-                subscriber_details['pdn'] = x['pdn']
-                logging.debug(subscriber_details)
-                return subscriber_details
-        except:
-            raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
-
-
-
-    #Update a subscriber's information in MongoDB
-    def UpdateSubscriber(self, imsi, sqn, rand):
-        logging.debug("Updating " + str(imsi))
-        
-        #Check if MongoDB in use
-        try:
-            logging.debug("Updating SQN on MongoDB server: " + str(mongo_conf['mongodb_server']))
-            import mongo
-            import pymongo
-            #Search for user in MongoDB database
-            myclient = pymongo.MongoClient("mongodb://" + str(mongo_conf['mongodb_server']) + ":" + str(mongo_conf['mongodb_port']) + "/")
-            mydb = myclient["open5gs"]
-            mycol = mydb["subscribers"]
-            myquery = { 'imsi': str(imsi) }
-            newvalues = { "$set": {'security.rand': str(rand)} }
-            mycol.update_one(myquery, newvalues)
-            newvalues = { "$set": {'security.sqn': int(sqn)} }
-            mycol.update_one(myquery, newvalues)
-            return sqn
-        except:
-            raise ValueError("Failed update SQN for subscriber " + str(imsi) + " in MongoDB")
-        
 
 
 
@@ -550,17 +461,7 @@ class Diameter:
 
 
         key = subscriber_details['K']                                                               #Format keys
-        #If OP Present convert to OPc
-        try:
-            op = subscriber_details['OP']                                                               #Format keys
-            logging.debug("OP Key Present - Converting to OPc")
-            opc = S6a_crypt.generate_opc(key, op)
-            #convert from bytes to string
-            logging.debug("Generated OPc is of type " + str(type(opc)))
-            opc = opc.decode("utf-8") 
-        except:
-            opc = subscriber_details['OPc']
-            logging.debug("OPc Key Present")
+        opc = subscriber_details['OPc']                                                             #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
         
@@ -810,23 +711,9 @@ class Diameter:
             return response
         
         key = subscriber_details['K']                                                               #Format keys
-        #If OP Present convert to OPc
-        try:
-            op = subscriber_details['OP']                                                               #Format keys
-            logging.debug("OP Key Present - Converting to OPc")
-            opc = S6a_crypt.generate_opc(key, op)
-            #convert from bytes to string
-            logging.debug("Generated OPc is of type " + str(type(opc)))
-            logging.debug("Generated OPc value in bytes is:")
-            logging.debug(opc)
-            opc = opc.decode("utf-8")
-            logging.debug("Generated OPc value as string is:")
-            logging.debug(opc)
-        except:
-            opc = subscriber_details['OPc']
-            logging.debug("OPc Key Present")
+        opc = subscriber_details['OPc']                                                             #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
-        sqn = subscriber_details['SQN']
+        sqn = subscriber_details['SQN']                                                             #Format keys
 
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
