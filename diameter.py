@@ -8,6 +8,7 @@ import uuid
 import os
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
+import database
 
 class Diameter:
 
@@ -372,7 +373,7 @@ class Diameter:
         APN_Configuration = ''
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
-        subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+        subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
 
         apn_list = subscriber_details['pdn']
         print(apn_list)
@@ -437,7 +438,7 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
             
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
@@ -481,7 +482,7 @@ class Diameter:
                         #Calculate correct SQN
                         sqn, mac_s = S6a_crypt.generate_resync_s6a(key, opc, amf, auts, rand)
                         #Write correct SQN back
-                        self.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
+                        database.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
                         #Print SQN correct value
                         logging.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
                         sqn = sqn + 100
@@ -508,7 +509,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.UpdateSubscriber(imsi, int(sqn + 1), str(subscriber_details['RAND']))  #Incriment SQN
+        database.UpdateSubscriber(imsi, int(sqn + 1), str(subscriber_details['RAND']))              #Incriment SQN
         return response
 
     #Purge UE Answer (PUR)
@@ -698,8 +699,8 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = self.GetSubscriberInfo(imsi)                                               #Get subscriber details
-            self.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
+            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            database.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             logging.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")

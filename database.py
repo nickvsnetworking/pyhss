@@ -22,7 +22,7 @@ class MongoDB:
     import mongo
     import pymongo
     def __init__(self):
-        logging.debug("Configured to use MongoDB server: " + str(yaml_config['database']['mongodb']['mongodb_server']))
+        logging.info("Configured to use MongoDB server: " + str(yaml_config['database']['mongodb']['mongodb_server']))
         self.server = {}
         self.server['mongodb_server'] = yaml_config['database']['mongodb']['mongodb_server']
         self.server['mongodb_port'] = yaml_config['database']['mongodb']['mongodb_port']
@@ -111,11 +111,22 @@ class MongoDB:
 
 
 #Load DB functions based on Config
+for db_option in yaml_config['database']:
+    logging.debug("Selected DB backend " + str(db_option))
+    break
 
+if db_option == "mongodb":
+    DB = MongoDB()
+
+def GetSubscriberInfo(imsi):
+    return DB.GetSubscriberInfo(imsi)
+
+def UpdateSubscriber(imsi, sqn, rand):
+    return DB.UpdateSubscriber(imsi, sqn, rand)
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     pass
-Mongo = MongoDB()
-Mongo.GetSubscriberInfo('505230000000003')
-Mongo.UpdateSubscriber('001010000000003', 999, '')
+    Mongo = MongoDB()
+    Mongo.GetSubscriberInfo('001010000000003')
+    Mongo.UpdateSubscriber('001010000000003', 999, '')

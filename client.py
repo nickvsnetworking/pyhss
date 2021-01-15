@@ -3,15 +3,15 @@ import socket
 import sys
 import diameter
 global recv_ip
-recv_ip = "10.0.1.252"
+recv_ip = "127.0.0.1"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "10.0.1.252"
+hostname = "127.0.0.2"
 realm = "mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]
 
-diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client')
+diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client', '001', '01')
 
 clientsocket = socket.socket()
 print("Connecting to " + str(hostname))
@@ -42,11 +42,12 @@ def ReadBuffer():
                 print("Command Code: " + str(packet_vars['command_code']))
                 if int(packet_vars['command_code']) == 280:
                     print("Recieved DWR - Sending DWA")
-                    SendRequest(diameter.Answer_280(packet_vars, avps))
+                    #SendRequest(diameter.Answer_280(packet_vars, avps))
+                    #ToDo - Fix loop here
                 if int(packet_vars['command_code']) == 257:
                     print("Recieved CER - Sending CEA")
-                    SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
-                    
+                    #SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
+                    #ToDo - Fix loop here
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
                         print("\t\t" + str(avp))
