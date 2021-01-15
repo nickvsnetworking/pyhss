@@ -1,18 +1,32 @@
 # PyHSS
 
-Python Home Subscriber Server implementing basic Diameter / 3GPP S6a Interfaces.
+Python Home Subscriber Server implementing Diameter / 3GPP S6a Interfaces.
 ![Shelly the PyHSS Snake](https://gitlab.com/nickvsnetworking/pyhss/raw/master/lib/shelly.png)
 
 ## Introduction
 PyHSS is a simple Home Subscriber Server (HSS) used by LTE (4G) Evolved Packet Core (EPC) networks, written in Python.
 3GPP network elements like the MME and PCRF communicate with the HSS via the [DIAMETER](https://tools.ietf.org/html/rfc6733) protocol, with some extensions defined by 3GPP.
 
+## Usage
+Basic configuration is set in the ``config.yaml`` file,
+You will need to set the IP address to bind to, the Diameter hostname, realm & your PLMN.
+
+Then you will need to select a database backend to use, such as MongoDB, MSSQL or MySQL.
+
 ## Implemented Responses 
  * Capabilities Exchange Answer (CEA)
  * Device Watchdog Answer (DWA)
  * Disconnect Peer Answer (DPA)
- * 3GPP Authentication Information Answer (AIA)
- * 3GPP Update Location Answer (ULA)
+ * S6a Authentication Information Answer (AIA)
+ * S6a Update Location Answer (ULA)
+ * S6a Purge UE Answer (PUA)
+ * S6a Notify Answer (NOA)
+ * Cx Location Information Answer (LIA)
+ * Cx User Authentication Answer (UAA)
+ * Cx Server Assignment Answer (SAA)
+ * Cx Multimedia Authentication Answer (MAA)
+ * Cx Registration Termination Answer (RTA)
+ * S13 - ME-Identity-Check Request
 
  
 ## Structure
@@ -26,9 +40,9 @@ Most of the heavy lifting in this is managed by the Diameter class, in *diameter
 
  
 ## Subscriber Information Storage
-MongoDB is used to store all the subscriber data (IMSI, APN Profiles & Crypto values for each subscriber)
+Subscriber data (IMSI, APN Profiles & Crypto values for each subscriber) can be stored in a variety of different databases, such as MongoDB, MSSQL and MySQL, and can easily be extended to support other database backends and integrate with existing databases.
 
-Further information on setup is in *mongodb.yaml* file.
+Further information on setup is in *database.py* file which provides a standard data to provide the data to the HSS / Diameter applications in.
 
  
 ## Extending
@@ -40,6 +54,7 @@ To add a new response you'd edit *diameter.py* and add a new function called Ans
 The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module, which can be installed with 
 ```
 pip3 install crypto
+pip3 install pyyaml
 ```
 
 MongoDB backend relies on a MongoDB server to store the data on, and the Python libraries for pyyaml, mongo installed as:
@@ -50,8 +65,8 @@ pip3 install pyyaml mongo
 The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
 
 ## About
-This was written to fix a problem (VoLTE implementation on an EPC with a HSS that couldn't be easily customized), but will hopefully be of some use to the community.
+This software was written to address the limted options of free or lightweight HSS platforms out there, particularly those implimenting IMS HSS functionality.
 
-Any contributions are welcome, just contact me and I'll give you access.
+Any contributions are welcome, just submit a PR or contact me.
 
 You can contact me at nick (at) nickvsnetworking.com or via my blog at [nickvsnetworking.com](https://nickvsnetworking.com)

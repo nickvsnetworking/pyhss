@@ -1,0 +1,21 @@
+## HSS Parameters
+hss:
+  bind_ip: "127.0.0.2"
+  bind_port: 3868
+  OriginHost: "hss.localdomain"
+  OriginRealm: "localdomain"
+  ProductName: "pyHSS"
+  MCC: "001"
+  MNC: "01"
+
+## Debug Parameters
+logging:
+  level: DEBUG
+
+## Database Parameters
+database:
+  mongodb:
+    mongodb_server: 127.0.0.1
+    mongodb_username: root
+    mongodb_password: password
+    mongodb_port: 27017

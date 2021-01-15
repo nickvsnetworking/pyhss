@@ -1,7 +1,15 @@
 #PyHSS
 #This serves as a basic 3GPP Home Subscriber Server implimenting a EIR & IMS HSS functionality
 import logging
-logging.basicConfig(level=logging.DEBUG)
+import yaml
+
+with open("config.yaml", 'r') as stream:
+    yaml_config = (yaml.safe_load(stream))
+
+#Setup Logging
+level = logging.getLevelName(yaml_config['logging']['level'])
+logging.basicConfig(level=level)
+
 import sys
 import socket
 import socketserver
@@ -11,16 +19,20 @@ import time
 from threading import Thread, Lock
 import os
 
+logging.info("Current config file values:")
+for config_sections in yaml_config:
+    logging.info("\tConfig Section: " + str(config_sections))
+    for lower_keys in yaml_config[config_sections]:
+        logging.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
 
-our_ip = "10.0.1.252"
-#need to get this dynamically
 
 
-diameter = diameter.Diameter('hss.localdomain', 'localdomain', 'PyHSS')
+#Initialize Diameter
+diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
 
 
 class DiameterRequestHandler(socketserver.BaseRequestHandler):
-    print('PyHSS started - listening on port 3868')
+    print('PyHSS started - listening on ' + str(yaml_config['hss']['bind_ip']) + ' port ' + str(yaml_config['hss']['bind_port']))
     data_sum = b''
     firstloop = 0
     def setup(self):
@@ -43,7 +55,7 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
                 print("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
-                response = diameter.Answer_257(packet_vars, avps, our_ip)                   #Generate Diameter packet
+                response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip']))                   #Generate Diameter packet
                 self.request.sendall(bytes.fromhex(response))                       #Send it
 
 
@@ -138,5 +150,5 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
 
 
 
-server = socketserver.ThreadingTCPServer(('10.0.1.252', 3868), DiameterRequestHandler)
+server = socketserver.ThreadingTCPServer((str(yaml_config['hss']['bind_ip']), int(yaml_config['hss']['bind_port'])), DiameterRequestHandler)
 server.serve_forever()
