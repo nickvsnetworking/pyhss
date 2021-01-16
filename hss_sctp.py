@@ -19,6 +19,7 @@ import time
 import _thread
 from threading import Thread, Lock
 import os
+import sctp
 
 logging.info("Current config file values:")
 for config_sections in yaml_config:
@@ -159,9 +160,9 @@ def on_new_client(clientsocket,client_address):
 
 
 # Create a TCP/IP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock = sctp.sctpsocket_tcp(socket.AF_INET)
 # Bind the socket to the port
-server_address = ('127.0.0.2', 3868)
+server_address = str(yaml_config['hss']['bind_ip']), int(yaml_config['hss']['bind_port'])
 
 print('listening')
 sock.bind(server_address)
