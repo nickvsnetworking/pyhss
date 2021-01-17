@@ -26,8 +26,15 @@ logging:
 
 ## Database Parameters
 database:
-  mongodb:
-    mongodb_server: 127.0.0.1
-    mongodb_username: root
-    mongodb_password: password
-    mongodb_port: 27017
+#Multiple database types are supported, and additional database can be added easily. 
+#See ``database.py`` for information on connecting to your database of choice, with your preferred schema. 
+  # mongodb:
+  #   mongodb_server: 127.0.0.1
+  #   mongodb_username: root
+  #   mongodb_password: password
+  #   mongodb_port: 27017
+  mssql:
+      server: 127.0.0.1
+      username: sa
+      password: thisisthepasswordforMSSQL99#!
+      database: 'hlr'
