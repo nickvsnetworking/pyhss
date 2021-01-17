@@ -7,11 +7,16 @@ Python Home Subscriber Server implementing Diameter / 3GPP S6a Interfaces.
 PyHSS is a simple Home Subscriber Server (HSS) used by LTE (4G) Evolved Packet Core (EPC) networks, written in Python.
 3GPP network elements like the MME and PCRF communicate with the HSS via the [DIAMETER](https://tools.ietf.org/html/rfc6733) protocol, with some extensions defined by 3GPP.
 
+The underlying library - ``diameter.py`` can be easily worked with to impliment other Diameter based interfaces.
+
 ## Usage
 Basic configuration is set in the ``config.yaml`` file,
+
 You will need to set the IP address to bind to, the Diameter hostname, realm & your PLMN.
 
 Then you will need to select a database backend to use, such as MongoDB, MSSQL or MySQL.
+
+Once the configuration is done you can run the HSS by running ``hss.py`` for a TCP server or ``hss_sctp.py`` for an SCTP server. (Both can be run simultaneously)
 
 ## Implemented Responses 
  * Capabilities Exchange Answer (CEA)
@@ -32,7 +37,7 @@ Then you will need to select a database backend to use, such as MongoDB, MSSQL o
 ## Structure
 The file *hss.py* runs a simple threaded Sockets based listener to take Diameter requests and send back Diameter responses.
 
-Most of the heavy lifting in this is managed by the Diameter class, in *diameter.py*. This:
+Most of the heavy lifting in this is managed by the Diameter class, in ``diameter.py``. This:
  * Decode incoming packets (Requests)(Returns AVPs as an array, called *avp*, and a Dict containing the packet variables (called *packet_vars*)
  * Generates responses (Answer messages) to Requests (when provided with the AVP and packet_vars of the original Request)
  * Generates Requests to send to other peers
