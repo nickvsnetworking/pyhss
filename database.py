@@ -110,7 +110,7 @@ class MSSQL:
         self.server = yaml_config['database']['mssql']
         try:
             conn = self.pymssql.connect(self.server['server'], self.server['username'], self.server['password'], self.server['database'], as_dict=True, autocommit=True)
-            cursor = conn.cursor()
+            self.cursor = conn.cursor()
         except:
             #If failed to connect to server
             logging.fatal("Failed to connect to MSSQL server at " + str(self.server['server']))
@@ -121,10 +121,9 @@ class MSSQL:
 
     def GetSubscriberInfo(self, imsi):
         imsi = '001010000000003'
-        conn = self.pymssql.connect(self.server['server'], self.server['username'], self.server['password'], self.server['database'], as_dict=True, autocommit=True)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
-        for row in cursor:
+
+        self.cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
+        for row in self.cursor:
             subscriber_details = {}
             subscriber_details['K'] = row['Ki']
             subscriber_details['SQN'] = row['seqNB']
@@ -136,7 +135,10 @@ class MSSQL:
         raise ValueError("MSSQL has no matching subscriber details for IMSI " + str(imsi))            
 
 
-
+    def UpdateSubscriber(self, imsi, sqn, rand):
+        logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
+        self.cursor.execute('update imsi set seqNB = ' + str(sqn) + ' where IMSI = ' + str(imsi))
+        
 
 # class MySQL:
 #     def __init__():
@@ -167,4 +169,4 @@ def UpdateSubscriber(imsi, sqn, rand):
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     DB.GetSubscriberInfo('001010000000003')
-    DB.UpdateSubscriber('001010000000003', 999, '')
+    DB.UpdateSubscriber('001010000000003', 998, '')
