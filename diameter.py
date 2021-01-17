@@ -509,7 +509,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        database.UpdateSubscriber(imsi, int(sqn + 1), str(subscriber_details['RAND']))              #Incriment SQN
+        database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
         return response
 
     #Purge UE Answer (PUR)
