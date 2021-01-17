@@ -1,11 +1,23 @@
 ## HSS Parameters
 hss:
-  bind_ip: "127.0.0.2"
+  #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
+  bind_ip: ["10.0.1.252", "10.0.1.99"]
+
+  #Port to listen on (Same for TCP & SCTP)
   bind_port: 3868
+
+  #Value to populate as the OriginHost in Diameter responses
   OriginHost: "hss.localdomain"
+  
+  #Value to populate as the OriginRealm in Diameter responses
   OriginRealm: "localdomain"
+  
+  #Value to populate as the Product name in Diameter responses
   ProductName: "pyHSS"
+
+  #Your Home Mobile Country Code (Used for PLMN calcluation)
   MCC: "001"
+  #Your Home Mobile Network Code (Used for PLMN calcluation)
   MNC: "01"
 
 ## Debug Parameters

@@ -32,7 +32,7 @@ diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_con
 
 
 class DiameterRequestHandler(socketserver.BaseRequestHandler):
-    print('PyHSS started - listening on ' + str(yaml_config['hss']['bind_ip']) + ' port ' + str(yaml_config['hss']['bind_port']))
+    print('PyHSS started - listening on ' + str(yaml_config['hss']['bind_ip'][0]) + ' port ' + str(yaml_config['hss']['bind_port']))
     data_sum = b''
     firstloop = 0
     def setup(self):
@@ -55,7 +55,7 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
                 print("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
-                response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip']))                   #Generate Diameter packet
+                response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
                 self.request.sendall(bytes.fromhex(response))                       #Send it
 
 
@@ -150,5 +150,5 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
 
 
 
-server = socketserver.ThreadingTCPServer((str(yaml_config['hss']['bind_ip']), int(yaml_config['hss']['bind_port'])), DiameterRequestHandler)
+server = socketserver.ThreadingTCPServer((str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port'])), DiameterRequestHandler)
 server.serve_forever()
