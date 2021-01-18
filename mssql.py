@@ -10,11 +10,11 @@ except:
 input("Waiting...")
 
 
-def GetSubscriberInfo(self, imsi):
-    imsi = '001010000000003'
-    cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
-    for row in cursor:
-        print(row)
-        return row
+#def GetSubscriberInfo(self, imsi):
+imsi = '001010000000003'
+cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
+for row in cursor:
+    print(row)
+    return row
 
-    conn.close()
+conn.close()

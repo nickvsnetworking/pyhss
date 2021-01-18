@@ -120,8 +120,7 @@ class MSSQL:
 
 
     def GetSubscriberInfo(self, imsi):
-        imsi = '001010000000003'
-
+        logging.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
         self.cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
         for row in self.cursor:
             subscriber_details = {}
