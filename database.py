@@ -139,10 +139,34 @@ class MSSQL:
         self.cursor.execute('update imsi set seqNB = ' + str(sqn) + ' where IMSI = ' + str(imsi))
         
 
-# class MySQL:
-#     def __init__():
+class MySQL:
+    import mysql.connector
+    def __init__(self):
+        logging.info("Configured to use MySQL server: " + str(yaml_config['database']['mysql']['server']))
+        self.server = yaml_config['database']['mysql']
+        self.mydb = self.mysql.connector.connect(
+          host=self.server['server'],
+          user=self.server['username'],
+          password=self.server['password'],
+          database=self.server['database']
+        )
+        self.mydb.autocommit = True
+        cursor = self.mydb.cursor(dictionary=True)
+        self.cursor = cursor
+        
+    def GetSubscriberInfo(self, imsi):
+        logging.debug("Getting subscriber info from MySQL for IMSI " + str(imsi))
+        self.cursor.execute("select * from subscribers left join subscriber_apns on subscribers.imsi = subscriber_apns.imsi left join apns on subscriber_apns.apn_id = apns.apn_id where subscribers.imsi = " + str(imsi))
+        subscriber_details = self.cursor.fetchall()
+        return subscriber_details
 
-
+    def UpdateSubscriber(self, imsi, sqn, rand):
+        logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
+        query = 'update subscribers set sqn = ' + str(sqn) + ' where imsi = ' + str(imsi)
+        logging.debug(query)
+        self.cursor.execute(query)
+        
+            
 #Load DB functions based on Config
 for db_option in yaml_config['database']:
     logging.debug("Selected DB backend " + str(db_option))
@@ -152,6 +176,8 @@ if db_option == "mongodb":
     DB = MongoDB()
 elif db_option == "mssql":
     DB = MSSQL()
+elif db_option == "mysql":
+    DB = MySQL()
 else:
     logging.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
