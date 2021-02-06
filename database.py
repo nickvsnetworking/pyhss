@@ -150,11 +150,8 @@ for db_option in yaml_config['database']:
 
 if db_option == "mongodb":
     DB = MongoDB()
-
-
-if db_option == "mssql":
+elif db_option == "mssql":
     DB = MSSQL()
-
 else:
     logging.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
