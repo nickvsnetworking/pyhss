@@ -6,7 +6,11 @@ from pysnmp.carrier.asyncore.dgram import udp
 from pysnmp.smi import instrum, builder
 from pysnmp.proto.api import v2c
 import datetime
+import redis
 
+
+import redis
+redis_store = redis.Redis(host='localhost', port=6379, db=0)
 # Create SNMP engine
 snmpEngine = engine.SnmpEngine()
 
@@ -69,10 +73,16 @@ class AnotherStaticMibScalarInstance(MibScalarInstance):
     def getValue(self, name, idx):
         return self.getSyntax().clone('Ahoy hoy?')
 
+class diameter_decode_avp_count_MibScalarInstance(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('diameter_decode_avp_count'))
+
+
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
     MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString()),
-    AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString())
+    AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString()),
+    diameter_decode_avp_count_MibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,2), v2c.Integer32())
 )
 
 # Register SNMP Applications at the SNMP engine for particular SNMP context
