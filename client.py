@@ -3,10 +3,10 @@ import socket
 import sys
 import diameter
 global recv_ip
-recv_ip = "127.0.0.1"
+recv_ip = "127.0.0.3"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "127.0.0.2"
+hostname = "127.0.0.1"
 realm = "mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]

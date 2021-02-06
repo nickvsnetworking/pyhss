@@ -9,9 +9,9 @@ import os
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 import database
-
+import redis
 class Diameter:
-
+    
 
     ##Function Definitions
 
@@ -90,6 +90,26 @@ class Diameter:
         logging.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
         logging.info("PLMN is " + str(MCC) + "/" + str(MNC))
 
+        logging.info("Initializing Redis")
+        self.redis_store = redis.Redis(host='localhost', port=6379, db=0)
+        logging.info("Preloading Redis values:")
+        self.redis_store.set('generate_avp_count', 0)
+        self.redis_store.set('generate_vendor_avp', 0)
+        self.redis_store.set('diameter_packet_decode_count', 0)
+        self.redis_store.set('diameter_packet_count', 0)
+        self.redis_store.set('diameter_decode_avp_count', 0)
+        #Preload 0 value Redis keys for each Diameter response
+        for keys in dir(Diameter):
+            if "Answer" in str(keys):
+                logging.info(keys)
+                self.redis_store.set(keys + '_attempt_count', 0)
+                self.redis_store.set(keys + '_success_count', 0)
+        logging.info("Current Redis Keys")
+        keys = self.redis_store.keys()
+        for key in keys:
+            value = self.redis_store.get(key)
+            print("Key: " + str(key) + " value: " + str(value))
+
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
     def generate_avp(self, avp_code, avp_flags, avp_content):
@@ -108,7 +128,7 @@ class Diameter:
             avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
-
+        self.redis_store.set('generate_avp_count', int(self.redis_store.get('generate_avp_count')) + 1)
         return avp
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
@@ -135,7 +155,7 @@ class Diameter:
 
         
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_vendorid) + str(avp_content) + str(avp_padding)
-
+        self.redis_store('generate_vendor_avp', int(self.redis_store.get('generate_vendor_avp')) + 1)
         return avp
 
 
@@ -155,6 +175,7 @@ class Diameter:
         packet_length = format(packet_length,"x").zfill(6)
         
         packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
+        self.redis_store.set('diameter_packet_count', int(self.redis_store.get('diameter_packet_count')) + 1)
         return packet_hex
 
 
@@ -186,7 +207,7 @@ class Diameter:
             avps.append(avp_vars)
         else:
             pass
-
+        self.redis_store.set('diameter_packet_decode_count', int(self.redis_store.get('diameter_packet_decode_count')) + 1)
         return packet_vars, avps
 
     def decode_avp_packet(self, data):                       
@@ -234,7 +255,7 @@ class Diameter:
 
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
-
+        self.redis_store.set('diameter_decode_avp_count', int(self.redis_store.get('diameter_decode_avp_count')) + 1)
         return avp_vars, remaining_avps
 
 
@@ -279,6 +300,7 @@ class Diameter:
 
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
+        self.redis_store.set('Answer_257_attempt_count', int(self.redis_store.get('Answer_257_attempt_count')) + 1)
         logging.debug("packet_vars for CEA is " + str(packet_vars))
         logging.debug("avps for CEA is " + str(avps))
         avp = ''                                                                                    #Initiate empty var AVP 
@@ -302,10 +324,12 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
+        self.redis_store.set('Answer_257_success_count', int(self.redis_store.get('Answer_257_success_count')) + 1)
         return response
 
     #Device Watchdog Answer
     def Answer_280(self, packet_vars, avps):                                                      
+        self.redis_store.set('Answer_257_attempt_count', int(self.redis_store.get('Answer_257_attempt_count')) + 1)
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -314,16 +338,19 @@ class Diameter:
             if avps_to_check['avp_code'] == 278:                                
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
+        self.redis_store.set('Answer_257_success_count', int(self.redis_store.get('Answer_257_success_count')) + 1)
         return response
 
 
     #Disconnect Peer Answer    
     def Answer_282(self, packet_vars, avps):                                                      
+        self.redis_store.set('Answer_257_attempt_count', int(self.redis_store.get('Answer_257_attempt_count')) + 1)
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
+        self.redis_store.set('Answer_257_success_count', int(self.redis_store.get('Answer_257_success_count')) + 1)
         return response
 
 
