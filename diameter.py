@@ -156,7 +156,7 @@ class Diameter:
 
         
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_vendorid) + str(avp_content) + str(avp_padding)
-        self.redis_store('generate_vendor_avp', int(self.redis_store.get('generate_vendor_avp')) + 1)
+        self.redis_store.set('generate_vendor_avp', int(self.redis_store.get('generate_vendor_avp')) + 1)
         return avp
 
 
