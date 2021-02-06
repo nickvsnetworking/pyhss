@@ -15,8 +15,12 @@ The MongoDB schema is fully compatible with the Open5GS WebUI to make life easy,
 
 MySQL support has had most of the groundwork done but has not yet been finished - To get it working you would need to map the names of the keys in the returned dict to match that of MongoDB.
 
-## MySQL
+##MS-SQL
+Running MSSQL inside container:
+```docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=thisisthepasswordforMSSQL99#!' -p 1433:1433 -d mcr.microsoft.com/mssql/server:2017-latest```
 
+
+## MySQL
 Example Schema: 
 ```CREATE USER 'newuser'@'localhost' IDENTIFIED BY 'password';
 GRANT ALL PRIVILEGES ON * . * TO 'newuser'@'localhost';
