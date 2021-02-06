@@ -92,7 +92,7 @@ class Diameter:
 
         logging.info("Initializing Redis")
         self.redis_store = redis.Redis(host='localhost', port=6379, db=0)
-        logging.info("Preloading Redis values:")
+        logging.info("Prepoulating Redis values.")
         self.redis_store.set('generate_avp_count', 0)
         self.redis_store.set('generate_vendor_avp', 0)
         self.redis_store.set('diameter_packet_decode_count', 0)
@@ -104,11 +104,12 @@ class Diameter:
                 logging.info(keys)
                 self.redis_store.set(keys + '_attempt_count', 0)
                 self.redis_store.set(keys + '_success_count', 0)
-        logging.info("Current Redis Keys")
+        logging.debug("Current Redis Keys")
         keys = self.redis_store.keys()
-        for key in keys:
+        for key in sorted(keys):
             value = self.redis_store.get(key)
-            print("Key: " + str(key) + " value: " + str(value))
+            logging.debug("Key: " + str(key) + " value: " + str(value))
+        logging.info("Redis values populated.")
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -329,7 +330,7 @@ class Diameter:
 
     #Device Watchdog Answer
     def Answer_280(self, packet_vars, avps):                                                      
-        self.redis_store.set('Answer_257_attempt_count', int(self.redis_store.get('Answer_257_attempt_count')) + 1)
+        self.redis_store.set('Answer_280_attempt_count', int(self.redis_store.get('Answer_280_attempt_count')) + 1)
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -338,19 +339,19 @@ class Diameter:
             if avps_to_check['avp_code'] == 278:                                
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.redis_store.set('Answer_257_success_count', int(self.redis_store.get('Answer_257_success_count')) + 1)
+        self.redis_store.set('Answer_280_success_count', int(self.redis_store.get('Answer_280_success_count')) + 1)
         return response
 
 
     #Disconnect Peer Answer    
     def Answer_282(self, packet_vars, avps):                                                      
-        self.redis_store.set('Answer_257_attempt_count', int(self.redis_store.get('Answer_257_attempt_count')) + 1)
+        self.redis_store.set('Answer_282_attempt_count', int(self.redis_store.get('Answer_282_attempt_count')) + 1)
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.redis_store.set('Answer_257_success_count', int(self.redis_store.get('Answer_257_success_count')) + 1)
+        self.redis_store.set('Answer_282_success_count', int(self.redis_store.get('Answer_282_success_count')) + 1)
         return response
 
 
