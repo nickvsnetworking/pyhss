@@ -47,7 +47,7 @@ Most of the heavy lifting in this is managed by the Diameter class, in ``diamete
 ## Subscriber Information Storage
 Subscriber data (IMSI, APN Profiles & Crypto values for each subscriber) can be stored in a variety of different databases, such as MongoDB, MSSQL and MySQL, and can easily be extended to support other database backends and integrate with existing databases.
 
-Further information on setup is in *database.py* file which provides a standard data to provide the data to the HSS / Diameter applications in.
+Further information on setup is in *databases.md* file with some more information on databases.
 
  
 ## Extending
