@@ -73,16 +73,16 @@ class AnotherStaticMibScalarInstance(MibScalarInstance):
     def getValue(self, name, idx):
         return self.getSyntax().clone('Ahoy hoy?')
 
-class diameter_decode_avp_count_MibScalarInstance(MibScalarInstance):
+class Answer_280_attempt_count(MibScalarInstance):
     def getValue(self, name, idx):
-        return self.getSyntax().clone(redis_store.get('diameter_decode_avp_count'))
+        return self.getSyntax().clone(redis_store.get('Answer_280_attempt_count'))
 
 
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
     MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString()),
     AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString()),
-    diameter_decode_avp_count_MibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,2), v2c.Integer32())
+    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0,2), v2c.Integer32())
 )
 
 # Register SNMP Applications at the SNMP engine for particular SNMP context
