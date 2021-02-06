@@ -72,6 +72,10 @@ while True:
     elif request == "DWR":
         print("Sending Device Watchdog Request to " + str(hostname))
         SendRequest(diameter.Request_280())
+    elif request == "DPR":
+        print("Sending Disconnect Peer Request to " + str(hostname))
+        SendRequest(diameter.Request_282())
+        sys.exit()
     elif request == "ULR":
         imsi = str(input("IMSI:\t"))
         print("Sending Update Location Request to " + str(hostname))
