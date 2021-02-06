@@ -62,12 +62,17 @@ class MyStaticMibScalarInstance(MibScalarInstance):
     def getValue(self, name, idx):
         currentDT = datetime.datetime.now()
         return self.getSyntax().clone(
-            'Hello World! It\'s currently: ' + str(currentDT)
+            'Hello World!! It\'s currently: ' + str(currentDT)
         )
+
+class AnotherStaticMibScalarInstance(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone('Ahoy hoy?')
 
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
-    MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString())
+    MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString()),
+    AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString())
 )
 
 # Register SNMP Applications at the SNMP engine for particular SNMP context
