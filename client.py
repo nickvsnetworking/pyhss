@@ -36,7 +36,7 @@ def ReadBuffer():
                     print(avp['avp_code'])
                     if int(avp['avp_code']) == 318:
                         print("Received Authentication Information Answer - Store output of Crypto vectors?")
-                        file.open("vectors.txt", "w")
+                        file = open("vectors.txt", "w")
                         file.write(avp['misc_data'])
                         file.close()
                 print("Command Code: " + str(packet_vars['command_code']))
