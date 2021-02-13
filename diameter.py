@@ -887,9 +887,9 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         if yaml_config['redis']['enabled'] == True:
             try:
-                self.redis_store.incr('Answer_16777216_301_success_count')
+                self.redis_store.incr('Answer_16777216_303_success_count')
             except:
-                logging.error("failed to incriment Answer_16777216_301_success_count")
+                logging.error("failed to incriment Answer_16777216_303_success_count")
         return response
 
     #Generate a Command Unsupported response based on an unknown command code
