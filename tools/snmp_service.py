@@ -1,3 +1,9 @@
+#This SNMP service pulls stats written to Redis by PyHSS and presents them as SNMP
+import yaml
+import sys
+with open(sys.path[0] + '/../config.yaml') as stream:
+    yaml_config = (yaml.safe_load(stream))
+
 #Pulled from https://stackoverflow.com/questions/58909285/how-to-add-variable-in-the-mib-tree
 
 from pysnmp.entity import engine, config
@@ -10,7 +16,7 @@ import redis
 
 
 import redis
-redis_store = redis.Redis(host='localhost', port=6379, db=0)
+redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
 # Create SNMP engine
 snmpEngine = engine.SnmpEngine()
 
@@ -20,7 +26,7 @@ snmpEngine = engine.SnmpEngine()
 config.addTransport(
     snmpEngine,
     udp.domainName,
-    udp.UdpTransport().openServerMode(('127.0.0.1', 1161))
+    udp.UdpTransport().openServerMode((str(yaml_config['snmp']['listen_address']), int(yaml_config['snmp']['port'])))
 )
 
 # SNMPv3/USM setup
@@ -49,14 +55,6 @@ snmpContext = context.SnmpContext(snmpEngine)
 # Create an SNMP context with default ContextEngineId (same as SNMP engine ID)
 snmpContext = context.SnmpContext(snmpEngine)
 
-# Create multiple independent trees of MIB managed objects (empty so far)
-mibTreeA = instrum.MibInstrumController(builder.MibBuilder())
-mibTreeB = instrum.MibInstrumController(builder.MibBuilder())
-
-# Register MIB trees at distinct SNMP Context names
-snmpContext.registerContextName(v2c.OctetString('context-a'), mibTreeA)
-snmpContext.registerContextName(v2c.OctetString('context-b'), mibTreeB)
-
 mibBuilder = snmpContext.getMibInstrum().getMibBuilder()
 
 MibScalar, MibScalarInstance = mibBuilder.importSymbols(
@@ -80,9 +78,10 @@ class Answer_280_attempt_count(MibScalarInstance):
 
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
-    MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString()),
-    AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString()),
-    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0,2), v2c.Integer32())
+    #MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString()),
+    #AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString()),
+    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 280, 0), v2c.Integer32()),
+    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 280, 1), v2c.Integer32())
 )
 
 # Register SNMP Applications at the SNMP engine for particular SNMP context

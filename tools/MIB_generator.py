@@ -1,0 +1,1 @@
+#This generates OIDs for all the Redis values to be presented as SNMP

@@ -44,3 +44,8 @@ redis:
   enabled: True
   host: localhost
   port: 6379
+
+
+snmp:
+  port: 1161
+  listen_address: 127.0.0.1
