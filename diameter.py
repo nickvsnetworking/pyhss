@@ -307,7 +307,7 @@ class Diameter:
         logging.debug("packet_vars for CEA is " + str(packet_vars))
         logging.debug("avps for CEA is " + str(avps))
         avp = ''                                                                                    #Initiate empty var AVP 
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
         logging.debug("OriginHost is " + str(self.OriginHost))
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
@@ -343,7 +343,7 @@ class Diameter:
             except:
                 logging.error("failed to incriment Answer_280_attempt_count")
         avp = ''                                                                                    #Initiate empty var AVP 
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -360,7 +360,7 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         self.redis_store.incr('Answer_282_success_count')
         return response
@@ -374,7 +374,7 @@ class Diameter:
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
         avp += self.generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
 
@@ -563,7 +563,7 @@ class Diameter:
         avp += self.generate_vendor_avp(1413, "c0", 10415, eutranvector)                                 #Authentication-Info (3GPP)                                      
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         
@@ -586,7 +586,7 @@ class Diameter:
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)        
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         
@@ -619,7 +619,7 @@ class Diameter:
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)        
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         
@@ -672,7 +672,7 @@ class Diameter:
             logging.debug("QoS Information: " + str(QoS_Information))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         if yaml_config['redis']['enabled'] == True:
             try:
@@ -963,7 +963,7 @@ class Diameter:
         #Experimental Result AVP(Response Code for Failure)
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
+        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCCESS (2001)
         avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
         response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         if yaml_config['redis']['enabled'] == True:
