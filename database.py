@@ -120,68 +120,72 @@ class MSSQL:
 
 
     def GetSubscriberInfo(self, imsi, requester):
-        logging.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
-        subscriber_details = {}
-        #try:
-        self.conn.execute_query('hss_imsi_known_check @imsi=' + str(imsi))
-        result = [ row for row in self.conn ][0]
-        print("\nResult of hss_imsi_known_check: " + str(result))
+        try:
+            logging.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
+            subscriber_details = {}
+            #try:
+            self.conn.execute_query('hss_imsi_known_check @imsi=' + str(imsi))
+            result = [ row for row in self.conn ][0]
+            print("\nResult of hss_imsi_known_check: " + str(result))
 
-        #known_imsi: IMSI attached with sim returns 1 else returns 0
-        if str(result['known_imsi']) != '1':
-            raise ValueError("MSSQL reports IMSI " + str(imsi) + " not attached with SIM")
+            #known_imsi: IMSI attached with sim returns 1 else returns 0
+            if str(result['known_imsi']) != '1':
+                raise ValueError("MSSQL reports IMSI " + str(imsi) + " not attached with SIM")
 
-        #subscriber_status: -1 –Blocked or 0-Active
-        if str(result['subscriber_status']) != '0':
-            raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
+            #subscriber_status: -1 –Blocked or 0-Active
+            if str(result['subscriber_status']) != '0':
+                raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
 
-        apn_id = result['apn_configuration']
-
-
-
-        self.conn.execute_query('hss_get_subscriber_data @imsi=' + str(imsi))
-        result = [ row for row in self.conn ][0]
-        print("\nResult of hss_get_subscriber_data: " + str(result))
-        #subscriber_status: -1 –Blocked or 0-Active (Again)
-        if str(result['subscriber_status']) != '0':
-            raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
-        
-        subscriber_details['msisdn'] = result['msisdn']
-        subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
-        subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
-        subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
-        subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
-        subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
-        subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
-
-        self.conn.execute_query('hss_get_apn_info @apn_profileId=' + str(apn_id))
-        subscriber_details['pdn'] = []
-        for result in self.conn:
-            print("\nResult of hss_get_apn_info: " + str(result))
-            subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
-                'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
-                'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
-                'type': 2})
+            apn_id = result['apn_configuration']
 
 
-        self.conn.execute_query('select IMSI, PLMNID , MCC, MNC, BasicMSISDN, Ki, OP_key, seqNB from IMSI \
-            LEFT JOIN operator_key on IMSI.op_ID = operator_key.op_ID where IMSI.IMSI=' + str(imsi))
-        for row in self.conn:
-            subscriber_details['K'] = row['Ki']
-            subscriber_details['SQN'] = row['seqNB']
 
-        
+            self.conn.execute_query('hss_get_subscriber_data @imsi=' + str(imsi))
+            result = [ row for row in self.conn ][0]
+            print("\nResult of hss_get_subscriber_data: " + str(result))
+            #subscriber_status: -1 –Blocked or 0-Active (Again)
+            if str(result['subscriber_status']) != '0':
+                raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
+            
+            subscriber_details['msisdn'] = result['msisdn']
+            subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
+            subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
+            subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
+            subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
+            subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
+            subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
 
-        logging.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
-        return subscriber_details
-        #If we've made it to here it's because we haven't returned a result.
-        #if no results returned raise error
-        #raise ValueError("MSSQL has no matching subscriber details for IMSI " + str(imsi))            
+            self.conn.execute_query('hss_get_apn_info @apn_profileId=' + str(apn_id))
+            subscriber_details['pdn'] = []
+            for result in self.conn:
+                print("\nResult of hss_get_apn_info: " + str(result))
+                subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
+                    'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
+                    'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
+                    'type': 2})
+
+
+            self.conn.execute_query('select IMSI, PLMNID , MCC, MNC, BasicMSISDN, Ki, OP_key, seqNB from IMSI \
+                LEFT JOIN operator_key on IMSI.op_ID = operator_key.op_ID where IMSI.IMSI=' + str(imsi))
+            for row in self.conn:
+                subscriber_details['K'] = row['Ki']
+                subscriber_details['SQN'] = row['seqNB']
+
+            
+
+            logging.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
+            return subscriber_details
+        except:
+            raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
+    
 
 
     def UpdateSubscriber(self, imsi, sqn, rand):
-        logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
-        self.conn.execute_non_query('update imsi set seqNB = ' + str(sqn) + ' where IMSI = ' + str(imsi))
+        try:
+            logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
+            self.conn.execute_non_query('update imsi set seqNB = ' + str(sqn) + ' where IMSI = ' + str(imsi))
+        else:
+            raise ValueError("MSSQL failed to update SQN for IMSI " + str(imsi))   
         
 
 class MySQL:
