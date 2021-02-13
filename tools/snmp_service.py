@@ -71,17 +71,252 @@ class AnotherStaticMibScalarInstance(MibScalarInstance):
     def getValue(self, name, idx):
         return self.getSyntax().clone('Ahoy hoy?')
 
+###OID 1.0.0
+class generate_avp_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('generate_avp_count'))
+
+
+###OID 2.0.0
+class generate_vendor_avp(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('generate_vendor_avp'))
+
+
+###OID 3.0.0
+class diameter_packet_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('diameter_packet_count'))
+
+
+###OID 4.0.0
+class diameter_packet_decode_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('diameter_packet_decode_count'))
+
+
+###OID 5.0.0
+class diameter_decode_avp_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('diameter_decode_avp_count'))
+
+
+###OID 0.0.257.0
+class Answer_257_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_257_attempt_count'))
+
+
+###OID 0.0.257.1
+class Answer_257_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_257_success_count'))
+
+
+###OID 0.0.280.0
 class Answer_280_attempt_count(MibScalarInstance):
     def getValue(self, name, idx):
         return self.getSyntax().clone(redis_store.get('Answer_280_attempt_count'))
 
 
+###OID 0.0.280.1
+class Answer_280_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_280_success_count'))
+
+
+###OID 0.0.282.0
+class Answer_282_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_282_attempt_count'))
+
+
+###OID 0.0.282.1
+class Answer_282_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_282_success_count'))
+
+
+###OID 0.16777251.316.0
+class Answer_16777251_316_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_316_attempt_count'))
+
+
+###OID 0.16777251.316.1
+class Answer_16777251_316_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_316_success_count'))
+
+
+###OID 0.16777251.318.0
+class Answer_16777251_318_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_318_attempt_count'))
+
+
+###OID 6.0.0
+class S6a_user_unknown_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('S6a_user_unknown_count'))
+
+
+###OID 7.0.0
+class S6a_resync_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('S6a_resync_count'))
+
+
+###OID 0.16777251.318.1
+class Answer_16777251_318_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_318_success_count'))
+
+
+###OID 0.16777251.321.0
+class Answer_16777251_321_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_321_attempt_count'))
+
+
+###OID 0.16777251.321.1
+class Answer_16777251_321_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_321_success_count'))
+
+
+###OID 0.16777251.323.0
+class Answer_16777251_323_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_323_attempt_count'))
+
+
+###OID 0.16777251.323.1
+class Answer_16777251_323_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777251_323_success_count'))
+
+
+###OID 0.16777238.272.0
+class Answer_16777238_272_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777238_272_attempt_count'))
+
+
+###OID 0.16777238.272.1
+class Answer_16777238_272_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777238_272_success_count'))
+
+
+###OID 0.16777216.300.0
+class Answer_16777216_300_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_300_attempt_count'))
+
+
+###OID 0.16777216.300.1
+class Answer_16777216_300_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_300_success_count'))
+
+
+###OID 0.16777216.301.0
+class Answer_16777216_301_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_301_attempt_count'))
+
+
+###OID 0.16777216.301.1
+class Answer_16777216_301_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_301_success_count'))
+
+
+###OID 0.16777216.302.0
+class Answer_16777216_302_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_302_attempt_count'))
+
+
+###OID 0.16777216.302.1
+class Answer_16777216_302_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_302_success_count'))
+
+
+###OID 0.16777216.303.0
+class Answer_16777216_303_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_303_attempt_count'))
+
+
+###OID 0.16777216.303.1
+class Answer_16777216_303_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_303_success_count'))
+
+
+###OID 0.16777216.304.0
+class Answer_16777216_304_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_304_attempt_count'))
+
+
+###OID 0.16777216.304.1
+class Answer_16777216_304_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777216_304_success_count'))
+
+
+###OID 0.16777252.324.0
+class Answer_16777252_324_attempt_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777252_324_attempt_count'))
+
+
+###OID 0.16777252.324.1
+class Answer_16777252_324_success_count(MibScalarInstance):
+    def getValue(self, name, idx):
+        return self.getSyntax().clone(redis_store.get('Answer_16777252_324_success_count'))
+
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
-    #MyStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,), v2c.OctetString()),
-    #AnotherStaticMibScalarInstance((1, 3, 6, 1, 2, 1, 1, 1), (0,1), v2c.OctetString()),
-    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 280, 0), v2c.Integer32()),
-    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 280, 1), v2c.Integer32())
+    generate_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
+    generate_vendor_avp((1, 3, 6, 1, 2, 1, 1, 1), (2, 0, 0, 0), v2c.Integer32()),
+    diameter_packet_count((1, 3, 6, 1, 2, 1, 1, 1), (3, 0, 0, 0), v2c.Integer32()),
+    diameter_packet_decode_count((1, 3, 6, 1, 2, 1, 1, 1), (4, 0, 0, 0), v2c.Integer32()),
+    diameter_decode_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (5, 0, 0, 0), v2c.Integer32()),
+    Answer_257_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 257, 0), v2c.Integer32()),
+    Answer_257_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 257, 1), v2c.Integer32()),
+    Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 280, 0), v2c.Integer32()),
+    Answer_280_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 280, 1), v2c.Integer32()),
+    Answer_282_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 282, 0), v2c.Integer32()),
+    Answer_282_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 282, 1), v2c.Integer32()),
+    Answer_16777251_316_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 316, 0), v2c.Integer32()),
+    Answer_16777251_316_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 316, 1), v2c.Integer32()),
+    Answer_16777251_318_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 318, 0), v2c.Integer32()),
+    S6a_user_unknown_count((1, 3, 6, 1, 2, 1, 1, 1), (6, 0, 0, 0), v2c.Integer32()),
+    S6a_resync_count((1, 3, 6, 1, 2, 1, 1, 1), (7, 0, 0, 0), v2c.Integer32()),
+    Answer_16777251_318_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 318, 1), v2c.Integer32()),
+    Answer_16777251_321_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 321, 0), v2c.Integer32()),
+    Answer_16777251_321_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 321, 1), v2c.Integer32()),
+    Answer_16777251_323_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 323, 0), v2c.Integer32()),
+    Answer_16777251_323_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 323, 1), v2c.Integer32()),
+    Answer_16777238_272_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777238, 272, 0), v2c.Integer32()),
+    Answer_16777238_272_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777238, 272, 1), v2c.Integer32()),
+    Answer_16777216_300_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 300, 0), v2c.Integer32()),
+    Answer_16777216_300_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 300, 1), v2c.Integer32()),
+    Answer_16777216_301_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 301, 0), v2c.Integer32()),
+    Answer_16777216_301_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 301, 1), v2c.Integer32()),
+    Answer_16777216_302_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 302, 0), v2c.Integer32()),
+    Answer_16777216_302_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 302, 1), v2c.Integer32()),
+    Answer_16777216_303_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 303, 0), v2c.Integer32()),
+    Answer_16777216_303_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 303, 1), v2c.Integer32()),
+    Answer_16777216_304_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 304, 0), v2c.Integer32()),
+    Answer_16777216_304_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777216, 304, 1), v2c.Integer32()),
+    Answer_16777252_324_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777252, 324, 0), v2c.Integer32()),
+    Answer_16777252_324_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777252, 324, 1), v2c.Integer32())
 )
 
 # Register SNMP Applications at the SNMP engine for particular SNMP context
