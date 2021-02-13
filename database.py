@@ -104,13 +104,13 @@ class MongoDB:
 
 
 class MSSQL:
-    import pymssql
+    #import pymssql
+    import _mssql
     def __init__(self):
         logging.info("Configured to use MS-SQL server: " + str(yaml_config['database']['mssql']['server']))
         self.server = yaml_config['database']['mssql']
         try:
-            conn = self.pymssql.connect(self.server['server'], self.server['username'], self.server['password'], self.server['database'], as_dict=True, autocommit=True)
-            self.cursor = conn.cursor()
+            self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
         except:
             #If failed to connect to server
             logging.fatal("Failed to connect to MSSQL server at " + str(self.server['server']))
@@ -121,7 +121,25 @@ class MSSQL:
 
     def GetSubscriberInfo(self, imsi):
         logging.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
-        self.cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
+        
+        self.conn.execute_query('hss_imsi_known_check @imsi=' + str(imsi))
+        res1 = [ row for row in self.conn ]
+        print(res1)
+
+        self.conn.execute_query('common_check_database')
+        res1 = [ row for row in self.conn ]
+        print(res1)
+
+        self.conn.execute_query('hss_get_mme_identity @imsi=' + str(imsi) + '  @orgin_host=' + str(imsi))
+        res1 = [ row for row in self.conn ]
+        print(res1)
+
+        self.conn.execute_query('hss_get_subscriber_data @imsi=' + str(imsi))
+        res1 = [ row for row in self.conn ]
+        print(res1)
+
+        #query = "EXEC [store_proc_name] @param1='param1', @param2= 'param2'"
+        #self.cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
         for row in self.cursor:
             subscriber_details = {}
             subscriber_details['K'] = row['Ki']
