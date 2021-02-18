@@ -119,7 +119,7 @@ class MSSQL:
 
 
 
-    def GetSubscriberInfo(self, imsi, requester):
+    def GetSubscriberInfo(self, imsi):
         try:
             logging.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
             subscriber_details = {}
@@ -154,6 +154,8 @@ class MSSQL:
             subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
             subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
             subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
+            subscriber_details['K'] = result['ki']
+            subscriber_details['SQN'] = result['seqno']
 
             self.conn.execute_query('hss_get_apn_info @apn_profileId=' + str(apn_id))
             subscriber_details['pdn'] = []
@@ -164,15 +166,6 @@ class MSSQL:
                     'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
                     'type': 2})
 
-
-            self.conn.execute_query('select IMSI, PLMNID , MCC, MNC, BasicMSISDN, Ki, OP_key, seqNB from IMSI \
-                LEFT JOIN operator_key on IMSI.op_ID = operator_key.op_ID where IMSI.IMSI=' + str(imsi))
-            for row in self.conn:
-                subscriber_details['K'] = row['Ki']
-                subscriber_details['SQN'] = row['seqNB']
-
-            
-
             logging.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
             return subscriber_details
         except:
@@ -180,11 +173,31 @@ class MSSQL:
     
 
 
-    def UpdateSubscriber(self, imsi, sqn, rand):
+    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         try:
             logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
-            self.conn.execute_non_query('update imsi set seqNB = ' + str(sqn) + ' where IMSI = ' + str(imsi))
-        else:
+
+
+            try:
+                logging.debug("Updating SQN using SP hss_auth_get_ki_v2")
+                self.conn.execute_query('hss_auth_get_ki_v2 @imsi=' + str(imsi) + ', @NBofSeq=' + str(sqn) + ';')
+                logging.debug(self.conn)
+            except:
+                logging.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+                raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+            
+            #try:
+                logging.debug("Updating MME Identity using SP hss_update_mme_identity")
+                logging.debug("Getting Origin-Host")
+                origin_host = kwargs.get('origin_host', None)
+                logging.debug("Origin Host: " + str(origin_host))
+                logging.debug("Writing serving MME to database")
+                sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
+                logging.debug(sql)
+                self.conn.execute_query(sql)
+            #except:
+            #    logging.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
+        except:
             raise ValueError("MSSQL failed to update SQN for IMSI " + str(imsi))   
         
 
@@ -209,7 +222,7 @@ class MySQL:
         subscriber_details = self.cursor.fetchall()
         return subscriber_details
 
-    def UpdateSubscriber(self, imsi, sqn, rand):
+    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
         query = 'update subscribers set sqn = ' + str(sqn) + ' where imsi = ' + str(imsi)
         logging.debug(query)
@@ -239,5 +252,5 @@ def UpdateSubscriber(imsi, sqn, rand):
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
-    DB.GetSubscriberInfo('204080902004931', "wien1.mme.epc.mnc003.mcc232.3gppnetwork.org")
-    DB.UpdateSubscriber('204080902004931', 998, '')
+    DB.GetSubscriberInfo('204080902004931')
+    DB.UpdateSubscriber('204080902004931', 998, '', origin_host='origin.host.xx')
