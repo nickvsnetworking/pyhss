@@ -1,7 +1,7 @@
 ## HSS Parameters
 hss:
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
-  bind_ip: ["10.0.1.252", "10.0.1.99"]
+  bind_ip: ["127.0.0.1"]
 
   #Port to listen on (Same for TCP & SCTP)
   bind_port: 3868
@@ -26,8 +26,26 @@ logging:
 
 ## Database Parameters
 database:
-  mongodb:
-    mongodb_server: 127.0.0.1
-    mongodb_username: root
-    mongodb_password: password
-    mongodb_port: 27017
+#Multiple database types are supported, and additional database can be added easily. 
+#See ``database.py`` for information on connecting to your database of choice, with your preferred schema. 
+  # mongodb:
+  #   mongodb_server: 127.0.0.1
+  #   mongodb_username: root
+  #   mongodb_password: password
+  #   mongodb_port: 27017
+  mssql:
+      server: 127.0.0.1
+      username: sa
+      password: thisisthepasswordforMSSQL99#!
+      database: 'hlr'
+
+## Stats Parameters
+redis:
+  enabled: True
+  host: localhost
+  port: 6379
+
+
+snmp:
+  port: 1161
+  listen_address: 127.0.0.1

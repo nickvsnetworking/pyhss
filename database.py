@@ -103,8 +103,42 @@ class MongoDB:
         
 
 
-# class MSSQL:
-#     def __init__():
+class MSSQL:
+    import pymssql
+    def __init__(self):
+        logging.info("Configured to use MS-SQL server: " + str(yaml_config['database']['mssql']['server']))
+        self.server = yaml_config['database']['mssql']
+        try:
+            conn = self.pymssql.connect(self.server['server'], self.server['username'], self.server['password'], self.server['database'], as_dict=True, autocommit=True)
+            self.cursor = conn.cursor()
+        except:
+            #If failed to connect to server
+            logging.fatal("Failed to connect to MSSQL server at " + str(self.server['server']))
+            raise OSError("Failed to connect to MSSQL server at " + str(self.server['server']))
+            sys.exit()
+
+
+
+    def GetSubscriberInfo(self, imsi):
+        imsi = '001010000000003'
+
+        self.cursor.execute('SELECT * FROM imsi WHERE IMSI=%s', str(imsi))
+        for row in self.cursor:
+            subscriber_details = {}
+            subscriber_details['K'] = row['Ki']
+            subscriber_details['SQN'] = row['seqNB']
+            logging.debug('Returned data from DB:')
+            logging.debug(subscriber_details)
+            return subscriber_details
+        #If we've made it to here it's because we haven't returned a result.
+        #if no results returned raise error
+        raise ValueError("MSSQL has no matching subscriber details for IMSI " + str(imsi))            
+
+
+    def UpdateSubscriber(self, imsi, sqn, rand):
+        logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
+        self.cursor.execute('update imsi set seqNB = ' + str(sqn) + ' where IMSI = ' + str(imsi))
+        
 
 # class MySQL:
 #     def __init__():
@@ -118,6 +152,14 @@ for db_option in yaml_config['database']:
 if db_option == "mongodb":
     DB = MongoDB()
 
+
+if db_option == "mssql":
+    DB = MSSQL()
+
+else:
+    logging.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
+    sys.exit()
+
 def GetSubscriberInfo(imsi):
     return DB.GetSubscriberInfo(imsi)
 
@@ -126,7 +168,5 @@ def UpdateSubscriber(imsi, sqn, rand):
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
-    pass
-    Mongo = MongoDB()
-    Mongo.GetSubscriberInfo('001010000000003')
-    Mongo.UpdateSubscriber('001010000000003', 999, '')
+    DB.GetSubscriberInfo('001010000000003')
+    DB.UpdateSubscriber('001010000000003', 998, '')
