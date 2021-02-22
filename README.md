@@ -49,7 +49,14 @@ Subscriber data (IMSI, APN Profiles & Crypto values for each subscriber) can be 
 
 Further information on setup is in *databases.md* file with some more information on databases.
 
- 
+## Statistics
+If enabled, statistics are collected across threads using Redis.
+These keys and values are then able to be read by an SNMP service - ``tools/snmp_service.py`` to expose these values to be read by an external NMS such as LibreNMS or Nagios.
+
+More info available in [SNMP_Readme](tools/SNMP_README.md)
+
+
+
 ## Extending
 To implement a new response is simply a matter of adding the *packet_vars['command_code']* and *packet_vars['ApplicationId']* to the if/elif loop in *hss.py*.
 You can then access each of it's AVPs from the *avp* array, and the packet variables from the dictionary called *packet_vars*.
