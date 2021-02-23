@@ -3,15 +3,15 @@ import socket
 import sys
 import diameter
 global recv_ip
-recv_ip = "10.0.1.252"
+recv_ip = "127.0.0.3"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "10.0.1.252"
+hostname = "127.0.0.5"
 realm = "mnc001.mcc001.3gppnetwork.org"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR"]
 
-diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client')
+diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client',  '01', '001')
 
 clientsocket = socket.socket()
 print("Connecting to " + str(hostname))
@@ -44,8 +44,12 @@ def ReadBuffer():
                     print("Recieved DWR - Sending DWA")
                     SendRequest(diameter.Answer_280(packet_vars, avps))
                 if int(packet_vars['command_code']) == 257:
-                    print("Recieved CER - Sending CEA")
-                    SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
+                    #Check if Request or Response
+                    if packet_vars['flags'] == '60':
+                          print("Is CEA ")
+                    else:
+                        print("Recieved CER - Sending CEA")
+                        SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
                     
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
@@ -114,6 +118,10 @@ while True:
         sipaor = "sip:" + str(msisdn)
         print("Sending Location-Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_285(sipaor))
+    elif request == "RIR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending LCS Routing Information Request to " + str(hostname))
+        SendRequest(diameter.Request_16777291_8388622(imsi))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:

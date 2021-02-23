@@ -12,7 +12,7 @@ from threading import Thread, Lock
 import os
 
 
-our_ip = "10.0.1.252"
+our_ip = "127.0.0.5"
 #need to get this dynamically
 
 
@@ -124,6 +124,12 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
                 response = diameter.Answer_16777252_324(packet_vars, avps)      #Generate Diameter packet
                 self.request.sendall(bytes.fromhex(response))   
 
+            #SLh LCS-Routing-Info-Answer
+            elif packet_vars['command_code'] == 8388622 and packet_vars['ApplicationId'] == 16777291:
+                print("Received Request with command code 324 (3GPP SLh LCS-Routing-Info-Answer Request) from " + orignHost + "\n\tGenerating (MICA)")
+                response = diameter.Answer_16777291_8388622(packet_vars, avps)      #Generate Diameter packet
+                self.request.sendall(bytes.fromhex(response))   
+
 
             else:
                 print("\n\nRecieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
@@ -138,5 +144,5 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
 
 
 
-server = socketserver.ThreadingTCPServer(('10.0.1.252', 3868), DiameterRequestHandler)
+server = socketserver.ThreadingTCPServer(('127.0.0.5', 3868), DiameterRequestHandler)
 server.serve_forever()
