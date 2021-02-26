@@ -67,6 +67,10 @@ class Diameter:
         
         return format(input_int,"x").zfill(output_bytes*2)
 
+    #Converts Hex byte to Binary
+    def hex_to_bin(self, input_hex):
+        return bin(int(str(input_hex), 16))[2:].zfill(8)
+
     #Generates a valid random ID to use
     def generate_id(self, length):
         length = length * 2
@@ -959,7 +963,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
 
-        #Experimental Result AVP(Response Code for Failure)
+        #Experimental Result AVP
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
         avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
@@ -1028,7 +1032,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(283, 40, self.OriginRealm)                 #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         mcc = str(imsi)[:3]
