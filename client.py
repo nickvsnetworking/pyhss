@@ -41,15 +41,25 @@ def ReadBuffer():
                         file.close()
                 print("Command Code: " + str(packet_vars['command_code']))
                 if int(packet_vars['command_code']) == 280:
-                    print("Recieved DWR - Sending DWA")
-                    SendRequest(diameter.Answer_280(packet_vars, avps))
+                    flags_bin = diameter.hex_to_bin(packet_vars['flags'])
+                    print("Flags are " + str(flags_bin)) 
+                    #If Request bit is set
+                    if flags_bin[0] == '1':
+                        print("Recieved DWR - Sending DWA")
+                        SendRequest(diameter.Answer_280(packet_vars, avps))
+                    else:
+                        print("Recieved DWA")
                 if int(packet_vars['command_code']) == 257:
                     #Check if Request or Response
-                    if packet_vars['flags'] == '60':
-                          print("Is CEA ")
-                    else:
+                    flags_bin = diameter.hex_to_bin(packet_vars['flags'])
+                    print("Flags are " + str(flags_bin)) 
+                    #ToDo - check first byte only
+                    if flags_bin[0] == '1':
                         print("Recieved CER - Sending CEA")
                         SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
+                    else:
+                        print("Is CEA ")
+                        
                     
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
