@@ -111,6 +111,7 @@ class MSSQL:
         self.server = yaml_config['database']['mssql']
         try:
             self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
+            logging.info("Connected to MSSQL Server")
         except:
             #If failed to connect to server
             logging.fatal("Failed to connect to MSSQL server at " + str(self.server['server']))
@@ -139,7 +140,7 @@ class MSSQL:
             apn_id = result['apn_configuration']
 
 
-
+            logging.debug("Running hss_get_subscriber_data for imsi " + str(imsi))
             self.conn.execute_query('hss_get_subscriber_data @imsi=' + str(imsi))
             result = [ row for row in self.conn ][0]
             print("\nResult of hss_get_subscriber_data: " + str(result))
@@ -157,6 +158,11 @@ class MSSQL:
             subscriber_details['K'] = result['ki']
             subscriber_details['SQN'] = result['seqno']
 
+            #Convert OP to OPc
+            subscriber_details['OP'] = result['op_key']
+            subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
+            subscriber_details.pop('OP', None)
+
             self.conn.execute_query('hss_get_apn_info @apn_profileId=' + str(apn_id))
             subscriber_details['pdn'] = []
             for result in self.conn:
@@ -171,32 +177,68 @@ class MSSQL:
         except:
             raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
     
-
-
+    def GetSubscriberLocation(self, *args, **kwargs):
+        logging.debug("Called GetSubscriberLocation")
+        if 'imsi' in kwargs:
+            logging.debug("IMSI present - Searching based on IMSI")
+            try:
+                imsi = kwargs.get('imsi', None)
+                logging.debug("Calling hss_get_mme_identity with IMSI " + str(imsi))
+                self.conn.execute_query('hss_get_mme_identity @imsi=' + str(imsi) + ';')
+                logging.debug(self.conn)
+            except:
+                raise ValueError("MSSQL failed to run SP hss_get_mme_identity for IMSI " + str(imsi))                  
+        elif 'msisdn' in kwargs:
+            logging.debug("MSISDN present - Searching based on MSISDN")
+            try:
+                msisdn = kwargs.get('msisdn', None)
+                logging.debug("Calling hss_get_mme_identity with msisdn " + str(msisdn))
+                self.conn.execute_query('hss_get_mme_identity @msisdn=' + str(msisdn) + ';')
+                logging.debug(self.conn)
+            except:
+                raise ValueError("MSSQL failed to run SP hss_get_mme_identity for msisdn " + str(msisdn)) 
+        else:
+            raise ValueError("No IMSI or MSISDN provided - Aborting")
+        
     def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         try:
             logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
-
-
             try:
                 logging.debug("Updating SQN using SP hss_auth_get_ki_v2")
-                self.conn.execute_query('hss_auth_get_ki_v2 @imsi=' + str(imsi) + ', @NBofSeq=' + str(sqn) + ';')
+                sql = 'hss_auth_get_ki_v2 @imsi=' + str(imsi) + ', @NBofSeq=' + str(sqn) + ';'
+                logging.debug(sql)
+                self.conn.execute_query(sql)
                 logging.debug(self.conn)
             except:
                 logging.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
                 raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
-            
-            #try:
-                logging.debug("Updating MME Identity using SP hss_update_mme_identity")
+
+            #If optional origin_host kwag present, store UE location (Serving MME) in Database
+            if 'origin_host' in kwargs:
+                logging.debug("origin_host present - Updating MME Identity of subscriber")
                 logging.debug("Getting Origin-Host")
                 origin_host = kwargs.get('origin_host', None)
                 logging.debug("Origin Host: " + str(origin_host))
-                logging.debug("Writing serving MME to database")
-                sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
-                logging.debug(sql)
-                self.conn.execute_query(sql)
-            #except:
-            #    logging.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
+
+                if len(origin_host) != 0:
+                    try:
+                        logging.debug("Updating MME Identity using SP hss_update_mme_identity")
+                        logging.debug("Writing serving MME to database")
+                        sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
+                        logging.debug(sql)
+                        self.conn.execute_query(sql)
+                    except:
+                        logging.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
+                else:
+                    try:
+                        logging.debug("Removing MME Identity as new MME Identity is empty")
+                        sql = 'hss_delete_mme_identity @imsi=' + str(imsi) 
+                        logging.debug(sql)
+                        self.conn.execute_query(sql)
+                    except:
+                        logging.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
+            else:
+                logging.debug("origin_host not present - not updating UE location in database")
         except:
             raise ValueError("MSSQL failed to update SQN for IMSI " + str(imsi))   
         
@@ -253,4 +295,5 @@ def UpdateSubscriber(imsi, sqn, rand):
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     DB.GetSubscriberInfo('204080902004931')
-    DB.UpdateSubscriber('204080902004931', 998, '', origin_host='origin.host.xx')
+    DB.UpdateSubscriber('204080902004931', 998, '', origin_host='')
+    DB.GetSubscriberLocation(imsi='204080902004931')
