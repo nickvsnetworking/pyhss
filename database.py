@@ -304,6 +304,10 @@ def GetSubscriberInfo(imsi):
 def UpdateSubscriber(imsi, sqn, rand):
     return DB.UpdateSubscriber(imsi, sqn, rand)
 
+def GetSubscriberLocation(imsi, input):
+    #Input can be either MSISDN or IMSI
+    return DB.GetSubscriberLocation(imsi='input')
+
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     DB.GetSubscriberInfo('204080902004931')
