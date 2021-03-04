@@ -5,9 +5,9 @@ Python Home Subscriber Server implementing Diameter / 3GPP S6a Interfaces.
 
 ## Introduction
 PyHSS is a simple Home Subscriber Server (HSS) used by LTE (4G) Evolved Packet Core (EPC) networks, written in Python.
-3GPP network elements like the MME and PCRF communicate with the HSS via the [DIAMETER](https://tools.ietf.org/html/rfc6733) protocol, with some extensions defined by 3GPP.
+3GPP network elements like the MME, CSCFs and PCRF communicate with the HSS via the [DIAMETER](https://tools.ietf.org/html/rfc6733) protocol, with some extensions defined by 3GPP.
 
-The underlying library - ``diameter.py`` can be easily worked with to impliment other Diameter based interfaces.
+The underlying library - ``diameter.py`` can be easily worked with to impliment other Diameter based interfaces as required.
 
 ## Usage
 Basic configuration is set in the ``config.yaml`` file,
@@ -45,22 +45,16 @@ Most of the heavy lifting in this is managed by the Diameter class, in ``diamete
 
  
 ## Subscriber Information Storage
-Subscriber data (IMSI, APN Profiles & Crypto values for each subscriber) can be stored in a variety of different databases, such as MongoDB, MSSQL and MySQL, and can easily be extended to support other database backends and integrate with existing databases.
-
-Further information on setup is in *databases.md* file with some more information on databases.
+Subscriber data (IMSI, APN Profiles & Crypto values for each subscriber) can be stored in a variety of different databases, such as MongoDB, MSSQL and MySQL, and can easily be extended to support other database backends and integrate with existing database schemas.
+See [databases](docs/databases.md) for more info.
 
 ## Statistics
 If enabled, statistics are collected across threads using Redis.
 These keys and values are then able to be read by an SNMP service - ``tools/snmp_service.py`` to expose these values to be read by an external NMS such as LibreNMS or Nagios.
 
-More info available in [SNMP_Readme](tools/SNMP_README.md)
+More info available in [SNMP Readme](docs/SNMP_README.md).
 
 
-
-## Extending
-To implement a new response is simply a matter of adding the *packet_vars['command_code']* and *packet_vars['ApplicationId']* to the if/elif loop in *hss.py*.
-You can then access each of it's AVPs from the *avp* array, and the packet variables from the dictionary called *packet_vars*.
-To add a new response you'd edit *diameter.py* and add a new function called Answer_YOURCOMMANDCODE, and build the AVPs and packet variables as required.
 
 ## Dependancies 
 The Cryptographic stuff used to generate EUTRAN Authentication Vectors relies on the Python3 Crypto Module, which can be installed with 
