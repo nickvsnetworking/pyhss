@@ -177,29 +177,41 @@ class MSSQL:
         except:
             raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
     
+
+
     def GetSubscriberLocation(self, *args, **kwargs):
         logging.debug("Called GetSubscriberLocation")
         if 'imsi' in kwargs:
             logging.debug("IMSI present - Searching based on IMSI")
             try:
                 imsi = kwargs.get('imsi', None)
-                logging.debug("Calling hss_get_mme_identity with IMSI " + str(imsi))
-                self.conn.execute_query('hss_get_mme_identity @imsi=' + str(imsi) + ';')
+                logging.debug("Calling hss_get_mme_identity_by_info with IMSI " + str(imsi))
+                self.conn.execute_query('hss_get_mme_identity_by_info ' + str(imsi) + ';')
                 logging.debug(self.conn)
             except:
-                raise ValueError("MSSQL failed to run SP hss_get_mme_identity for IMSI " + str(imsi))                  
+                raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))                  
         elif 'msisdn' in kwargs:
             logging.debug("MSISDN present - Searching based on MSISDN")
             try:
                 msisdn = kwargs.get('msisdn', None)
-                logging.debug("Calling hss_get_mme_identity with msisdn " + str(msisdn))
-                self.conn.execute_query('hss_get_mme_identity @msisdn=' + str(msisdn) + ';')
+                logging.debug("Calling hss_get_mme_identity_by_info with msisdn " + str(msisdn))
+                self.conn.execute_query('hss_get_mme_identity_by_info ' + str(msisdn) + ';')
                 logging.debug(self.conn)
             except:
-                raise ValueError("MSSQL failed to run SP hss_get_mme_identity for msisdn " + str(msisdn)) 
+                raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
         else:
             raise ValueError("No IMSI or MSISDN provided - Aborting")
         
+        try:
+            logging.debug(self.conn)
+            result = [ row for row in self.conn ][0]
+            logging.debug("Returned data:")
+            logging.debug(result)
+            return result
+        except:
+            logging.debug("No location stored in database for Subscriber")
+            raise ValueError("No location stored in database for Subscriber")
+
     def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         try:
             logging.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
@@ -295,5 +307,5 @@ def UpdateSubscriber(imsi, sqn, rand):
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     DB.GetSubscriberInfo('204080902004931')
-    DB.UpdateSubscriber('204080902004931', 998, '', origin_host='')
+    DB.UpdateSubscriber('204080902004931', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
     DB.GetSubscriberLocation(imsi='204080902004931')
