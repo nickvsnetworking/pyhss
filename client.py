@@ -6,14 +6,19 @@ global recv_ip
 recv_ip = "127.0.0.3"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
+
 hostname = "127.0.0.5"
+
 realm = "mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR"]
 
-diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client',  '01', '001')
+
+diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client', '001', '01')
+
 
 clientsocket = socket.socket()
+clientsocket.bind((recv_ip, 3871))
 print("Connecting to " + str(hostname))
 try:
     clientsocket.connect((hostname,3868))
@@ -36,7 +41,7 @@ def ReadBuffer():
                     print(avp['avp_code'])
                     if int(avp['avp_code']) == 318:
                         print("Received Authentication Information Answer - Store output of Crypto vectors?")
-                        file.open("vectors.txt", "w")
+                        file = open("vectors.txt", "w")
                         file.write(avp['misc_data'])
                         file.close()
                 print("Command Code: " + str(packet_vars['command_code']))
@@ -85,6 +90,10 @@ while True:
     elif request == "DWR":
         print("Sending Device Watchdog Request to " + str(hostname))
         SendRequest(diameter.Request_280())
+    elif request == "DPR":
+        print("Sending Disconnect Peer Request to " + str(hostname))
+        SendRequest(diameter.Request_282())
+        sys.exit()
     elif request == "ULR":
         imsi = str(input("IMSI:\t"))
         print("Sending Update Location Request to " + str(hostname))

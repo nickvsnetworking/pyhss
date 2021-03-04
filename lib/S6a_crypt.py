@@ -128,5 +128,8 @@ def generate_opc(key, op):
     op = op.encode('utf-8')
     op = binascii.unhexlify(op)
     opc = Milenage.generate_opc(key, op)
+    #convert back to string
+    opc = binascii.hexlify(opc)
+    opc = opc.decode("utf-8")
     return opc
 

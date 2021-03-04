@@ -1,0 +1,56 @@
+## HSS Parameters
+hss:
+  #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
+  bind_ip: ["127.0.0.1"]
+
+  #Port to listen on (Same for TCP & SCTP)
+  bind_port: 3868
+
+  #Value to populate as the OriginHost in Diameter responses
+  OriginHost: "hss.localdomain"
+  
+  #Value to populate as the OriginRealm in Diameter responses
+  OriginRealm: "localdomain"
+  
+  #Value to populate as the Product name in Diameter responses
+  ProductName: "pyHSS"
+
+  #Your Home Mobile Country Code (Used for PLMN calcluation)
+  MCC: "001"
+  #Your Home Mobile Network Code (Used for PLMN calcluation)
+  MNC: "01"
+
+## Debug Parameters
+logging:
+  level: DEBUG
+
+## Database Parameters
+#Multiple database types are supported, and additional database can be added easily. 
+#See ``databases.md`` for information on connecting to your database of choice, with your preferred schema. 
+database:
+  # mongodb:
+  #   mongodb_server: 127.0.0.1
+  #   mongodb_username: root
+  #   mongodb_password: password
+  #   mongodb_port: 27017
+     server: 127.0.0.1
+     username: sa
+     password: thisisthepasswordforMSSQL99#!
+     database: 'hlr'
+  # mysql:
+  #   server: 127.0.0.1
+  #   username: newuser
+  #   password: password
+  #   database: hss
+
+
+## Stats Parameters
+redis:
+  enabled: True
+  host: localhost
+  port: 6379
+
+
+snmp:
+  port: 1161
+  listen_address: 127.0.0.1
