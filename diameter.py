@@ -54,6 +54,10 @@ class Diameter:
         
         return format(input_int,"x").zfill(output_bytes*2)
 
+    #Converts Hex byte to Binary
+    def hex_to_bin(self, input_hex):
+        return bin(int(str(input_hex), 16))[2:].zfill(8)
+
     #Generates a valid random ID to use
     def generate_id(self, length):
         length = length * 2
@@ -96,6 +100,7 @@ class Diameter:
         self.ProductName = self.string_to_hex(ProductName)
         self.MNC = str(MNC)
         self.MCC = str(MCC)
+
         logging.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
         logging.info("PLMN is " + str(MCC) + "/" + str(MNC))
         if yaml_config['redis']['enabled'] == True:
@@ -108,6 +113,7 @@ class Diameter:
             except:
                 logging.error("Failed to connect to Redis server - Disabling")
                 yaml_config['redis']['enabled'] == False
+
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -322,6 +328,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777291),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLh)
         avp += self.generate_avp(258, 40, format(int(10),"x").zfill(8))                                  #Auth-Application-ID - Diameter CER
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                                #Supported-Vendor-ID (3GGP v2)
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
@@ -698,6 +705,7 @@ class Diameter:
         
         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + self.MNC + ".mcc" + self.MCC + ".3gppnetwork.org:6060")),'ascii'))
 
+
         experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
         experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
 
@@ -924,6 +932,10 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        vendor_id = self.generate_avp(266, 40, str(binascii.hexlify('10415'),'ascii'))
+        print("vendor_id avp: " + str(vendor_id))
+        auth_application_id = self.generate_avp(248, 40, self.int_to_hex(16777252, 8))
+        print("auth_application_id: " + auth_application_id)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State        
@@ -962,9 +974,46 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
         #Experimental Result AVP(Response Code for Failure)
         avp_experimental_result = ''
+        avp_experimental_result += self.generate_vendor_avp(266, 'c0', 10415, '')                         #AVP Vendor ID
+        avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
+        avp += self.generate_avp(297, 'c0', avp_experimental_result)                                      #AVP Experimental-Result(297)
+        response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+
+    #3GPP SLh - LCS-Routing-Info-Answer
+    def Answer_16777291_8388622(self, packet_vars, avps):
+        try:
+            imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+            imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
+        except:
+            logging.debug("Failed to get IMSI")
+        
+        try:
+            print("AVP data for MSIDN is " + self.get_avp_data(avps, 701))
+            msisdn = self.get_avp_data(avps, 701)[0]                                                            #Get IMSI from User-Name AVP in request
+            msisdn = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
+        except:
+            logging.debug("Failed to get MSISDN")
+        
+        avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777291),"x").zfill(8))   #Auth-Application-ID SLh
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
+        avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
+        avp += self.generate_avp(277, 40, "00000001")                                                   #Auth Session State (NO_STATE_MAINTAINED)        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
+
+        #Experimental Result AVP
+        avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
         avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCCESS (2001)
         avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+
         response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         if yaml_config['redis']['enabled'] == True:
             try:
@@ -974,6 +1023,17 @@ class Diameter:
         return response
 
 
+        #Serving Node AVP
+        avp_serving_node = ''
+        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, str(binascii.hexlify(b'examplemme.com'),'ascii'))  #MME-Name
+        avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)  #MME-Realm
+        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address
+        avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                              #Serving-Node  AVP
+
+
+        avp += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                                   #GMLC-Address
+        response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
 
 
         
@@ -1026,7 +1086,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(283, 40, self.OriginRealm)                 #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         mcc = str(imsi)[:3]
@@ -1225,4 +1285,43 @@ class Diameter:
         #LCS-Client-Type (Emergency Services)
         avp += self.generate_vendor_avp(1241, "c0", 10415, "00000000")
         response = self.generate_diameter_packet("01", "c0", 8388620, 16777255, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+
+    #3GPP S13 - ME-Identity-Check Request
+    def Request_16777252_324(self, imsi, imei, software_version):
+        avp = ''
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(293, 40, str(binascii.hexlify(b'eir.localdomain'),'ascii'))                 #Destination Host
+        imei = self.generate_vendor_avp(1402, "c0", 10415, str(binascii.hexlify(str.encode(imei)),'ascii'))
+        software_version = self.generate_vendor_avp(1403, "c0", 10415, self.string_to_hex(software_version))
+        avp += self.generate_vendor_avp(1401, "c0", 10415, imei + software_version)                                          #Terminal Information
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+    #3GPP SLh - Provide Subscriber Location Request
+    def Request_16777291_8388622(self, imsi):
+        avp = ''
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777291),"x").zfill(8))   #Auth-Application-ID SLh
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_slh'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        #Username (IMSI)
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        #MSISDN (Optional)
+        avp += self.generate_vendor_avp(701, 'c0', 10415, self.string_to_hex(imsi))                                             #Username (IMSI)
+        #GMLC Address
+        avp += self.generate_vendor_avp(2405, 'c0', 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address               
+        response = self.generate_diameter_packet("01", "c0", 8388622, 16777291, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response

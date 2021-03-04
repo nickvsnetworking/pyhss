@@ -6,12 +6,16 @@ global recv_ip
 recv_ip = "127.0.0.3"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
-hostname = "127.0.0.1"
+
+hostname = "127.0.0.5"
+
 realm = "mnc001.mcc001.3gppnetwork.org"
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR"]
+
 
 diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client', '001', '01')
+
 
 clientsocket = socket.socket()
 clientsocket.bind((recv_ip, 3871))
@@ -42,13 +46,26 @@ def ReadBuffer():
                         file.close()
                 print("Command Code: " + str(packet_vars['command_code']))
                 if int(packet_vars['command_code']) == 280:
-                    print("Recieved DWR - Sending DWA")
-                    #SendRequest(diameter.Answer_280(packet_vars, avps))
-                    #ToDo - Fix loop here
+                    flags_bin = diameter.hex_to_bin(packet_vars['flags'])
+                    print("Flags are " + str(flags_bin)) 
+                    #If Request bit is set
+                    if flags_bin[0] == '1':
+                        print("Recieved DWR - Sending DWA")
+                        SendRequest(diameter.Answer_280(packet_vars, avps))
+                    else:
+                        print("Recieved DWA")
                 if int(packet_vars['command_code']) == 257:
-                    print("Recieved CER - Sending CEA")
-                    #SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
-                    #ToDo - Fix loop here
+                    #Check if Request or Response
+                    flags_bin = diameter.hex_to_bin(packet_vars['flags'])
+                    print("Flags are " + str(flags_bin)) 
+                    #ToDo - check first byte only
+                    if flags_bin[0] == '1':
+                        print("Recieved CER - Sending CEA")
+                        SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
+                    else:
+                        print("Is CEA ")
+                        
+                    
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
                         print("\t\t" + str(avp))
@@ -120,6 +137,10 @@ while True:
         sipaor = "sip:" + str(msisdn)
         print("Sending Location-Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_285(sipaor))
+    elif request == "RIR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending LCS Routing Information Request to " + str(hostname))
+        SendRequest(diameter.Request_16777291_8388622(imsi))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
