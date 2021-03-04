@@ -54,7 +54,7 @@ def on_new_client(clientsocket,client_address):
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
                 print("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
-                response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip']))                   #Generate Diameter packet
+                response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
                 clientsocket.sendall(bytes.fromhex(response))                       #Send it
 
 
