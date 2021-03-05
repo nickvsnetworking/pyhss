@@ -46,14 +46,17 @@ class DiameterRequestHandler(socketserver.BaseRequestHandler):
             if not data:
                 print("Connection closed by " + str(self.client_address[0]))
                 break
-                        
-            packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
-            data_sum = data + self.request.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
-            packet_vars, avps = diameter.decode_diameter_packet(data_sum)           #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
+            try:            
+                packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
+                data_sum = data + self.request.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
+                packet_vars, avps = diameter.decode_diameter_packet(data_sum)           #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
 
-            orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-            orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
+                orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
+                orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
+            except:
+                logging.info("Failed to get packet_vars and AVPs from " + str(self.client_address[0]))
 
+                
 
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
             if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
