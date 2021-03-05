@@ -141,7 +141,9 @@ class MSSQL:
 
 
             logging.debug("Running hss_get_subscriber_data for imsi " + str(imsi))
-            self.conn.execute_query('hss_get_subscriber_data @imsi=' + str(imsi))
+            sql = 'hss_get_subscriber_data @imsi="' + str(imsi) + '";'
+            logging.debug("SQL: " + str(sql))
+            self.conn.execute_query(sql)
             result = [ row for row in self.conn ][0]
             print("\nResult of hss_get_subscriber_data: " + str(result))
             #subscriber_status: -1 –Blocked or 0-Active (Again)
@@ -157,6 +159,7 @@ class MSSQL:
             subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
             subscriber_details['K'] = result['ki']
             subscriber_details['SQN'] = result['seqno']
+            #subscriber_details['AMF'] = '0000'
 
             #Convert OP to OPc
             subscriber_details['OP'] = result['op_key']
