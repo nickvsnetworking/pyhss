@@ -26,10 +26,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
-    #plmn = b'\x05\xf5\x39'      #505 93
-    #plmn = b'\x12\xf4\x10'      #214 01
-    #print("PLMN: " )
-    logging.debug(plmn)
+    logging.debug("Input PLMN: " + plmn)
 
 
     crypto = Milenage(amf)
@@ -65,13 +62,9 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
-    #plmn = b'\x05\xf5\x39'      #505 93
-    #plmn = b'\x12\xf4\x10'      #214 01
-    #print("PLMN: " )
-    #print(plmn)
+    logging.debug("Input PLMN: " + plmn)
 
-
-    #print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
+    logging.debug("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
 
     crypto_obj = Milenage(amf)
 
