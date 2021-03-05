@@ -381,11 +381,29 @@ class Diameter:
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+        
+        
+
+        
+
+        #APNs from DB
+        APN_Configuration = ''
+        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
+        try:
+            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+        except:
+            logging.error("failed to get data backfrom database for imsi " + str(imsi))
+            logging.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))
+
+        #Boilerplate AVPs
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
         avp += self.generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
 
-        #Subscription Data:
+
+        #Subscription Data: 
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
@@ -403,9 +421,6 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
 
-
-        APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
-
         #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
         AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(8, 4))
         AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(1, 4))
@@ -413,14 +428,6 @@ class Diameter:
         AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
         AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
         APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
-
-        
-
-        #APNs from DB
-        APN_Configuration = ''
-        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
-        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
-        subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
 
         apn_list = subscriber_details['pdn']
         print(apn_list)
@@ -1035,7 +1042,7 @@ class Diameter:
 
         #Serving Node AVP
         avp_serving_node = ''
-        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location['Origin_Host'])   #MME-Name
+        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location['Origin_Host']))   #MME-Name
         avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)                                   #MME-Realm
         avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                        #GMLC-Address
         avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                                #Serving-Node  AVP
