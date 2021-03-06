@@ -150,7 +150,7 @@ class MSSQL:
             if str(result['subscriber_status']) != '0':
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
             
-            subscriber_details['msisdn'] = result['msisdn']
+            subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
             subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
             subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
             subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']

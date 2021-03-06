@@ -386,10 +386,6 @@ class Diameter:
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        
-        
-
-        
 
         #APNs from DB
         APN_Configuration = ''
@@ -522,9 +518,9 @@ class Diameter:
         #If MSISDN is present include it in Subscription Data
         if 'msisdn' in subscriber_details:
             logging.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, subscriber_details['msisdn'])                     #MSISDN
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
             logging.debug(msisdn_avp)
-            #subscription_data += msisdn_avp
+            subscription_data += msisdn_avp
             #ToDo - Use DB data
 
         if 'RAT_freq_priorityID' in subscriber_details:
@@ -567,10 +563,6 @@ class Diameter:
             except:
                 logging.error("failed to incriment Answer_16777251_316_success_count")
         logging.debug("Sucesfully Generated ULA")
-        try:
-            int(response, 16)
-        except:
-            logging.error("Non hexidecimal output for response,")
         return response
 
 
