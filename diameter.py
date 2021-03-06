@@ -15,6 +15,10 @@ import yaml
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
+#Setup Logging
+level = logging.getLevelName(yaml_config['logging']['level'])
+logging.basicConfig(level=level)
+
 if yaml_config['redis']['enabled'] == True:
     logging.debug("Redis support enabled")
     import redis
@@ -453,6 +457,19 @@ class Diameter:
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
+            
+            #AMBR
+            AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+            if 'AMBR' in apn_profile:
+                ue_ambr_ul = int(apn_profile['AMBR']['apn_ambr_ul'])
+                ue_ambr_dl = int(apn_profile['AMBR']['apn_ambr_dl'])
+            else:
+                #use default AMBR of unlimited if no value in subscriber_details
+                ue_ambr_ul = 1048576000
+                ue_ambr_dl = 1048576000
+
+            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
             #If static UE IP is specified
@@ -463,10 +480,18 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
-
+            if 'MIP6-Agent-Info' in apn_profile:
+                logging.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
+                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
+                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
+                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
+                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
+                logging.info("MIP6 value is " + str(MIP6_Agent_Info))
+            else:
+                MIP6_Agent_Info = ''
 
             APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
-                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address
+                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info
             
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
             
@@ -480,9 +505,9 @@ class Diameter:
         #If MSISDN is present include it in Subscription Data
         if 'msisdn' in subscriber_details:
             logging.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, '348698292311')                     #MSISDN
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, subscriber_details['msisdn'])                     #MSISDN
             logging.debug(msisdn_avp)
-            subscription_data += msisdn_avp
+            #subscription_data += msisdn_avp
             #ToDo - Use DB data
 
         if 'RAT_freq_priorityID' in subscriber_details:
@@ -525,6 +550,10 @@ class Diameter:
             except:
                 logging.error("failed to incriment Answer_16777251_316_success_count")
         logging.debug("Sucesfully Generated ULA")
+        try:
+            int(response, 16)
+        except:
+            logging.error("Non hexidecimal output for response,")
         return response
 
 

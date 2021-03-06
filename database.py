@@ -180,6 +180,7 @@ class MSSQL:
                 subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
                     'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
                     'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
+                    'ambr' : {'apn_ambr_ul' : int(result['MAX_REQUESTED_BANDWIDTH_UL']), 'apn_ambr_Dl' : int(result['MAX_REQUESTED_BANDWIDTH_DL'])},    
                     'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}})
 
 
