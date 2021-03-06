@@ -412,8 +412,20 @@ class Diameter:
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
-        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
+        if 'ue_ambr_ul' in subscriber_details:
+            ue_ambr_ul = int(subscriber_details['ue_ambr_ul'])
+        else:
+            #use default AMBR of unlimited if no value in subscriber_details
+            ue_ambr_ul = 1048576000
+
+        if 'ue_ambr_dl' in subscriber_details:
+            ue_ambr_dl = int(subscriber_details['ue_ambr_dl'])
+        else:
+            #use default AMBR of unlimited if no value in subscriber_details
+            ue_ambr_dl = 1048576000
+
+        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
         subscription_data += self.generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
 
         #APN Configuration Profile is a sub AVP of Subscription Data
@@ -451,6 +463,8 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
+
+
             APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
                 + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address
             
@@ -462,6 +476,31 @@ class Diameter:
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+
+        #If MSISDN is present include it in Subscription Data
+        if 'msisdn' in subscriber_details:
+            logging.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, '348698292311')                     #MSISDN
+            logging.debug(msisdn_avp)
+            subscription_data += msisdn_avp
+            #ToDo - Use DB data
+
+        if 'RAT_freq_priorityID' in subscriber_details:
+            logging.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
+            rat_freq_priorityID = self.generate_vendor_avp(1440, "80", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
+            logging.debug(rat_freq_priorityID)
+            subscription_data += rat_freq_priorityID
+
+        if '3gpp-charging-characteristics' in subscriber_details:
+            logging.debug("3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA")
+            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['3gpp-charging-characteristics'])))
+            subscription_data += _3gpp_charging_characteristics
+            logging.debug(_3gpp_charging_characteristics)
+
+            
+        if 'APN-OI-Replacement' in subscriber_details:
+            logging.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in ULA")
+            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
@@ -485,7 +524,7 @@ class Diameter:
                 self.redis_store.incr('Answer_16777251_316_success_count')
             except:
                 logging.error("failed to incriment Answer_16777251_316_success_count")
-        
+        logging.debug("Sucesfully Generated ULA")
         return response
 
 
