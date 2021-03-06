@@ -26,7 +26,8 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
-    logging.debug("Input PLMN: " + plmn)
+    logging.debug("Input PLMN: " + str(plmn))
+    
 
 
     crypto = Milenage(amf)
