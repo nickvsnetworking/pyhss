@@ -16,6 +16,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 if yaml_config['redis']['enabled'] == True:
+    logging.debug("Redis support enabled")
     import redis
 
 
@@ -907,8 +908,8 @@ class Diameter:
                 logging.error("failed to incriment Answer_16777216_303_success_count")
         return response
 
-    #Generate a Command Unsupported response based on an unknown command code
-    def Respond_Command_Unsupported(self, packet_vars, avps):
+    #Generate a Generic error handler with Result Code as input
+    def Respond_ResultCode(self, packet_vars, avps, result_code):
         if yaml_config['redis']['enabled'] == True:
             try:
                 self.redis_store.incr('Answer_Respond_Command_attempt_count')
@@ -923,7 +924,7 @@ class Diameter:
                 for sub_avp in avps_to_check['misc_data']:
                     concat_subavp += self.generate_avp(sub_avp['avp_code'], sub_avp['avp_flags'], sub_avp['misc_data'])
                 avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
-        avp += self.generate_avp(268, 40, self.int_to_hex(3001, 4))                                                   #DIAMETER_COMMAND_UNSUPPORTED (3001)
+        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                   #Response Code
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
@@ -1094,14 +1095,15 @@ class Diameter:
 
 
     #3GPP S6a/S6d Authentication Information Request
-    def Request_16777251_318(self, imsi):                                                             
+    def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, self.OriginRealm)                 #Destination Realm
+        avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         mcc = str(imsi)[:3]
