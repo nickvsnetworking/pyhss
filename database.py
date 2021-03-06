@@ -153,12 +153,13 @@ class MSSQL:
             subscriber_details['msisdn'] = result['msisdn']
             subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
             subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
-            subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
             subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
             subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
             subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
             subscriber_details['K'] = result['ki']
             subscriber_details['SQN'] = result['seqno']
+            subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
+            subscriber_details['3gpp-charging-characteristics'] = result['_3gpp_charging_ch']
             
             #Harcoding AMF as it is the same for all SIMs and not returned by DB
             subscriber_details['AMF'] = '0000'
@@ -168,14 +169,19 @@ class MSSQL:
             subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
             subscriber_details.pop('OP', None)
 
-            self.conn.execute_query('hss_get_apn_info @apn_profileId=' + str(apn_id))
+
+            logging.debug("Getting APN info")
+            sql = 'hss_get_apn_info @apn_profileId=' + str(apn_id)
+            logging.debug(sql)
+            self.conn.execute_query(sql)
             subscriber_details['pdn'] = []
             for result in self.conn:
                 print("\nResult of hss_get_apn_info: " + str(result))
                 subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
                     'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
                     'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
-                    'type': 2})
+                    'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}})
+
 
             logging.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
             return subscriber_details
