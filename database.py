@@ -159,7 +159,9 @@ class MSSQL:
             subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
             subscriber_details['K'] = result['ki']
             subscriber_details['SQN'] = result['seqno']
-            #subscriber_details['AMF'] = '0000'
+            
+            #Harcoding AMF as it is the same for all SIMs and not returned by DB
+            subscriber_details['AMF'] = '0000'
 
             #Convert OP to OPc
             subscriber_details['OP'] = result['op_key']
