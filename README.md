@@ -12,11 +12,11 @@ The underlying library - ``diameter.py`` can be easily worked with to impliment 
 ## Usage
 Basic configuration is set in the ``config.yaml`` file,
 
-You will need to set the IP address to bind to, the Diameter hostname, realm & your PLMN.
+You will need to set the IP address to bind to, the Diameter hostname, realm, your PLMN and transport type to use (SCTP or TCP).
 
 Then you will need to select a database backend to use, such as MongoDB, MSSQL or MySQL.
 
-Once the configuration is done you can run the HSS by running ``hss.py`` for a TCP server or ``hss_sctp.py`` for an SCTP server. (Both can be run simultaneously)
+Once the configuration is done you can run the HSS by running ``hss.py`` and the server will run using whichever transport (TCP/SCTP) you have selected.
 
 ## Implemented Responses 
  * Capabilities Exchange Answer (CEA)
