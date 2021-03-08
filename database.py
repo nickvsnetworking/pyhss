@@ -150,7 +150,7 @@ class MSSQL:
             if str(result['subscriber_status']) != '0':
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
             
-            subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
+            #Get data output and put it into structure PyHSS uses
             subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
             subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
             subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
@@ -162,7 +162,11 @@ class MSSQL:
             subscriber_details['3gpp-charging-characteristics'] = result['_3gpp_charging_ch']
             
             #Harcoding AMF as it is the same for all SIMs and not returned by DB
-            subscriber_details['AMF'] = '0000'
+            subscriber_details['AMF'] = '8000'
+
+            #Format MSISDN
+            subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
+            subscriber_details['msisdn'] = subscriber_details['msisdn'].split(';')[-1]
 
             #Convert OP to OPc
             subscriber_details['OP'] = result['op_key']
