@@ -220,7 +220,12 @@ class Diameter:
         self.redis_store.incr('diameter_packet_decode_count')
         return packet_vars, avps
 
-    def decode_avp_packet(self, data):                       
+    def decode_avp_packet(self, data):                   
+
+        if len(data) <= 8:
+            #if length is less than 8 it is too short to be an AVP and is most likely the data from the last AVP being attempted to be parsed as another AVP
+            raise ValueError("Length of data is too short to be valid AVP")
+
         avp_vars = {}
         avp_vars['avp_code'] = int(data[0:8], 16)
         
@@ -233,6 +238,7 @@ class Diameter:
         else:
             #if is not a vendor AVP
             avp_vars['misc_data'] = data[16:(avp_vars['avp_length']*2)]
+
         if avp_vars['avp_length'] % 4  == 0:
             #Multiple of 4 - No Padding needed
             avp_vars['padding'] = 0
@@ -245,23 +251,25 @@ class Diameter:
 
         #If body of avp_vars['misc_data'] contains AVPs, then decode each of them as a list of dicts like avp_vars['misc_data'] = [avp_vars, avp_vars]
         try:
-              sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
-              #Sanity check - If the avp code is greater than 9999 it's probably not an AVP after all...
-              if int(sub_avp_vars['avp_code']) > 9999:
-                  pass
-              else:
-                  #If the decoded AVP is valid store it
-                  avp_vars['misc_data'] = []
-                  avp_vars['misc_data'].append(sub_avp_vars)
-                  #While there are more AVPs to be decoded, decode them:
-                  while len(sub_remaining_avps) > 0:
-                      sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
-                      avp_vars['misc_data'].append(sub_avp_vars)
+            sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
+            #Sanity check - If the avp code is greater than 9999 it's probably not an AVP after all...
+            if int(sub_avp_vars['avp_code']) > 9999:
+                pass
+            else:
+                #If the decoded AVP is valid store it
+                avp_vars['misc_data'] = []
+                avp_vars['misc_data'].append(sub_avp_vars)
+                #While there are more AVPs to be decoded, decode them:
+                while len(sub_remaining_avps) > 0:
+                    sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
+                    avp_vars['misc_data'].append(sub_avp_vars)
               
         except Exception as e:
-            logging.debug("failed to decode sub-avp - error: " + str(e))
-            #logging.debug("Contents: " + str(sub_avp_vars))
-            pass
+            if str(e) == "Length of data is too short to be valid AVP":
+                pass
+            else:
+                logging.debug("failed to decode sub-avp - error: " + str(e))
+                pass
 
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
