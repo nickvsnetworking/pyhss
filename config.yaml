@@ -1,5 +1,6 @@
 ## HSS Parameters
 hss:
+  transport: "TCP"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
   bind_ip: ["127.0.0.1"]
 
