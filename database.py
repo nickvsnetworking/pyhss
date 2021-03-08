@@ -141,36 +141,50 @@ class MSSQL:
 
 
             logging.debug("Running hss_get_subscriber_data for imsi " + str(imsi))
-            self.conn.execute_query('hss_get_subscriber_data @imsi=' + str(imsi))
+            sql = 'hss_get_subscriber_data @imsi="' + str(imsi) + '";'
+            logging.debug("SQL: " + str(sql))
+            self.conn.execute_query(sql)
             result = [ row for row in self.conn ][0]
             print("\nResult of hss_get_subscriber_data: " + str(result))
             #subscriber_status: -1 –Blocked or 0-Active (Again)
             if str(result['subscriber_status']) != '0':
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
             
-            subscriber_details['msisdn'] = result['msisdn']
+            subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
             subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
-            subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
             subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
             subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
             subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
             subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
             subscriber_details['K'] = result['ki']
             subscriber_details['SQN'] = result['seqno']
+            subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
+            subscriber_details['3gpp-charging-characteristics'] = result['_3gpp_charging_ch']
+            
+            #Harcoding AMF as it is the same for all SIMs and not returned by DB
+            subscriber_details['AMF'] = '0000'
 
             #Convert OP to OPc
             subscriber_details['OP'] = result['op_key']
             subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
             subscriber_details.pop('OP', None)
 
-            self.conn.execute_query('hss_get_apn_info @apn_profileId=' + str(apn_id))
+
+            logging.debug("Getting APN info")
+            sql = 'hss_get_apn_info @apn_profileId=' + str(apn_id)
+            logging.debug(sql)
+            self.conn.execute_query(sql)
             subscriber_details['pdn'] = []
             for result in self.conn:
                 print("\nResult of hss_get_apn_info: " + str(result))
                 subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
                     'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
                     'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
-                    'type': 2})
+                    'ambr' : {'apn_ambr_ul' : int(result['MAX_REQUESTED_BANDWIDTH_UL']), 'apn_ambr_Dl' : int(result['MAX_REQUESTED_BANDWIDTH_DL'])},
+                    'PDN_GW_Allocation_Type' : int(result['PDN_GW_Allocation_Type']),
+                    'VPLMN_Dynamic_Address_Allowed' : int(result['VPLMN_Dynamic_Address_Allowed']),
+                    'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}})
+
 
             logging.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
             return subscriber_details
@@ -303,6 +317,10 @@ def GetSubscriberInfo(imsi):
 
 def UpdateSubscriber(imsi, sqn, rand):
     return DB.UpdateSubscriber(imsi, sqn, rand)
+
+def GetSubscriberLocation(imsi, input):
+    #Input can be either MSISDN or IMSI
+    return DB.GetSubscriberLocation(imsi='input')
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":

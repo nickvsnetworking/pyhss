@@ -15,7 +15,12 @@ import yaml
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
+#Setup Logging
+level = logging.getLevelName(yaml_config['logging']['level'])
+logging.basicConfig(level=level)
+
 if yaml_config['redis']['enabled'] == True:
+    logging.debug("Redis support enabled")
     import redis
 
 
@@ -215,7 +220,12 @@ class Diameter:
         self.redis_store.incr('diameter_packet_decode_count')
         return packet_vars, avps
 
-    def decode_avp_packet(self, data):                       
+    def decode_avp_packet(self, data):                   
+
+        if len(data) <= 8:
+            #if length is less than 8 it is too short to be an AVP and is most likely the data from the last AVP being attempted to be parsed as another AVP
+            raise ValueError("Length of data is too short to be valid AVP")
+
         avp_vars = {}
         avp_vars['avp_code'] = int(data[0:8], 16)
         
@@ -228,6 +238,7 @@ class Diameter:
         else:
             #if is not a vendor AVP
             avp_vars['misc_data'] = data[16:(avp_vars['avp_length']*2)]
+
         if avp_vars['avp_length'] % 4  == 0:
             #Multiple of 4 - No Padding needed
             avp_vars['padding'] = 0
@@ -240,23 +251,25 @@ class Diameter:
 
         #If body of avp_vars['misc_data'] contains AVPs, then decode each of them as a list of dicts like avp_vars['misc_data'] = [avp_vars, avp_vars]
         try:
-              sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
-              #Sanity check - If the avp code is greater than 9999 it's probably not an AVP after all...
-              if int(sub_avp_vars['avp_code']) > 9999:
-                  pass
-              else:
-                  #If the decoded AVP is valid store it
-                  avp_vars['misc_data'] = []
-                  avp_vars['misc_data'].append(sub_avp_vars)
-                  #While there are more AVPs to be decoded, decode them:
-                  while len(sub_remaining_avps) > 0:
-                      sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
-                      avp_vars['misc_data'].append(sub_avp_vars)
+            sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
+            #Sanity check - If the avp code is greater than 9999 it's probably not an AVP after all...
+            if int(sub_avp_vars['avp_code']) > 9999:
+                pass
+            else:
+                #If the decoded AVP is valid store it
+                avp_vars['misc_data'] = []
+                avp_vars['misc_data'].append(sub_avp_vars)
+                #While there are more AVPs to be decoded, decode them:
+                while len(sub_remaining_avps) > 0:
+                    sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
+                    avp_vars['misc_data'].append(sub_avp_vars)
               
         except Exception as e:
-            logging.debug("failed to decode sub-avp - error: " + str(e))
-            #logging.debug("Contents: " + str(sub_avp_vars))
-            pass
+            if str(e) == "Length of data is too short to be valid AVP":
+                pass
+            else:
+                logging.debug("failed to decode sub-avp - error: " + str(e))
+                pass
 
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
@@ -381,11 +394,25 @@ class Diameter:
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+
+        #APNs from DB
+        APN_Configuration = ''
+        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
+        try:
+            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+        except:
+            logging.error("failed to get data backfrom database for imsi " + str(imsi))
+            logging.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))
+
+        #Boilerplate AVPs
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
         avp += self.generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
 
-        #Subscription Data:
+
+        #Subscription Data: 
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
@@ -393,8 +420,20 @@ class Diameter:
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
-        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(1048576000, 4))                    #Max-Requested-Bandwidth-UL / DL
+        if 'ue_ambr_ul' in subscriber_details:
+            ue_ambr_ul = int(subscriber_details['ue_ambr_ul'])
+        else:
+            #use default AMBR of unlimited if no value in subscriber_details
+            ue_ambr_ul = 1048576000
+
+        if 'ue_ambr_dl' in subscriber_details:
+            ue_ambr_dl = int(subscriber_details['ue_ambr_dl'])
+        else:
+            #use default AMBR of unlimited if no value in subscriber_details
+            ue_ambr_dl = 1048576000
+
+        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
         subscription_data += self.generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
 
         #APN Configuration Profile is a sub AVP of Subscription Data
@@ -403,24 +442,6 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
 
-
-        APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex('internet'))
-
-        #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
-        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(8, 4))
-        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(1, 4))
-        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(1, 4))
-        AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-        AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(9, 4))
-        APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
-
-        
-
-        #APNs from DB
-        APN_Configuration = ''
-        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
-        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
-        subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
 
         apn_list = subscriber_details['pdn']
         print(apn_list)
@@ -433,7 +454,30 @@ class Diameter:
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
+            
+            #AMBR
+            AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+            if 'AMBR' in apn_profile:
+                ue_ambr_ul = int(apn_profile['AMBR']['apn_ambr_ul'])
+                ue_ambr_dl = int(apn_profile['AMBR']['apn_ambr_dl'])
+            else:
+                #use default AMBR of unlimited if no value in subscriber_details
+                ue_ambr_ul = 1048576000
+                ue_ambr_dl = 1048576000
+
+            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+
+            #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
+            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
+            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_vulnerability']), 4))
+            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['qci']), 4))
+            APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
+
 
             #If static UE IP is specified
             try:
@@ -443,8 +487,32 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
+            if 'MIP6-Agent-Info' in apn_profile:
+                logging.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
+                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
+                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
+                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
+                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
+                logging.info("MIP6 value is " + str(MIP6_Agent_Info))
+            else:
+                MIP6_Agent_Info = ''
+
+            if 'PDN_GW_Allocation_Type' in apn_profile:
+                logging.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
+                PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
+                logging.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
+            else:
+                PDN_GW_Allocation_Type = ''
+
+            if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
+                logging.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
+                VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
+                logging.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
+            else:
+                VPLMN_Dynamic_Address_Allowed = ''
+
             APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
-                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address
+                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info + PDN_GW_Allocation_Type + VPLMN_Dynamic_Address_Allowed
             
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
             
@@ -454,6 +522,31 @@ class Diameter:
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+
+        #If MSISDN is present include it in Subscription Data
+        if 'msisdn' in subscriber_details:
+            logging.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
+            logging.debug(msisdn_avp)
+            subscription_data += msisdn_avp
+            #ToDo - Use DB data
+
+        if 'RAT_freq_priorityID' in subscriber_details:
+            logging.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
+            rat_freq_priorityID = self.generate_vendor_avp(1440, "80", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
+            logging.debug(rat_freq_priorityID)
+            subscription_data += rat_freq_priorityID
+
+        if '3gpp-charging-characteristics' in subscriber_details:
+            logging.debug("3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA")
+            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['3gpp-charging-characteristics'])))
+            subscription_data += _3gpp_charging_characteristics
+            logging.debug(_3gpp_charging_characteristics)
+
+            
+        if 'APN-OI-Replacement' in subscriber_details:
+            logging.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in ULA")
+            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
@@ -477,7 +570,7 @@ class Diameter:
                 self.redis_store.incr('Answer_16777251_316_success_count')
             except:
                 logging.error("failed to incriment Answer_16777251_316_success_count")
-        
+        logging.debug("Sucesfully Generated ULA")
         return response
 
 
@@ -900,8 +993,8 @@ class Diameter:
                 logging.error("failed to incriment Answer_16777216_303_success_count")
         return response
 
-    #Generate a Command Unsupported response based on an unknown command code
-    def Respond_Command_Unsupported(self, packet_vars, avps):
+    #Generate a Generic error handler with Result Code as input
+    def Respond_ResultCode(self, packet_vars, avps, result_code):
         if yaml_config['redis']['enabled'] == True:
             try:
                 self.redis_store.incr('Answer_Respond_Command_attempt_count')
@@ -916,7 +1009,7 @@ class Diameter:
                 for sub_avp in avps_to_check['misc_data']:
                     concat_subavp += self.generate_avp(sub_avp['avp_code'], sub_avp['avp_flags'], sub_avp['misc_data'])
                 avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
-        avp += self.generate_avp(268, 40, self.int_to_hex(3001, 4))                                                   #DIAMETER_COMMAND_UNSUPPORTED (3001)
+        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                   #Response Code
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
@@ -982,20 +1075,7 @@ class Diameter:
 
     #3GPP SLh - LCS-Routing-Info-Answer
     def Answer_16777291_8388622(self, packet_vars, avps):
-        try:
-            imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
-            imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
-        except:
-            logging.debug("Failed to get IMSI")
-        
-        try:
-            print("AVP data for MSIDN is " + self.get_avp_data(avps, 701))
-            msisdn = self.get_avp_data(avps, 701)[0]                                                            #Get IMSI from User-Name AVP in request
-            msisdn = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
-        except:
-            logging.debug("Failed to get MSISDN")
-        
-        avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
+        avp = '' 
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
@@ -1008,30 +1088,51 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
 
+        try:
+            imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+            imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
+            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
+        except:
+            logging.debug("Failed to get IMSI")
+        
+        try:
+            print("AVP data for MSIDN is " + self.get_avp_data(avps, 701))
+            msisdn = self.get_avp_data(avps, 701)[0]                                                          #Get MSISDN from AVP in request
+            msisdn = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert MSISDN
+            avp += self.generate_vendor_avp(701, 'c0', 10415, self.string_to_hex(msisdn))                     #MSISDN
+        except:
+            logging.debug("Failed to get MSISDN")
+
+        if msisdn is not None:
+            subscriber_location = database.GetSubscriberLocation(msisdn)
+        elif imsi is not None:
+            subscriber_location = database.GetSubscriberLocation(imsi)
+        else:
+            logging.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
+            result_code = 5005
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        
+
         #Experimental Result AVP
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCCESS (2001)
+        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
         avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
-
-        response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777252_324_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777252_324_success_count")
-        return response
 
 
         #Serving Node AVP
         avp_serving_node = ''
-        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, str(binascii.hexlify(b'examplemme.com'),'ascii'))  #MME-Name
-        avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)  #MME-Realm
-        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address
-        avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                              #Serving-Node  AVP
+        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location['Origin_Host']))   #MME-Name
+        avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)                                   #MME-Realm
+        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                        #GMLC-Address
+        avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                                #Serving-Node  AVP
 
-
-        avp += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                                   #GMLC-Address
         response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
@@ -1079,14 +1180,15 @@ class Diameter:
 
 
     #3GPP S6a/S6d Authentication Information Request
-    def Request_16777251_318(self, imsi):                                                             
+    def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, self.OriginRealm)                 #Destination Realm
+        avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         mcc = str(imsi)[:3]
