@@ -78,7 +78,7 @@ def SendRequest(request):
     ReadBuffer()
 
 while True:
-    print("\n\nQuerying Diameter peer " + str(hostname) + " of domain " + str(realm))
+    print("\n\nQuerying Diameter peer " + str(hostname))
     print("Note - You may need to exchange a CER before doing anything fun")
     request = input("Enter request type:\t")
 
@@ -101,7 +101,7 @@ while True:
     elif request == "AIR":
         imsi = str(input("IMSI:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_318(imsi))
+        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm))
     elif request == "UAR":
         imsi = str(input("IMSI:\t"))
         domain = str(input("Domain:\t"))
