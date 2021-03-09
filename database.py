@@ -164,6 +164,9 @@ class MSSQL:
             #Harcoding AMF as it is the same for all SIMs and not returned by DB
             subscriber_details['AMF'] = '8000'
 
+            #Set dummy RAND value (No need to store it)
+            subscriber_details['RAND'] = ""
+
             #Format MSISDN
             subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
             subscriber_details['msisdn'] = subscriber_details['msisdn'].split(';')[-1]
@@ -328,6 +331,6 @@ def GetSubscriberLocation(imsi, input):
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
-    DB.GetSubscriberInfo('204080902004931')
-    DB.UpdateSubscriber('204080902004931', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
-    DB.GetSubscriberLocation(imsi='204080902004931')
+    DB.GetSubscriberInfo('208310001859912')
+    DB.UpdateSubscriber('208310001859912', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
+    DB.GetSubscriberLocation(imsi='208310001859912')
