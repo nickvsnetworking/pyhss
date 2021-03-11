@@ -104,7 +104,6 @@ class MongoDB:
 
 
 class MSSQL:
-    #import pymssql
     import _mssql
     def __init__(self):
         logging.info("Configured to use MS-SQL server: " + str(yaml_config['database']['mssql']['server']))
@@ -140,12 +139,12 @@ class MSSQL:
             apn_id = result['apn_configuration']
 
 
-            logging.debug("Running hss_get_subscriber_data for imsi " + str(imsi))
-            sql = 'hss_get_subscriber_data @imsi="' + str(imsi) + '";'
+            logging.debug("Running hss_get_subscriber_data_v2 for imsi " + str(imsi))
+            sql = 'hss_get_subscriber_data_v2 @imsi="' + str(imsi) + '";'
             logging.debug("SQL: " + str(sql))
             self.conn.execute_query(sql)
             result = [ row for row in self.conn ][0]
-            print("\nResult of hss_get_subscriber_data: " + str(result))
+            print("\nResult of hss_get_subscriber_data_v2: " + str(result))
             #subscriber_status: -1 –Blocked or 0-Active (Again)
             if str(result['subscriber_status']) != '0':
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
@@ -276,6 +275,19 @@ class MSSQL:
             raise ValueError("MSSQL failed to update SQN for IMSI " + str(imsi))   
         
 
+    def TestFail(self):
+        logging.debug("Called testing route")
+        sql = "hss_get_subscriber_data @IMSI = '204047905104651';"
+        logging.debug(sql)
+        try:
+            self.conn.execute_query(sql)
+        except Exception as e:
+            logging.critical("We crashed.")
+            logging.debug("Can we continue?")
+            return
+        result = [ row for row in self.conn ][0]
+        return result
+            
 class MySQL:
     import mysql.connector
     def __init__(self):
@@ -288,6 +300,7 @@ class MySQL:
           database=self.server['database']
         )
         self.mydb.autocommit = True
+        self.mydb.SQL_QUERYTIMEOUT = 3
         cursor = self.mydb.cursor(dictionary=True)
         self.cursor = cursor
         
@@ -331,6 +344,10 @@ def GetSubscriberLocation(imsi, input):
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
-    DB.GetSubscriberInfo('208310001859912')
-    DB.UpdateSubscriber('208310001859912', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
-    DB.GetSubscriberLocation(imsi='208310001859912')
+    print(DB.TestFail())
+    input("Enter when failed")
+    print(DB.TestFail())
+    print("Made it to the end")
+    #DB.GetSubscriberInfo('208310001859912')
+    #DB.UpdateSubscriber('208310001859912', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
+    #DB.GetSubscriberLocation(imsi='208310001859912')
