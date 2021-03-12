@@ -17,7 +17,7 @@ with open("config.yaml", 'r') as stream:
 
 #Setup Logging
 level = logging.getLevelName(yaml_config['logging']['level'])
-logging.basicConfig(level=level, filename=yaml_config['logging']['logfiles']['diameter_logging_file'])
+logging.basicConfig(level=level, filename=yaml_config['logging']['logfiles']['hss_logging_file'], filemode='a+', format='%(asctime)s %(message)s')
 DiameterLogger = logging.getLogger('Diameter')
 DiameterLogger.info("DB Log Initialised.")
 
