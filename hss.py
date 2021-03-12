@@ -7,10 +7,12 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 #Setup Logging
-level = logging.getLevelName(yaml_config['logging']['level'])
-logging.basicConfig(level=level, filename=yaml_config['logging']['logfiles']['hss_logging_file'], filemode='a+', format='%(asctime)s %(message)s')
-if yaml_config['logging']['log_to_temrinal'] == True:
-    logging.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
+import logtool
+logtool.setup_logger('HSS_Logger', yaml_config['logging']['logfiles']['hs_logging_file'], level=yaml_config['logging']['level'])
+HSS_Logger = logging.getLogger('HSS_Logger')
+
+if yaml_config['logging']['log_to_terminal'] == True:
+    HSS_Logger.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
 
 import sys
 import socket
@@ -29,7 +31,7 @@ for config_sections in yaml_config:
     logging.info("\tConfig Section: " + str(config_sections))
     for lower_keys in yaml_config[config_sections]:
         logging.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
-HSS_Logger = logging.getLogger('HSS')
+
 
 
 #Initialize Diameter
