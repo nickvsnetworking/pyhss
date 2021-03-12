@@ -24,6 +24,11 @@ hss:
 ## Debug Parameters
 logging:
   level: DEBUG
+  logfiles:
+    hss_logging_file: log/pyhss.log
+    diameter_logging_file: log/pyhss_diameter.log
+    database_logging_file: log/pyhss_db.log
+  log_to_temrinal: true
 
 ## Database Parameters
 #Multiple database types are supported, and additional database can be added easily. 
@@ -34,6 +39,7 @@ database:
   #   mongodb_username: root
   #   mongodb_password: password
   #   mongodb_port: 27017
+  mssql:
      server: 127.0.0.1
      username: sa
      password: thisisthepasswordforMSSQL99#!

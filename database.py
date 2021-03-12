@@ -3,7 +3,7 @@
 ##Data is always provided by the function as a Dictionary of the Subscriber's data
 import yaml
 import logging
-logging.basicConfig(level="DEBUG")
+
 import os
 import sys
 sys.path.append(os.path.realpath('lib'))
@@ -12,6 +12,11 @@ import S6a_crypt
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
+#Setup Logging
+level = logging.getLevelName(yaml_config['logging']['level'])
+logging.basicConfig(level=level, filename=yaml_config['logging']['logfiles']['database_logging_file'])
+DBLogger = logging.getLogger('Database')
+DBLogger.info("DB Log Initialised.")
 ##Data Output Format
 ###Get Subscriber Info
 #Outputs a dictionary with the format:
@@ -123,10 +128,15 @@ class MSSQL:
         try:
             logging.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
             subscriber_details = {}
-            #try:
-            self.conn.execute_query('hss_imsi_known_check @imsi=' + str(imsi))
+            sql = "hss_imsi_known_check @imsi=" + str(imsi)
+            self.conn.execute_query(sql)
+        except:
+            raise Exception("Failed to query MSSQL server with query: " + str(sql))
+
+        #Parse results
+        try:
             result = [ row for row in self.conn ][0]
-            print("\nResult of hss_imsi_known_check: " + str(result))
+            logging.debug("\nResult of hss_imsi_known_check: " + str(result))
 
             #known_imsi: IMSI attached with sim returns 1 else returns 0
             if str(result['known_imsi']) != '1':
@@ -144,7 +154,7 @@ class MSSQL:
             logging.debug("SQL: " + str(sql))
             self.conn.execute_query(sql)
             result = [ row for row in self.conn ][0]
-            print("\nResult of hss_get_subscriber_data_v2_v2: " + str(result))
+            logging.debug("\nResult of hss_get_subscriber_data_v2_v2: " + str(result))
             #subscriber_status: -1 –Blocked or 0-Active (Again)
             if str(result['subscriber_status']) != '0':
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
@@ -182,7 +192,7 @@ class MSSQL:
             self.conn.execute_query(sql)
             subscriber_details['pdn'] = []
             for result in self.conn:
-                print("\nResult of hss_get_apn_info: " + str(result))
+                logging.debug("\nResult of hss_get_apn_info: " + str(result))
                 subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
                     'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
                     'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
@@ -335,10 +345,6 @@ def GetSubscriberLocation(imsi, input):
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
-    print(DB.TestFail())
-    input("Enter when failed")
-    print(DB.TestFail())
-    print("Made it to the end")
-    #DB.GetSubscriberInfo('208310001859912')
-    #DB.UpdateSubscriber('208310001859912', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
-    #DB.GetSubscriberLocation(imsi='208310001859912')
+    DB.GetSubscriberInfo('208310001859912')
+    DB.UpdateSubscriber('208310001859912', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
+    DB.GetSubscriberLocation(imsi='208310001859912')

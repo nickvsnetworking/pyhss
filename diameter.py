@@ -17,10 +17,12 @@ with open("config.yaml", 'r') as stream:
 
 #Setup Logging
 level = logging.getLevelName(yaml_config['logging']['level'])
-logging.basicConfig(level=level)
+logging.basicConfig(level=level, filename=yaml_config['logging']['logfiles']['diameter_logging_file'])
+DiameterLogger = logging.getLogger('Diameter')
+DiameterLogger.info("DB Log Initialised.")
 
 if yaml_config['redis']['enabled'] == True:
-    logging.debug("Redis support enabled")
+    DiameterLogger.debug("Redis support enabled")
     import redis
 
 
@@ -74,12 +76,12 @@ class Diameter:
         return (slicedString)
 
     def DecodePLMN(self, plmn):
-        logging.debug("Decoded PLMN: " + str(plmn))
+        DiameterLogger.debug("Decoded PLMN: " + str(plmn))
         mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
-        logging.debug("Decoded MCC: " + mcc)
+        DiameterLogger.debug("Decoded MCC: " + mcc)
 
         mnc = self.Reverse(plmn[4:6])
-        logging.debug("Decoded MNC: " + mnc)
+        DiameterLogger.debug("Decoded MNC: " + mnc)
         return mcc, mnc
 
     def EncodePLMN(self, mcc, mnc):
@@ -94,7 +96,7 @@ class Diameter:
         plmn = ''
         for bits in plmn_list:
             plmn = plmn + bits
-        logging.debug("Encoded PLMN: " + str(plmn))
+        DiameterLogger.debug("Encoded PLMN: " + str(plmn))
         return plmn
 
 
@@ -106,18 +108,31 @@ class Diameter:
         self.MNC = str(MNC)
         self.MCC = str(MCC)
 
-        logging.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
-        logging.info("PLMN is " + str(MCC) + "/" + str(MNC))
+        DiameterLogger.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
+        DiameterLogger.info("PLMN is " + str(MCC) + "/" + str(MNC))
         if yaml_config['redis']['enabled'] == True:
             import redis
-            logging.info("Initializing Redis")
+            DiameterLogger.info("Initializing Redis")
             self.redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
             try:
-                self.redis_store.flushall()
-                logging.info("Connected to Redis server")
+                self.redis_store.incr('restart_count')
+                if yaml_config['redis']['clear_stats_on_boot'] == True:
+                    DiameterLogger.debug("Clearing all Redis keys")
+                else:
+                    DiameterLogger.debug("Leaving prexisting Redis keys")
+                    self.redis_store.flushall()
+                DiameterLogger.info("Connected to Redis server")
             except:
-                logging.error("Failed to connect to Redis server - Disabling")
+                DiameterLogger.error("Failed to connect to Redis server - Disabling")
                 yaml_config['redis']['enabled'] == False
+
+    #function for handling incrimenting Redis counters with error handling
+    def RedisIncrimenter(self, name):
+        if yaml_config['redis']['enabled'] == True:
+            try:
+                self.redis_store.incr(name)
+            except:
+                DiameterLogger.error("failed to incriment " + str(name))
 
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
@@ -138,7 +153,7 @@ class Diameter:
             avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
-        self.redis_store.incr('generate_avp_count')
+        self.RedisIncrimenter('generate_avp_count')
         return avp
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
@@ -158,14 +173,14 @@ class Diameter:
             avp_padding = ''
         else:                       #Not multiple of 4 - Padding needed
             rounded_value = self.myround(avp_length)
-            logging.debug("Rounded value is " + str(rounded_value))
-            logging.debug("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
+            DiameterLogger.debug("Rounded value is " + str(rounded_value))
+            DiameterLogger.debug("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
             avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
 
         
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_vendorid) + str(avp_content) + str(avp_padding)
-        self.redis_store.incr('generate_vendor_avp')
+        self.RedisIncrimenter('generate_vendor_avp')
         return avp
 
 
@@ -185,7 +200,7 @@ class Diameter:
         packet_length = format(packet_length,"x").zfill(6)
         
         packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
-        self.redis_store.incr('diameter_packet_count')
+        self.RedisIncrimenter('diameter_packet_count')
         return packet_hex
 
 
@@ -217,7 +232,7 @@ class Diameter:
             avps.append(avp_vars)
         else:
             pass
-        self.redis_store.incr('diameter_packet_decode_count')
+        self.RedisIncrimenter('diameter_packet_decode_count')
         return packet_vars, avps
 
     def decode_avp_packet(self, data):                   
@@ -268,12 +283,12 @@ class Diameter:
             if str(e) == "Length of data is too short to be valid AVP":
                 pass
             else:
-                logging.debug("failed to decode sub-avp - error: " + str(e))
+                DiameterLogger.debug("failed to decode sub-avp - error: " + str(e))
                 pass
 
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
-        self.redis_store.incr('diameter_decode_avp_count')
+        self.RedisIncrimenter('diameter_decode_avp_count')
         return avp_vars, remaining_avps
 
 
@@ -318,16 +333,13 @@ class Diameter:
 
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_257_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_257_attempt_count")
-        logging.debug("packet_vars for CEA is " + str(packet_vars))
-        logging.debug("avps for CEA is " + str(avps))
+        self.RedisIncrimenter('Answer_257_attempt_count')
+
+        DiameterLogger.debug("packet_vars for CEA is " + str(packet_vars))
+        DiameterLogger.debug("avps for CEA is " + str(avps))
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
-        logging.debug("OriginHost is " + str(self.OriginHost))
+        DiameterLogger.debug("OriginHost is " + str(self.OriginHost))
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -347,21 +359,13 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_257_success_count')
-            except:
-                logging.error("failed to incriment Answer_257_success_count")
+        self.RedisIncrimenter('Answer_257_success_count')
         
         return response
 
     #Device Watchdog Answer
     def Answer_280(self, packet_vars, avps):                                                      
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_280_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_280_attempt_count")
+        self.RedisIncrimenter('Answer_280_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -370,25 +374,25 @@ class Diameter:
             if avps_to_check['avp_code'] == 278:                                
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.redis_store.incr('Answer_280_success_count')
+        self.RedisIncrimenter('Answer_280_success_count')
         return response
 
 
     #Disconnect Peer Answer    
     def Answer_282(self, packet_vars, avps):                                                      
-        self.redis_store.incr('Answer_282_attempt_count')
+        self.RedisIncrimenter('Answer_282_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.redis_store.incr('Answer_282_success_count')
+        self.RedisIncrimenter('Answer_282_success_count')
         return response
 
 
     #3GPP S6a/S6d Update Location Answer
     def Answer_16777251_316(self, packet_vars, avps):
-        self.redis_store.incr('Answer_16777251_316_attempt_count')
+        self.RedisIncrimenter('Answer_16777251_316_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -415,13 +419,23 @@ class Diameter:
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
-        except:
-            logging.error("failed to get data backfrom database for imsi " + str(imsi))
-            logging.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+        except ValueError as e:
+            DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
+            DiameterLogger.error("Error is " + str(e))
+            DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
             avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))
             response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            logging.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
+            DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
+        except Exception as ex:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            DiameterLogger.critical(message)
+            DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
+            import sys
+            sys.exit()
+            raise
+
 
         #Boilerplate AVPs
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
@@ -461,10 +475,10 @@ class Diameter:
 
 
         apn_list = subscriber_details['pdn']
-        print(apn_list)
+        DiameterLogger.debug("APN list: " + str(apn_list))
         APN_context_identifer_count = 1
         for apn_profile in apn_list:
-            logging.debug("Processing APN profile " + str(apn_profile))
+            DiameterLogger.debug("Processing APN profile " + str(apn_profile))
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
 
             
@@ -499,32 +513,32 @@ class Diameter:
             #If static UE IP is specified
             try:
                 apn_ip = apn_profile['ue']['addr']
-                logging.debug("Found static IP for UE " + str(apn_ip))
+                DiameterLogger.debug("Found static IP for UE " + str(apn_ip))
                 Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
             except:
                 Served_Party_Address = ""
 
             if 'MIP6-Agent-Info' in apn_profile:
-                logging.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
+                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
                 MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
                 MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
                 MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
                 MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-                logging.info("MIP6 value is " + str(MIP6_Agent_Info))
+                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
             else:
                 MIP6_Agent_Info = ''
 
             if 'PDN_GW_Allocation_Type' in apn_profile:
-                logging.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
+                DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
                 PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
-                logging.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
+                DiameterLogger.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
             else:
                 PDN_GW_Allocation_Type = ''
 
             if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
-                logging.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
+                DiameterLogger.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
                 VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
-                logging.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
+                DiameterLogger.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
             else:
                 VPLMN_Dynamic_Address_Allowed = ''
 
@@ -542,26 +556,26 @@ class Diameter:
 
         #If MSISDN is present include it in Subscription Data
         if 'msisdn' in subscriber_details:
-            logging.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
             msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
-            logging.debug(msisdn_avp)
+            DiameterLogger.debug(msisdn_avp)
             subscription_data += msisdn_avp
 
         if 'RAT_freq_priorityID' in subscriber_details:
-            logging.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
+            DiameterLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
             rat_freq_priorityID = self.generate_vendor_avp(1440, "80", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
-            logging.debug(rat_freq_priorityID)
+            DiameterLogger.debug(rat_freq_priorityID)
             subscription_data += rat_freq_priorityID
 
         if '3gpp-charging-characteristics' in subscriber_details:
-            logging.debug("3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA")
+            DiameterLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA")
             _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['3gpp-charging-characteristics'])))
             subscription_data += _3gpp_charging_characteristics
-            logging.debug(_3gpp_charging_characteristics)
+            DiameterLogger.debug(_3gpp_charging_characteristics)
 
             
         if 'APN-OI-Replacement' in subscriber_details:
-            logging.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in ULA")
+            DiameterLogger.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in ULA")
             subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
@@ -569,38 +583,29 @@ class Diameter:
 
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_316_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_316_success_count")
-        logging.debug("Sucesfully Generated ULA")
+        self.RedisIncrimenter('Answer_16777251_316_success_count')
+        DiameterLogger.debug("Sucesfully Generated ULA")
         return response
 
 
 
     #3GPP S6a/S6d Authentication Information Answer
     def Answer_16777251_318(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_318_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_318_attempt_count")
+        self.RedisIncrimenter('Answer_16777251_318_attempt_count')
+
         imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
-            
-        except:
+        except ValueError as e:
+            DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
+            DiameterLogger.info(e)
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            if yaml_config['redis']['enabled'] == True:
-                try:
-                    self.redis_store.incr('S6a_user_unknown_count')
-                except:
-                    logging.error("failed to incriment S6a_user_unknown_count")
-            logging.debug("Subscriber " + str(imsi) + " is unknown in database")
+            self.RedisIncrimenter('S6a_user_unknown_count')
+
+            DiameterLogger.info("Subscriber " + str(imsi) + " is unknown in database")
             avp = ''
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -617,7 +622,15 @@ class Diameter:
             avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
             response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
-
+        except Exception as ex:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            DiameterLogger.critical(message)
+            DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
+            import sys
+            sys.exit()
+            raise
+            
 
         key = subscriber_details['K']                                                               #Format keys
         opc = subscriber_details['OPc']                                                             #Format keys
@@ -626,18 +639,14 @@ class Diameter:
         
         for avp in avps:
             if avp['avp_code'] == 1408:
-                logging.debug("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
+                DiameterLogger.debug("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
                 EUTRAN_Authentication_Info = avp['misc_data']
                 for sub_avp in EUTRAN_Authentication_Info:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
-                        if yaml_config['redis']['enabled'] == True:
-                            try:
-                                self.redis_store.incr('S6a_resync_count')
-                            except:
-                                logging.error("failed to incriment S6a_resync_count")
+                        self.RedisIncrimenter('S6a_resync_count')
                         sqn_origional = sqn
-                        logging.debug("Re-Synchronization required - SQN is out of sync")
+                        DiameterLogger.debug("Re-Synchronization required - SQN is out of sync")
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
                         #rand = subscriber_details['RAND']
@@ -647,11 +656,11 @@ class Diameter:
                         #Write correct SQN back
                         database.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
                         #Print SQN correct value
-                        logging.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
+                        DiameterLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
                         sqn = sqn + 100
 
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-        logging.debug("SQN used in vector: " + str(sqn))
+        DiameterLogger.debug("SQN used in vector: " + str(sqn))
         rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
@@ -673,20 +682,14 @@ class Diameter:
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_318_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_318_success_count")
+        self.RedisIncrimenter('Answer_16777251_318_success_count')
+        
         return response
 
     #Purge UE Answer (PUR)
     def Answer_16777251_321(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_321_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_321_attempt_count")
+        self.RedisIncrimenter('Answer_16777251_321_attempt_count')
+        
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -706,20 +709,13 @@ class Diameter:
         SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_321_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_321_success_count")
+        self.RedisIncrimenter('Answer_16777251_321_success_count')
+        
         return response
 
     #Notify Answer (NOA)
     def Answer_16777251_323(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_323_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_323_attempt_count")
+        self.RedisIncrimenter('Answer_16777251_323_attempt_count')
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -736,20 +732,12 @@ class Diameter:
         SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777251_323_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777251_323_success_count")
+        self.RedisIncrimenter('Answer_16777251_323_success_count')
         return response
 
     #3GPP Gx Credit Control Answer
     def Answer_16777238_272(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777238_272_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777238_272_attempt_count")
+        self.RedisIncrimenter('Answer_16777238_272_attempt_count')
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
         avp = ''                                                                                    #Initiate empty var AVP
@@ -759,39 +747,32 @@ class Diameter:
         avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type (ToDo - Check dyanmically generating)
         avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number (ToDo - Check dyanmically generating)
         if int(CC_Request_Type) == 1:
-            logging.info("Request type for CCA is 1")
+            DiameterLogger.info("Request type for CCA is 1")
                                                                                                     #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
             avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
                                                                                                     #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
-            logging.info("Creating QoS Information")
+            DiameterLogger.info("Creating QoS Information")
                                                                                                     #QoS-Information
             QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
             QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
-            logging.info("Created both QoS AVPs")
-            logging.info("Populated QoS_Infomration")
+            DiameterLogger.info("Created both QoS AVPs")
+            DiameterLogger.info("Populated QoS_Infomration")
             avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
-            logging.info("Added to AVP List")
+            DiameterLogger.info("Added to AVP List")
             
-            logging.debug("QoS Information: " + str(QoS_Information))
+            DiameterLogger.debug("QoS Information: " + str(QoS_Information))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777238_272_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777238_272_success_count")
+        self.RedisIncrimenter('Answer_16777238_272_success_count')
         return response
 
     #3GPP Cx User Authentication Answer
     def Answer_16777216_300(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_300_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_300_attempt_count")
+        self.RedisIncrimenter('Answer_16777216_300_attempt_count')
+        
         avp = ''                                                                                         #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -816,21 +797,15 @@ class Diameter:
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_300_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_300_success_count")
+        self.RedisIncrimenter('Answer_16777216_300_success_count')
+        
         return response
 
 
     #3GPP Cx Server Assignment Answer
     def Answer_16777216_301(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_301_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_301_attempt_count")
+        self.RedisIncrimenter('Answer_16777216_301_attempt_count')
+        
         username = self.get_avp_data(avps, 601)[0]                                                     
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
@@ -871,21 +846,13 @@ class Diameter:
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_301_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_301_success_count")
+        self.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
 
 
     #3GPP Cx Location Information Answer
     def Answer_16777216_302(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_302_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_302_attempt_count")
+        self.RedisIncrimenter('Answer_16777216_302_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -895,34 +862,27 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         username = self.get_avp_data(avps, 601)[0]
         username = binascii.unhexlify(username).decode('utf-8')
-        logging.debug("Public-Identity for Location Information Request is: " + str(username))
+        DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
         if str(username) == "tel:+12722123":
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:as.mnc023.mcc505.3gppnetwork.org:5060")),'ascii'))
-            logging.debug("Destination is 12722123 - Routing to Application Server")
+            DiameterLogger.debug("Destination is 12722123 - Routing to Application Server")
         else:
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc023.mcc505.3gppnetwork.org:6060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_302_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_302_success_count")
+        self.RedisIncrimenter('Answer_16777216_302_success_count')
+        
         return response
 
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_303_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_303_attempt_count")
+        self.RedisIncrimenter('Answer_16777216_303_attempt_count')
         username = self.get_avp_data(avps, 601)[0]                                                     
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
         imsi = imsi[4:]                 #Strip SIP: from start of string
-        logging.debug("Got MAR for public_identity : " + str(username))
+        DiameterLogger.debug("Got MAR for public_identity : " + str(username))
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -937,7 +897,7 @@ class Diameter:
             database.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            logging.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
+            DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
             experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
             #Experimental Result (297)
@@ -954,7 +914,7 @@ class Diameter:
         plmn = self.EncodePLMN(mcc, mnc)
         
         SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, opc, amf, sqn, plmn) 
-        logging.debug("IMSI is " + str(imsi))        
+        DiameterLogger.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username + "@" + domain)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
         
@@ -990,20 +950,12 @@ class Diameter:
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_303_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_303_success_count")
+        self.RedisIncrimenter('Answer_16777216_303_success_count')
         return response
 
     #Generate a Generic error handler with Result Code as input
     def Respond_ResultCode(self, packet_vars, avps, result_code):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_Respond_Command_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_Respond_Command_attempt_count")
+        self.RedisIncrimenter('Answer_Respond_Command_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -1021,18 +973,14 @@ class Diameter:
 
     #3GPP Cx Registration Termination Answer
     def Answer_16777216_304(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_304_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_304_attempt_count")
+        self.RedisIncrimenter('Answer_16777216_304_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         vendor_id = self.generate_avp(266, 40, str(binascii.hexlify('10415'),'ascii'))
-        print("vendor_id avp: " + str(vendor_id))
+        DiameterLogger.debug("vendor_id avp: " + str(vendor_id))
         auth_application_id = self.generate_avp(248, 40, self.int_to_hex(16777252, 8))
-        print("auth_application_id: " + auth_application_id)
+        DiameterLogger.debug("auth_application_id: " + auth_application_id)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State        
@@ -1047,20 +995,12 @@ class Diameter:
         avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
         
         response = self.generate_diameter_packet("01", "40", 304, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777216_304_success_count')
-            except:
-                logging.error("failed to incriment Answer_16777216_304_success_count")
+        self.RedisIncrimenter('Answer_16777216_304_success_count')
         return response
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr('Answer_16777252_324_attempt_count')
-            except:
-                logging.error("failed to incriment Answer_16777252_324_attempt_count")
+        self.RedisIncrimenter('Answer_16777252_324_attempt_count')
         avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
@@ -1097,7 +1037,7 @@ class Diameter:
             imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
             avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
         except:
-            logging.debug("Failed to get IMSI")
+            DiameterLogger.debug("Failed to get IMSI")
         
         try:
             print("AVP data for MSIDN is " + self.get_avp_data(avps, 701))
@@ -1105,14 +1045,14 @@ class Diameter:
             msisdn = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert MSISDN
             avp += self.generate_vendor_avp(701, 'c0', 10415, self.string_to_hex(msisdn))                     #MSISDN
         except:
-            logging.debug("Failed to get MSISDN")
+            DiameterLogger.debug("Failed to get MSISDN")
 
         if msisdn is not None:
             subscriber_location = database.GetSubscriberLocation(msisdn)
         elif imsi is not None:
             subscriber_location = database.GetSubscriberLocation(imsi)
         else:
-            logging.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
+            DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
             result_code = 5005
             #Experimental Result AVP
             avp_experimental_result = ''
