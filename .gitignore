@@ -5,7 +5,5 @@ subscribers.csv
 ts_129171v090200p.pdf
 config.yaml
 
-log/
-log/pyhss_db.log
-log/pyhss_diameter.log
-log/pyhss.log
+
+log/*.log

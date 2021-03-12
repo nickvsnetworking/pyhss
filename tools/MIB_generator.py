@@ -18,7 +18,7 @@ generic_counter = 0
 oid_dict = {}
 for lines in sauce:
     lines = lines.rstrip()
-    if "self.redis_store.incr('" in lines:
+    if "self.RedisIncrimenter('" in lines:
         lines = lines.split("'")
         redis_name = lines[1]
         print(redis_name)
@@ -64,7 +64,10 @@ for oid in oid_dict:
 ###OID """ + str(oid) + """
 class """ + str(oid_dict[oid]) + """(MibScalarInstance):
     def getValue(self, name, idx):
-        return self.getSyntax().clone(redis_store.get('""" + str(oid_dict[oid]) + """'))
+        try:
+            return self.getSyntax().clone(redis_store.get('""" + str(oid_dict[oid]) + """'))
+        except:
+            return self.getSyntax().clone(0)
     """)
 
 print("\n\n\n\n")

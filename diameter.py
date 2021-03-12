@@ -8,7 +8,7 @@ import uuid
 import os
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
-import database
+
 
 import yaml
 
@@ -16,10 +16,14 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 #Setup Logging
-level = logging.getLevelName(yaml_config['logging']['level'])
-logging.basicConfig(level=level, filename=yaml_config['logging']['logfiles']['diameter_logging_file'])
-DiameterLogger = logging.getLogger('Diameter')
-DiameterLogger.info("DB Log Initialised.")
+import logtool
+logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diameter_logging_file'], level=yaml_config['logging']['level'])
+DiameterLogger = logging.getLogger('DiameterLogger')
+
+DiameterLogger.info("Initialised Diameter Logger, importing database")
+import database
+
+
 
 if yaml_config['redis']['enabled'] == True:
     DiameterLogger.debug("Redis support enabled")

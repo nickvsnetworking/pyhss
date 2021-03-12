@@ -58,8 +58,8 @@ You can install Monit using your standard package manager, config is explained i
 
 ```
 check process pyhss with pidfile /var/run/pyhss.pid
-   start = "/bin/pyhss start"
-   stop = "/bin/pyhss stop"
+   start = "/usr/bin/pyhss start"
+   stop = "/usr/bin/pyhss stop"
 ```
 
 There are other settings to do with how often Monit checks the status (more frequent means a shorter period of potential downtime), and email when a crash happens, which is important to actually know when a crash happens.
