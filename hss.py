@@ -6,6 +6,10 @@ import yaml
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
+import os
+import sys
+sys.path.append(os.path.realpath('lib'))
+
 #Setup Logging
 import logtool
 logtool.setup_logger('HSS_Logger', yaml_config['logging']['logfiles']['hs_logging_file'], level=yaml_config['logging']['level'])
@@ -14,7 +18,6 @@ HSS_Logger = logging.getLogger('HSS_Logger')
 if yaml_config['logging']['log_to_terminal'] == True:
     HSS_Logger.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
 
-import sys
 import socket
 import socketserver
 import diameter
@@ -22,7 +25,6 @@ import binascii
 import time
 import _thread
 from threading import Thread, Lock
-import os
 import sctp
 import traceback
 
