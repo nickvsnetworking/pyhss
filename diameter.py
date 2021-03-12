@@ -122,9 +122,9 @@ class Diameter:
                 self.redis_store.incr('restart_count')
                 if yaml_config['redis']['clear_stats_on_boot'] == True:
                     DiameterLogger.debug("Clearing all Redis keys")
+                    self.redis_store.flushall()
                 else:
                     DiameterLogger.debug("Leaving prexisting Redis keys")
-                    self.redis_store.flushall()
                 DiameterLogger.info("Connected to Redis server")
             except:
                 DiameterLogger.error("Failed to connect to Redis server - Disabling")
