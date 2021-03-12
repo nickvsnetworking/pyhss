@@ -4,6 +4,8 @@ import base64
 import logging
 
 
+#The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
+
 def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     logging.debug("Generting EUTRAN Vectors")
 
