@@ -3,11 +3,11 @@ import socket
 import sys
 import diameter
 global recv_ip
-recv_ip = "127.0.0.3"
+recv_ip = "127.0.0.31"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
 
-hostname = "127.0.0.5"
+hostname = "127.0.0.224"
 
 realm = "mnc001.mcc001.3gppnetwork.org"
 
@@ -15,7 +15,8 @@ supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR"
 
 
 diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client', '001', '01')
-
+DestinationHost = "hss.localdomain"
+DestinationRealm = "localdomain"
 
 clientsocket = socket.socket()
 clientsocket.bind((recv_ip, 3871))
