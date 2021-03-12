@@ -1,6 +1,8 @@
 # PyHSS - Database Notes
 PyHSS supports pretty much any database backend you like.
 
+This means if you have an existing databsae storing all your subscriber data, you don't need to add another database, you can just add the queries you need to get this data and the credentials to access your database, into PyHSS and avoid reinventing the wheel.
+
 All the magic happens in ```database.py``` which (Hopefully) is clear and easy to understand,
 
 Each database backend has a class, containing a ```GetSubscriberInfo()``` function returns a dictionary.
@@ -9,9 +11,9 @@ Inside the function you'll need to query your database of choice and return a di
 subscriber_details = {'K': '465B5CE8B199B49FAA5F0A2EE238A6BC', 'OPc': 'E8ED289DEBA952E4283B54E88E6183CA', 'AMF': '8000', 'RAND': '', 'SQN': 22, 'APN_list': 'internet', 'pdn': [{'apn': 'internet'), 'pcc_rule': [], 'qos': {'qci': 9, 'arp': {'priority_level': 8, 'pre_emption_vulnerability': 1, 'pre_emption_capability': 1}}, 'type': 2}]}
 ```
 
-PyHSS was developed for MongoDB initially and MS-SQL support has since been added and fully tested.
- 
-The MongoDB schema is fully compatible with the Open5GS WebUI to make life easy, if you install that and set the binding, you'll be set.
+For MongoDB we're storing the data already as a dictionary, but for SQL database like MSSQL or MySQL, you can run SELECT / EXEC queries and then map the fields returned into the dictionary as required. Taking a look at MSSQL section should give you an idea of how this is done.
+
+The MongoDB schema is fully compatible with the Open5GS WebUI to make life easy, if you install the Open5GS-WebUI, you can use that to create subscribers.
 
 MySQL support has had most of the groundwork done but has not yet been finished - To get it working you would need to map the names of the keys in the returned dict to match that of MongoDB.
 
