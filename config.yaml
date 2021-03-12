@@ -2,7 +2,7 @@
 hss:
   transport: "TCP"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
-  bind_ip: ["127.0.0.1"]
+  bind_ip: ["127.0.0.224"]
 
   #Port to listen on (Same for TCP & SCTP)
   bind_port: 3868
@@ -24,6 +24,11 @@ hss:
 ## Debug Parameters
 logging:
   level: DEBUG
+  logfiles:
+    hss_logging_file: log/pyhss.log
+    diameter_logging_file: log/pyhss_diameter.log
+    database_logging_file: log/pyhss_db.log
+  log_to_temrinal: true
 
 ## Database Parameters
 #Multiple database types are supported, and additional database can be added easily. 
@@ -34,6 +39,7 @@ database:
   #   mongodb_username: root
   #   mongodb_password: password
   #   mongodb_port: 27017
+  mssql:
      server: 127.0.0.1
      username: sa
      password: thisisthepasswordforMSSQL99#!
@@ -48,6 +54,7 @@ database:
 ## Stats Parameters
 redis:
   enabled: True
+  clear_stats_on_boot: False
   host: localhost
   port: 6379
 
