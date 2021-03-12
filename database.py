@@ -149,8 +149,8 @@ class MSSQL:
             apn_id = result['apn_configuration']
 
 
-            logging.debug("Running hss_get_subscriber_data_v2_v2 for imsi " + str(imsi))
-            sql = 'hss_get_subscriber_data_v2_v2 @imsi="' + str(imsi) + '";'
+            logging.debug("Running hss_get_subscriber_data_v2 for imsi " + str(imsi))
+            sql = 'hss_get_subscriber_data_v2 @imsi="' + str(imsi) + '";'
             logging.debug("SQL: " + str(sql))
             self.conn.execute_query(sql)
             result = [ row for row in self.conn ][0]
