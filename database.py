@@ -132,8 +132,11 @@ class MSSQL:
             DBLogger.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
             subscriber_details = {}
             sql = "hss_imsi_known_check @imsi=" + str(imsi)
+            DBLogger.debug(sql)
             self.conn.execute_query(sql)
-        except:
+        except Exception as e:
+            DBLogger.error("failed to run " + str(sql))
+            DBLogger.error(e)
             raise Exception("Failed to query MSSQL server with query: " + str(sql))
 
         #Parse results
@@ -157,6 +160,7 @@ class MSSQL:
             DBLogger.debug("SQL: " + str(sql))
             self.conn.execute_query(sql)
             result = [ row for row in self.conn ][0]
+
             DBLogger.debug("\nResult of hss_get_subscriber_data_v2_v2: " + str(result))
             #subscriber_status: -1 –Blocked or 0-Active (Again)
             if str(result['subscriber_status']) != '0':
@@ -219,12 +223,14 @@ class MSSQL:
             try:
                 imsi = kwargs.get('imsi', None)
                 DBLogger.debug("Calling hss_get_mme_identity_by_info with IMSI " + str(imsi))
-                self.conn.execute_query('hss_get_mme_identity_by_info ' + str(imsi) + ';')
+                sql = 'hss_get_mme_identity_by_info ' + str(imsi) + ';'
+                DBLogger.info(sql)
+                self.conn.execute_query(sql)
                 DBLogger.debug(self.conn)
-            except:
-                raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))
-                DBLogger.critical("MSSQL not functioning. Restarting.")
-                sys.exit()                  
+            except Exception as e:
+                DBLogger.error("failed to run " + str(sql))
+                DBLogger.error(e)
+                raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))     
         elif 'msisdn' in kwargs:
             DBLogger.debug("MSISDN present - Searching based on MSISDN")
             try:
