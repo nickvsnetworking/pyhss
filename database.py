@@ -258,8 +258,9 @@ class MSSQL:
                 DBLogger.debug(sql)
                 self.conn.execute_query(sql)
                 DBLogger.debug(self.conn)
-            except:
+            except Exception as e:
                 DBLogger.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+                DBLogger.error(e)
                 raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
 
             #If optional origin_host kwag present, store UE location (Serving MME) in Database
