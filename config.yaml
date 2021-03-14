@@ -25,10 +25,10 @@ hss:
 logging:
   level: DEBUG
   logfiles:
-    hss_logging_file: log/pyhss.log
-    diameter_logging_file: log/pyhss_diameter.log
-    database_logging_file: log/pyhss_db.log
-  log_to_temrinal: true
+    hss_logging_file: log/hss.log
+    diameter_logging_file: log/diameter.log
+    database_logging_file: log/db.log
+  log_to_terminal: true
 
 ## Database Parameters
 #Multiple database types are supported, and additional database can be added easily. 
