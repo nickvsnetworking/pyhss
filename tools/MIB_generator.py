@@ -3,61 +3,74 @@
 
 import sys
 import re
-
+import os
 
 import yaml
 import sys
 with open(sys.path[0] + '/../config.yaml') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-import redis
-r = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
+global generic_counter
+global oid_dict
 
-sauce = open(sys.path[0] + '/../diameter.py', 'r')
 generic_counter = 0
 oid_dict = {}
-for lines in sauce:
-    lines = lines.rstrip()
-    if "self.RedisIncrimenter('" in lines:
-        lines = lines.split("'")
-        redis_name = lines[1]
-        print(redis_name)
-        r.set(redis_name, 99999)
-        regex = r"_(\d*)_(\d*)"
-        pattern = re.compile(regex, re.UNICODE)
 
-        if "Answer" in redis_name:
-            for match in pattern.finditer(redis_name):
-                try:
-                    vendor_id = match.group(1)
-                except:
-                    pass
-                
-                try:
-                    if len(match.group(2)) == 0:
-                        vendor_id = 0
-                        command_code = match.group(1)
-                    else:
-                        command_code = match.group(2)
+def ParsePython(filename):
+    print("parsing " + str(filename))
+    sauce = open(sys.path[0] + '/../' + str(filename), 'r')
+
+    global generic_counter
+    global oid_dict
+
+    for lines in sauce:
+        lines = lines.rstrip()
+        if "logtool.RedisIncrimenter('" in lines:
+            print(lines)
+            lines = lines.split("'")
+            redis_name = lines[1]
+            print(redis_name)
+            regex = r"_(\d*)_(\d*)"
+            pattern = re.compile(regex, re.UNICODE)
+
+            if "Answer" in redis_name:
+                for match in pattern.finditer(redis_name):
+                    try:
+                        vendor_id = match.group(1)
+                    except:
+                        pass
+                    
+                    try:
+                        if len(match.group(2)) == 0:
+                            vendor_id = 0
+                            command_code = match.group(1)
+                        else:
+                            command_code = match.group(2)
 
 
-                    if "attempt" in redis_name:
-                        oid = "0." + str(vendor_id) + "." + str(command_code) + ".0"
-                        oid_dict[oid] = redis_name
-                    if "success" in redis_name:
-                        oid = "0." + str(vendor_id) + "." + str(command_code) + ".1"
-                        oid_dict[oid] = redis_name
+                        if "attempt" in redis_name:
+                            oid = "0." + str(vendor_id) + "." + str(command_code) + ".0"
+                            oid_dict[oid] = redis_name
+                        if "success" in redis_name:
+                            oid = "0." + str(vendor_id) + "." + str(command_code) + ".1"
+                            oid_dict[oid] = redis_name
 
-                except:
-                    print("ERROR WITH " + str(redis_name))
-                    sys.exit()
+                    except:
+                        print("ERROR WITH " + str(redis_name))
+                        sys.exit()
 
-        else:
-            generic_counter = generic_counter + 1
-            oid = str(generic_counter) + ".0.0.0"
-            oid_dict[oid] = redis_name
+            else:
+                generic_counter = generic_counter + 1
+                oid = str(generic_counter) + ".0.0.0"
+                oid_dict[oid] = redis_name
 
-        print(oid)
+    return oid_dict
+
+files = os.listdir()
+for filename in files:
+    if '.py' in filename:
+        print(filename)
+        ParsePython(filename)
 
 for oid in oid_dict:
     print("""
