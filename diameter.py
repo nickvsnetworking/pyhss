@@ -157,7 +157,7 @@ class Diameter:
             avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
-        self.RedisIncrimenter('generate_avp_count')
+        logtool.RedisIncrimenter('generate_avp_count')
         return avp
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
@@ -184,7 +184,7 @@ class Diameter:
 
         
         avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_vendorid) + str(avp_content) + str(avp_padding)
-        self.RedisIncrimenter('generate_vendor_avp')
+        logtool.RedisIncrimenter('generate_vendor_avp')
         return avp
 
 
@@ -204,7 +204,7 @@ class Diameter:
         packet_length = format(packet_length,"x").zfill(6)
         
         packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
-        self.RedisIncrimenter('diameter_packet_count')
+        logtool.RedisIncrimenter('diameter_packet_count')
         return packet_hex
 
 
@@ -236,7 +236,7 @@ class Diameter:
             avps.append(avp_vars)
         else:
             pass
-        self.RedisIncrimenter('diameter_packet_decode_count')
+        logtool.RedisIncrimenter('diameter_packet_decode_count')
         return packet_vars, avps
 
     def decode_avp_packet(self, data):                   
@@ -292,7 +292,7 @@ class Diameter:
 
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
-        self.RedisIncrimenter('diameter_decode_avp_count')
+        logtool.RedisIncrimenter('diameter_decode_avp_count')
         return avp_vars, remaining_avps
 
 
@@ -337,7 +337,7 @@ class Diameter:
 
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
-        self.RedisIncrimenter('Answer_257_attempt_count')
+        logtool.RedisIncrimenter('Answer_257_attempt_count')
 
         DiameterLogger.debug("packet_vars for CEA is " + str(packet_vars))
         DiameterLogger.debug("avps for CEA is " + str(avps))
@@ -363,13 +363,13 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
-        self.RedisIncrimenter('Answer_257_success_count')
+        logtool.RedisIncrimenter('Answer_257_success_count')
         
         return response
 
     #Device Watchdog Answer
     def Answer_280(self, packet_vars, avps):                                                      
-        self.RedisIncrimenter('Answer_280_attempt_count')
+        logtool.RedisIncrimenter('Answer_280_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -378,25 +378,25 @@ class Diameter:
             if avps_to_check['avp_code'] == 278:                                
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.RedisIncrimenter('Answer_280_success_count')
+        logtool.RedisIncrimenter('Answer_280_success_count')
         return response
 
 
     #Disconnect Peer Answer    
     def Answer_282(self, packet_vars, avps):                                                      
-        self.RedisIncrimenter('Answer_282_attempt_count')
+        logtool.RedisIncrimenter('Answer_282_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.RedisIncrimenter('Answer_282_success_count')
+        logtool.RedisIncrimenter('Answer_282_success_count')
         return response
 
 
     #3GPP S6a/S6d Update Location Answer
     def Answer_16777251_316(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777251_316_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777251_316_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -587,7 +587,7 @@ class Diameter:
 
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777251_316_success_count')
+        logtool.RedisIncrimenter('Answer_16777251_316_success_count')
         DiameterLogger.debug("Sucesfully Generated ULA")
         return response
 
@@ -595,7 +595,7 @@ class Diameter:
 
     #3GPP S6a/S6d Authentication Information Answer
     def Answer_16777251_318(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777251_318_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777251_318_attempt_count')
 
         imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
@@ -607,7 +607,7 @@ class Diameter:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            self.RedisIncrimenter('S6a_user_unknown_count')
+            logtool.RedisIncrimenter('S6a_user_unknown_count')
 
             DiameterLogger.info("Subscriber " + str(imsi) + " is unknown in database")
             avp = ''
@@ -648,7 +648,7 @@ class Diameter:
                 for sub_avp in EUTRAN_Authentication_Info:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
-                        self.RedisIncrimenter('S6a_resync_count')
+                        logtool.RedisIncrimenter('S6a_resync_count')
                         sqn_origional = sqn
                         DiameterLogger.debug("Re-Synchronization required - SQN is out of sync")
                         auts = str(sub_avp['misc_data'])[32:]
@@ -686,13 +686,13 @@ class Diameter:
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
-        self.RedisIncrimenter('Answer_16777251_318_success_count')
+        logtool.RedisIncrimenter('Answer_16777251_318_success_count')
         
         return response
 
     #Purge UE Answer (PUR)
     def Answer_16777251_321(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777251_321_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777251_321_attempt_count')
         
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -713,13 +713,13 @@ class Diameter:
         SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777251_321_success_count')
+        logtool.RedisIncrimenter('Answer_16777251_321_success_count')
         
         return response
 
     #Notify Answer (NOA)
     def Answer_16777251_323(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777251_323_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777251_323_attempt_count')
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -736,12 +736,12 @@ class Diameter:
         SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777251_323_success_count')
+        logtool.RedisIncrimenter('Answer_16777251_323_success_count')
         return response
 
     #3GPP Gx Credit Control Answer
     def Answer_16777238_272(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777238_272_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777238_272_attempt_count')
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
         avp = ''                                                                                    #Initiate empty var AVP
@@ -770,12 +770,12 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777238_272_success_count')
+        logtool.RedisIncrimenter('Answer_16777238_272_success_count')
         return response
 
     #3GPP Cx User Authentication Answer
     def Answer_16777216_300(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777216_300_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777216_300_attempt_count')
         
         avp = ''                                                                                         #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -801,14 +801,14 @@ class Diameter:
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777216_300_success_count')
+        logtool.RedisIncrimenter('Answer_16777216_300_success_count')
         
         return response
 
 
     #3GPP Cx Server Assignment Answer
     def Answer_16777216_301(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777216_301_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777216_301_attempt_count')
         
         username = self.get_avp_data(avps, 601)[0]                                                     
         username = binascii.unhexlify(username).decode('utf-8')
@@ -850,13 +850,13 @@ class Diameter:
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777216_301_success_count')
+        logtool.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
 
 
     #3GPP Cx Location Information Answer
     def Answer_16777216_302(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777216_302_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777216_302_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -874,13 +874,13 @@ class Diameter:
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc023.mcc505.3gppnetwork.org:6060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777216_302_success_count')
+        logtool.RedisIncrimenter('Answer_16777216_302_success_count')
         
         return response
 
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777216_303_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777216_303_attempt_count')
         username = self.get_avp_data(avps, 601)[0]                                                     
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
@@ -954,12 +954,12 @@ class Diameter:
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777216_303_success_count')
+        logtool.RedisIncrimenter('Answer_16777216_303_success_count')
         return response
 
     #Generate a Generic error handler with Result Code as input
     def Respond_ResultCode(self, packet_vars, avps, result_code):
-        self.RedisIncrimenter('Answer_Respond_Command_attempt_count')
+        logtool.RedisIncrimenter('Answer_Respond_Command_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -977,7 +977,7 @@ class Diameter:
 
     #3GPP Cx Registration Termination Answer
     def Answer_16777216_304(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777216_304_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777216_304_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -999,12 +999,12 @@ class Diameter:
         avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
         
         response = self.generate_diameter_packet("01", "40", 304, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.RedisIncrimenter('Answer_16777216_304_success_count')
+        logtool.RedisIncrimenter('Answer_16777216_304_success_count')
         return response
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
-        self.RedisIncrimenter('Answer_16777252_324_attempt_count')
+        logtool.RedisIncrimenter('Answer_16777252_324_attempt_count')
         avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
