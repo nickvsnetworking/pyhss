@@ -16,7 +16,7 @@ logtool.setup_logger('HSS_Logger', yaml_config['logging']['logfiles']['hss_loggi
 HSS_Logger = logging.getLogger('HSS_Logger')
 
 if yaml_config['logging']['log_to_terminal'] == True:
-    HSS_Logger.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
+    logging.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
 
 import socket
 import socketserver
