@@ -60,8 +60,10 @@ def ParsePython(filename):
                         sys.exit()
 
             else:
+                
                 generic_counter = generic_counter + 1
                 oid = str(generic_counter) + ".0.0.0"
+                print(oid)
                 oid_dict[oid] = redis_name
 
     return oid_dict
@@ -71,6 +73,8 @@ for filename in files:
     if '.py' in filename:
         print(filename)
         ParsePython(filename)
+
+print(oid_dict)
 
 for oid in oid_dict:
     print("""
@@ -87,4 +91,5 @@ print("\n\n\n\n")
 
 for oid in oid_dict:
     oid_split = oid.split('.')
-    print("\t" + str(oid_dict[oid]) + "((1, 3, 6, 1, 2, 1, 1, 1), (" + str(oid[0]) + ", " + str(oid_split[1]) + ", " + str(oid_split[2]) + ", " + str(oid_split[3]) + "), v2c.Integer32()),")
+    
+    print("\t" + str(oid_dict[oid]) + "((1, 3, 6, 1, 2, 1, 1, 1), (" + str(oid_split[0]) + ", " + str(oid_split[1]) + ", " + str(oid_split[2]) + ", " + str(oid_split[3]) + "), v2c.Integer32()),")
