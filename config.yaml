@@ -21,6 +21,8 @@ hss:
   #Your Home Mobile Network Code (Used for PLMN calcluation)
   MNC: "01"
 
+  #Enable GMLC / SLh Interface
+  SLh_enabled: True
 ## Debug Parameters
 logging:
   level: DEBUG
