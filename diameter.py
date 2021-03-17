@@ -685,10 +685,10 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
         logtool.RedisIncrimenter('Answer_16777251_318_success_count')
-
+        DiameterLogger.debug("Sucesfully Generated AIA")
         return response
 
-    #Purge UE Answer (PUR)
+    #Purge UE Answer (PUA)
     def Answer_16777251_321(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777251_321_attempt_count')
         
@@ -727,7 +727,7 @@ class Diameter:
                 DiameterLogger.debug("originHost cleared for imsi " + str(imsi))
             except:
                 DiameterLogger.error("failed to clear subscriber location for IMSI " + str(imsi))
-
+        DiameterLogger.debug("Sucesfully Generated PUA")
         return response
 
     #Notify Answer (NOA)
@@ -750,6 +750,7 @@ class Diameter:
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_323_success_count')
+        DiameterLogger.debug("Sucesfully Generated PUA")
         return response
 
     #3GPP Gx Credit Control Answer
