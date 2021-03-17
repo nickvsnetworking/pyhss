@@ -64,7 +64,7 @@ def on_new_client(clientsocket,client_address):
                     response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
                 except:
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-                HSS_Logger.info("Generated CER")
+                HSS_Logger.info("Generated CEA")
 
             #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
             elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:
