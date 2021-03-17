@@ -142,9 +142,14 @@ class MSSQL:
 
         #Parse results
         try:
+            logging.debug("returned row is: " + str([ row for row in self.conn ]))
             result = [ row for row in self.conn ][0]
             DBLogger.debug("\nResult of hss_imsi_known_check: " + str(result))
-
+        except Exception as e:
+            logtool.RedisIncrimenter('AIR_general')
+            DBLogger.error(e)
+            raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi)) 
+        try:
             #known_imsi: IMSI attached with sim returns 1 else returns 0
             if str(result['known_imsi']) != '1':
                 logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_unattached_w_SIM')
