@@ -114,21 +114,7 @@ class Diameter:
 
         DiameterLogger.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
         DiameterLogger.info("PLMN is " + str(MCC) + "/" + str(MNC))
-        if yaml_config['redis']['enabled'] == True:
-            import redis
-            DiameterLogger.info("Initializing Redis")
-            self.redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
-            try:
-                self.redis_store.incr('restart_count')
-                if yaml_config['redis']['clear_stats_on_boot'] == True:
-                    DiameterLogger.debug("Clearing all Redis keys")
-                    self.redis_store.flushall()
-                else:
-                    DiameterLogger.debug("Leaving prexisting Redis keys")
-                DiameterLogger.info("Connected to Redis server")
-            except:
-                DiameterLogger.error("Failed to connect to Redis server - Disabling")
-                yaml_config['redis']['enabled'] == False
+
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -579,13 +565,6 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_316_success_count')
-        
-        #Write back current MME location to Database
-        if yaml_config['hss']['SLh_enabled'] == True:
-            DiameterLogger.debug("SLh Enabled - Must log location")
-            MME_FQDN = self.get_avp_data(avps, 264)
-            database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host='')
-
         DiameterLogger.debug("Sucesfully Generated ULA")
         return response
 

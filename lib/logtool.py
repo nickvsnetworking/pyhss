@@ -10,7 +10,18 @@ if yaml_config['redis']['enabled'] == True:
     logging.debug("Redis support enabled")
     import redis
     redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
-
+    try:
+        redis_store.incr('restart_count')
+        if yaml_config['redis']['clear_stats_on_boot'] == True:
+            logging.debug("Clearing all Redis keys")
+            redis_store.flushall()
+        else:
+            logging.debug("Leaving prexisting Redis keys")
+        logging.info("Connected to Redis server")
+    except:
+        logging.error("Failed to connect to Redis server - Disabling")
+        yaml_config['redis']['enabled'] == False
+        
 #function for handling incrimenting Redis counters with error handling
 def RedisIncrimenter(name):
     if yaml_config['redis']['enabled'] == True:
