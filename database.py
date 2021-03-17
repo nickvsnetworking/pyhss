@@ -215,8 +215,10 @@ class MSSQL:
 
             DBLogger.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
             return subscriber_details
-        except:
+        except Exception as e:
             logtool.RedisIncrimenter('AIR_general')
+            DBLogger.error("General MSSQL Error")
+            DBLogger.error(e)
             raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
             
 
