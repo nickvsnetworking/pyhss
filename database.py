@@ -276,15 +276,13 @@ class MSSQL:
 
             #If optional origin_host kwag present, store UE location (Serving MME) in Database
             if 'origin_host' in kwargs:
-                DBLogger.debug("origin_host present - Updating MME Identity of subscriber")
-                DBLogger.debug("Getting Origin-Host")
+                DBLogger.debug("origin_host present - Updating MME Identity of subscriber in MSSQL")
                 origin_host = kwargs.get('origin_host', None)
-                DBLogger.debug("Origin Host: " + str(origin_host))
+                DBLogger.debug("Origin to write to DB is " + str(origin_host))
 
                 if len(origin_host) != 0:
                     try:
-                        DBLogger.debug("Updating MME Identity using SP hss_update_mme_identity")
-                        DBLogger.debug("Writing serving MME to database")
+                        DBLogger.debug("origin-host valid - Writing back to DB")
                         sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
                         DBLogger.debug(sql)
                         self.conn.execute_query(sql)
@@ -353,11 +351,12 @@ def GetSubscriberInfo(imsi):
 
 def UpdateSubscriber(imsi, sqn, rand, *args, **kwargs):
     if 'origin_host' in kwargs:
-        DBLogger.debug("origin_host present - Updating MME Identity of subscriber")
-        DBLogger.debug("Getting Origin-Host")
+        DBLogger.debug("UpdateSubscriber called with origin_host present")
         origin_host = kwargs.get('origin_host', None)
         DBLogger.debug("Origin Host: " + str(origin_host))
-    return DB.UpdateSubscriber(imsi, sqn, rand)
+        return DB.UpdateSubscriber(imsi, sqn, rand, origin_host=str(origin_host))
+    else:
+        return DB.UpdateSubscriber(imsi, sqn, rand)
 
 def GetSubscriberLocation(imsi, input):
     #Input can be either MSISDN or IMSI
