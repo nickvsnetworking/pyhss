@@ -57,6 +57,14 @@ We can use Monit to ensure the PyHSS service restarts if it stops running.
 You can install Monit using your standard package manager, config is explained in the Monit docs, but an example following on from the service we saw before would be a ``monitrc`` file that contains:
 
 ```
+#Enable Web Service
+ set httpd port 2812 and
+     use address localhost  # only accept connection from localhost (drop if you use M/Monit)
+     allow localhost        # allow localhost to connect to the server and
+     allow admin:monit      # require user 'admin' with password 'monit'
+
+
+
 check process pyhss with pidfile /var/run/pyhss.pid
    start = "/usr/bin/pyhss start"
    stop = "/usr/bin/pyhss stop"
