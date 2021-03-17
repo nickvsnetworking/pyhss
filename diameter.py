@@ -261,7 +261,11 @@ class Diameter:
                     avp_vars['misc_data'].append(sub_avp_vars)
               
         except Exception as e:
-            if str(e) == "Length of data is too short to be valid AVP":
+            if str(e) == "invalid literal for int() with base 16: ''":
+                logging.debug("AVP length 0 error")
+                pass
+            elif str(e) == "Length of data is too short to be valid AVP":
+                logging.debug("AVP length 0 error v2")
                 pass
             else:
                 DiameterLogger.debug("failed to decode sub-avp - error: " + str(e))
