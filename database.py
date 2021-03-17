@@ -134,21 +134,15 @@ class MSSQL:
             sql = "hss_imsi_known_check @imsi=" + str(imsi)
             DBLogger.debug(sql)
             self.conn.execute_query(sql)
-        except Exception as e:
-            DBLogger.error("failed to run " + str(sql))
-            DBLogger.error(e)
-            raise Exception("Failed to query MSSQL server with query: " + str(sql))
-            logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
-
-        #Parse results
-        try:
-            logging.debug("returned row is: " + str([ row for row in self.conn ]))
+            DBLogger.debug("Ran hss_imsi_known_check OK - Checking results")
             result = [ row for row in self.conn ][0]
             DBLogger.debug("\nResult of hss_imsi_known_check: " + str(result))
         except Exception as e:
-            logtool.RedisIncrimenter('AIR_general')
+            DBLogger.error("failed to run " + str(sql))
             DBLogger.error(e)
-            raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi)) 
+            logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
+            raise Exception("Failed to query MSSQL server with query: " + str(sql))
+
         try:
             #known_imsi: IMSI attached with sim returns 1 else returns 0
             if str(result['known_imsi']) != '1':

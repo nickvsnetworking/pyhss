@@ -2,7 +2,7 @@
 hss:
   transport: "TCP"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
-  bind_ip: ["127.0.0.224"]
+  bind_ip: ["127.0.0.135"]
 
   #Port to listen on (Same for TCP & SCTP)
   bind_port: 3868
@@ -42,10 +42,10 @@ database:
   #   mongodb_password: password
   #   mongodb_port: 27017
   mssql:
-     server: 127.0.0.1
-     username: sa
-     password: thisisthepasswordforMSSQL99#!
-     database: 'hlr'
+    server: 10.22.7.20
+    Database: hlrdb_20210210
+    Login: appuser
+    Password: LON$#%2021
   # mysql:
   #   server: 127.0.0.1
   #   username: newuser

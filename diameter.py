@@ -319,7 +319,6 @@ class Diameter:
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
         logtool.RedisIncrimenter('Answer_257_attempt_count')
-
         DiameterLogger.debug("packet_vars for CEA is " + str(packet_vars))
         DiameterLogger.debug("avps for CEA is " + str(avps))
         avp = ''                                                                                    #Initiate empty var AVP 
@@ -345,7 +344,7 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
         logtool.RedisIncrimenter('Answer_257_success_count')
-        
+        DiameterLogger.debug("Sucesfully Generated CEA")
         return response
 
     #Device Watchdog Answer
@@ -360,6 +359,7 @@ class Diameter:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_280_success_count')
+        DiameterLogger.debug("Sucesfully Generated DWA")
         return response
 
 
@@ -372,6 +372,7 @@ class Diameter:
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_282_success_count')
+        DiameterLogger.debug("Sucesfully Generated DPA")
         return response
 
 

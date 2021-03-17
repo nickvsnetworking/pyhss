@@ -7,7 +7,7 @@ recv_ip = "127.0.0.31"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
 
-hostname = "127.0.0.224"
+hostname = "127.0.0.135"
 
 realm = "mnc001.mcc001.3gppnetwork.org"
 
