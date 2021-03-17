@@ -425,7 +425,7 @@ class Answer_16777252_324_attempt_count(MibScalarInstance):
 
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
-AIR_hss_imsi_known_check_SQL_Fail((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
+            AIR_hss_imsi_known_check_SQL_Fail((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
         AIR_hss_imsi_known_check_IMSI_unattached_w_SIM((1, 3, 6, 1, 2, 1, 1, 1), (2, 0, 0, 0), v2c.Integer32()),
         AIR_hss_imsi_known_check_IMSI_Blocked((1, 3, 6, 1, 2, 1, 1, 1), (3, 0, 0, 0), v2c.Integer32()),
         AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked((1, 3, 6, 1, 2, 1, 1, 1), (4, 0, 0, 0), v2c.Integer32()),
@@ -434,7 +434,7 @@ AIR_hss_imsi_known_check_SQL_Fail((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.In
         generate_vendor_avp((1, 3, 6, 1, 2, 1, 1, 1), (7, 0, 0, 0), v2c.Integer32()),
         diameter_packet_count((1, 3, 6, 1, 2, 1, 1, 1), (8, 0, 0, 0), v2c.Integer32()),
         diameter_packet_decode_count((1, 3, 6, 1, 2, 1, 1, 1), (9, 0, 0, 0), v2c.Integer32()),
-        diameter_decode_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
+        diameter_decode_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (10, 0, 0, 0), v2c.Integer32()),
         Answer_257_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 257, 0), v2c.Integer32()),
         Answer_257_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 257, 1), v2c.Integer32()),
         Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 280, 0), v2c.Integer32()),
@@ -444,8 +444,8 @@ AIR_hss_imsi_known_check_SQL_Fail((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.In
         Answer_16777251_316_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 316, 0), v2c.Integer32()),
         Answer_16777251_316_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 316, 1), v2c.Integer32()),
         Answer_16777251_318_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 318, 0), v2c.Integer32()),
-        S6a_user_unknown_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
-        S6a_resync_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
+        S6a_user_unknown_count((1, 3, 6, 1, 2, 1, 1, 1), (11, 0, 0, 0), v2c.Integer32()),
+        S6a_resync_count((1, 3, 6, 1, 2, 1, 1, 1), (12, 0, 0, 0), v2c.Integer32()),
         Answer_16777251_318_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 318, 1), v2c.Integer32()),
         Answer_16777251_321_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 321, 0), v2c.Integer32()),
         Answer_16777251_321_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 321, 1), v2c.Integer32()),
