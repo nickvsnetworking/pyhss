@@ -138,6 +138,7 @@ class MSSQL:
             DBLogger.error("failed to run " + str(sql))
             DBLogger.error(e)
             raise Exception("Failed to query MSSQL server with query: " + str(sql))
+            logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
 
         #Parse results
         try:
@@ -146,10 +147,12 @@ class MSSQL:
 
             #known_imsi: IMSI attached with sim returns 1 else returns 0
             if str(result['known_imsi']) != '1':
+                logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_unattached_w_SIM')
                 raise ValueError("MSSQL reports IMSI " + str(imsi) + " not attached with SIM")
 
             #subscriber_status: -1 –Blocked or 0-Active
             if str(result['subscriber_status']) != '0':
+                logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_Blocked')
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
 
             apn_id = result['apn_configuration']
@@ -164,6 +167,7 @@ class MSSQL:
             DBLogger.debug("\nResult of hss_get_subscriber_data_v2_v2: " + str(result))
             #subscriber_status: -1 –Blocked or 0-Active (Again)
             if str(result['subscriber_status']) != '0':
+                logtool.RedisIncrimenter('AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked')
                 raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
             
             #Get data output and put it into structure PyHSS uses
@@ -212,8 +216,9 @@ class MSSQL:
             DBLogger.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
             return subscriber_details
         except:
+            logtool.RedisIncrimenter('AIR_general')
             raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
-    
+            
 
 
     def GetSubscriberLocation(self, *args, **kwargs):

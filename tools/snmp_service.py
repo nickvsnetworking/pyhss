@@ -72,6 +72,51 @@ class AnotherStaticMibScalarInstance(MibScalarInstance):
         return self.getSyntax().clone('Ahoy hoy?')
 
 ###OID 1.0.0.0
+class AIR_hss_imsi_known_check_SQL_Fail(MibScalarInstance):
+    def getValue(self, name, idx):
+        try:
+            return self.getSyntax().clone(redis_store.get('AIR_hss_imsi_known_check_SQL_Fail'))
+        except:
+            return self.getSyntax().clone(0)
+    
+
+###OID 2.0.0.0
+class AIR_hss_imsi_known_check_IMSI_unattached_w_SIM(MibScalarInstance):
+    def getValue(self, name, idx):
+        try:
+            return self.getSyntax().clone(redis_store.get('AIR_hss_imsi_known_check_IMSI_unattached_w_SIM'))
+        except:
+            return self.getSyntax().clone(0)
+    
+
+###OID 3.0.0.0
+class AIR_hss_imsi_known_check_IMSI_Blocked(MibScalarInstance):
+    def getValue(self, name, idx):
+        try:
+            return self.getSyntax().clone(redis_store.get('AIR_hss_imsi_known_check_IMSI_Blocked'))
+        except:
+            return self.getSyntax().clone(0)
+    
+
+###OID 4.0.0.0
+class AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked(MibScalarInstance):
+    def getValue(self, name, idx):
+        try:
+            return self.getSyntax().clone(redis_store.get('AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked'))
+        except:
+            return self.getSyntax().clone(0)
+    
+
+###OID 5.0.0.0
+class AIR_general(MibScalarInstance):
+    def getValue(self, name, idx):
+        try:
+            return self.getSyntax().clone(redis_store.get('AIR_general'))
+        except:
+            return self.getSyntax().clone(0)
+    
+
+###OID 6.0.0.0
 class generate_avp_count(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -80,7 +125,7 @@ class generate_avp_count(MibScalarInstance):
             return self.getSyntax().clone(0)
     
 
-###OID 2.0.0.0
+###OID 7.0.0.0
 class generate_vendor_avp(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -89,7 +134,7 @@ class generate_vendor_avp(MibScalarInstance):
             return self.getSyntax().clone(0)
     
 
-###OID 3.0.0.0
+###OID 8.0.0.0
 class diameter_packet_count(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -98,7 +143,7 @@ class diameter_packet_count(MibScalarInstance):
             return self.getSyntax().clone(0)
     
 
-###OID 4.0.0.0
+###OID 9.0.0.0
 class diameter_packet_decode_count(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -107,7 +152,7 @@ class diameter_packet_decode_count(MibScalarInstance):
             return self.getSyntax().clone(0)
     
 
-###OID 5.0.0.0
+###OID 10.0.0.0
 class diameter_decode_avp_count(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -197,7 +242,7 @@ class Answer_16777251_318_attempt_count(MibScalarInstance):
             return self.getSyntax().clone(0)
     
 
-###OID 6.0.0.0
+###OID 11.0.0.0
 class S6a_user_unknown_count(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -206,7 +251,7 @@ class S6a_user_unknown_count(MibScalarInstance):
             return self.getSyntax().clone(0)
     
 
-###OID 7.0.0.0
+###OID 12.0.0.0
 class S6a_resync_count(MibScalarInstance):
     def getValue(self, name, idx):
         try:
@@ -380,11 +425,16 @@ class Answer_16777252_324_attempt_count(MibScalarInstance):
 
 mibBuilder.exportSymbols(
     '__MY_MIB', MibScalar((1, 3, 6, 1, 2, 1, 1, 1), v2c.OctetString()),
-        generate_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
-        generate_vendor_avp((1, 3, 6, 1, 2, 1, 1, 1), (2, 0, 0, 0), v2c.Integer32()),
-        diameter_packet_count((1, 3, 6, 1, 2, 1, 1, 1), (3, 0, 0, 0), v2c.Integer32()),
-        diameter_packet_decode_count((1, 3, 6, 1, 2, 1, 1, 1), (4, 0, 0, 0), v2c.Integer32()),
-        diameter_decode_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (5, 0, 0, 0), v2c.Integer32()),
+AIR_hss_imsi_known_check_SQL_Fail((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
+        AIR_hss_imsi_known_check_IMSI_unattached_w_SIM((1, 3, 6, 1, 2, 1, 1, 1), (2, 0, 0, 0), v2c.Integer32()),
+        AIR_hss_imsi_known_check_IMSI_Blocked((1, 3, 6, 1, 2, 1, 1, 1), (3, 0, 0, 0), v2c.Integer32()),
+        AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked((1, 3, 6, 1, 2, 1, 1, 1), (4, 0, 0, 0), v2c.Integer32()),
+        AIR_general((1, 3, 6, 1, 2, 1, 1, 1), (5, 0, 0, 0), v2c.Integer32()),
+        generate_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (6, 0, 0, 0), v2c.Integer32()),
+        generate_vendor_avp((1, 3, 6, 1, 2, 1, 1, 1), (7, 0, 0, 0), v2c.Integer32()),
+        diameter_packet_count((1, 3, 6, 1, 2, 1, 1, 1), (8, 0, 0, 0), v2c.Integer32()),
+        diameter_packet_decode_count((1, 3, 6, 1, 2, 1, 1, 1), (9, 0, 0, 0), v2c.Integer32()),
+        diameter_decode_avp_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
         Answer_257_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 257, 0), v2c.Integer32()),
         Answer_257_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 257, 1), v2c.Integer32()),
         Answer_280_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 0, 280, 0), v2c.Integer32()),
@@ -394,8 +444,8 @@ mibBuilder.exportSymbols(
         Answer_16777251_316_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 316, 0), v2c.Integer32()),
         Answer_16777251_316_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 316, 1), v2c.Integer32()),
         Answer_16777251_318_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 318, 0), v2c.Integer32()),
-        S6a_user_unknown_count((1, 3, 6, 1, 2, 1, 1, 1), (6, 0, 0, 0), v2c.Integer32()),
-        S6a_resync_count((1, 3, 6, 1, 2, 1, 1, 1), (7, 0, 0, 0), v2c.Integer32()),
+        S6a_user_unknown_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
+        S6a_resync_count((1, 3, 6, 1, 2, 1, 1, 1), (1, 0, 0, 0), v2c.Integer32()),
         Answer_16777251_318_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 318, 1), v2c.Integer32()),
         Answer_16777251_321_attempt_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 321, 0), v2c.Integer32()),
         Answer_16777251_321_success_count((1, 3, 6, 1, 2, 1, 1, 1), (0, 16777251, 321, 1), v2c.Integer32()),

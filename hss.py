@@ -28,11 +28,11 @@ from threading import Thread, Lock
 import sctp
 import traceback
 
-logging.info("Current config file values:")
+HSS_Logger.info("Current config file values:")
 for config_sections in yaml_config:
-    logging.info("\tConfig Section: " + str(config_sections))
+    HSS_Logger.info("\tConfig Section: " + str(config_sections))
     for lower_keys in yaml_config[config_sections]:
-        logging.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
+        HSS_Logger.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
 
 
 
