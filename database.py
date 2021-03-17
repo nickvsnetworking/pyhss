@@ -351,7 +351,12 @@ else:
 def GetSubscriberInfo(imsi):
     return DB.GetSubscriberInfo(imsi)
 
-def UpdateSubscriber(imsi, sqn, rand):
+def UpdateSubscriber(imsi, sqn, rand, *args, **kwargs):
+    if 'origin_host' in kwargs:
+        DBLogger.debug("origin_host present - Updating MME Identity of subscriber")
+        DBLogger.debug("Getting Origin-Host")
+        origin_host = kwargs.get('origin_host', None)
+        DBLogger.debug("Origin Host: " + str(origin_host))
     return DB.UpdateSubscriber(imsi, sqn, rand)
 
 def GetSubscriberLocation(imsi, input):

@@ -565,6 +565,22 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_316_success_count')
+
+        #Write back current MME location to Database
+        if yaml_config['hss']['SLh_enabled'] == True:
+            DiameterLogger.debug("SLh Enabled - Must log location")
+            try:
+                orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
+                orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
+                DiameterLogger.debug("Recieved originHost is " + str(orignHost))
+                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host=str(orignHost))
+                #database.UpdateSubscriber(imsi, subscriber_details['SQN'], '')
+            except:
+                DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
+                
+            
+
+
         DiameterLogger.debug("Sucesfully Generated ULA")
         return response
 
@@ -664,13 +680,16 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
         logtool.RedisIncrimenter('Answer_16777251_318_success_count')
-        
+
         return response
 
     #Purge UE Answer (PUR)
     def Answer_16777251_321(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777251_321_attempt_count')
         
+        imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')
+
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -692,6 +711,18 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_321_success_count')
         
+
+        #Write back current MME location to Database
+        if yaml_config['hss']['SLh_enabled'] == True:
+            try:
+                DiameterLogger.debug("SLh Enabled - Clearing Location for Subscriber")
+                subscriber_details = database.GetSubscriberInfo(imsi)
+                DiameterLogger.debug("Setting origin_host to null")
+                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host='')
+                DiameterLogger.debug("originHost cleared for imsi " + str(imsi))
+            except:
+                DiameterLogger.error("failed to clear subscriber location for IMSI " + str(imsi))
+
         return response
 
     #Notify Answer (NOA)
