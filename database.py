@@ -286,20 +286,23 @@ class MSSQL:
                         sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
                         DBLogger.debug(sql)
                         self.conn.execute_query(sql)
+                        DBLogger.debug("Sucesfully updated location for " + str(imsi))
                     except:
                         DBLogger.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
+                    
                 else:
                     try:
                         DBLogger.debug("Removing MME Identity as new MME Identity is empty")
                         sql = 'hss_delete_mme_identity @imsi=' + str(imsi) 
                         DBLogger.debug(sql)
                         self.conn.execute_query(sql)
+                        DBLogger.debug("Sucesfully cleared location for " + str(imsi))
                     except:
                         DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
             else:
                 DBLogger.debug("origin_host not present - not updating UE location in database")
         except:
-            raise ValueError("MSSQL failed to update SQN for IMSI " + str(imsi))   
+            raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
             
 class MySQL:
