@@ -9,14 +9,15 @@ with open("config.yaml", 'r') as stream:
 if yaml_config['redis']['enabled'] == True:
     logging.debug("Redis support enabled")
     import redis
+    redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
 
 #function for handling incrimenting Redis counters with error handling
-def RedisIncrimenter(self, name):
+def RedisIncrimenter(name):
     if yaml_config['redis']['enabled'] == True:
         try:
-            self.redis_store.incr(name)
+            redis_store.incr(name)
         except:
-            DiameterLogger.error("failed to incriment " + str(name))
+            logging.error("failed to incriment " + str(name))
 
 
 def setup_logger(logger_name, log_file, level=logging.DEBUG):

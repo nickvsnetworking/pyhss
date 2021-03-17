@@ -130,15 +130,6 @@ class Diameter:
                 DiameterLogger.error("Failed to connect to Redis server - Disabling")
                 yaml_config['redis']['enabled'] == False
 
-    #function for handling incrimenting Redis counters with error handling
-    def RedisIncrimenter(self, name):
-        if yaml_config['redis']['enabled'] == True:
-            try:
-                self.redis_store.incr(name)
-            except:
-                DiameterLogger.error("failed to incriment " + str(name))
-
-
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
     def generate_avp(self, avp_code, avp_flags, avp_content):
@@ -588,6 +579,13 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_316_success_count')
+        
+        #Write back current MME location to Database
+        if yaml_config['hss']['SLh_enabled'] == True:
+            DiameterLogger.debug("SLh Enabled - Must log location")
+            MME_FQDN = self.get_avp_data(avps, 264)
+            database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host='')
+
         DiameterLogger.debug("Sucesfully Generated ULA")
         return response
 
