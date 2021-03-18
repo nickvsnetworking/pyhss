@@ -25,8 +25,6 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     
-    CryptoLogger.debug("Input OPc is type " + str(type(op_c)) + " and value: " )
-    CryptoLogger.debug(op_c)
     op_c = op_c.encode('utf-8')
     CryptoLogger.debug("Input OPc:  " + str(op_c))
     op_c = binascii.unhexlify(op_c)
@@ -49,7 +47,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Instantiated crypto object")
     CryptoLogger.debug("Running crypto.generate_eutran_vector")
     (rand, xres, autn, kasme) = crypto.generate_eutran_vector(key, op_c, sqn, plmn)
-    CryptoLogger.debug("Ran crypto.generate_eutran_vector")
+    CryptoLogger.debug("Sucesfully ran crypto.generate_eutran_vector")
     rand = binascii.hexlify(rand).decode('utf-8')
 
     CryptoLogger.debug("output rand: " + str(rand))
