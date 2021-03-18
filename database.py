@@ -135,8 +135,13 @@ class MSSQL:
             DBLogger.debug(sql)
             self.conn.execute_query(sql)
             DBLogger.debug("Ran hss_imsi_known_check OK - Checking results")
-            result = [ row for row in self.conn ][0]
-            DBLogger.debug("\nResult of hss_imsi_known_check: " + str(result))
+            DBLogger.debug("Parsing results to var")
+            result = [ row for row in self.conn ]
+            DBLogger.debug("Result total is " + str(result))
+            DBLogger.debug("Getting first entry in result")
+            result = result[0]
+            DBLogger.debug("printing final result:")
+            DBLogger.debug(str(result))
         except Exception as e:
             DBLogger.error("failed to run " + str(sql))
             DBLogger.error(e)
