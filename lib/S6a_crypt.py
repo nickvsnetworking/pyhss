@@ -35,6 +35,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Input AMF: " + str(amf))
     
     sqn = int(sqn)
+    CryptoLogger.debug("Input SQN: " + str(sqn))
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
