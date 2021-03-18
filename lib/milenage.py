@@ -13,6 +13,14 @@ from Crypto.Random import random
 
 from lte import BaseLTEAuthAlgo
 
+import logging
+import logtool
+import os
+import sys
+sys.path.append(os.path.realpath('../'))
+
+CryptoLogger = logging.getLogger('CryptoLogger')
+
 
 class Milenage(BaseLTEAuthAlgo):
     """
@@ -37,16 +45,36 @@ class Milenage(BaseLTEAuthAlgo):
             autn (bytes): 128 bit authentication token
             kasme (bytes): 256 bit base network authentication code
         """
+        CryptoLogger.debug("Called milenage.generate_eutran_vector")
+
+        CryptoLogger.debug("Generating SQN bytes")
         sqn_bytes = bytearray.fromhex('{:012x}'.format(sqn))
+        CryptoLogger.debug("Generated SQN bytes")
+
+        CryptoLogger.debug("Generating rand")
         rand = Milenage.generate_rand()
+        CryptoLogger.debug("Generated rand")
 
+        CryptoLogger.debug("Generating f1")
         mac_a, _ = Milenage.f1(key, sqn_bytes, rand, opc, self.amf)
+        CryptoLogger.debug("Generated f1")
+        CryptoLogger.debug("Generating f2")
         xres, ak = Milenage.f2_f5(key, rand, opc)
+        CryptoLogger.debug("Generated f2")
+        CryptoLogger.debug("Generating f3")
         ck = Milenage.f3(key, rand, opc)
+        CryptoLogger.debug("Generated f3")
+        CryptoLogger.debug("Generating f4")
         ik = Milenage.f4(key, rand, opc)
+        CryptoLogger.debug("Generated f4")
 
+        CryptoLogger.debug("Generate generate_autn")
         autn = Milenage.generate_autn(sqn_bytes, ak, mac_a, self.amf)
+        CryptoLogger.debug("Generated generate_autn")
+        CryptoLogger.debug("Generate generate_kasme")
         kasme = Milenage.generate_kasme(ck, ik, plmn, sqn_bytes, ak)
+        CryptoLogger.debug("Generated generate_kasme")
+        CryptoLogger.debug("Sucesfully ran milenage.generate_eutran_vector")
         return rand, xres, autn, kasme
 
 
