@@ -637,17 +637,19 @@ class Diameter:
         opc = subscriber_details['OPc']                                                             #Format keys
         amf = subscriber_details['AMF']                                                             #Format keys
         sqn = subscriber_details['SQN']                                                             #Format keys
-        
+        DiameterLogger.debug("Formatted crypto keys")
+
         for avp in avps:
             if avp['avp_code'] == 1408:
                 DiameterLogger.debug("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
                 EUTRAN_Authentication_Info = avp['misc_data']
+                DiameterLogger.debug("EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info))
                 for sub_avp in EUTRAN_Authentication_Info:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
+                        DiameterLogger.debug("Re-Synchronization required - SQN is out of sync")
                         logtool.RedisIncrimenter('S6a_resync_count')
                         sqn_origional = sqn
-                        DiameterLogger.debug("Re-Synchronization required - SQN is out of sync")
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
                         #rand = subscriber_details['RAND']
