@@ -112,12 +112,16 @@ class MongoDB:
 
 
 class MSSQL:
-    import _mssql
+    from os import getenv
+    import pymssql
     def __init__(self):
         DBLogger.info("Configured to use MS-SQL server: " + str(yaml_config['database']['mssql']['server']))
         self.server = yaml_config['database']['mssql']
         try:
-            self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
+            self.conn = self.pymssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
+            #self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
+            DBLogger.info("Conneciton made - Starting cursor")
+            self.cursor = self.conn.cursor()
             DBLogger.info("Connected to MSSQL Server")
         except:
             #If failed to connect to server
@@ -192,6 +196,7 @@ class MSSQL:
 
             #Convert OP to OPc
             subscriber_details['OP'] = result['op_key']
+            DBLogger.debug("Generating OPc with input K: " + str(subscriber_details['K']) + " and OP: " + str(subscriber_details['OP']))
             subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
             subscriber_details.pop('OP', None)
 
@@ -200,18 +205,20 @@ class MSSQL:
             sql = 'hss_get_apn_info @apn_profileId=' + str(apn_id)
             DBLogger.debug(sql)
             self.conn.execute_query(sql)
+            DBLogger.debug("Ran query")
             subscriber_details['pdn'] = []
-            DBLogger.debug("Datbase returned " + str(len(self.conn)) + " results")
-            for result in self.conn:
-                DBLogger.debug("\nResult of hss_get_apn_info: " + str(result))
-                subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
+            DBLogger.debug("Parsing results to var")
+            result = [ row for row in self.conn ][0]
+            DBLogger.debug("Got results")
+            DBLogger.debug("Results are: " + str(result))
+            apn = {'apn': str(result['Service_Selection']),\
                     'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
                     'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
                     'ambr' : {'apn_ambr_ul' : int(result['MAX_REQUESTED_BANDWIDTH_UL']), 'apn_ambr_Dl' : int(result['MAX_REQUESTED_BANDWIDTH_DL'])},
                     'PDN_GW_Allocation_Type' : int(result['PDN_GW_Allocation_Type']),
                     'VPLMN_Dynamic_Address_Allowed' : int(result['VPLMN_Dynamic_Address_Allowed']),
-                    'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}})
-
+                    'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}}
+            subscriber_details['pdn'].append(apn)
 
             DBLogger.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
             return subscriber_details
