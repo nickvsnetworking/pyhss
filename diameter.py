@@ -665,14 +665,14 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
         DiameterLogger.debug("SQN used in vector: " + str(sqn))
         try:
+            DiameterLogger.debug("Inputted K   " + str(key))
+            DiameterLogger.debug("Inputted OPc " + str(opc))
+            DiameterLogger.debug("Inputted AMF " + str(amf))
+            DiameterLogger.debug("Inputted SQN " + str(sqn))
+            DiameterLogger.debug("Inputted PLMN " + str(plmn))
             rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
         except Exception as e:
             DiameterLogger.error("Error generating EUTRAN vector")
-            DiameterLogger.error("Inputted K   " + str(key))
-            DiameterLogger.error("Inputted OPc " + str(opc))
-            DiameterLogger.error("Inputted AMF " + str(amf))
-            DiameterLogger.error("Inputted SQN " + str(sqn))
-            DiameterLogger.error("Inputted PLMN " + str(plmn))
             DiameterLogger.error(e)
             raise
             sys.exit()
