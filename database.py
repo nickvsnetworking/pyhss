@@ -112,16 +112,12 @@ class MongoDB:
 
 
 class MSSQL:
-    from os import getenv
-    import pymssql
+    import _mssql
     def __init__(self):
         DBLogger.info("Configured to use MS-SQL server: " + str(yaml_config['database']['mssql']['server']))
         self.server = yaml_config['database']['mssql']
         try:
-            self.conn = self.pymssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
-            #self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
-            DBLogger.info("Conneciton made - Starting cursor")
-            self.cursor = self.conn.cursor()
+            self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
             DBLogger.info("Connected to MSSQL Server")
         except:
             #If failed to connect to server
