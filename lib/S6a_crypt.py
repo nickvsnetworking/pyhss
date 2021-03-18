@@ -4,13 +4,14 @@ import base64
 import logging
 import logtool
 import os
+import sys
 sys.path.append(os.path.realpath('../'))
 import yaml
 
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-logtool.setup_logger('CryptoLogger', 'crypto.log', level=yaml_config['logging']['level'])
+logtool.setup_logger('CryptoLogger', 'log/crypto.log', level=yaml_config['logging']['level'])
 CryptoLogger = logging.getLogger('CryptoLogger')
 
 CryptoLogger.info("Initialised Diameter Logger, importing database")
@@ -56,7 +57,11 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("output autn: " + str(autn))
     kasme = binascii.hexlify(kasme).decode('utf-8')
     CryptoLogger.debug("output kasme: " + str(kasme))
-
+    CryptoLogger.debug("Generated EUTRAN vectors")
+    CryptoLogger.debug("Generated  RAND: " + str(rand))
+    CryptoLogger.debug("Generated  XRES: " + str(xres))
+    CryptoLogger.debug("Generated  AUTN: " + str(autn))
+    CryptoLogger.debug("Generated KASME: " + str(kasme))
     return (rand, xres, autn, kasme)
  
 
@@ -125,6 +130,9 @@ def generate_resync_s6a(key, op_c, amf, auts, rand):
     crypto_obj = Milenage(amf)
     sqn_ms_int, mac_s = crypto_obj.generate_resync(auts, key, op_c, rand)
     CryptoLogger.debug("SQN should be: " + str(sqn_ms_int))
+    CryptoLogger.debug("Sucesfully generated resync")
+    CryptoLogger.debug("Generated  sqn_ms_int: " + str(sqn_ms_int))
+    CryptoLogger.debug("Generated  mac_s: " + str(mac_s))    
     return(sqn_ms_int, mac_s)
 
 def generate_opc(key, op):
