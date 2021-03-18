@@ -585,6 +585,7 @@ class Diameter:
 
 
         DiameterLogger.debug("Sucesfully Generated ULA")
+        DiameterLogger.debug(response)
         return response
 
 
@@ -663,7 +664,13 @@ class Diameter:
 
         plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
         DiameterLogger.debug("SQN used in vector: " + str(sqn))
-        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
+        try:
+            rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
+        except Exception as e:
+            DiameterLogger.error("Error generating EUTRAN vector")
+            DiameterLogger.error(e)
+            raise
+            sys.exit()
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
         eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
@@ -671,7 +678,7 @@ class Diameter:
         eutranvector += self.generate_vendor_avp(1450, "c0", 10415, kasme)                               #And KASME
 
         eutranvector = self.generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
-        
+        DiameterLogger.debug("Crypto done")
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -686,6 +693,7 @@ class Diameter:
         database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
         logtool.RedisIncrimenter('Answer_16777251_318_success_count')
         DiameterLogger.debug("Sucesfully Generated AIA")
+        DiameterLogger.debug(response)
         return response
 
     #Purge UE Answer (PUA)
