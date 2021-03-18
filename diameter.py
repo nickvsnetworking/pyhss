@@ -668,6 +668,11 @@ class Diameter:
             rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
         except Exception as e:
             DiameterLogger.error("Error generating EUTRAN vector")
+            DiameterLogger.error("Inputted K   " + str(key))
+            DiameterLogger.error("Inputted OPc " + str(opc))
+            DiameterLogger.error("Inputted AMF " + str(amf))
+            DiameterLogger.error("Inputted SQN " + str(sqn))
+            DiameterLogger.error("Inputted PLMN " + str(plmn))
             DiameterLogger.error(e)
             raise
             sys.exit()
