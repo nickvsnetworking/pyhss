@@ -319,7 +319,6 @@ class Diameter:
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
         logtool.RedisIncrimenter('Answer_257_attempt_count')
-        DiameterLogger.debug("packet_vars for CEA is " + str(packet_vars))
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
         DiameterLogger.debug("OriginHost is " + str(self.OriginHost))
