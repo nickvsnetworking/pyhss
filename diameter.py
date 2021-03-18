@@ -673,8 +673,7 @@ class Diameter:
         except Exception as e:
             DiameterLogger.error("Error generating EUTRAN vector")
             DiameterLogger.error(e)
-            raise
-            sys.exit()
+            raise ValueError("Failed to generate EUTRAN vector")
         eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
         eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
         eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes

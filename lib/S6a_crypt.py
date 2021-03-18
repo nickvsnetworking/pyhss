@@ -62,6 +62,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Generated  XRES: " + str(xres))
     CryptoLogger.debug("Generated  AUTN: " + str(autn))
     CryptoLogger.debug("Generated KASME: " + str(kasme))
+    CryptoLogger.debug("Sucesfully an S6a_crypt.generate_eutran_vector")
     return (rand, xres, autn, kasme)
  
 
