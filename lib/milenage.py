@@ -48,9 +48,10 @@ class Milenage(BaseLTEAuthAlgo):
         CryptoLogger.debug("Called milenage.generate_eutran_vector")
 
         CryptoLogger.debug("Generating SQN bytes")
-        CryptoLogger.debug("Current SQN value is " + str(sqn))
+        CryptoLogger.debug("Current SQN value is " + str(sqn) + " and is " + str(len(sqn)) + " long")
         sqn_bytes = bytearray.fromhex('{:012x}'.format(sqn))
         CryptoLogger.debug("Generated SQN bytes")
+        CryptoLogger.debug("SQN bytes is " + str(sqn_bytes))
 
         CryptoLogger.debug("Generating rand")
         rand = Milenage.generate_rand()
