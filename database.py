@@ -201,6 +201,7 @@ class MSSQL:
             DBLogger.debug(sql)
             self.conn.execute_query(sql)
             subscriber_details['pdn'] = []
+            DBLogger.debug("Datbase returned " + str(len(self.conn)) + " results")
             for result in self.conn:
                 DBLogger.debug("\nResult of hss_get_apn_info: " + str(result))
                 subscriber_details['pdn'].append({'apn': str(result['Service_Selection']),\
