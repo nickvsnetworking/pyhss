@@ -46,8 +46,10 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
 
     crypto = Milenage(amf)
 
+    CryptoLogger.debug("Instantiated crypto object")
+    CryptoLogger.debug("Running crypto.generate_eutran_vector")
     (rand, xres, autn, kasme) = crypto.generate_eutran_vector(key, op_c, sqn, plmn)
-
+    CryptoLogger.debug("Ran crypto.generate_eutran_vector")
     rand = binascii.hexlify(rand).decode('utf-8')
 
     CryptoLogger.debug("output rand: " + str(rand))
