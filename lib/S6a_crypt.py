@@ -2,33 +2,44 @@ from milenage import Milenage
 import binascii
 import base64
 import logging
+import logtool
+import os
+sys.path.append(os.path.realpath('../'))
+import yaml
 
+with open("config.yaml", 'r') as stream:
+    yaml_config = (yaml.safe_load(stream))
+
+logtool.setup_logger('CryptoLogger', 'crypto.log', level=yaml_config['logging']['level'])
+CryptoLogger = logging.getLogger('CryptoLogger')
+
+CryptoLogger.info("Initialised Diameter Logger, importing database")
 
 #The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
 
 def generate_eutran_vector(key, op_c, amf, sqn, plmn):
-    logging.debug("Generting EUTRAN Vectors")
+    CryptoLogger.debug("Generting EUTRAN Vectors")
 
     key = key.encode('utf-8')
-    logging.debug("Input K:  " + str(key))
+    CryptoLogger.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     
-    logging.debug("Input OPc is type " + str(type(op_c)) + " and value: " )
-    logging.debug(op_c)
+    CryptoLogger.debug("Input OPc is type " + str(type(op_c)) + " and value: " )
+    CryptoLogger.debug(op_c)
     op_c = op_c.encode('utf-8')
-    logging.debug("Input OPc:  " + str(op_c))
+    CryptoLogger.debug("Input OPc:  " + str(op_c))
     op_c = binascii.unhexlify(op_c)
     
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
-    logging.debug("Input AMF: " + str(amf))
+    CryptoLogger.debug("Input AMF: " + str(amf))
     
     sqn = int(sqn)
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
-    logging.debug("Input PLMN: " + str(plmn))
+    CryptoLogger.debug("Input PLMN: " + str(plmn))
     
 
 
@@ -38,36 +49,36 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
 
     rand = binascii.hexlify(rand).decode('utf-8')
 
-    logging.debug("output rand: " + str(rand))
+    CryptoLogger.debug("output rand: " + str(rand))
     xres = binascii.hexlify(xres).decode('utf-8')
-    logging.debug("output xres: " + str(xres))
+    CryptoLogger.debug("output xres: " + str(xres))
     autn = binascii.hexlify(autn).decode('utf-8')
-    logging.debug("output autn: " + str(autn))
+    CryptoLogger.debug("output autn: " + str(autn))
     kasme = binascii.hexlify(kasme).decode('utf-8')
-    logging.debug("output kasme: " + str(kasme))
+    CryptoLogger.debug("output kasme: " + str(kasme))
 
     return (rand, xres, autn, kasme)
  
 
 def generate_maa_vector(key, op_c, amf, sqn, plmn):
-    logging.debug("Generting Multimedia Authentication Vector")
+    CryptoLogger.debug("Generting Multimedia Authentication Vector")
     key = key.encode('utf-8')
-    logging.debug("Input K:  " + str(key))
+    CryptoLogger.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     op_c = op_c.encode('utf-8')
-    logging.debug("Input OPc:  " + str(op_c))
+    CryptoLogger.debug("Input OPc:  " + str(op_c))
     op_c = binascii.unhexlify(op_c)
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
-    logging.debug("Input AMF: " + str(amf))
+    CryptoLogger.debug("Input AMF: " + str(amf))
     sqn = int(sqn)
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
-    logging.debug("Input PLMN: " + plmn)
+    CryptoLogger.debug("Input PLMN: " + plmn)
 
-    logging.debug("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
+    CryptoLogger.debug("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
 
     crypto_obj = Milenage(amf)
 
@@ -90,35 +101,35 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
 
 
 def generate_resync_s6a(key, op_c, amf, auts, rand):
-    logging.debug("Generating correct SQN value from AUTS")
+    CryptoLogger.debug("Generating correct SQN value from AUTS")
 
     key = key.encode('utf-8')
-    logging.debug("Input K:  " + str(key))
+    CryptoLogger.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
     
     op_c = op_c.encode('utf-8')
     op_c = binascii.unhexlify(op_c)
 
     auts = auts.encode('utf-8')
-    logging.debug("Input AUTS: " + str(auts))
+    CryptoLogger.debug("Input AUTS: " + str(auts))
     auts = binascii.unhexlify(auts)
 
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
-    logging.debug("Input AMF: " + str(amf))
+    CryptoLogger.debug("Input AMF: " + str(amf))
 
     #print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
 
     #Generate Resync
     crypto_obj = Milenage(amf)
     sqn_ms_int, mac_s = crypto_obj.generate_resync(auts, key, op_c, rand)
-    logging.debug("SQN should be: " + str(sqn_ms_int))
+    CryptoLogger.debug("SQN should be: " + str(sqn_ms_int))
     return(sqn_ms_int, mac_s)
 
 def generate_opc(key, op):
     #Generating OPc key from OP & K
-    logging.debug("Generating OPc key from OP & K")
+    CryptoLogger.debug("Generating OPc key from OP & K")
     key = key.encode('utf-8')
     key = binascii.unhexlify(key)
     op = op.encode('utf-8')
