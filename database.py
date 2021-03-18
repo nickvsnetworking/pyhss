@@ -195,6 +195,7 @@ class MSSQL:
             DBLogger.debug("Generating OPc with input K: " + str(subscriber_details['K']) + " and OP: " + str(subscriber_details['OP']))
             subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
             subscriber_details.pop('OP', None)
+            DBLogger.debug("Generated OPc " + str(subscriber_details['OPc']))
 
 
             DBLogger.debug("Getting APN info")
