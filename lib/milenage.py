@@ -50,6 +50,8 @@ class Milenage(BaseLTEAuthAlgo):
         CryptoLogger.debug("Generating SQN bytes")
         CryptoLogger.debug("Current SQN value is " + str(sqn) + " and is " + str(len(str(sqn))) + " long")
         sqn_bytes = bytearray.fromhex('{:012x}'.format(sqn))
+        #With some inputs a space is added here.
+        #See https://stackoverflow.com/questions/57697983/how-do-i-interpret-spaces-in-python-byte-arrays
         CryptoLogger.debug("Generated SQN bytes")
         CryptoLogger.debug("SQN bytes is " + str(sqn_bytes))
 
@@ -320,10 +322,6 @@ class Milenage(BaseLTEAuthAlgo):
         Returns:
             (bytes) 128 random bits
         """
-        #Modified to confirm the result I'm getting is what I'm expecting by removing the random element...
-        #RAND 1764d7bc135c8f72cbb039bd58b66bbd
-        #return bytearray(b'\x17d\xd7\xbc\x13\\\x8fr\xcb\xb09\xbdX\xb6k\xbd')
-        #Origional below:
         return bytearray.fromhex('{:032x}'.format(random.getrandbits(128)))
 
     @classmethod
@@ -352,7 +350,10 @@ class Milenage(BaseLTEAuthAlgo):
         Returns:
             autn (bytes): 128 bit authentication token
         """
-        return xor(sqn, ak) + AMF + mac_a
+        CryptoLogger.debug("Attempting to xor(sqn, ak) where sqn is " + str(sqn) + " and AK is " + str(ak))
+        xor_ak = xor(sqn, ak)
+        CryptoLogger.debug("xor_ak output is " + str(xor_ak))
+        return xor_ak + AMF + mac_a
 
     @classmethod
     def KDF(cls, key, buf):
@@ -396,7 +397,8 @@ def xor(s1, s2):
         ValueError if s1 and s2 lengths don't match
     """
     if len(s1) != len(s2):
-        raise ValueError('Input not equal length: %d %d' % (len(s1), len(s2)))
+        CryptoLogger.error("XOR Error - S1 and S2 don't match - Probably that space issue")
+        #raise ValueError('Input not equal length, s1 is %d bytes and s2 is  %d bytes' % (len(s1), len(s2)))
     return bytes(a ^ b for a, b in zip(s1, s2))
 
 
