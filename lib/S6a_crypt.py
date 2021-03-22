@@ -48,7 +48,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Instantiated crypto object")
     CryptoLogger.debug("Running crypto.generate_eutran_vector")
     (rand, xres, autn, kasme) = crypto.generate_eutran_vector(key, op_c, sqn, plmn)
-    CryptoLogger.debug("Sucesfully ran crypto.generate_eutran_vector")
+    CryptoLogger.debug("Successfully ran crypto.generate_eutran_vector")
     rand = binascii.hexlify(rand).decode('utf-8')
 
     CryptoLogger.debug("output rand: " + str(rand))
@@ -63,7 +63,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Generated  XRES: " + str(xres))
     CryptoLogger.debug("Generated  AUTN: " + str(autn))
     CryptoLogger.debug("Generated KASME: " + str(kasme))
-    CryptoLogger.debug("Sucesfully an S6a_crypt.generate_eutran_vector")
+    CryptoLogger.debug("Successfully an S6a_crypt.generate_eutran_vector")
     return (rand, xres, autn, kasme)
  
 
@@ -132,7 +132,7 @@ def generate_resync_s6a(key, op_c, amf, auts, rand):
     crypto_obj = Milenage(amf)
     sqn_ms_int, mac_s = crypto_obj.generate_resync(auts, key, op_c, rand)
     CryptoLogger.debug("SQN should be: " + str(sqn_ms_int))
-    CryptoLogger.debug("Sucesfully generated resync")
+    CryptoLogger.debug("Successfully generated resync")
     CryptoLogger.debug("Generated  sqn_ms_int: " + str(sqn_ms_int))
     CryptoLogger.debug("Generated  mac_s: " + str(mac_s))    
     return(sqn_ms_int, mac_s)

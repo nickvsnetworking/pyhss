@@ -54,7 +54,7 @@ class MongoDB:
             DBLogger.debug("Failed to pull subscriber info")
             raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
 
-        #If query was completed sucesfully extract data
+        #If query was completed Successfully extract data
         for x in mydoc:
             DBLogger.debug("Got result from MongoDB")
             subscriber_details['K'] = x['security']['k'].replace(' ', '')
@@ -297,7 +297,7 @@ class MSSQL:
                         sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
                         DBLogger.debug(sql)
                         self.conn.execute_query(sql)
-                        DBLogger.debug("Sucesfully updated location for " + str(imsi))
+                        DBLogger.debug("Successfully updated location for " + str(imsi))
                     except:
                         DBLogger.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
                     
@@ -307,7 +307,7 @@ class MSSQL:
                         sql = 'hss_delete_mme_identity @imsi=' + str(imsi) 
                         DBLogger.debug(sql)
                         self.conn.execute_query(sql)
-                        DBLogger.debug("Sucesfully cleared location for " + str(imsi))
+                        DBLogger.debug("Successfully cleared location for " + str(imsi))
                     except:
                         DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
             else:

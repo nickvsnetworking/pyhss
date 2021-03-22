@@ -341,7 +341,7 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
         logtool.RedisIncrimenter('Answer_257_success_count')
-        DiameterLogger.debug("Sucesfully Generated CEA")
+        DiameterLogger.debug("Successfully Generated CEA")
         return response
 
     #Device Watchdog Answer
@@ -356,7 +356,7 @@ class Diameter:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_280_success_count')
-        DiameterLogger.debug("Sucesfully Generated DWA")
+        DiameterLogger.debug("Successfully Generated DWA")
         return response
 
 
@@ -369,7 +369,7 @@ class Diameter:
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_282_success_count')
-        DiameterLogger.debug("Sucesfully Generated DPA")
+        DiameterLogger.debug("Successfully Generated DPA")
         return response
 
 
@@ -583,7 +583,7 @@ class Diameter:
             
 
 
-        DiameterLogger.debug("Sucesfully Generated ULA")
+        DiameterLogger.debug("Successfully Generated ULA")
         DiameterLogger.debug(response)
         return response
 
@@ -695,7 +695,7 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
         logtool.RedisIncrimenter('Answer_16777251_318_success_count')
-        DiameterLogger.debug("Sucesfully Generated AIA")
+        DiameterLogger.debug("Successfully Generated AIA")
         DiameterLogger.debug(response)
         return response
 
@@ -738,7 +738,7 @@ class Diameter:
                 DiameterLogger.debug("originHost cleared for imsi " + str(imsi))
             except:
                 DiameterLogger.error("failed to clear subscriber location for IMSI " + str(imsi))
-        DiameterLogger.debug("Sucesfully Generated PUA")
+        DiameterLogger.debug("Successfully Generated PUA")
         return response
 
     #Notify Answer (NOA)
@@ -761,7 +761,7 @@ class Diameter:
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_323_success_count')
-        DiameterLogger.debug("Sucesfully Generated PUA")
+        DiameterLogger.debug("Successfully Generated PUA")
         return response
 
     #3GPP Gx Credit Control Answer
