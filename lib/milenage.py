@@ -78,7 +78,7 @@ class Milenage(BaseLTEAuthAlgo):
         CryptoLogger.debug("Generate generate_kasme")
         kasme = Milenage.generate_kasme(ck, ik, plmn, sqn_bytes, ak)
         CryptoLogger.debug("Generated generate_kasme")
-        CryptoLogger.debug("Sucesfully ran milenage.generate_eutran_vector")
+        CryptoLogger.debug("Successfully ran milenage.generate_eutran_vector")
         return rand, xres, autn, kasme
 
 
