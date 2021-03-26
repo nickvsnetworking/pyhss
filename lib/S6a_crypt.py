@@ -19,7 +19,7 @@ CryptoLogger.info("Initialised Diameter Logger, importing database")
 #The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
 
 def generate_eutran_vector(key, op_c, amf, sqn, plmn):
-    CryptoLogger.debug("Generting EUTRAN Vectors")
+    CryptoLogger.debug("Generating EUTRAN Vectors")
 
     key = key.encode('utf-8')
     CryptoLogger.debug("Input K:  " + str(key))
@@ -68,7 +68,7 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
  
 
 def generate_maa_vector(key, op_c, amf, sqn, plmn):
-    CryptoLogger.debug("Generting Multimedia Authentication Vector")
+    CryptoLogger.debug("Generating Multimedia Authentication Vector")
     key = key.encode('utf-8')
     CryptoLogger.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
