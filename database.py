@@ -125,7 +125,9 @@ class MSSQL:
             raise OSError("Failed to connect to MSSQL server at " + str(self.server['server']))
             sys.exit()
 
-
+    def reset(self):
+        DBLogger.info("Reinitializing / Instantiating DB Class")
+        self.__init__()
 
     def GetSubscriberInfo(self, imsi):
         try:
@@ -146,6 +148,7 @@ class MSSQL:
             DBLogger.error("failed to run " + str(sql))
             DBLogger.error(e)
             logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
+            self.reset()
             raise Exception("Failed to query MSSQL server with query: " + str(sql))
 
         try:
@@ -228,6 +231,7 @@ class MSSQL:
             logtool.RedisIncrimenter('AIR_general')
             DBLogger.error("General MSSQL Error")
             DBLogger.error(e)
+            self.reset()
             raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
             
 
@@ -246,6 +250,7 @@ class MSSQL:
             except Exception as e:
                 DBLogger.error("failed to run " + str(sql))
                 DBLogger.error(e)
+                self.reset()
                 raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))     
         elif 'msisdn' in kwargs:
             DBLogger.debug("MSISDN present - Searching based on MSISDN")
@@ -257,7 +262,7 @@ class MSSQL:
             except:
                 raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
                 DBLogger.critical("MSSQL not functioning. Restarting.")
-                sys.exit()  
+                self.reset()
         else:
             raise ValueError("No IMSI or MSISDN provided - Aborting")
         
@@ -283,6 +288,7 @@ class MSSQL:
             except Exception as e:
                 DBLogger.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
                 DBLogger.error(e)
+                self.reset()
                 raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
 
             #If optional origin_host kwag present, store UE location (Serving MME) in Database
@@ -313,6 +319,7 @@ class MSSQL:
             else:
                 DBLogger.debug("origin_host not present - not updating UE location in database")
         except:
+            self.reset()
             raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
             
