@@ -263,7 +263,6 @@ class MSSQL:
                 raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
                 DBLogger.critical("MSSQL not functioning. Restarting.")
                 self.reset()
-                sys.exit()  
         else:
             raise ValueError("No IMSI or MSISDN provided - Aborting")
         
