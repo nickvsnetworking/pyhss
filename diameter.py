@@ -415,8 +415,6 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             DiameterLogger.critical(message)
             DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
-            import sys
-            sys.exit()
             raise
 
 
@@ -627,8 +625,6 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             DiameterLogger.critical(message)
             DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
-            import sys
-            sys.exit()
             raise
             
 
