@@ -627,9 +627,7 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             DiameterLogger.critical(message)
             DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
-            import sys
-            sys.exit()
-            raise
+
             
 
         key = subscriber_details['K']                                                               #Format keys
@@ -984,6 +982,7 @@ class Diameter:
 
     #Generate a Generic error handler with Result Code as input
     def Respond_ResultCode(self, packet_vars, avps, result_code):
+        logging.error("Responding with result code " + str(result_code) + " to request with command code " + str(packet_vars['command_code']))
         logtool.RedisIncrimenter('Answer_Respond_Command_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -996,6 +995,7 @@ class Diameter:
                 avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
         avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                   #Response Code
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        logtool.RedisIncrimenter('Answer_Respond_Command_success_count')
         return response
 
 
