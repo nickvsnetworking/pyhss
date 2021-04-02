@@ -35,18 +35,19 @@ for config_sections in yaml_config:
         HSS_Logger.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
 
 
-
 #Initialize Diameter
 diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
 
 def on_new_client(clientsocket,client_address):
     HSS_Logger.debug('New connection from ' + str(client_address))
+
     data_sum = b''
     while True:
         try:
             data = clientsocket.recv(32)
             if not data:
                 HSS_Logger.info("Connection closed by " + str(client_address))
+                logtool.Remove_Diameter_Peer(str(client_address), '')
                 break
             
             packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
@@ -258,8 +259,8 @@ elif yaml_config['hss']['transport'] == "TCP":
     server_address = (str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port']))    
     sock.bind(server_address)
     HSS_Logger.debug('PyHSS listening on TCP port ' + str(yaml_config['hss']['bind_ip'][0]))
-    # Listen for up to 1 incoming connection
-    sock.listen(5)
+    # Listen for up to 10 incoming connections
+    sock.listen(10)
 else:
     HSS_Logger.error("No valid transports found (No SCTP or TCP) - Exiting")
     sys.exit()
