@@ -10,12 +10,12 @@ recv_ip = "10.9.49.110"
 
 hostname = "10.9.49.190"
 
-realm = "localdomain"
+realm = "mnc001.mcc001.3gppnetwork.org"
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR"]
 
 
-diameter = diameter.Diameter('test', 'localdoamin', 'PyHSS-client', '460', '07')
+diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client', '001', '01')
 DestinationHost = "hss.localdomain"
 DestinationRealm = "localdomain"
 
