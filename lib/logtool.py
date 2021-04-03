@@ -4,12 +4,16 @@ import os
 import sys
 sys.path.append(os.path.realpath('../'))
 import yaml
+from datetime import datetime
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
+
 
 if yaml_config['redis']['enabled'] == True:
     logging.debug("Redis support enabled")
     import redis
+    import json
+    import pickle
     redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
     try:
         redis_store.incr('restart_count')
@@ -18,6 +22,8 @@ if yaml_config['redis']['enabled'] == True:
             redis_store.flushall()
         else:
             logging.debug("Leaving prexisting Redis keys")
+        #Clear ActivePeerDict
+        redis_store.delete('ActivePeerDict')
         logging.info("Connected to Redis server")
     except:
         logging.error("Failed to connect to Redis server - Disabling")
@@ -30,6 +36,65 @@ def RedisIncrimenter(name):
             redis_store.incr(name)
         except:
             logging.error("failed to incriment " + str(name))
+
+def RedisStore(key, value):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            redis_store.set(key, value)
+        except:
+            logging.error("failed to set Redis key " + str(key) + " to value " + str(value))    
+
+def RedisGet(key):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            return redis_store.get(key)
+        except:
+            logging.error("failed to set Redis key " + str(key))    
+
+
+
+def RedisStoreDict(key, value):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            redis_store.set(str(key), pickle.dumps(value))
+        except:
+            logging.error("failed to set Redis dict " + str(key) + " to value " + str(value))    
+
+def RedisGetDict(key):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            read_dict = redis_store.get(key)
+            return pickle.loads(read_dict)
+        except:
+            logging.error("failed to hmget Redis key " + str(key))    
+
+
+
+
+def Manage_Diameter_Peer(peername, ip, action):
+    logging.debug("Adding Diameter peer to Redis with hostname" + str(peername) + " and IP " + str(ip))
+    now = datetime.now()
+    timestamp = str(now.strftime("%H:%M:%S"))
+    if redis_store.exists('ActivePeerDict') == False:
+        #Initialise empty active peer dict in Redis
+        logging.debug("Populated new empty ActivePeerDict Redis key")
+        ActivePeerDict = {}
+        ActivePeerDict['internal'] = {"connect_timestamp" : timestamp}
+        RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+    
+    if action == "add":
+        data = RedisGet('ActivePeerDict')
+        ActivePeerDict = json.loads(data)
+        logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict) + " to add peer " + str(peername) + " with ip " + str(ip))
+        ActivePeerDict[str(peername)] = {"timestamp" : timestamp, "ip" : str(ip)}
+        RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+
+    if action == "remove":
+        data = RedisGet('ActivePeerDict')
+        ActivePeerDict = json.loads(data)
+        logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict))
+        ActivePeerDict[str(peername)] = {"disconnect_timestamp" : timestamp, "ip" : str(ip)}
+        RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))        
 
 
 def setup_logger(logger_name, log_file, level=logging.DEBUG):

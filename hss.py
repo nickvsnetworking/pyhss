@@ -35,18 +35,19 @@ for config_sections in yaml_config:
         HSS_Logger.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
 
 
-
 #Initialize Diameter
 diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
 
 def on_new_client(clientsocket,client_address):
     HSS_Logger.debug('New connection from ' + str(client_address))
+    logtool.Manage_Diameter_Peer(client_address, client_address, "add")
     data_sum = b''
     while True:
         try:
             data = clientsocket.recv(32)
             if not data:
                 HSS_Logger.info("Connection closed by " + str(client_address))
+                logtool.Manage_Diameter_Peer(client_address, client_address, "remove")
                 break
             
             packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
@@ -65,6 +66,7 @@ def on_new_client(clientsocket,client_address):
                 except:
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
                 HSS_Logger.info("Generated CEA")
+                logtool.Manage_Diameter_Peer(orignHost, client_address, "add")
 
             #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
             elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:
@@ -89,6 +91,7 @@ def on_new_client(clientsocket,client_address):
                 HSS_Logger.info("Received Request with command code 282 (DPR) from " + orignHost + "\n\tForwarding request...")
                 response = diameter.Answer_282(packet_vars, avps)               #Generate Diameter packet
                 HSS_Logger.info("Generated DPA")
+                logtool.Manage_Diameter_Peer(orignHost, client_address, "remove")
 
             #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
             elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
@@ -258,8 +261,8 @@ elif yaml_config['hss']['transport'] == "TCP":
     server_address = (str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port']))    
     sock.bind(server_address)
     HSS_Logger.debug('PyHSS listening on TCP port ' + str(yaml_config['hss']['bind_ip'][0]))
-    # Listen for up to 1 incoming connection
-    sock.listen(5)
+    # Listen for up to 10 incoming connections
+    sock.listen(10)
 else:
     HSS_Logger.error("No valid transports found (No SCTP or TCP) - Exiting")
     sys.exit()
