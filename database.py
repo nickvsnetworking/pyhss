@@ -23,7 +23,8 @@ DBLogger.info("DB Log Initialised.")
 ##Data Output Format
 ###Get Subscriber Info
 #Outputs a dictionary with the format:
-#subscriber_details = {'K': '465B5CE8B199B49FAA5F0A2EE238A6BC', 'OPc': 'E8ED289DEBA952E4283B54E88E6183CA', 'AMF': '8000', 'RAND': '', 'SQN': 22, 'APN_list': 'internet', 'pdn': [{'apn': 'internet', '_id': ObjectId('5fe2815ce601d905f8c597b3'), 'pcc_rule': [], 'qos': {'qci': 9, 'arp': {'priority_level': 8, 'pre_emption_vulnerability': 1, 'pre_emption_capability': 1}}, 'type': 2}]}
+#subscriber_details = {'K': '465B5CE8B199B49FAA5F0A2EE238A6BC', 'OPc': 'E8ED289DEBA952E4283B54E88E6183CA', 'AMF': '8000', 'RAND': '', 'SQN': 22, \
+# 'APN_list': 'internet', 'pdn': [{'apn': 'internet', '_id': ObjectId('5fe2815ce601d905f8c597b3'), 'pcc_rule': [], 'qos': {'qci': 9, 'arp': {'priority_level': 8, 'pre_emption_vulnerability': 1, 'pre_emption_capability': 1}}, 'type': 2}]}
 
 
 class MongoDB:
@@ -57,6 +58,7 @@ class MongoDB:
         #If query was completed Successfully extract data
         for x in mydoc:
             DBLogger.debug("Got result from MongoDB")
+            DBLogger.debug(x)
             subscriber_details['K'] = x['security']['k'].replace(' ', '')
             try:
                 subscriber_details['OP'] = x['security']['op'].replace(' ', '')
@@ -76,10 +78,18 @@ class MongoDB:
                 subscriber_details['SQN'] = 1
                 subscriber_details['RAND'] = ''
             apn_list = ''
-            for keys in x['pdn']:
-                apn_list += keys['apn'] + ";"
+            for keys in x['slice'][0]['session']:
+                apn_list += keys['name'] + ";"
             subscriber_details['APN_list'] = apn_list[:-1]      #Remove last semicolon
-            subscriber_details['pdn'] = x['pdn']                
+            DBLogger.debug("APN list is: " + str(subscriber_details['APN_list']))
+            subscriber_details['pdn'] = x['slice'][0]['session']
+            i = 0
+            while i < len(subscriber_details['pdn']):
+                #Rename from "name" to "apn"
+                subscriber_details['pdn'][i]['apn'] = subscriber_details['pdn'][i]['name']
+                #Store QCI data
+                subscriber_details['pdn'][i]['qos']['qci'] = subscriber_details['pdn'][i]['qos']['index']
+                i += 1
             DBLogger.debug(subscriber_details)
             return subscriber_details
         
@@ -125,7 +135,9 @@ class MSSQL:
             raise OSError("Failed to connect to MSSQL server at " + str(self.server['server']))
             sys.exit()
 
-
+    def reset(self):
+        DBLogger.info("Reinitializing / Instantiating DB Class")
+        self.__init__()
 
     def GetSubscriberInfo(self, imsi):
         try:
@@ -146,6 +158,7 @@ class MSSQL:
             DBLogger.error("failed to run " + str(sql))
             DBLogger.error(e)
             logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
+            self.reset()
             raise Exception("Failed to query MSSQL server with query: " + str(sql))
 
         try:
@@ -228,6 +241,7 @@ class MSSQL:
             logtool.RedisIncrimenter('AIR_general')
             DBLogger.error("General MSSQL Error")
             DBLogger.error(e)
+            self.reset()
             raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
             
 
@@ -246,6 +260,7 @@ class MSSQL:
             except Exception as e:
                 DBLogger.error("failed to run " + str(sql))
                 DBLogger.error(e)
+                self.reset()
                 raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))     
         elif 'msisdn' in kwargs:
             DBLogger.debug("MSISDN present - Searching based on MSISDN")
@@ -257,7 +272,7 @@ class MSSQL:
             except:
                 raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
                 DBLogger.critical("MSSQL not functioning. Restarting.")
-                sys.exit()  
+                self.reset()
         else:
             raise ValueError("No IMSI or MSISDN provided - Aborting")
         
@@ -283,6 +298,7 @@ class MSSQL:
             except Exception as e:
                 DBLogger.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
                 DBLogger.error(e)
+                self.reset()
                 raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
 
             #If optional origin_host kwag present, store UE location (Serving MME) in Database
@@ -313,6 +329,7 @@ class MSSQL:
             else:
                 DBLogger.debug("origin_host not present - not updating UE location in database")
         except:
+            self.reset()
             raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
             

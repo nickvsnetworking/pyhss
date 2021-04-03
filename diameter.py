@@ -415,8 +415,6 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             DiameterLogger.critical(message)
             DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
-            import sys
-            sys.exit()
             raise
 
 
@@ -464,11 +462,12 @@ class Diameter:
             DiameterLogger.debug("Processing APN profile " + str(apn_profile))
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
 
-            
+            DiameterLogger.debug("Setting APN Configuration Profile")
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
             
+            DiameterLogger.debug("Setting APN AMBR")
             #AMBR
             AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
             if 'AMBR' in apn_profile:
@@ -483,7 +482,7 @@ class Diameter:
             AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-
+            DiameterLogger.debug("Setting APN Allocation-Retention-Priority")
             #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
             AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
             AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
@@ -531,7 +530,8 @@ class Diameter:
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
             
             #Incriment Context Identifier Count to keep track of how many APN Profiles returned
-            APN_context_identifer_count = APN_context_identifer_count + 1            
+            APN_context_identifer_count = APN_context_identifer_count + 1  
+            DiameterLogger.debug("Processed APN profile " + str(apn_profile['apn']))
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
@@ -627,9 +627,8 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             DiameterLogger.critical(message)
             DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
-            import sys
-            sys.exit()
             raise
+
             
 
         key = subscriber_details['K']                                                               #Format keys
@@ -984,6 +983,7 @@ class Diameter:
 
     #Generate a Generic error handler with Result Code as input
     def Respond_ResultCode(self, packet_vars, avps, result_code):
+        logging.error("Responding with result code " + str(result_code) + " to request with command code " + str(packet_vars['command_code']))
         logtool.RedisIncrimenter('Answer_Respond_Command_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -996,6 +996,7 @@ class Diameter:
                 avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
         avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                   #Response Code
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        logtool.RedisIncrimenter('Answer_Respond_Command_success_count')
         return response
 
 
