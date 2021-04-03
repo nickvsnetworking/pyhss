@@ -464,11 +464,12 @@ class Diameter:
             DiameterLogger.debug("Processing APN profile " + str(apn_profile))
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
 
-            
+            DiameterLogger.debug("Setting APN Configuration Profile")
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
             
+            DiameterLogger.debug("Setting APN AMBR")
             #AMBR
             AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
             if 'AMBR' in apn_profile:
@@ -483,7 +484,7 @@ class Diameter:
             AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-
+            DiameterLogger.debug("Setting APN Allocation-Retention-Priority")
             #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
             AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
             AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
@@ -531,7 +532,8 @@ class Diameter:
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
             
             #Incriment Context Identifier Count to keep track of how many APN Profiles returned
-            APN_context_identifer_count = APN_context_identifer_count + 1            
+            APN_context_identifer_count = APN_context_identifer_count + 1  
+            DiameterLogger.debug("Processed APN profile " + str(apn_profile['apn']))
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \

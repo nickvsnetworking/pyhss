@@ -23,7 +23,8 @@ DBLogger.info("DB Log Initialised.")
 ##Data Output Format
 ###Get Subscriber Info
 #Outputs a dictionary with the format:
-#subscriber_details = {'K': '465B5CE8B199B49FAA5F0A2EE238A6BC', 'OPc': 'E8ED289DEBA952E4283B54E88E6183CA', 'AMF': '8000', 'RAND': '', 'SQN': 22, 'APN_list': 'internet', 'pdn': [{'apn': 'internet', '_id': ObjectId('5fe2815ce601d905f8c597b3'), 'pcc_rule': [], 'qos': {'qci': 9, 'arp': {'priority_level': 8, 'pre_emption_vulnerability': 1, 'pre_emption_capability': 1}}, 'type': 2}]}
+#subscriber_details = {'K': '465B5CE8B199B49FAA5F0A2EE238A6BC', 'OPc': 'E8ED289DEBA952E4283B54E88E6183CA', 'AMF': '8000', 'RAND': '', 'SQN': 22, \
+# 'APN_list': 'internet', 'pdn': [{'apn': 'internet', '_id': ObjectId('5fe2815ce601d905f8c597b3'), 'pcc_rule': [], 'qos': {'qci': 9, 'arp': {'priority_level': 8, 'pre_emption_vulnerability': 1, 'pre_emption_capability': 1}}, 'type': 2}]}
 
 
 class MongoDB:
@@ -57,6 +58,7 @@ class MongoDB:
         #If query was completed Successfully extract data
         for x in mydoc:
             DBLogger.debug("Got result from MongoDB")
+            DBLogger.debug(x)
             subscriber_details['K'] = x['security']['k'].replace(' ', '')
             try:
                 subscriber_details['OP'] = x['security']['op'].replace(' ', '')
@@ -76,10 +78,18 @@ class MongoDB:
                 subscriber_details['SQN'] = 1
                 subscriber_details['RAND'] = ''
             apn_list = ''
-            for keys in x['pdn']:
-                apn_list += keys['apn'] + ";"
+            for keys in x['slice'][0]['session']:
+                apn_list += keys['name'] + ";"
             subscriber_details['APN_list'] = apn_list[:-1]      #Remove last semicolon
-            subscriber_details['pdn'] = x['pdn']                
+            DBLogger.debug("APN list is: " + str(subscriber_details['APN_list']))
+            subscriber_details['pdn'] = x['slice'][0]['session']
+            i = 0
+            while i < len(subscriber_details['pdn']):
+                #Rename from "name" to "apn"
+                subscriber_details['pdn'][i]['apn'] = subscriber_details['pdn'][i]['name']
+                #Store QCI data
+                subscriber_details['pdn'][i]['qos']['qci'] = subscriber_details['pdn'][i]['qos']['index']
+                i += 1
             DBLogger.debug(subscriber_details)
             return subscriber_details
         
