@@ -2,12 +2,13 @@
 import socket
 import sys
 import diameter
+import _thread
 global recv_ip
-recv_ip = "127.0.0.31"
+recv_ip = "10.9.49.110"
 #hostname = input("Host to connect to:\t")
 #domain = input("Domain:\t")
 
-hostname = "127.0.0.135"
+hostname = "10.9.49.190"
 
 realm = "mnc001.mcc001.3gppnetwork.org"
 
@@ -29,11 +30,17 @@ except Exception as e:
 
 
 def ReadBuffer():
-    try:
+    
+    while True:
+        try:
                 data = clientsocket.recv(32)
                 packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
                 data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
                 packet_vars, avps = diameter.decode_diameter_packet(data_sum)
+                if  int(packet_vars['command_code']) == 280 and diameter.hex_to_bin(packet_vars['flags'])[0] == "1":  # Recieve DWR ,send DWA
+                    print("Recieved DWR - Sending DWA to " +str(hostname) )
+                    SendRequest(diameter.Answer_280(packet_vars, avps))
+                    continue
                 print("Got response from " + str(hostname))
                 for keys in packet_vars:
                     print("\t" + str(keys) + "\t" + str(packet_vars[keys]))
@@ -49,12 +56,7 @@ def ReadBuffer():
                 if int(packet_vars['command_code']) == 280:
                     flags_bin = diameter.hex_to_bin(packet_vars['flags'])
                     print("Flags are " + str(flags_bin)) 
-                    #If Request bit is set
-                    if flags_bin[0] == '1':
-                        print("Recieved DWR - Sending DWA")
-                        SendRequest(diameter.Answer_280(packet_vars, avps))
-                    else:
-                        print("Recieved DWA")
+                    print("Recieved DWA")
                 if int(packet_vars['command_code']) == 257:
                     #Check if Request or Response
                     flags_bin = diameter.hex_to_bin(packet_vars['flags'])
@@ -71,13 +73,14 @@ def ReadBuffer():
                     for avp in avps:
                         print("\t\t" + str(avp))
                         
-    except Exception as e:
-        print("failed to get all return data - Error " + str(e))
+        except Exception as e:
+            print("failed to get all return data - Error " + str(e))
 
 def SendRequest(request):
     clientsocket.sendall(bytes.fromhex(request))
-    ReadBuffer()
+    #ReadBuffer()
 
+_thread.start_new_thread(ReadBuffer,())
 while True:
     print("\n\nQuerying Diameter peer " + str(hostname))
     print("Note - You may need to exchange a CER before doing anything fun")
