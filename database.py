@@ -89,6 +89,10 @@ class MongoDB:
                 subscriber_details['pdn'][i]['apn'] = subscriber_details['pdn'][i]['name']
                 #Store QCI data
                 subscriber_details['pdn'][i]['qos']['qci'] = subscriber_details['pdn'][i]['qos']['index']
+                #Map static P-GW Address
+                if 'smf' in subscriber_details['pdn'][i]:
+                    subscriber_details['pdn'][i]['ue'] = {}
+                    subscriber_details['pdn'][i]['ue']['ip'] = subscriber_details['pdn'][i]['smf']['addr']
                 i += 1
             DBLogger.debug(subscriber_details)
             return subscriber_details
