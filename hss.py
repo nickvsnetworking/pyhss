@@ -66,7 +66,7 @@ def on_new_client(clientsocket,client_address):
                 except:
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
                 HSS_Logger.info("Generated CEA")
-                logtool.Manage_Diameter_Peer(orignHost, client_address, "add")
+                logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
 
             #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
             elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:

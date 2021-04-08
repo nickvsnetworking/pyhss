@@ -86,16 +86,22 @@ def Manage_Diameter_Peer(peername, ip, action):
         data = RedisGet('ActivePeerDict')
         ActivePeerDict = json.loads(data)
         logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict) + " to add peer " + str(peername) + " with ip " + str(ip))
-        ActivePeerDict[str(peername)] = {"timestamp" : timestamp, "ip" : str(ip)}
+        ActivePeerDict[str(ip)] = {"timestamp" : timestamp, "ip" : str(ip), "DiameterHost" : "Unknown - Connection only"}
         RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
 
     if action == "remove":
         data = RedisGet('ActivePeerDict')
         ActivePeerDict = json.loads(data)
         logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict))
-        ActivePeerDict[str(peername)] = {"disconnect_timestamp" : timestamp, "ip" : str(ip)}
+        ActivePeerDict[str(ip)]['disconnect_timestamp'] = str(timestamp)
         RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))        
 
+    if action == "update":
+        data = RedisGet('ActivePeerDict')
+        ActivePeerDict = json.loads(data)
+        ActivePeerDict[str(ip)]['DiameterHost'] = str(peername)
+        RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+        
 
 def setup_logger(logger_name, log_file, level=logging.DEBUG):
     l = logging.getLogger(logger_name)
