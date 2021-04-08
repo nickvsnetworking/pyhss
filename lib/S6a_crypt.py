@@ -72,20 +72,23 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
     key = key.encode('utf-8')
     CryptoLogger.debug("Input K:  " + str(key))
     key = binascii.unhexlify(key)
+    
     op_c = op_c.encode('utf-8')
     CryptoLogger.debug("Input OPc:  " + str(op_c))
     op_c = binascii.unhexlify(op_c)
+    
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
     CryptoLogger.debug("Input AMF: " + str(amf))
+    
     sqn = int(sqn)
+    CryptoLogger.debug("Input SQN: " + str(sqn))
 
     plmn = plmn.encode('utf-8')
     plmn = binascii.unhexlify(plmn)
-    CryptoLogger.debug("Input PLMN: " + plmn)
-
-    CryptoLogger.debug("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
+    CryptoLogger.debug("Input PLMN: " + str(plmn))
+    
 
     crypto_obj = Milenage(amf)
 
