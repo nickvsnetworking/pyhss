@@ -850,27 +850,43 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
-        avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode("""<?xml version="1.0" encoding="UTF-8"?>\
-        <IMSSubscription><PrivateID>""" + str(imsi) + '@' + str(domain) + """</PrivateID><ServiceProfile><PublicIdentity><Identity>sip:""" + str(imsi) + '@' + str(domain) + """</Identity>\
-        <Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><InitialFilterCriteria><Priority>0</Priority><TriggerPoint><ConditionTypeCNF>0</ConditionTypeCNF><SPT><ConditionNegated>0</ConditionNegated>\
-        <Group>0</Group><Method>PUBLISH</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader>\
-        <Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><SessionCase>0</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated>\
-        <Group>1</Group><Method>PUBLISH</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader>\
-        <Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SessionCase>3</SessionCase><Extension></Extension>\
-        </SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group>\
-        <SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><SessionCase>1</SessionCase>\
-        <Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group>\
-        <SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><SessionCase>2</SessionCase><Extension>\
-        </Extension></SPT></TriggerPoint><ApplicationServer><ServerName>sip:presence.open-ims.test:5065</ServerName><DefaultHandling>0</DefaultHandling></ApplicationServer></InitialFilterCriteria>\
-        <InitialFilterCriteria><Priority>10</Priority><TriggerPoint><ConditionTypeCNF>1</ConditionTypeCNF><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><Method>MESSAGE</Method>\
-        <Extension></Extension></SPT><SPT><ConditionNegated>1</ConditionNegated><Group>1</Group><SessionCase>0</SessionCase><Extension></Extension></SPT></TriggerPoint><ApplicationServer>\
-        <ServerName>sip:opense.open-ims.test:10060</ServerName><DefaultHandling>0</DefaultHandling></ApplicationServer></InitialFilterCriteria><InitialFilterCriteria><Priority>20</Priority>\
-        <TriggerPoint><ConditionTypeCNF>1</ConditionTypeCNF><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT>\
-        <SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SIPHeader><Header>Event</Header><Content>.*xcap-diff.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated>\
-        <Group>2</Group><SessionCase>1</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><SessionCase>2</SessionCase>\
-        <Extension></Extension></SPT></TriggerPoint><ApplicationServer><ServerName>sip:xdms.open-ims.test:11060</ServerName><DefaultHandling>0</DefaultHandling></ApplicationServer>\
-        </InitialFilterCriteria></ServiceProfile></IMSSubscription>""")),'ascii'))
-        #avp += self.generate_vendor_avp(606, "c0", 10415, "3c3f786d6c2076657273696f6e3d22312e302220656e636f64696e673d225554462d38223f3e3c494d53537562736372697074696f6e3e3c5072697661746549443e616c696365406f70656e2d696d732e746573743c2f5072697661746549443e3c5365727669636550726f66696c653e3c5075626c69634964656e746974793e3c4964656e746974793e7369703a616c696365406f70656e2d696d732e746573743c2f4964656e746974793e3c457874656e73696f6e3e3c4964656e74697479547970653e303c2f4964656e74697479547970653e3c2f457874656e73696f6e3e3c2f5075626c69634964656e746974793e3c496e697469616c46696c74657243726974657269613e3c5072696f726974793e303c2f5072696f726974793e3c54726967676572506f696e743e3c436f6e646974696f6e54797065434e463e303c2f436f6e646974696f6e54797065434e463e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e303c2f47726f75703e3c4d6574686f643e5055424c4953483c2f4d6574686f643e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e303c2f47726f75703e3c5349504865616465723e3c4865616465723e4576656e743c2f4865616465723e3c436f6e74656e743e2e2a70726573656e63652e2a3c2f436f6e74656e743e3c2f5349504865616465723e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e303c2f47726f75703e3c53657373696f6e436173653e303c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e313c2f47726f75703e3c4d6574686f643e5055424c4953483c2f4d6574686f643e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e313c2f47726f75703e3c5349504865616465723e3c4865616465723e4576656e743c2f4865616465723e3c436f6e74656e743e2e2a70726573656e63652e2a3c2f436f6e74656e743e3c2f5349504865616465723e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e313c2f47726f75703e3c53657373696f6e436173653e333c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e323c2f47726f75703e3c4d6574686f643e5355425343524942453c2f4d6574686f643e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e323c2f47726f75703e3c5349504865616465723e3c4865616465723e4576656e743c2f4865616465723e3c436f6e74656e743e2e2a70726573656e63652e2a3c2f436f6e74656e743e3c2f5349504865616465723e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e323c2f47726f75703e3c53657373696f6e436173653e313c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e333c2f47726f75703e3c4d6574686f643e5355425343524942453c2f4d6574686f643e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e333c2f47726f75703e3c5349504865616465723e3c4865616465723e4576656e743c2f4865616465723e3c436f6e74656e743e2e2a70726573656e63652e2a3c2f436f6e74656e743e3c2f5349504865616465723e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e333c2f47726f75703e3c53657373696f6e436173653e323c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c2f54726967676572506f696e743e3c4170706c69636174696f6e5365727665723e3c5365727665724e616d653e7369703a70726573656e63652e6f70656e2d696d732e746573743a353036353c2f5365727665724e616d653e3c44656661756c7448616e646c696e673e303c2f44656661756c7448616e646c696e673e3c2f4170706c69636174696f6e5365727665723e3c2f496e697469616c46696c74657243726974657269613e3c496e697469616c46696c74657243726974657269613e3c5072696f726974793e31303c2f5072696f726974793e3c54726967676572506f696e743e3c436f6e646974696f6e54797065434e463e313c2f436f6e646974696f6e54797065434e463e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e303c2f47726f75703e3c4d6574686f643e4d4553534147453c2f4d6574686f643e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e313c2f436f6e646974696f6e4e6567617465643e3c47726f75703e313c2f47726f75703e3c53657373696f6e436173653e303c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c2f54726967676572506f696e743e3c4170706c69636174696f6e5365727665723e3c5365727665724e616d653e7369703a6f70656e73652e6f70656e2d696d732e746573743a31303036303c2f5365727665724e616d653e3c44656661756c7448616e646c696e673e303c2f44656661756c7448616e646c696e673e3c2f4170706c69636174696f6e5365727665723e3c2f496e697469616c46696c74657243726974657269613e3c496e697469616c46696c74657243726974657269613e3c5072696f726974793e32303c2f5072696f726974793e3c54726967676572506f696e743e3c436f6e646974696f6e54797065434e463e313c2f436f6e646974696f6e54797065434e463e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e303c2f47726f75703e3c4d6574686f643e5355425343524942453c2f4d6574686f643e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e313c2f47726f75703e3c5349504865616465723e3c4865616465723e4576656e743c2f4865616465723e3c436f6e74656e743e2e2a786361702d646966662e2a3c2f436f6e74656e743e3c2f5349504865616465723e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e323c2f47726f75703e3c53657373696f6e436173653e313c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c5350543e3c436f6e646974696f6e4e6567617465643e303c2f436f6e646974696f6e4e6567617465643e3c47726f75703e323c2f47726f75703e3c53657373696f6e436173653e323c2f53657373696f6e436173653e3c457874656e73696f6e3e3c2f457874656e73696f6e3e3c2f5350543e3c2f54726967676572506f696e743e3c4170706c69636174696f6e5365727665723e3c5365727665724e616d653e7369703a78646d732e6f70656e2d696d732e746573743a31313036303c2f5365727665724e616d653e3c44656661756c7448616e646c696e673e303c2f44656661756c7448616e646c696e673e3c2f4170706c69636174696f6e5365727665723e3c2f496e697469616c46696c74657243726974657269613e3c2f5365727669636550726f66696c653e3c2f494d53537562736372697074696f6e3e")
+        
+        xmlbody = """<?xml version="1.0" encoding="UTF-8"?>
+        <IMSSubscription>
+            <PrivateID>""" + str(imsi) + '@' + str(domain) + """</PrivateID>
+            <ServiceProfile>
+                <PublicIdentity>
+                    <Identity>sip:""" + str(imsi) + '@' + str(domain) + """</Identity>
+                    <Extension>
+                        <IdentityType>0</IdentityType>
+                    </Extension>
+                </PublicIdentity>
+                <InitialFilterCriteria>
+                    <Priority>0</Priority>
+                    <TriggerPoint>
+                        <ConditionTypeCNF>1</ConditionTypeCNF>
+                        <SPT>
+                            <ConditionNegated>0</ConditionNegated>
+                            <Group>0</Group>
+                            <Method>MESSAGE</Method>
+                            <Extension></Extension>
+                        </SPT>
+                        <SPT>
+                            <ConditionNegated>0</ConditionNegated>
+                            <Group>1</Group>
+                            <SessionCase>0</SessionCase>
+                            <Extension></Extension>
+                        </SPT>
+                    </TriggerPoint>
+                    <ApplicationServer>
+                        <ServerName>sip:smsc.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
+                        <DefaultHandling>0</DefaultHandling>
+                    </ApplicationServer>
+                </InitialFilterCriteria>
+            </ServiceProfile>
+        </IMSSubscription>
+        """
+        avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -1362,23 +1378,6 @@ class Diameter:
         #LCS-Client-Type (Emergency Services)
         avp += self.generate_vendor_avp(1241, "c0", 10415, "00000000")
         response = self.generate_diameter_packet("01", "c0", 8388620, 16777255, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
-        return response
-
-
-    #3GPP S13 - ME-Identity-Check Request
-    def Request_16777252_324(self, imsi, imei, software_version):
-        avp = ''
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
-        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
-        avp += self.generate_avp(293, 40, str(binascii.hexlify(b'eir.localdomain'),'ascii'))                 #Destination Host
-        imei = self.generate_vendor_avp(1402, "c0", 10415, str(binascii.hexlify(str.encode(imei)),'ascii'))
-        software_version = self.generate_vendor_avp(1403, "c0", 10415, self.string_to_hex(software_version))
-        avp += self.generate_vendor_avp(1401, "c0", 10415, imei + software_version)                                          #Terminal Information
-        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
-        response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
     #3GPP SLh - Provide Subscriber Location Request
