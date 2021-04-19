@@ -257,6 +257,7 @@ elif yaml_config['hss']['transport'] == "TCP":
     HSS_Logger.debug("Using TCP socket")
     # Create a TCP/IP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # Bind the socket to the port
     server_address = (str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port']))    
     sock.bind(server_address)
