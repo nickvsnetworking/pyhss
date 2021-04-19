@@ -113,7 +113,7 @@ def setup_logger(logger_name, log_file, level=logging.DEBUG):
     fileHandler.setFormatter(formatter)
     streamHandler = logging.StreamHandler()
     streamHandler.setFormatter(formatter)
-    rolloverHandler = handlers.RotatingFileHandler(log_file, maxBytes=500000000, backupCount=5)
+    rolloverHandler = handlers.RotatingFileHandler(log_file, maxBytes=50000000, backupCount=5)
     l.setLevel(level)
     l.addHandler(fileHandler)
     l.addHandler(streamHandler)
