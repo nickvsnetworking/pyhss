@@ -3,7 +3,7 @@
 ##Data is always provided by the function as a Dictionary of the Subscriber's data
 import yaml
 import logging
-
+import threading
 import os
 import sys
 sys.path.append(os.path.realpath('lib'))
@@ -130,6 +130,7 @@ class MSSQL:
     def __init__(self):
         DBLogger.info("Configured to use MS-SQL server: " + str(yaml_config['database']['mssql']['server']))
         self.server = yaml_config['database']['mssql']
+        self._lock = threading.Lock()
         try:
             self.conn = self._mssql.connect(server=self.server['server'], user=self.server['username'], password=self.server['password'], database=self.server['database'])
             DBLogger.info("Connected to MSSQL Server")
@@ -144,191 +145,194 @@ class MSSQL:
         self.__init__()
 
     def GetSubscriberInfo(self, imsi):
-        try:
-            DBLogger.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
-            subscriber_details = {}
-            sql = "hss_imsi_known_check @imsi=" + str(imsi)
-            DBLogger.debug(sql)
-            self.conn.execute_query(sql)
-            DBLogger.debug("Ran hss_imsi_known_check OK - Checking results")
-            DBLogger.debug("Parsing results to var")
-            result = [ row for row in self.conn ]
-            DBLogger.debug("Result total is " + str(result))
-            DBLogger.debug("Getting first entry in result")
-            result = result[0]
-            DBLogger.debug("printing final result:")
-            DBLogger.debug(str(result))
-        except Exception as e:
-            DBLogger.error("failed to run " + str(sql))
-            DBLogger.error(e)
-            logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
-            raise Exception("Failed to query MSSQL server with query: " + str(sql))
-
-        try:
-            #known_imsi: IMSI attached with sim returns 1 else returns 0
-            if str(result['known_imsi']) != '1':
-                logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_unattached_w_SIM')
-                raise ValueError("MSSQL reports IMSI " + str(imsi) + " not attached with SIM")
-
-            #subscriber_status: -1 –Blocked or 0-Active
-            if str(result['subscriber_status']) != '0':
-                logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_Blocked')
-                raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
-
-            apn_id = result['apn_configuration']
-
-
-            DBLogger.debug("Running hss_get_subscriber_data_v2 for imsi " + str(imsi))
-            sql = 'hss_get_subscriber_data_v2 @imsi="' + str(imsi) + '";'
-            DBLogger.debug("SQL: " + str(sql))
-            self.conn.execute_query(sql)
-            result = [ row for row in self.conn ][0]
-
-            DBLogger.debug("\nResult of hss_get_subscriber_data_v2_v2: " + str(result))
-            #subscriber_status: -1 –Blocked or 0-Active (Again)
-            if str(result['subscriber_status']) != '0':
-                logtool.RedisIncrimenter('AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked')
-                raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
-            
-            #Get data output and put it into structure PyHSS uses
-            subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
-            subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
-            subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
-            subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
-            subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
-            subscriber_details['K'] = result['ki']
-            subscriber_details['SQN'] = result['seqno']
-            subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
-            subscriber_details['3gpp-charging-characteristics'] = result['_3gpp_charging_ch']
-            
-            #Harcoding AMF as it is the same for all SIMs and not returned by DB
-            subscriber_details['AMF'] = '8000'
-
-            #Set dummy RAND value (No need to store it)
-            subscriber_details['RAND'] = ""
-
-            #Format MSISDN
-            subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
-            subscriber_details['msisdn'] = subscriber_details['msisdn'].split(';')[-1]
-
-            #Convert OP to OPc
-            subscriber_details['OP'] = result['op_key']
-            DBLogger.debug("Generating OPc with input K: " + str(subscriber_details['K']) + " and OP: " + str(subscriber_details['OP']))
-            subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
-            subscriber_details.pop('OP', None)
-            DBLogger.debug("Generated OPc " + str(subscriber_details['OPc']))
-
-
-            DBLogger.debug("Getting APN info")
-            sql = 'hss_get_apn_info @apn_profileId=' + str(apn_id)
-            DBLogger.debug(sql)
-            self.conn.execute_query(sql)
-            DBLogger.debug("Ran query")
-            subscriber_details['pdn'] = []
-            DBLogger.debug("Parsing results to var")
-            result = [ row for row in self.conn ][0]
-            DBLogger.debug("Got results")
-            DBLogger.debug("Results are: " + str(result))
-            apn = {'apn': str(result['Service_Selection']),\
-                    'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
-                    'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
-                    'ambr' : {'apn_ambr_ul' : int(result['MAX_REQUESTED_BANDWIDTH_UL']), 'apn_ambr_Dl' : int(result['MAX_REQUESTED_BANDWIDTH_DL'])},
-                    'PDN_GW_Allocation_Type' : int(result['PDN_GW_Allocation_Type']),
-                    'VPLMN_Dynamic_Address_Allowed' : int(result['VPLMN_Dynamic_Address_Allowed']),
-                    'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}}
-            subscriber_details['pdn'].append(apn)
-
-            DBLogger.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
-            return subscriber_details
-        except Exception as e:
-            logtool.RedisIncrimenter('AIR_general')
-            DBLogger.error("General MSSQL Error")
-            DBLogger.error(e)
-            raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
-            
-
-
-    def GetSubscriberLocation(self, *args, **kwargs):
-        DBLogger.debug("Called GetSubscriberLocation")
-        if 'imsi' in kwargs:
-            DBLogger.debug("IMSI present - Searching based on IMSI")
+        with self._lock:
             try:
-                imsi = kwargs.get('imsi', None)
-                DBLogger.debug("Calling hss_get_mme_identity_by_info with IMSI " + str(imsi))
-                sql = 'hss_get_mme_identity_by_info ' + str(imsi) + ';'
-                DBLogger.info(sql)
+                DBLogger.debug("Getting subscriber info from MSSQL for IMSI " + str(imsi))
+                subscriber_details = {}
+                sql = "hss_imsi_known_check @imsi=" + str(imsi)
+                DBLogger.debug(sql)
                 self.conn.execute_query(sql)
-                DBLogger.debug(self.conn)
+                DBLogger.debug("Ran hss_imsi_known_check OK - Checking results")
+                DBLogger.debug("Parsing results to var")
+                result = [ row for row in self.conn ]
+                DBLogger.debug("Result total is " + str(result))
+                DBLogger.debug("Getting first entry in result")
+                result = result[0]
+                DBLogger.debug("printing final result:")
+                DBLogger.debug(str(result))
             except Exception as e:
                 DBLogger.error("failed to run " + str(sql))
                 DBLogger.error(e)
-                raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))     
-        elif 'msisdn' in kwargs:
-            DBLogger.debug("MSISDN present - Searching based on MSISDN")
-            try:
-                msisdn = kwargs.get('msisdn', None)
-                DBLogger.debug("Calling hss_get_mme_identity_by_info with msisdn " + str(msisdn))
-                self.conn.execute_query('hss_get_mme_identity_by_info ' + str(msisdn) + ';')
-                DBLogger.debug(self.conn)
-            except:
-                raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
-                DBLogger.critical("MSSQL not functioning. Restarting.")
-        else:
-            raise ValueError("No IMSI or MSISDN provided - Aborting")
-        
-        try:
-            DBLogger.debug(self.conn)
-            result = [ row for row in self.conn ][0]
-            DBLogger.debug("Returned data:")
-            DBLogger.debug(result)
-            return result
-        except:
-            DBLogger.debug("No location stored in database for Subscriber")
-            raise ValueError("No location stored in database for Subscriber")
+                logtool.RedisIncrimenter('AIR_hss_imsi_known_check_SQL_Fail')
+                raise Exception("Failed to query MSSQL server with query: " + str(sql))
 
-    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
-        try:
-            DBLogger.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
             try:
-                DBLogger.debug("Updating SQN using SP hss_auth_get_ki_v2")
-                sql = 'hss_auth_get_ki_v2 @imsi=' + str(imsi) + ', @NBofSeq=' + str(sqn) + ';'
+                #known_imsi: IMSI attached with sim returns 1 else returns 0
+                if str(result['known_imsi']) != '1':
+                    logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_unattached_w_SIM')
+                    raise ValueError("MSSQL reports IMSI " + str(imsi) + " not attached with SIM")
+
+                #subscriber_status: -1 –Blocked or 0-Active
+                if str(result['subscriber_status']) != '0':
+                    logtool.RedisIncrimenter('AIR_hss_imsi_known_check_IMSI_Blocked')
+                    raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
+
+                apn_id = result['apn_configuration']
+
+
+                DBLogger.debug("Running hss_get_subscriber_data_v2 for imsi " + str(imsi))
+                sql = 'hss_get_subscriber_data_v2 @imsi="' + str(imsi) + '";'
+                DBLogger.debug("SQL: " + str(sql))
+                self.conn.execute_query(sql)
+                result = [ row for row in self.conn ][0]
+
+                DBLogger.debug("\nResult of hss_get_subscriber_data_v2_v2: " + str(result))
+                #subscriber_status: -1 –Blocked or 0-Active (Again)
+                if str(result['subscriber_status']) != '0':
+                    logtool.RedisIncrimenter('AIR_hss_get_subscriber_data_v2_v2_IMSI_Blocked')
+                    raise ValueError("MSSQL reports Subscriber Blocked for IMSI " + str(imsi))
+                
+                #Get data output and put it into structure PyHSS uses
+                subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
+                subscriber_details['APN_OI_replacement'] = result['APN_OI_replacement']
+                subscriber_details['3gpp_charging_ch'] = result['_3gpp_charging_ch']
+                subscriber_details['ue_ambr_ul'] = result['MAX_REQUESTED_BANDWIDTH_UL']
+                subscriber_details['ue_ambr_dl'] = result['MAX_REQUESTED_BANDWIDTH_DL']
+                subscriber_details['K'] = result['ki']
+                subscriber_details['SQN'] = result['seqno']
+                subscriber_details['RAT_freq_priorityID'] = result['RAT_freq_priorityID']
+                subscriber_details['3gpp-charging-characteristics'] = result['_3gpp_charging_ch']
+                
+                #Harcoding AMF as it is the same for all SIMs and not returned by DB
+                subscriber_details['AMF'] = '8000'
+
+                #Set dummy RAND value (No need to store it)
+                subscriber_details['RAND'] = ""
+
+                #Format MSISDN
+                subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
+                subscriber_details['msisdn'] = subscriber_details['msisdn'].split(';')[-1]
+
+                #Convert OP to OPc
+                subscriber_details['OP'] = result['op_key']
+                DBLogger.debug("Generating OPc with input K: " + str(subscriber_details['K']) + " and OP: " + str(subscriber_details['OP']))
+                subscriber_details['OPc'] = S6a_crypt.generate_opc(subscriber_details['K'], subscriber_details['OP'])
+                subscriber_details.pop('OP', None)
+                DBLogger.debug("Generated OPc " + str(subscriber_details['OPc']))
+
+
+                DBLogger.debug("Getting APN info")
+                sql = 'hss_get_apn_info @apn_profileId=' + str(apn_id)
                 DBLogger.debug(sql)
                 self.conn.execute_query(sql)
-                DBLogger.debug(self.conn)
+                DBLogger.debug("Ran query")
+                subscriber_details['pdn'] = []
+                DBLogger.debug("Parsing results to var")
+                result = [ row for row in self.conn ][0]
+                DBLogger.debug("Got results")
+                DBLogger.debug("Results are: " + str(result))
+                apn = {'apn': str(result['Service_Selection']),\
+                        'pcc_rule': [], 'qos': {'qci': int(result['QOS_CLASS_IDENTIFIER']), \
+                        'arp': {'priority_level': int(result['QOS_PRIORITY_LEVEL']), 'pre_emption_vulnerability': int(result['QOS_PRE_EMP_VULNERABILITY']), 'pre_emption_capability': int(result['QOS_PRE_EMP_CAPABILITY'])}},\
+                        'ambr' : {'apn_ambr_ul' : int(result['MAX_REQUESTED_BANDWIDTH_UL']), 'apn_ambr_Dl' : int(result['MAX_REQUESTED_BANDWIDTH_DL'])},
+                        'PDN_GW_Allocation_Type' : int(result['PDN_GW_Allocation_Type']),
+                        'VPLMN_Dynamic_Address_Allowed' : int(result['VPLMN_Dynamic_Address_Allowed']),
+                        'type': 2, 'MIP6-Agent-Info' : {'MIP6_DESTINATION_HOST' : result['MIP6_DESTINATION_HOST'], 'MIP6_DESTINATION_REALM' : result['MIP6_DESTINATION_REALM']}}
+                subscriber_details['pdn'].append(apn)
+
+                DBLogger.debug("Final subscriber data for IMSI " + str(imsi) + " is: " + str(subscriber_details))
+                return subscriber_details
             except Exception as e:
-                DBLogger.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+                logtool.RedisIncrimenter('AIR_general')
+                DBLogger.error("General MSSQL Error")
                 DBLogger.error(e)
-                raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+                raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
+                
 
-            #If optional origin_host kwag present, store UE location (Serving MME) in Database
-            if 'origin_host' in kwargs:
-                DBLogger.debug("origin_host present - Updating MME Identity of subscriber in MSSQL")
-                origin_host = kwargs.get('origin_host', None)
-                DBLogger.debug("Origin to write to DB is " + str(origin_host))
 
-                if len(origin_host) != 0:
-                    try:
-                        DBLogger.debug("origin-host valid - Writing back to DB")
-                        sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
-                        DBLogger.debug(sql)
-                        self.conn.execute_query(sql)
-                        DBLogger.debug("Successfully updated location for " + str(imsi))
-                    except:
-                        DBLogger.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
-                    
-                else:
-                    try:
-                        DBLogger.debug("Removing MME Identity as new MME Identity is empty")
-                        sql = 'hss_delete_mme_identity @imsi=' + str(imsi) 
-                        DBLogger.debug(sql)
-                        self.conn.execute_query(sql)
-                        DBLogger.debug("Successfully cleared location for " + str(imsi))
-                    except:
-                        DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
+    def GetSubscriberLocation(self, *args, **kwargs):
+        with self._lock:
+            DBLogger.debug("Called GetSubscriberLocation")
+            if 'imsi' in kwargs:
+                DBLogger.debug("IMSI present - Searching based on IMSI")
+                try:
+                    imsi = kwargs.get('imsi', None)
+                    DBLogger.debug("Calling hss_get_mme_identity_by_info with IMSI " + str(imsi))
+                    sql = 'hss_get_mme_identity_by_info ' + str(imsi) + ';'
+                    DBLogger.info(sql)
+                    self.conn.execute_query(sql)
+                    DBLogger.debug(self.conn)
+                except Exception as e:
+                    DBLogger.error("failed to run " + str(sql))
+                    DBLogger.error(e)
+                    raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for IMSI " + str(imsi))     
+            elif 'msisdn' in kwargs:
+                DBLogger.debug("MSISDN present - Searching based on MSISDN")
+                try:
+                    msisdn = kwargs.get('msisdn', None)
+                    DBLogger.debug("Calling hss_get_mme_identity_by_info with msisdn " + str(msisdn))
+                    self.conn.execute_query('hss_get_mme_identity_by_info ' + str(msisdn) + ';')
+                    DBLogger.debug(self.conn)
+                except:
+                    raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
+                    DBLogger.critical("MSSQL not functioning. Restarting.")
             else:
-                DBLogger.debug("origin_host not present - not updating UE location in database")
-        except:
-            raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
+                raise ValueError("No IMSI or MSISDN provided - Aborting")
+            
+            try:
+                DBLogger.debug(self.conn)
+                result = [ row for row in self.conn ][0]
+                DBLogger.debug("Returned data:")
+                DBLogger.debug(result)
+                return result
+            except:
+                DBLogger.debug("No location stored in database for Subscriber")
+                raise ValueError("No location stored in database for Subscriber")
+
+    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
+        with self._lock:
+            try:
+                DBLogger.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
+                try:
+                    DBLogger.debug("Updating SQN using SP hss_auth_get_ki_v2")
+                    sql = 'hss_auth_get_ki_v2 @imsi=' + str(imsi) + ', @NBofSeq=' + str(sqn) + ';'
+                    DBLogger.debug(sql)
+                    self.conn.execute_query(sql)
+                    DBLogger.debug(self.conn)
+                except Exception as e:
+                    DBLogger.error("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+                    DBLogger.error(e)
+                    raise ValueError("MSSQL failed to run SP hss_auth_get_ki_v2 with SQN " + str(sqn) + " for IMSI " + str(imsi))  
+
+                #If optional origin_host kwag present, store UE location (Serving MME) in Database
+                if 'origin_host' in kwargs:
+                    DBLogger.debug("origin_host present - Updating MME Identity of subscriber in MSSQL")
+                    origin_host = kwargs.get('origin_host', None)
+                    DBLogger.debug("Origin to write to DB is " + str(origin_host))
+
+                    if len(origin_host) != 0:
+                        try:
+                            DBLogger.debug("origin-host valid - Writing back to DB")
+                            sql = 'hss_update_mme_identity @imsi=' + str(imsi) + ', @orgin_host=\'' + str(origin_host) + '\', @Cancellation_Type=0, @ue_purged_mme=0;'
+                            DBLogger.debug(sql)
+                            self.conn.execute_query(sql)
+                            DBLogger.debug("Successfully updated location for " + str(imsi))
+                        except:
+                            DBLogger.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
+                        
+                    else:
+                        try:
+                            DBLogger.debug("Removing MME Identity as new MME Identity is empty")
+                            sql = 'hss_delete_mme_identity @imsi=' + str(imsi) 
+                            DBLogger.debug(sql)
+                            self.conn.execute_query(sql)
+                            DBLogger.debug("Successfully cleared location for " + str(imsi))
+                        except:
+                            DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
+                else:
+                    DBLogger.debug("origin_host not present - not updating UE location in database")
+            except:
+                raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
             
 class MySQL:
