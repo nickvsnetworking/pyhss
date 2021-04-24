@@ -60,7 +60,7 @@ To get everything more production ready checkout [Monit with PyHSS](docs/monit.m
 If enabled, statistics are collected across threads using Redis.
 These keys and values are then able to be read by an SNMP service - ``tools/snmp_service.py`` to expose these values to be read by an external NMS such as LibreNMS or Nagios.
 
-More info available in [SNMP Readme](docs/SNMP_README.md).
+More info about monitoring the system is available in [SNMP Readme](docs/monitoring.md).
 
 ## About
 This software was written to address the limted options of free or lightweight HSS platforms out there, particularly those implimenting IMS HSS functionality.
