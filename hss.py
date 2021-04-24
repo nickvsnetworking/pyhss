@@ -20,7 +20,6 @@ if yaml_config['logging']['log_to_terminal'] == True:
 
 import socket
 import socketserver
-import diameter
 import binascii
 import time
 import _thread
@@ -34,11 +33,11 @@ for config_sections in yaml_config:
     for lower_keys in yaml_config[config_sections]:
         HSS_Logger.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
 
-
-#Initialize Diameter
-diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
-
 def on_new_client(clientsocket,client_address):
+    import diameter
+    #Initialize Diameter
+    diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
+
     HSS_Logger.debug('New connection from ' + str(client_address))
     logtool.Manage_Diameter_Peer(client_address, client_address, "add")
     data_sum = b''
@@ -274,4 +273,3 @@ while True:
     connection, client_address = sock.accept()
     _thread.start_new_thread(on_new_client,(connection,client_address))
     
-
