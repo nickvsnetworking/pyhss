@@ -84,6 +84,7 @@ def on_new_client(clientsocket,client_address):
                 except:
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
                 HSS_Logger.info("Generated DWA")
+                logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
 
             #Send Disconnect Peer Answer (DPA) response to Disconnect Peer Request (DPR)
             elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
