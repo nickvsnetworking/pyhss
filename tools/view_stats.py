@@ -13,6 +13,14 @@ for key in sorted(keys):
         print("Key: " + str(key) + " value: " + str(value))
 
 
-ActivePeerDict = json.loads(r.get('ActivePeerDict'))
+print("\n\nDiameter Peers:")
+ActivePeerDict = r.get('ActivePeerDict')
+if len(ActivePeerDict) == 0:
+    print("No connected peers.")
+ActivePeerDict = json.loads(ActivePeerDict)
+
 for keys in ActivePeerDict:
     print(keys)
+    for subkeys in ActivePeerDict[keys]:
+        print("\t" + str(subkeys) + ": \t" + str(ActivePeerDict[keys][subkeys]))
+    print('\n')
