@@ -1,6 +1,12 @@
-## PyHSS SNMP Readme
+## PyHSS Monitoring
 
-PyHSS's statistics rely on [Redis](https://redis.io/).
+PyHSS's statistics & monitoring rely on [Redis](https://redis.io/).
+
+### Viewing Diameter Peers
+You can view all the current Diameter peers by running the ``view_stats.py`` tool, which will list all active and inactive Diameter peers connected / connected then disconnected from the system.
+
+![Output of view_status showing connected Diameter Peers](https://github.com/nickvsnetworking/pyhss/blob/master/lib/PyHSS_Diameter_Peers.png.png)
+
 
 Different parts of the software have a code snippet like this:
 ```
