@@ -331,12 +331,13 @@ class Diameter:
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
         avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
-        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777291),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLh)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777236),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Rx)
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(258, 40, format(int(10),"x").zfill(8))                                  #Auth-Application-ID - Diameter CER
+        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))                                  #Auth-Application-ID - Diameter Gx
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                                #Supported-Vendor-ID (3GGP v2)
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
@@ -861,6 +862,22 @@ class Diameter:
                         <IdentityType>0</IdentityType>
                     </Extension>
                 </PublicIdentity>
+                <InitialFilterCriteria>
+                    <Priority>30</Priority>
+                    <TriggerPoint>
+                        <ConditionTypeCNF>1</ConditionTypeCNF>
+                        <SPT>
+                            <ConditionNegated>0</ConditionNegated>
+                            <Group>0</Group>
+                            <Method>INVITE</Method>
+                            <Extension></Extension>
+                        </SPT>
+                    </TriggerPoint>
+                    <ApplicationServer>
+                        <ServerName>sip:applicationserver.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
+                        <DefaultHandling>0</DefaultHandling>
+                    </ApplicationServer>
+                </InitialFilterCriteria>                
                 <InitialFilterCriteria>
                     <Priority>20</Priority>
                     <TriggerPoint>
