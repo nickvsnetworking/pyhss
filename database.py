@@ -104,7 +104,7 @@ class MongoDB:
 
 
     #Update a subscriber's information in MongoDB
-    def UpdateSubscriber(self, imsi, sqn, rand):
+    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         DBLogger.debug("Updating " + str(imsi))
         
         #Check if MongoDB in use
@@ -118,11 +118,50 @@ class MongoDB:
             newvalues = { "$set": {'security.rand': str(rand)} }
             mycol.update_one(myquery, newvalues)
             newvalues = { "$set": {'security.sqn': int(sqn)} }
+            if 'origin_host' in kwargs:
+                DBLogger.info("origin_host present - Storing location in DB")
+                origin_host = kwargs.get('origin_host', None)
+                newvalues = { "$set": {'origin_host': str(origin_host)} }
             mycol.update_one(myquery, newvalues)
             return sqn
         except:
             raise ValueError("Failed update SQN for subscriber " + str(imsi) + " in MongoDB")
         
+    def GetSubscriberLocation(self, *args, **kwargs):
+        DBLogger.debug("Called GetSubscriberLocation")
+        if 'imsi' in kwargs:
+            DBLogger.debug("IMSI present - Searching based on IMSI")
+            try:
+                imsi = kwargs.get('imsi', None)
+                DBLogger.debug("GetSubscriberLocation IMSI is " + str(imsi))
+                DBLogger.debug("Calling GetSubscriberLocation with IMSI " + str(imsi))
+                mydoc = self.QueryDB(imsi)
+                for x in mydoc:
+                    DBLogger.debug(x)
+                    try:
+                        return x['origin_host']
+                    except:
+                        DBLogger.debug("No location stored for sub")
+            except:
+                DBLogger.debug("Failed to pull subscriber info")
+                raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
+     
+        elif 'msisdn' in kwargs:
+            DBLogger.debug("MSISDN present - Searching based on MSISDN ")
+            try:
+                msisdn = kwargs.get('msisdn', None)
+                DBLogger.debug("msisdn is " + str(msisdn))
+                DBLogger.debug("Calling GetSubscriberLocation with msisdn " + str(msisdn))
+                mydoc = self.QueryDB(msisdn)
+                for x in mydoc:
+                    DBLogger.debug(x)
+                    try:
+                        return x['origin_host']
+                    except:
+                        DBLogger.debug("No location stored for sub")
+            except:
+                DBLogger.debug("Failed to pull subscriber info")
+                raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
 
 
 class MSSQL:
