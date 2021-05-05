@@ -313,8 +313,9 @@ class MSSQL:
                     self.conn.execute_query('hss_get_mme_identity_by_info ' + str(msisdn) + ';')
                     DBLogger.debug(self.conn)
                 except:
+                    DBLogger.critical("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn))
                     raise ValueError("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn)) 
-                    DBLogger.critical("MSSQL not functioning. Restarting.")
+                    
             else:
                 raise ValueError("No IMSI or MSISDN provided - Aborting")
             
@@ -430,12 +431,22 @@ def UpdateSubscriber(imsi, sqn, rand, *args, **kwargs):
     else:
         return DB.UpdateSubscriber(imsi, sqn, rand)
 
-def GetSubscriberLocation(imsi, input):
+def GetSubscriberLocation(*args, **kwargs):
     #Input can be either MSISDN or IMSI
-    return DB.GetSubscriberLocation(imsi='input')
+    if 'imsi' in kwargs:
+        DBLogger.info("Called GetSubscriberLocation with IMSI")
+        imsi = kwargs.get('imsi', None)
+        return DB.GetSubscriberLocation(imsi=imsi)
+    elif 'msisdn' in kwargs:
+        DBLogger.info("Called GetSubscriberLocation with MSISDN")
+        msisdn = kwargs.get('msisdn', None)
+        return DB.GetSubscriberLocation(msisdn=msisdn)
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
-    DB.GetSubscriberInfo('208310001859912')
-    DB.UpdateSubscriber('208310001859912', 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
-    DB.GetSubscriberLocation(imsi='208310001859912')
+    test_sub_imsi = yaml_config['hss']['test_sub_imsi']
+    DB.GetSubscriberInfo(test_sub_imsi)
+    DB.UpdateSubscriber(test_sub_imsi, 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
+    origin_host = DB.GetSubscriberLocation(imsi=test_sub_imsi)
+    print("Origin Host is " + str(origin_host))
+    
