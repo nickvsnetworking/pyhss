@@ -1121,36 +1121,55 @@ class Diameter:
     def Answer_16777291_8388622(self, packet_vars, avps):
         avp = '' 
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                   #Set session    ID to recieved session ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
         VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777291),"x").zfill(8))   #Auth-Application-ID SLh
         avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
-        avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
         avp += self.generate_avp(277, 40, "00000001")                                                   #Auth Session State (NO_STATE_MAINTAINED)        
         avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
 
-        try:
-            imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
-            imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
-            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
-        except:
-            DiameterLogger.debug("Failed to get IMSI")
+        #Create list of valid AVPs
+        present_avps = []
+        for avp_id in avps:
+            present_avps.append(avp_id['avp_code'])
         
-        try:
-            print("AVP data for MSIDN is " + self.get_avp_data(avps, 701))
-            msisdn = self.get_avp_data(avps, 701)[0]                                                          #Get MSISDN from AVP in request
-            msisdn = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert MSISDN
-            avp += self.generate_vendor_avp(701, 'c0', 10415, self.string_to_hex(msisdn))                     #MSISDN
-        except:
-            DiameterLogger.debug("Failed to get MSISDN")
+        #Define values so we can check if they've been changed
+        msisdn = None
+        imsi = None
 
-        if msisdn is not None:
-            subscriber_location = database.GetSubscriberLocation(msisdn)
-        elif imsi is not None:
-            subscriber_location = database.GetSubscriberLocation(imsi)
+        #Try and get IMSI if present
+        if 1 in present_avps:
+            DiameterLogger.info("IMSI AVP is present")
+            try:
+                imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+                imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
+                avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
+                DiameterLogger.info("Got IMSI with value " + str(imsi))
+            except Exception as e:
+                DiameterLogger.debug("Failed to get IMSI from LCS-Routing-Info-Request")
+                DiameterLogger.debug("Error was: " + str(e))
+        elif 701 in present_avps:
+            #Try and get MSISDN if present
+            try:
+                msisdn = self.get_avp_data(avps, 701)[0]                                                          #Get MSISDN from AVP in request
+                DiameterLogger.info("Got MSISDN with value " + str(msisdn))
+                avp += self.generate_vendor_avp(701, 'c0', 10415, self.get_avp_data(avps, 701)[0])                     #MSISDN
+                DiameterLogger.info("Got MSISDN with value " + str(msisdn))
+            except Exception as e:
+                DiameterLogger.debug("Failed to get MSISDN from LCS-Routing-Info-Request")
+                DiameterLogger.debug("Error was: " + str(e))
+        else:
+            DiameterLogger.error("No MSISDN or IMSI")
+
+        if imsi is not None:
+                DiameterLogger.debug("Getting susbcriber location based on IMSI")
+                subscriber_location = database.GetSubscriberLocation(imsi=imsi)
+        elif msisdn is not None:
+                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
+                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
             result_code = 5005
@@ -1162,20 +1181,37 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
+        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
 
-        #Experimental Result AVP
-        avp_experimental_result = ''
-        avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
-        avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+        
+        if subscriber_location == None:
+            #DB has no location on record for subscriber
+            DiameterLogger.info("No location on record for Subscriber")
+            result_code = 4201
+            #DIAMETER_ERROR_ABSENT_USER (4201)
+            #This result code shall be sent by the HSS to indicate that the location of the targeted user is not known at this time to
+            #satisfy the requested operation. 
+
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            
+            response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
 
 
         #Serving Node AVP
         avp_serving_node = ''
-        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location['Origin_Host']))   #MME-Name
+        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location))            #MME-Name
         avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)                                   #MME-Realm
         avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                        #GMLC-Address
         avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                                #Serving-Node  AVP
+
+        #Set Result-Code
+        result_code = 2001                                                                                                  #Diameter Success
+        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                  #Result Code - DIAMETER_SUCCESS
 
         response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -1448,8 +1484,9 @@ class Diameter:
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         #Username (IMSI)
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        
         #MSISDN (Optional)
-        avp += self.generate_vendor_avp(701, 'c0', 10415, self.string_to_hex(imsi))                                             #Username (IMSI)
+        avp += self.generate_vendor_avp(701, 'c0', 10415, "2364763145f3")                                             #Username (IMSI)
         #GMLC Address
         avp += self.generate_vendor_avp(2405, 'c0', 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address               
         response = self.generate_diameter_packet("01", "c0", 8388622, 16777291, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
