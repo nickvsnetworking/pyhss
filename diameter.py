@@ -862,13 +862,43 @@ class Diameter:
                     </Extension>
                 </PublicIdentity>
                 <InitialFilterCriteria>
-                    <Priority>0</Priority>
+                    <Priority>20</Priority>
                     <TriggerPoint>
                         <ConditionTypeCNF>1</ConditionTypeCNF>
                         <SPT>
                             <ConditionNegated>0</ConditionNegated>
                             <Group>0</Group>
                             <Method>MESSAGE</Method>
+                            <Extension></Extension>
+                        </SPT>
+                        <SPT>
+                            <ConditionNegated>1</ConditionNegated>
+                            <Group>1</Group>
+                            <SIPHeader>
+                            <Header>Server</Header>
+                            </SIPHeader>
+                        </SPT>
+                        <SPT>
+                            <ConditionNegated>0</ConditionNegated>
+                            <Group>2</Group>
+                            <SessionCase>0</SessionCase>
+                            <Extension></Extension>
+                        </SPT>
+                    </TriggerPoint>
+                    <ApplicationServer>
+                        <ServerName>sip:smsc.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
+                        <DefaultHandling>0</DefaultHandling>
+                    </ApplicationServer>
+                </InitialFilterCriteria>
+
+                <InitialFilterCriteria>
+                    <Priority>10</Priority>
+                    <TriggerPoint>
+                        <ConditionTypeCNF>1</ConditionTypeCNF>
+                        <SPT>
+                            <ConditionNegated>0</ConditionNegated>
+                            <Group>0</Group>
+                            <Method>REGISTER</Method>
                             <Extension></Extension>
                         </SPT>
                         <SPT>
@@ -883,6 +913,7 @@ class Diameter:
                         <DefaultHandling>0</DefaultHandling>
                     </ApplicationServer>
                 </InitialFilterCriteria>
+
             </ServiceProfile>
         </IMSSubscription>
         """
@@ -960,7 +991,7 @@ class Diameter:
         
         SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, opc, amf, sqn, plmn) 
         DiameterLogger.debug("IMSI is " + str(imsi))        
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username + "@" + domain)),'ascii'))               #Public Identity (IMSI)
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
         
 
@@ -990,7 +1021,11 @@ class Diameter:
         
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
 
-
+        experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
+        experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
+        experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+        avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
+        
 
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         
@@ -1060,7 +1095,8 @@ class Diameter:
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 'c0', 10415, '')                         #AVP Vendor ID
         avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
-        avp += self.generate_avp(297, 'c0', avp_experimental_result)                                      #AVP Experimental-Result(297)
+        avp += self.generate_avp(297, '40', avp_experimental_result)                                      #AVP Experimental-Result(297)
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
