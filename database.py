@@ -325,6 +325,9 @@ class MSSQL:
                 result = [ row for row in self.conn ][0]
                 DBLogger.debug("Returned data:")
                 DBLogger.debug(result)
+                DBLogger.debug("Stripping to only include Origin_Host")
+                result = result['Origin_Host']
+                DBLogger.debug("Final result is: " + str(result))
                 return result
             except:
                 DBLogger.debug("No location stored in database for Subscriber")
