@@ -4,23 +4,32 @@ import sys
 import diameter
 import _thread
 global recv_ip
-recv_ip = "10.9.49.110"
-#hostname = input("Host to connect to:\t")
-#domain = input("Domain:\t")
 
-hostname = "10.9.49.190"
+#Values to change / tweak
+recv_ip = "192.168.7.205"                                                         #IP of this Machine
+diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
+realm = "mnc001.mcc001.3gppnetwork.org"                                         #Diameter Realm of this machine
+DestinationHost = "hss.localdomain"                                             #Diameter Host of Destination
+DestinationRealm = "localdomain"                                                #Diameter Realm of Destination
+hostname = "192.168.7.1"                                                         #IP of Remote Diameter Host
+mcc = '001'                                                                     #Mobile Country Code
+mnc = '01'                                                                      #Mobile Network Code
+transport = "SCTP"                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
-realm = "mnc001.mcc001.3gppnetwork.org"
+diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR"]
 
+if transport == "TCP":
+    clientsocket = socket.socket()
+    clientsocket.bind((recv_ip, 3871))
+elif transport == "SCTP":
+    import sctp
+    clientsocket = sctp.sctpsocket_tcp(socket.AF_INET)
+else:
+    print(str(transport) + " is not valid transport type, exiting.")
+    sys.exit()
 
-diameter = diameter.Diameter('nick-pc', 'mnc001.mcc001.3gppnetwork.org', 'PyHSS-client', '001', '01')
-DestinationHost = "hss.localdomain"
-DestinationRealm = "localdomain"
-
-clientsocket = socket.socket()
-clientsocket.bind((recv_ip, 3871))
 print("Connecting to " + str(hostname))
 try:
     clientsocket.connect((hostname,3868))
