@@ -22,7 +22,9 @@ hss:
   MNC: "01"
 
   #Enable GMLC / SLh Interface
-  SLh_enabled: True
+  #IMSI of Test Subscriber for Unit Checks (Optional)
+  test_sub_imsi: '208310001859912'
+  
 ## Debug Parameters
 logging:
   level: DEBUG

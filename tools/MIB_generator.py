@@ -7,7 +7,7 @@ import os
 
 import yaml
 import sys
-with open(sys.path[0] + '/../config.yaml') as stream:
+with open(os.path.dirname(__file__) + '/../config.yaml') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 global generic_counter
@@ -18,7 +18,7 @@ oid_dict = {}
 
 def ParsePython(filename):
     print("parsing " + str(filename))
-    sauce = open(sys.path[0] + '/../' + str(filename), 'r')
+    sauce = open(os.path.dirname(__file__) + '/../' + str(filename), 'r')
 
     global generic_counter
     global oid_dict
@@ -68,8 +68,9 @@ def ParsePython(filename):
 
     return oid_dict
 
-files = os.listdir()
+files = os.listdir(os.path.dirname(__file__) + '/../')
 for filename in files:
+    print("Searching for Redis update objects in " + str(filename))
     if '.py' in filename:
         print(filename)
         ParsePython(filename)

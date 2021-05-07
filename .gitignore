@@ -22,3 +22,4 @@ log/hss.log.1
 log/pyhss_db.log
 log/pyhss_diameter.log
 log/pyhss.log
+scratchpad.py
