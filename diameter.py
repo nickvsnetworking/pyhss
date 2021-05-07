@@ -102,7 +102,62 @@ class Diameter:
             plmn = plmn + bits
         DiameterLogger.debug("Encoded PLMN: " + str(plmn))
         return plmn
+    def TBCD_special_chars(self, input):
+        if input == "*":
+            return "1010"
+        elif input == "#":
+            return "1011"
+        elif input == "a":
+            return "1100"
+        elif input == "b":
+            return "1101"
+        elif input == "c":
+            return "1100"      
+        else:
+            print("input " + str(input) + " is not a special char, converting to bin ")
+            return ("{:04b}".format(int(input)))
 
+
+    def TBCD_encode(self, input):
+        DiameterLogger.debug("TBCD_encode input value is " + str(input))
+        offset = 0
+        output = ''
+        matches = ['*', '#', 'a', 'b', 'c']
+        while offset < len(input):
+            if len(input[offset:offset+2]) == 2:
+                bit = input[offset:offset+2]    #Get two digits at a time
+                bit = bit[::-1]                 #Reverse them
+                #Check if *, #, a, b or c
+                if any(x in bit for x in matches):
+                    new_bit = ''
+                    new_bit = new_bit + str(TBCD_special_chars(bit[0]))
+                    new_bit = new_bit + str(TBCD_special_chars(bit[1]))    
+                    bit = str(int(new_bit, 2))
+                output = output + bit
+                offset = offset + 2
+            else:
+                bit = "f" + str(input[offset:offset+2])
+                output = output + bit
+                DiameterLogger.debug("TBCD_encode output value is " + str(output))
+                return output
+
+
+
+    def TBCD_decode(self, input):
+        DiameterLogger.debug("TBCD_decode Input value is " + str(input))
+        offset = 0
+        output = ''
+        while offset < len(input):
+            if "f" not in input[offset:offset+2]:
+                bit = input[offset:offset+2]    #Get two digits at a time
+                bit = bit[::-1]                 #Reverse them
+                output = output + bit
+                offset = offset + 2
+            else:   #If f in bit strip it
+                bit = input[offset:offset+2]
+                output = output + bit[1]
+                DiameterLogger.debug("TBCD_decode output value is " + str(output))
+                return output
 
     #Hexify the vars we got when initializing the class
     def __init__(self, OriginHost, OriginRealm, ProductName, MNC, MCC):
@@ -1157,7 +1212,9 @@ class Diameter:
                 msisdn = self.get_avp_data(avps, 701)[0]                                                          #Get MSISDN from AVP in request
                 DiameterLogger.info("Got MSISDN with value " + str(msisdn))
                 avp += self.generate_vendor_avp(701, 'c0', 10415, self.get_avp_data(avps, 701)[0])                     #MSISDN
-                DiameterLogger.info("Got MSISDN with value " + str(msisdn))
+                DiameterLogger.info("Got MSISDN with encoded value " + str(msisdn))
+                msisdn = self.TBCD_decode(msisdn)
+                DiameterLogger.info("Got MSISDN with decoded value " + str(msisdn))
             except Exception as e:
                 DiameterLogger.debug("Failed to get MSISDN from LCS-Routing-Info-Request")
                 DiameterLogger.debug("Error was: " + str(e))
@@ -1486,7 +1543,7 @@ class Diameter:
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         
         #MSISDN (Optional)
-        avp += self.generate_vendor_avp(701, 'c0', 10415, "2364763145f3")                                             #Username (IMSI)
+        #avp += self.generate_vendor_avp(701, 'c0', 10415, .TBCD_encode(msisdn))                                             #Username (IMSI)
         #GMLC Address
         avp += self.generate_vendor_avp(2405, 'c0', 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address               
         response = self.generate_diameter_packet("01", "c0", 8388622, 16777291, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
