@@ -310,7 +310,8 @@ class MSSQL:
                 try:
                     msisdn = kwargs.get('msisdn', None)
                     DBLogger.debug("Calling hss_get_mme_identity_by_info with msisdn " + str(msisdn))
-                    self.conn.execute_query('hss_get_mme_identity_by_info ' + str(msisdn) + ';')
+                    sql = 'hss_get_mme_identity_by_info ' + str(msisdn) + ';'
+                    self.conn.execute_query(sql)
                     DBLogger.debug(self.conn)
                 except:
                     DBLogger.critical("MSSQL failed to run SP hss_get_mme_identity_by_info for msisdn " + str(msisdn))
