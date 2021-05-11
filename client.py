@@ -18,7 +18,7 @@ transport = "SCTP"                                                              
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
@@ -54,13 +54,6 @@ def ReadBuffer():
                 for keys in packet_vars:
                     print("\t" + str(keys) + "\t" + str(packet_vars[keys]))
 
-                for avp in avps:
-                    print(avp['avp_code'])
-                    if int(avp['avp_code']) == 318:
-                        print("Received Authentication Information Answer - Store output of Crypto vectors?")
-                        file = open("vectors.txt", "w")
-                        file.write(avp['misc_data'])
-                        file.close()
                 print("Command Code: " + str(packet_vars['command_code']))
                 if int(packet_vars['command_code']) == 280:
                     flags_bin = diameter.hex_to_bin(packet_vars['flags'])
@@ -75,13 +68,15 @@ def ReadBuffer():
                         print("Recieved CER - Sending CEA")
                         SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
                     else:
-                        print("Is CEA ")
+                        print("Is CEA")
                         
                     
                 if input("Print AVPs (Y/N):\t") == "Y":
                     for avp in avps:
                         print("\t\t" + str(avp))
-                        
+        except KeyboardInterrupt:
+            print("User exited background loop")
+            break                       
         except Exception as e:
             print("failed to get all return data - Error " + str(e))
 
@@ -96,6 +91,8 @@ while True:
     request = input("Enter request type:\t")
 
     if request == "R":
+        print("Selected Readbuffer mode - Automatically listening for DWR and responding DWA")
+        print("To exit this mode press Control + C once and wait, loop exit will happen at end of the loop.")
         ReadBuffer()
     elif request == "CER":
         print("Sending Cabailites Exchange Request to " + str(hostname))
@@ -111,6 +108,10 @@ while True:
         imsi = str(input("IMSI:\t"))
         print("Sending Update Location Request to " + str(hostname))
         SendRequest(diameter.Request_16777251_316(imsi))
+    elif request == "CLR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending Cancel Location Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_317(imsi, DestinationHost, DestinationRealm))        
     elif request == "AIR":
         imsi = str(input("IMSI:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
@@ -152,8 +153,13 @@ while True:
         SendRequest(diameter.Request_16777216_285(sipaor))
     elif request == "RIR":
         imsi = str(input("IMSI:\t"))
-        print("Sending LCS Routing Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777291_8388622(imsi))
+        if len(imsi) != 0:
+            print("Sending LCS Routing Information Request with IMSI to " + str(hostname))
+            SendRequest(diameter.Request_16777291_8388622(imsi=imsi))
+        else:
+            msisdn = str(input("MSISDN:\t"))
+            print("Sending LCS Routing Information Request with MSISDN to " + str(hostname))
+            SendRequest(diameter.Request_16777291_8388622(msisdn=msisdn))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
