@@ -31,8 +31,6 @@ if yaml_config['redis']['enabled'] == True:
 
 
 class Diameter:
-    
-
     ##Function Definitions
 
 
@@ -103,19 +101,26 @@ class Diameter:
         DiameterLogger.debug("Encoded PLMN: " + str(plmn))
         return plmn
     def TBCD_special_chars(self, input):
+        DiameterLogger.debug("Special character possible in " + str(input))
         if input == "*":
+            DiameterLogger.debug("Found * - Returning 1010")
             return "1010"
         elif input == "#":
+            DiameterLogger.debug("Found # - Returning 1011")
             return "1011"
         elif input == "a":
+            DiameterLogger.debug("Found a - Returning 1100")
             return "1100"
         elif input == "b":
+            DiameterLogger.debug("Found b - Returning 1101")
             return "1101"
         elif input == "c":
+            DiameterLogger.debug("Found c - Returning 1100")
             return "1100"      
         else:
-            print("input " + str(input) + " is not a special char, converting to bin ")
-            return ("{:04b}".format(int(input)))
+            binform = "{:04b}".format(int(input))
+            DiameterLogger.debug("input " + str(input) + " is not a special char, converted to bin: " + str(binform))
+            return (binform)
 
 
     def TBCD_encode(self, input):
@@ -125,21 +130,40 @@ class Diameter:
         matches = ['*', '#', 'a', 'b', 'c']
         while offset < len(input):
             if len(input[offset:offset+2]) == 2:
+                DiameterLogger.debug("processing bits " + str(input[offset:offset+2]) + " at position offset " + str(offset))
                 bit = input[offset:offset+2]    #Get two digits at a time
                 bit = bit[::-1]                 #Reverse them
                 #Check if *, #, a, b or c
                 if any(x in bit for x in matches):
+                    DiameterLogger.debug("Special char in bit " + str(bit))
                     new_bit = ''
-                    new_bit = new_bit + str(TBCD_special_chars(bit[0]))
-                    new_bit = new_bit + str(TBCD_special_chars(bit[1]))    
-                    bit = str(int(new_bit, 2))
+                    new_bit = new_bit + str(self.TBCD_special_chars(bit[0]))
+                    new_bit = new_bit + str(self.TBCD_special_chars(bit[1]))
+                    DiameterLogger.debug("Final bin output of new_bit is " + str(new_bit))
+                    bit = hex(int(new_bit, 2))[2:]      #Get Hex value
+                    DiameterLogger.debug("Formatted as Hex this is " + str(bit))
                 output = output + bit
                 offset = offset + 2
             else:
-                bit = "f" + str(input[offset:offset+2])
+                #If odd-length input
+                last_digit = str(input[offset:offset+2])
+                #Check if *, #, a, b or c
+                if any(x in last_digit for x in matches):
+                    DiameterLogger.debug("Special char in bit " + str(bit))
+                    new_bit = ''
+                    new_bit = new_bit + '1111'      #Add the F first
+                    #Encode the symbol into binary and append it to the new_bit var
+                    new_bit = new_bit + str(self.TBCD_special_chars(last_digit))
+                    DiameterLogger.debug("Final bin output of new_bit is " + str(new_bit)) 
+                    bit = hex(int(new_bit, 2))[2:]      #Get Hex value
+                    DiameterLogger.debug("Formatted as Hex this is " + str(bit))
+                else:
+                    bit = "f" + last_digit
+                offset = offset + 2
                 output = output + bit
-                DiameterLogger.debug("TBCD_encode output value is " + str(output))
-                return output
+                
+        DiameterLogger.debug("TBCD_encode final output value is " + str(output))
+        return output
 
 
 
@@ -1356,14 +1380,15 @@ class Diameter:
         return response
     
     #3GPP S6a/S6d Purge UE Request PUR
-    def Request_16777251_321(self, imsi):
+    def Request_16777251_321(self, imsi, DestinationRealm, DestinationHost):
         avp = ''
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         response = self.generate_diameter_packet("01", "c0", 321, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
@@ -1542,7 +1567,7 @@ class Diameter:
         return response
 
     #3GPP SLh - Provide Subscriber Location Request
-    def Request_16777291_8388622(self, imsi):
+    def Request_16777291_8388622(self, **kwargs):
         avp = ''
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
@@ -1550,16 +1575,21 @@ class Diameter:
         VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777291),"x").zfill(8))   #Auth-Application-ID SLh
         avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_slh'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        
         #Username (IMSI)
-        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        if 'imsi' in kwargs:
+            avp += self.generate_avp(1, 40, self.string_to_hex(str(kwargs.get('imsi'))))                                             #Username (IMSI)
         
         #MSISDN (Optional)
-        #avp += self.generate_vendor_avp(701, 'c0', 10415, .TBCD_encode(msisdn))                                             #Username (IMSI)
+        if 'msisdn' in kwargs:
+            avp += self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(kwargs.get('msisdn'))))                                             #Username (IMSI)
+
         #GMLC Address
-        avp += self.generate_vendor_avp(2405, 'c0', 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address               
+        avp += self.generate_vendor_avp(2405, 'c0', 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address
+
         response = self.generate_diameter_packet("01", "c0", 8388622, 16777291, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
