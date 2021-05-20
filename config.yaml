@@ -22,8 +22,13 @@ hss:
   MNC: "01"
 
   #Enable GMLC / SLh Interface
+  SLh_enabled: True
+
   #IMSI of Test Subscriber for Unit Checks (Optional)
   test_sub_imsi: '208310001859912'
+
+  #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
+  Insert_Subscriber_Data_Force: True
   
 ## Debug Parameters
 logging:

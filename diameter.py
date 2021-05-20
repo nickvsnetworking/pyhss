@@ -1410,6 +1410,78 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 317, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
+    #3GPP S6a/S6d Insert Subscriber Data Request (ISD)
+    def Request_16777251_319(self, packet_vars, avps):
+        logtool.RedisIncrimenter('Request_16777251_319_attempt_count')
+        avp = ''                                                                                    #Initiate empty var AVP
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+        
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)                                  #AVP: Auth-Application-Id(258) l=12 f=-M- val=3GPP S6a/S6d (16777251)  
+        avp += self.generate_avp(277, 40, "00000001")                                                   #Auth-Session-State  
+        avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
+        #These two are filled with the contents of the AVP from the Request
+        avp += self.generate_avp(293, 40, )     #Destination-Host
+        avp += self.generate_avp(283, 40, )     #Destination-Realm
+        avp += self.generate_avp(1, 40, )     #username
+        avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")  #IDR-Flags
+
+
+        #APNs from DB
+        APN_Configuration = ''
+        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
+        try:
+            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+        except ValueError as e:
+            DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
+            DiameterLogger.error("Error is " + str(e))
+            raise
+        except Exception as ex:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
+            message = template.format(type(ex).__name__, ex.args)
+            DiameterLogger.critical(message)
+            DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
+            raise
+
+
+
+
+
+        #Subscription Data: 
+        subscription_data = ''
+        subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
+        #If MSISDN is present include it in Subscription Data
+        if 'msisdn' in subscriber_details:
+            DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            msisdn_avp = self.generate_vendor_avp(1643, 'c0', 10415, str(subscriber_details['msisdn']))                     #A-MSISDN
+            DiameterLogger.debug(msisdn_avp)
+            subscription_data += msisdn_avp
+        subscription_data += self.generate_vendor_avp(1433, "c0", 10415, "")                             #STN-SR
+        subscription_data += self.generate_vendor_avp(1491, "c0", 10415, "00000000")                     #ICS-Indicator
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        subscription_data += self.generate_vendor_avp(1425, "c0", 10415, "00000000")                     #Operator-Determined Barring
+        subscription_data += self.generate_vendor_avp(1418, "c0", 10415, "00000000")                     #HPLMN-ODB
+        subscription_data += self.generate_vendor_avp(1466, "c0", 10415, "")                             #Regional Subscription Zone Code
+        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
+        if 'APN-OI-Replacement' in subscriber_details:
+            DiameterLogger.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in Insert Subscriber Data Request")
+            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
+        #GMLC-Number
+        subscription_data += self.generate_vendor_avp(1473, "c0", 10415, "000005c2c000000c000028af000005cdc0000010000028af00000000")                     
+
+        #Generate Subscription-Data AVP
+        avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)
+        response = self.generate_diameter_packet("01", "80", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        logtool.RedisIncrimenter('Answer_16777251_319_success_count')
+
 
 
     #3GPP Cx Location Information Request (LIR)

@@ -119,6 +119,15 @@ def on_new_client(clientsocket,client_address):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
                     HSS_Logger.info("Generated error DIAMETER_USER_DATA_NOT_AVAILABLE ULA")
 
+                if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
+                    #Send ULA data
+                    clientsocket.sendall(bytes.fromhex(response))
+                    #Generate Insert Subscriber Data Request
+                    response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
+                    HSS_Logger.info("Generated IDR")
+
+
+
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
             elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
                 HSS_Logger.info("Received Request with command code 321 (3GPP Purge UE Request) from " + orignHost + "\n\tGenerating (PUA)")
