@@ -2,7 +2,7 @@ redis==3.5.3
 pycryptodomex==3.9.7
 pyyaml==5.3.1
 pymongo==3.10.1
-mongo
-pymssql
+mongo==0.2.0
+pymssql==2.1.5
 pysctp==0.6.1
 pysnmp==4.4.12
