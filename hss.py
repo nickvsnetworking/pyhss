@@ -127,7 +127,8 @@ def on_new_client(clientsocket,client_address):
                     #Generate Insert Subscriber Data Request
                     response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
                     HSS_Logger.info("Generated IDR")
-
+                    #Send ISD data
+                    clientsocket.sendall(bytes.fromhex(response))
 
 
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
