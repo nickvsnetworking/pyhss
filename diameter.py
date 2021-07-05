@@ -1413,31 +1413,41 @@ class Diameter:
     #3GPP S6a/S6d Insert Subscriber Data Request (ISD)
     def Request_16777251_319(self, packet_vars, avps):
         logtool.RedisIncrimenter('Request_16777251_319_attempt_count')
-        avp = ''                                                                                    #Initiate empty var AVP
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        
-        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
-        VendorSpecificApplicationId = ''
-        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
-        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
-        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)                                  #AVP: Auth-Application-Id(258) l=12 f=-M- val=3GPP S6a/S6d (16777251)  
-        avp += self.generate_avp(277, 40, "00000001")                                                   #Auth-Session-State  
-        avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
-        #These two are filled with the contents of the AVP from the Request
-        avp += self.generate_avp(293, 40, )     #Destination-Host
-        avp += self.generate_avp(283, 40, )     #Destination-Realm
-        avp += self.generate_avp(1, 40, )     #username
-        avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")  #IDR-Flags
-
 
         #APNs from DB
         APN_Configuration = ''
-        imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
-        imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
+        imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Convert IMSI
+
+        avp = ''                                                                                    #Initiate empty var AVP
+        avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
+        session_id = self.get_avp_data(avps, 263)[0]                                                #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                               #Session-ID AVP set
+        
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                 #AVP Vendor ID
+        avp += self.generate_avp(277, 40, "00000001")                                               #Auth-Session-State
+
+        # #Why is this here twice in the PCAP?
+        # avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
+        # avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
+
+        destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
+        destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
+        DiameterLogger.debug("Recieved originHost to use as destinationHost is " + str(destinationHost))
+        destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
+        destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
+        DiameterLogger.debug("Recieved originRealm to use as destinationRealm is " + str(destinationRealm))        
+        avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
+        avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))                                                         #Destination-Realm
+
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
+        avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")                              #IDR-Flags
+
+
+
         try:
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
         except ValueError as e:
@@ -1458,12 +1468,13 @@ class Diameter:
         #Subscription Data: 
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-        #If MSISDN is present include it in Subscription Data
+                #If MSISDN is present include it in Subscription Data
         if 'msisdn' in subscriber_details:
             DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-            msisdn_avp = self.generate_vendor_avp(1643, 'c0', 10415, str(subscriber_details['msisdn']))                     #A-MSISDN
+            msisdn_avp = self.generate_vendor_avp(1643, 'c0', 10415, str(subscriber_details['msisdn']))  #A-MSISDN
             DiameterLogger.debug(msisdn_avp)
             subscription_data += msisdn_avp
+
         subscription_data += self.generate_vendor_avp(1433, "c0", 10415, "")                             #STN-SR
         subscription_data += self.generate_vendor_avp(1491, "c0", 10415, "00000000")                     #ICS-Indicator
         subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)

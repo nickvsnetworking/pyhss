@@ -119,9 +119,11 @@ def on_new_client(clientsocket,client_address):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
                     HSS_Logger.info("Generated error DIAMETER_USER_DATA_NOT_AVAILABLE ULA")
 
+                #Send ULA data
+                clientsocket.sendall(bytes.fromhex(response))
+
                 if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
-                    #Send ULA data
-                    clientsocket.sendall(bytes.fromhex(response))
+                    HSS_Logger.debug("ISD triggered after ULA")
                     #Generate Insert Subscriber Data Request
                     response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
                     HSS_Logger.info("Generated IDR")
