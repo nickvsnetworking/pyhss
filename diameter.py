@@ -638,9 +638,9 @@ class Diameter:
             DiameterLogger.debug(_3gpp_charging_characteristics)
 
             
-        if 'APN-OI-Replacement' in subscriber_details:
-            DiameterLogger.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in ULA")
-            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
+        if 'APN_OI_replacement' in subscriber_details:
+            DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
+            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
