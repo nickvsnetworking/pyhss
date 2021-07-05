@@ -1480,11 +1480,11 @@ class Diameter:
         subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
         subscription_data += self.generate_vendor_avp(1425, "c0", 10415, "00000000")                     #Operator-Determined Barring
         subscription_data += self.generate_vendor_avp(1418, "c0", 10415, "00000000")                     #HPLMN-ODB
-        subscription_data += self.generate_vendor_avp(1466, "c0", 10415, "")                             #Regional Subscription Zone Code
+        subscription_data += self.generate_vendor_avp(1446, "c0", 10415, "")                             #Regional Subscription Zone Code
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
-        if 'APN-OI-Replacement' in subscriber_details:
-            DiameterLogger.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in Insert Subscriber Data Request")
-            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
+        if 'APN_OI_replacement' in subscriber_details:
+            DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in Insert Subscriber Data Request")
+            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
         #GMLC-Number
         subscription_data += self.generate_vendor_avp(1473, "c0", 10415, "000005c2c000000c000028af000005cdc0000010000028af00000000")                     
 
@@ -1492,7 +1492,7 @@ class Diameter:
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)
         response = self.generate_diameter_packet("01", "80", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_319_success_count')
-
+        return response
 
 
     #3GPP Cx Location Information Request (LIR)
