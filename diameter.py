@@ -1424,7 +1424,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
         session_id = self.get_avp_data(avps, 263)[0]                                                #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                               #Session-ID AVP set
-        
+        avp += self.generate_vendor_avp(266, 40, 10415, '')                                         #AVP Vendor ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                 #AVP Vendor ID
@@ -1469,9 +1469,9 @@ class Diameter:
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
                 #If MSISDN is present include it in Subscription Data
-        if 'msisdn' in subscriber_details:
-            DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-            msisdn_avp = self.generate_vendor_avp(1643, 'c0', 10415, str(subscriber_details['msisdn']))  #A-MSISDN
+        if 'a-msisdn' in subscriber_details:
+            DiameterLogger.debug("A-MSISDN is " + str(subscriber_details['msisdn']) + " - adding in IDR")
+            msisdn_avp = self.generate_vendor_avp(1643, 'c0', 10415, str(self.string_to_hex(subscriber_details['a-msisdn'])))  #A-MSISDN
             DiameterLogger.debug(msisdn_avp)
             subscription_data += msisdn_avp
 
@@ -1484,7 +1484,7 @@ class Diameter:
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         if 'APN_OI_replacement' in subscriber_details:
             DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in Insert Subscriber Data Request")
-            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
+            subscription_data += self.generate_vendor_avp(1427, "c0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
         #GMLC-Number
         subscription_data += self.generate_vendor_avp(1473, "c0", 10415, "000005c2c000000c000028af000005cdc0000010000028af00000000")                     
 

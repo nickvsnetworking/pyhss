@@ -129,7 +129,7 @@ def on_new_client(clientsocket,client_address):
                     HSS_Logger.info("Generated IDR")
                     #Send ISD data
                     clientsocket.sendall(bytes.fromhex(response))
-
+                    HSS_Logger.info("Sent IDR")
 
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
             elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
