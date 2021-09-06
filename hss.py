@@ -50,8 +50,8 @@ def on_new_client(clientsocket,client_address):
                 break
             
             packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
-            data_sum = data + clientsocket.recv(packet_length - 32)           #Recieve remainder of packet from buffer
-            packet_vars, avps = diameter.decode_diameter_packet(data_sum)   #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
+            data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
+            packet_vars, avps = diameter.decode_diameter_packet(data_sum)           #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
 
             orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
             orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
