@@ -246,9 +246,14 @@ if yaml_config['hss']['transport'] == "SCTP":
     sock = sctp.sctpsocket_tcp(socket.AF_INET)
     # Loop through the possible Binding IPs from the config and bind to each for Multihoming
     server_addresses = []
+
+    #Prepend each entry into list, so the primary IP is bound first
     for host in yaml_config['hss']['bind_ip']:
-        HSS_Logger.info("Seting up SCTP binding on local IP address " + str(host))
-        server_addresses.append((str(host), int(yaml_config['hss']['bind_port'])))
+        HSS_Logger.info("Seting up SCTP binding on IP address " + str(host))
+        this_IP_binding = [(str(host), int(yaml_config['hss']['bind_port']))]
+        server_addresses = this_IP_binding + server_addresses
+
+    print("server_addresses is: " + str(server_addresses))
     sock.bindx(server_addresses)
     HSS_Logger.info("PyHSS listening on SCTP port " + str(server_addresses))
     # Listen for up to 5 incoming connection
