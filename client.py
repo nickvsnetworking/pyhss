@@ -18,7 +18,7 @@ transport = "SCTP"                                                              
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
@@ -124,7 +124,11 @@ while True:
     elif request == "PUR":
         imsi = str(input("IMSI:\t"))
         print("Sending User Purge Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_321(imsi))
+        SendRequest(diameter.Request_16777251_321(imsi, DestinationHost, DestinationRealm))
+    elif request == "NOR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending NOtify Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_323(imsi, DestinationHost, DestinationRealm))        
     elif request == "SAR":
         imsi = str(input("IMSI:\t"))
         domain = str(input("Domain:\t"))
