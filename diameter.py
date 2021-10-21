@@ -405,7 +405,8 @@ class Diameter:
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
             if avps_to_check['avp_code'] == 278:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))        #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
-        avp += self.generate_avp(257, 40, self.ip_to_hex(recv_ip))                                  #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
+        for host in yaml_config['hss']['bind_ip']:                                                  #Loop through all IPs from Config and add to response
+            avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)                
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
         avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
