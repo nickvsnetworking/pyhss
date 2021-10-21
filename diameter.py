@@ -718,6 +718,7 @@ class Diameter:
         sqn = subscriber_details['SQN']                                                             #Format keys
         DiameterLogger.debug("Formatted crypto keys")
 
+        requested_vectors = 1
         for avp in avps:
             if avp['avp_code'] == 1408:
                 DiameterLogger.debug("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
@@ -741,31 +742,43 @@ class Diameter:
                         DiameterLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
                         sqn = sqn + 100
 
-        plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-        DiameterLogger.debug("SQN used in vector: " + str(sqn))
-        try:
-            DiameterLogger.debug("Inputted K   " + str(key))
-            DiameterLogger.debug("Inputted OPc " + str(opc))
-            DiameterLogger.debug("Inputted AMF " + str(amf))
-            DiameterLogger.debug("Inputted SQN " + str(sqn))
-            DiameterLogger.debug("Inputted PLMN " + str(plmn))
-            rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
-        except Exception as e:
-            DiameterLogger.error("Error generating EUTRAN vector")
-            DiameterLogger.error(e)
-            raise ValueError("Failed to generate EUTRAN vector")
-        eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
-        eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
-        eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
-        eutranvector += self.generate_vendor_avp(1449, "c0", 10415, autn)                                #AUTN
-        eutranvector += self.generate_vendor_avp(1450, "c0", 10415, kasme)                               #And KASME
+                    #Get number of requested vectors
+                    if sub_avp['avp_code'] == 1410:
+                        DiameterLogger.debug("Raw value of requested vectors is " + str(sub_avp['misc_data']))
+                        requested_vectors = int(sub_avp['misc_data'], 16)
 
-        eutranvector = self.generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
+        DiameterLogger.debug("Generating " + str(requested_vectors) + " vectors as requested")
+        eutranvector_complete = ''
+        while requested_vectors != 0:
+            DiameterLogger.debug("Generating vector number " + str(requested_vectors))
+            plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
+            DiameterLogger.debug("SQN used in vector: " + str(sqn))
+            try:
+                DiameterLogger.debug("Inputted K   " + str(key))
+                DiameterLogger.debug("Inputted OPc " + str(opc))
+                DiameterLogger.debug("Inputted AMF " + str(amf))
+                DiameterLogger.debug("Inputted SQN " + str(sqn))
+                DiameterLogger.debug("Inputted PLMN " + str(plmn))
+                rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
+            except Exception as e:
+                DiameterLogger.error("Error generating EUTRAN vector")
+                DiameterLogger.error(e)
+                raise ValueError("Failed to generate EUTRAN vector")
+            eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
+            eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
+            eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
+            eutranvector += self.generate_vendor_avp(1449, "c0", 10415, autn)                                #AUTN
+            eutranvector += self.generate_vendor_avp(1450, "c0", 10415, kasme)                               #And KASME
+
+            requested_vectors = requested_vectors - 1
+            sqn = sqn + 1
+            eutranvector_complete += self.generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
+            
         DiameterLogger.debug("Crypto done")
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_vendor_avp(1413, "c0", 10415, eutranvector)                                 #Authentication-Info (3GPP)                                      
+        avp += self.generate_vendor_avp(1413, "c0", 10415, eutranvector_complete)                                 #Authentication-Info (3GPP)                                      
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
@@ -1341,7 +1354,7 @@ class Diameter:
 
 
     #3GPP S6a/S6d Authentication Information Request
-    def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm):                                                             
+    def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm, requested_vectors):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
@@ -1351,11 +1364,14 @@ class Diameter:
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
         avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
-        avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
+        avp_1408 = ''
+        avp_1408 += '00000582c0000010000028af00000002'
+        avp_1408 += '00000584c0000010000028af00000001'
+        avp += self.generate_vendor_avp(1408, "c0", 10415, avp_1408)
         mcc = str(imsi)[:3]
         mnc = str(imsi)[3:5]
         avp += self.generate_vendor_avp(1407, "c0", 10415, self.EncodePLMN(mcc, mnc))                    #Visited-PLMN-Id(1407) (Derrived from start of IMSI)
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID       
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID             
         response = self.generate_diameter_packet("01", "c0", 318, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
