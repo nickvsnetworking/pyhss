@@ -121,15 +121,15 @@ def on_new_client(clientsocket,client_address):
 
                 #Send ULA data
                 clientsocket.sendall(bytes.fromhex(response))
-
-                if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
-                    HSS_Logger.debug("ISD triggered after ULA")
-                    #Generate Insert Subscriber Data Request
-                    response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
-                    HSS_Logger.info("Generated IDR")
-                    #Send ISD data
-                    clientsocket.sendall(bytes.fromhex(response))
-                    HSS_Logger.info("Sent IDR")
+                if 'Insert_Subscriber_Data_Force' in yaml_config['hss']:
+                    if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
+                        HSS_Logger.debug("ISD triggered after ULA")
+                        #Generate Insert Subscriber Data Request
+                        response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
+                        HSS_Logger.info("Generated IDR")
+                        #Send ISD data
+                        clientsocket.sendall(bytes.fromhex(response))
+                        HSS_Logger.info("Sent IDR")
 
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
             elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
