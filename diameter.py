@@ -405,10 +405,11 @@ class Diameter:
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
             if avps_to_check['avp_code'] == 278:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))        #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
-        avp += self.generate_avp(257, 40, self.ip_to_hex(recv_ip))                                  #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
+        for host in yaml_config['hss']['bind_ip']:                                                  #Loop through all IPs from Config and add to response
+            avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
-        avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
+        #avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
@@ -1309,7 +1310,7 @@ class Diameter:
         avp += self.generate_avp(257, 40, self.ip_to_hex(socket.gethostbyname(socket.gethostname())))         #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                                    #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                                   #Product-Name
-        avp += self.generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
+        #avp += self.generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(260, 40, "000001024000000c01000027" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLg)
@@ -1383,15 +1384,31 @@ class Diameter:
     def Request_16777251_321(self, imsi, DestinationRealm, DestinationHost):
         avp = ''
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
-        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
-        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))               #Session State set AVP
+        avp += self.generate_avp(277, 40, "00000001")                                                         #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
         avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
         response = self.generate_diameter_packet("01", "c0", 321, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+
+    #3GPP S6a/S6d NOtify Request NOR
+    def Request_16777251_323(self, imsi, DestinationRealm, DestinationHost):
+        avp = ''
+        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))               #Session State set AVP
+        avp += self.generate_avp(277, 40, "00000001")                                                         #Auth-Session-State
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
+        response = self.generate_diameter_packet("01", "c0", 323, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
     #3GPP S6a/S6d Cancel-Location-Request Request CLR
