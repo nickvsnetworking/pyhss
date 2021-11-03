@@ -6,23 +6,23 @@ import _thread
 global recv_ip
 
 #Values to change / tweak
-recv_ip = "192.168.7.205"                                                         #IP of this Machine
+recv_ip = "127.0.0.2"                                                         #IP of this Machine
 diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
 realm = "mnc001.mcc001.3gppnetwork.org"                                         #Diameter Realm of this machine
 DestinationHost = "hss.localdomain"                                             #Diameter Host of Destination
 DestinationRealm = "localdomain"                                                #Diameter Realm of Destination
-hostname = "192.168.7.1"                                                         #IP of Remote Diameter Host
+hostname = "127.0.0.1"                                                         #IP of Remote Diameter Host
 mcc = '001'                                                                     #Mobile Country Code
 mnc = '01'                                                                      #Mobile Network Code
 transport = "SCTP"                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
-    clientsocket.bind((recv_ip, 3871))
+    clientsocket.bind((recv_ip, 1024))
 elif transport == "SCTP":
     import sctp
     clientsocket = sctp.sctpsocket_tcp(socket.AF_INET)
@@ -114,8 +114,9 @@ while True:
         SendRequest(diameter.Request_16777251_317(imsi, DestinationHost, DestinationRealm))        
     elif request == "AIR":
         imsi = str(input("IMSI:\t"))
+        requested_vectors = str(input("Number of Vectors:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm))
+        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm, requested_vectors))
     elif request == "UAR":
         imsi = str(input("IMSI:\t"))
         domain = str(input("Domain:\t"))
@@ -124,7 +125,15 @@ while True:
     elif request == "PUR":
         imsi = str(input("IMSI:\t"))
         print("Sending User Purge Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_321(imsi))
+        SendRequest(diameter.Request_16777251_321(imsi, DestinationHost, DestinationRealm))
+    elif request == "NOR":
+        imsi = str(input("IMSI:\t"))
+        print("Sending NOtify Request to " + str(hostname))
+        SendRequest(diameter.Request_16777251_323(imsi, DestinationHost, DestinationRealm))
+    elif request == "DEP":
+        imsi = str(input("IMSI:\t"))
+        print("Sending Diameter-EAP Request to " + str(hostname))
+        SendRequest(diameter.Request_16777264_268(imsi, DestinationHost, DestinationRealm))        
     elif request == "SAR":
         imsi = str(input("IMSI:\t"))
         domain = str(input("Domain:\t"))
