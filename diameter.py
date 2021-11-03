@@ -473,7 +473,8 @@ class Diameter:
         #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
         SupportedFeatures = ''
         SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
-        SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+        SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
 
 
@@ -627,7 +628,7 @@ class Diameter:
 
         if 'RAT_freq_priorityID' in subscriber_details:
             DiameterLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
-            rat_freq_priorityID = self.generate_vendor_avp(1440, "80", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
+            rat_freq_priorityID = self.generate_vendor_avp(1440, "C0", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
             DiameterLogger.debug(rat_freq_priorityID)
             subscription_data += rat_freq_priorityID
 
@@ -640,7 +641,7 @@ class Diameter:
             
         if 'APN-OI-Replacement' in subscriber_details:
             DiameterLogger.debug("APN-OI-Replacement " + str(subscriber_details['APN-OI-Replacement']) + " - Adding in ULA")
-            subscription_data += self.generate_vendor_avp(1427, "80", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
+            subscription_data += self.generate_vendor_avp(1427, "c0", 10415, self.string_to_hex(str(subscriber_details['APN-OI-Replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
@@ -802,8 +803,11 @@ class Diameter:
         #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
         SupportedFeatures = ''
         SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
-        SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+        SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+
+
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_321_success_count')
         
@@ -837,8 +841,11 @@ class Diameter:
         #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
         SupportedFeatures = ''
         SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
-        SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
+        SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+        SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+
+
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_323_success_count')
         DiameterLogger.debug("Successfully Generated PUA")
