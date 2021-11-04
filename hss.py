@@ -290,4 +290,3 @@ while True:
     HSS_Logger.info('Waiting for a connection...')
     connection, client_address = sock.accept()
     _thread.start_new_thread(on_new_client,(connection,client_address))
-    
