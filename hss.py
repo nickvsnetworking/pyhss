@@ -131,6 +131,10 @@ def on_new_client(clientsocket,client_address):
                         clientsocket.sendall(bytes.fromhex(response))
                         HSS_Logger.info("Sent IDR")
 
+            #S6a inbound Insert-Data-Answer in response to our IDR
+            elif packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
+                HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
+
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
             elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
                 HSS_Logger.info("Received Request with command code 321 (3GPP Purge UE Request) from " + orignHost + "\n\tGenerating (PUA)")
@@ -198,6 +202,18 @@ def on_new_client(clientsocket,client_address):
                     traceback.print_exc()
                     response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
                 HSS_Logger.info("Generated Cx Multimedia Authentication Answer")
+
+            #Sh User-Data-Answer
+            elif packet_vars['command_code'] == 306 and packet_vars['ApplicationId'] == 16777217:
+                HSS_Logger.info("Received Request with command code 306 (3GPP Sh User-Data Request) from " + orignHost + "\n\tGenerating (UDA)")
+                try:
+                    response = diameter.Answer_16777217_306(packet_vars, avps)      #Generate Diameter packet
+                except Exception as e:
+                    HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
+                    HSS_Logger.info(e)
+                    traceback.print_exc()
+                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                HSS_Logger.info("Generated Sh User-Data Answer")            
 
             #S13 ME-Identity-Check Answer
             elif packet_vars['command_code'] == 324 and packet_vars['ApplicationId'] == 16777252:

@@ -414,10 +414,11 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777291),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLh)
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777217),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Sh)       
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777236),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Rx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(258, 40, format(int(10),"x").zfill(8))                                  #Auth-Application-ID - Diameter CER
-        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))                                  #Auth-Application-ID - Diameter Gx
+        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))                            #Auth-Application-ID - Diameter Gx
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                                #Supported-Vendor-ID (3GGP v2)
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
@@ -509,9 +510,9 @@ class Diameter:
 
         #Subscription Data: 
         subscription_data = ''
-#        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
+        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-#        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -583,15 +584,15 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
-#            if 'MIP6-Agent-Info' in apn_profile:
-#                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
-#                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
-#                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
-#                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
-#                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-#                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
-#            else:
-            MIP6_Agent_Info = ''
+            if 'MIP6-Agent-Info' in apn_profile:
+                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
+                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
+                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
+                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
+                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
+                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
+            else:
+                MIP6_Agent_Info = ''
 
             if 'PDN_GW_Allocation_Type' in apn_profile:
                 DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
@@ -1196,6 +1197,61 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777216_304_success_count')
         return response
 
+#3GPP Sh User-Data Answer
+    def Answer_16777217_306(self, packet_vars, avps):
+        logtool.RedisIncrimenter('Answer_16777217_306_attempt_count')
+        
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+
+        #Define values so we can check if they've been changed
+        msisdn = None
+        try:
+            user_identity_avp = self.get_avp_data(avps, 700)[0]
+            print(user_identity_avp)
+            msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
+            DiameterLogger.info("Got MSISDN with value " + str(msisdn))
+
+        except:
+            DiameterLogger.error("No MSISDN")
+
+        if msisdn is not None:
+                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
+                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+        else:
+            DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
+            result_code = 5005
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        
+        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
+
+
+
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
+        
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
+
+        #Sh-User-Data (XML)
+        xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>21401</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
+
+        avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
+        
+        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+
+        response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        logtool.RedisIncrimenter('Answer_16777217_306_success_count')
+        return response
+
+
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777252_324_attempt_count')
@@ -1333,6 +1389,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(260, 40, "000001024000000c01000027" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLg)
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777217),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Sh)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(258, 40, format(int(4294967295),"x").zfill(8))                          #Auth-Application-ID Relay
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                               #Supported-Vendor-ID (3GGP v2)
@@ -1466,9 +1523,13 @@ class Diameter:
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                 #AVP Vendor ID
         avp += self.generate_avp(277, 40, "00000001")                                               #Auth-Session-State
 
-        # #Why is this here twice in the PCAP?
-        # avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
-        # avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
+        #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
+        SupportedFeatures = ''
+        SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+        SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
+        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+
 
         destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
         destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
@@ -1501,9 +1562,9 @@ class Diameter:
 
         #Subscription Data: 
         subscription_data = ''
-#        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
+        subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-#        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -1575,15 +1636,15 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
-#            if 'MIP6-Agent-Info' in apn_profile:
-#                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
-#                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
-#                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
-#                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
-#                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-#                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
-#            else:
-            MIP6_Agent_Info = ''
+            if 'MIP6-Agent-Info' in apn_profile:
+                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
+                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
+                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
+                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
+                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
+                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
+            else:
+                MIP6_Agent_Info = ''
 
             if 'PDN_GW_Allocation_Type' in apn_profile:
                 DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
@@ -1758,6 +1819,38 @@ class Diameter:
         
 
         response = self.generate_diameter_packet("01", "c0", 304, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+
+        return response
+
+    #3GPP Sh User-Data Request (UDR)
+    def Request_16777217_306(self, msisdn):
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
+        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777217),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Sh)
+        
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+                
+        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(293, 40, str(binascii.hexlify(b'hss.localdomain'),'ascii'))                 #Destination Host
+        
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
+        
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.ProductName)                         #Server-Name
+
+        #* [ Route-Record ]
+        avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
+        
+        avp += self.generate_vendor_avp(703, "c0", 10415, "0000000e")                         #Data-Reference - LocationInformation
+        msisdn = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn)))                                             #MSISDN
+        avp += self.generate_vendor_avp(700, "c0", 10415, msisdn)                         #User-Identity
+        avp += self.generate_vendor_avp(707, "c0", 10415, "00000001")                     #Initiate Active Location Retrival
+        avp += self.generate_vendor_avp(706, "c0", 10415, "00000001")                     #Requested Domain (PS-Domain)
+        avp += self.generate_vendor_avp(713, "c0", 10415, "00000001")                     #Requested Nodes (MME)
+
+        response = self.generate_diameter_packet("01", "c0", 306, 16777217, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
 
         return response
 
