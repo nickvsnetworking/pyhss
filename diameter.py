@@ -1699,7 +1699,7 @@ class Diameter:
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
-        response = self.generate_diameter_packet("01", "80", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        response = self.generate_diameter_packet("01", "C0", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_319_success_count')
         return response
 
