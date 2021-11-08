@@ -134,6 +134,7 @@ def on_new_client(clientsocket,client_address):
             #S6a inbound Insert-Data-Answer in response to our IDR
             elif packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
                 HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
+                continue
 
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
             elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
