@@ -6,7 +6,7 @@ import _thread
 global recv_ip
 
 #Values to change / tweak
-recv_ip = "127.0.0.2"                                                         #IP of this Machine
+recv_ip = "127.0.0.1"                                                         #IP of this Machine
 diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
 realm = "mnc001.mcc001.3gppnetwork.org"                                         #Diameter Realm of this machine
 DestinationHost = "hss.localdomain"                                             #Diameter Host of Destination
@@ -14,14 +14,15 @@ DestinationRealm = "localdomain"                                                
 hostname = "127.0.0.1"                                                         #IP of Remote Diameter Host
 mcc = '001'                                                                     #Mobile Country Code
 mnc = '01'                                                                      #Mobile Network Code
-transport = "SCTP"                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
+transport = "TCP"                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
+    clientsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)    
     clientsocket.bind((recv_ip, 1024))
 elif transport == "SCTP":
     import sctp
@@ -160,6 +161,10 @@ while True:
         sipaor = "sip:" + str(msisdn)
         print("Sending Location-Information Request to " + str(hostname))
         SendRequest(diameter.Request_16777216_285(sipaor))
+    elif request == "UDR":
+        msisdn = str(input("MSISDN:\t"))
+        print("Sending User-Data Request to " + str(hostname))
+        SendRequest(diameter.Request_16777217_306(msisdn))        
     elif request == "RIR":
         imsi = str(input("IMSI:\t"))
         if len(imsi) != 0:
