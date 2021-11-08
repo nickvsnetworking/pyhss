@@ -251,6 +251,7 @@ class MSSQL:
                 #Format MSISDN
                 subscriber_details['msisdn'] = str(result['region_subscriber_zone_code']) + str(result['msisdn'])
                 subscriber_details['msisdn'] = subscriber_details['msisdn'].split(';')[-1]
+                subscriber_details['a-msisdn'] = str(result['msisdn'])
 
                 #Convert OP to OPc
                 subscriber_details['OP'] = result['op_key']

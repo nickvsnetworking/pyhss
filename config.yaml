@@ -27,7 +27,10 @@ hss:
   #IMSI of Test Subscriber for Unit Checks (Optional)
   test_sub_imsi: '208310001859912'
 
-## Debug Parameters
+
+  #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
+  Insert_Subscriber_Data_Force: True
+  
 logging:
   level: DEBUG
   logfiles:
