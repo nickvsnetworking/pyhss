@@ -1209,6 +1209,7 @@ class Diameter:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             print(user_identity_avp)
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
+            msisdn = self.TBCD_decode(msisdn)
             DiameterLogger.info("Got MSISDN with value " + str(msisdn))
 
         except:
