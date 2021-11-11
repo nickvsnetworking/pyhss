@@ -1505,13 +1505,10 @@ class Diameter:
         return response
 
     #3GPP S6a/S6d Insert Subscriber Data Request (ISD)
-    def Request_16777251_319(self, packet_vars, avps):
+    def Request_16777251_319(self, packet_vars, avps, **kwargs):
         logtool.RedisIncrimenter('Request_16777251_319_attempt_count')
 
-        #APNs from DB
-        APN_Configuration = ''
-        imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
-        imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Convert IMSI
+
 
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
@@ -1524,13 +1521,60 @@ class Diameter:
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                 #AVP Vendor ID
         avp += self.generate_avp(277, 40, "00000001")                                               #Auth-Session-State
 
+
+
         #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
         SupportedFeatures = ''
         SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
         SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
         SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
-        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+        if 'GetLocation' in kwargs:
+            DiameterLogger.debug("Requsted Get Location ISD")
+            #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
+            SupportedFeatures = ''
+            SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+            SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+            SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "18000007")             #Feature-List Flags
+            avp += self.generate_vendor_avp(1490, "c0", 10415, "00000018")                        #IDR-Flags
+            avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
 
+            try:
+                user_identity_avp = self.get_avp_data(avps, 700)[0]
+                print(user_identity_avp)
+                msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
+                msisdn = self.TBCD_decode(msisdn)
+                DiameterLogger.info("Got MSISDN with value " + str(msisdn))
+            except:
+                DiameterLogger.error("No MSISDN present")
+                return
+            #Get Subscriber Location from Database
+            subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+
+
+            DiameterLogger.info("Getting IMSI for MSISDN " + str(msisdn))
+            imsi = database.Get_IMSI_from_MSISDN(msisdn)
+            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
+
+            DiameterLogger.info("Got back location data: " + str(subscriber_location))
+
+            #Populate Destination Host & Realm
+            avp += self.generate_avp(293, 40, self.string_to_hex(subscriber_location))      #Destination Host                                                      #Destination-Host
+            avp += self.generate_avp(283, 40, self.string_to_hex('epc.mnc001.mcc214.3gppnetwork.org'))     #Destination Realm
+
+            response = self.generate_diameter_packet("01", "C0", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            logtool.RedisIncrimenter('Answer_16777251_319_success_count')
+            DiameterLogger.debug("Returned Get Location ISD")
+            return response
+
+
+        #APNs from DB
+        APN_Configuration = ''
+        imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Convert IMSI
+
+        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
+        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+        avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")                              #IDR-Flags
 
         destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
         destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
@@ -1539,12 +1583,7 @@ class Diameter:
         destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
         DiameterLogger.debug("Recieved originRealm to use as destinationRealm is " + str(destinationRealm))
         avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
-        avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))                                                         #Destination-Realm
-
-        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
-        avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")                              #IDR-Flags
-
-
+        avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))
 
         try:
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
