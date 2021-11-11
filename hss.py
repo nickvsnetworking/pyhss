@@ -1,5 +1,5 @@
 #PyHSS
-#This serves as a basic 3GPP Home Subscriber Server implimenting a EIR & IMS HSS functionality
+#This serves as a 3GPP Home Subscriber Server implimenting a EIR & IMS HSS functionality
 import logging
 import yaml
 

@@ -1245,25 +1245,22 @@ class Diameter:
         DiameterLogger.info("getting EPS location information AVP")
         eps_location_information_avp = self.get_avp_data(IDR_AVPs, 1496)[0]
         DiameterLogger.info("eps_location_information_avp: " + str(eps_location_information_avp))
-        mme_location_information = self.get_avp_data(eps_location_information_avp, 1600)
-        for sub_avps in mme_location_information:
+
+        mme_location_information = self.decode_avp_packet(eps_location_information_avp)
+        mme_location_information = self.decode_avp_packet(mme_location_information[0]['misc_data'])
+        
+        
+        for sub_avps in mme_location_information[0]['misc_data']:
             DiameterLogger.info("Sub AVP: " + str(sub_avps))
+            import base64
+            if sub_avps['avp_code'] == 1602:
+                UTRANCellGlobalId = sub_avps['misc_data'][8:]
+                UTRANCellGlobalId = base64.b64encode(bytes(str(UTRANCellGlobalId), "utf-8")).decode("utf-8")
+            if sub_avps['avp_code'] == 1603:
+                TrackingAreaId = sub_avps['misc_data'][8:]
+                TrackingAreaId = base64.b64encode(bytes(str(TrackingAreaId), "utf-8")).decode("utf-8")
 
-
-        try:
-            UTRANCellGlobalId = '' 
-        except:
-            UTRANCellGlobalId = ''
-
-        try:
-            TrackingAreaId = ''
-        except:
-            TrackingAreaId = ''
-
-        try:
-            VisitedPLMNID = ''
-        except:
-            VisitedPLMNID = ''
+        VisitedPLMNID = ''
 
         #Sh-User-Data (XML)
         xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><E-UTRANCellGlobalId>' + str(UTRANCellGlobalId) + '</E-UTRANCellGlobalId><TrackingAreaId>' + str(TrackingAreaId) + '</TrackingAreaId><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>' + str(VisitedPLMNID) + '</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
@@ -1895,7 +1892,7 @@ class Diameter:
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-                
+
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(293, 40, str(binascii.hexlify(b'hss.localdomain'),'ascii'))                 #Destination Host
         
