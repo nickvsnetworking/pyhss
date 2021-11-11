@@ -1,3 +1,4 @@
+
 #Diameter Packet Decoder / Encoder & Tools
 import socket
 import logging
@@ -1198,7 +1199,7 @@ class Diameter:
         return response
 
 #3GPP Sh User-Data Answer
-    def Answer_16777217_306(self, packet_vars, avps):
+    def Answer_16777217_306(self, packet_vars, avps, IDR_AVPs):
         logtool.RedisIncrimenter('Answer_16777217_306_attempt_count')
         
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
@@ -1241,9 +1242,31 @@ class Diameter:
         
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
 
-        #Sh-User-Data (XML)
-        xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>21401</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
+        DiameterLogger.info("getting EPS location information AVP")
+        eps_location_information_avp = self.get_avp_data(IDR_AVPs, 1496)[0]
+        DiameterLogger.info("eps_location_information_avp: " + str(eps_location_information_avp))
+        mme_location_information = self.get_avp_data(eps_location_information_avp, 1600)
+        for sub_avps in mme_location_information:
+            DiameterLogger.info("Sub AVP: " + str(sub_avps))
 
+
+        try:
+            UTRANCellGlobalId = '' 
+        except:
+            UTRANCellGlobalId = ''
+
+        try:
+            TrackingAreaId = ''
+        except:
+            TrackingAreaId = ''
+
+        try:
+            VisitedPLMNID = ''
+        except:
+            VisitedPLMNID = ''
+
+        #Sh-User-Data (XML)
+        xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><E-UTRANCellGlobalId>' + str(UTRANCellGlobalId) + '</E-UTRANCellGlobalId><TrackingAreaId>' + str(TrackingAreaId) + '</TrackingAreaId><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>' + str(VisitedPLMNID) + '</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -1733,7 +1756,11 @@ class Diameter:
             DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
             subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
-        avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
+
+        if 'GetLocation' in kwargs:
+            avp += self.generate_vendor_avp(1400, "c0", 10415, "")                            #Subscription-Data
+        else:
+            avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
         response = self.generate_diameter_packet("01", "C0", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_319_success_count')
