@@ -122,6 +122,7 @@ def on_new_client(clientsocket,client_address):
                 #Send ULA data & clear tx buffer
                 clientsocket.sendall(bytes.fromhex(response))
                 response = ''
+                continue
 
                 if 'Insert_Subscriber_Data_Force' in yaml_config['hss']:
                     if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
@@ -133,6 +134,7 @@ def on_new_client(clientsocket,client_address):
                         clientsocket.sendall(bytes.fromhex(response))
                         response = ''
                         HSS_Logger.info("Sent IDR")
+                        continue
 
             #S6a inbound Insert-Data-Answer in response to our IDR
             elif packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
