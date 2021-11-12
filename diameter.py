@@ -1,4 +1,3 @@
-
 #Diameter Packet Decoder / Encoder & Tools
 import socket
 import logging
@@ -1249,7 +1248,7 @@ class Diameter:
         mme_location_information = self.decode_avp_packet(eps_location_information_avp)
         mme_location_information = self.decode_avp_packet(mme_location_information[0]['misc_data'])
         
-        
+
         for sub_avps in mme_location_information[0]['misc_data']:
             DiameterLogger.info("Sub AVP: " + str(sub_avps))
             import base64
@@ -1272,7 +1271,8 @@ class Diameter:
 
         #Sh-User-Data (XML)
         xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><E-UTRANCellGlobalId>' + str(UTRANCellGlobalId) + '</E-UTRANCellGlobalId><TrackingAreaId>' + str(TrackingAreaId) + '</TrackingAreaId><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>' + str(VisitedPLMNID) + '</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
-        DiameterLogger.debug(xmlbody)
+        DiameterLogger.info("XML User Data: ")
+        DiameterLogger.info(xmlbody)
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS

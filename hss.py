@@ -1,5 +1,5 @@
 #PyHSS
-#This serves as a 3GPP Home Subscriber Server implimenting a EIR & IMS HSS functionality
+#This serves as a basic 3GPP Home Subscriber Server implimenting a EIR & IMS HSS functionality
 import logging
 import yaml
 
@@ -211,21 +211,20 @@ def on_new_client(clientsocket,client_address):
                 orig_packet_vars = packet_vars
                 orig_avps = avps
 
-                HSS_Logger.info("Generating ISD")
-
-
                 try:
+                    HSS_Logger.info("Generating ISD")
                     ISD_request = diameter.Request_16777251_319(packet_vars, avps, GetLocation=True)
-                    print(ISD_request)
+                    HSS_Logger.info(ISD_request)
                     clientsocket.sendall(bytes.fromhex(ISD_request))
                 except Exception as e:
                     HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
                     HSS_Logger.info(e)
                     traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    clientsocket.sendall(bytes.fromhex(response))
+                    HSS_Logger.info("Sent negative response")
                     continue
-               
-                print("Sent! Waiting for response back for ISD...")
+                HSS_Logger.info("Sent! Waiting for response back for ISD...")
 
                 #Wait to recieve Insert Subscriber Data Answer back...
                 data = clientsocket.recv(32)
@@ -237,9 +236,9 @@ def on_new_client(clientsocket,client_address):
                 if packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
                     HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
                 
-                print("Got response back from ISD")
-                print(packet_vars)
-                print(IDR_AVPs)
+                HSS_Logger.info("Got response back from ISD")
+                HSS_Logger.info(packet_vars)
+                HSS_Logger.info(IDR_AVPs)
 
 
                 try:
@@ -248,7 +247,10 @@ def on_new_client(clientsocket,client_address):
                     HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
                     HSS_Logger.info(e)
                     traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    clientsocket.sendall(bytes.fromhex(response))
+                    HSS_Logger.info("Sent negative response")
+                    continue
                 HSS_Logger.info("Generated Sh User-Data Answer")                   
             
             #S13 ME-Identity-Check Answer
