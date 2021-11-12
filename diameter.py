@@ -1252,13 +1252,21 @@ class Diameter:
         
         for sub_avps in mme_location_information[0]['misc_data']:
             DiameterLogger.info("Sub AVP: " + str(sub_avps))
-            import base64
+            import email
             if sub_avps['avp_code'] == 1602:
                 UTRANCellGlobalId = sub_avps['misc_data'][8:]
-                UTRANCellGlobalId = base64.b64encode(bytes(str(UTRANCellGlobalId), "utf-8")).decode("utf-8")
+                DiameterLogger.info("Got UTRANCellGlobalId hex value: " + str(UTRANCellGlobalId))
+                UTRANCellGlobalId = bytes.fromhex(UTRANCellGlobalId)
+                UTRANCellGlobalId = email.base64mime.b64encode(UTRANCellGlobalId)
+                UTRANCellGlobalId = UTRANCellGlobalId.decode("utf-8")
+                DiameterLogger.info("Final Base64 Encoded UTRANCellGlobalId " + str(UTRANCellGlobalId))
             if sub_avps['avp_code'] == 1603:
                 TrackingAreaId = sub_avps['misc_data'][8:]
-                TrackingAreaId = base64.b64encode(bytes(str(TrackingAreaId), "utf-8")).decode("utf-8")
+                DiameterLogger.info("Got TrackingAreaId hex value: " + str(TrackingAreaId))
+                TrackingAreaId = bytes.fromhex(TrackingAreaId)
+                TrackingAreaId = email.base64mime.b64encode(TrackingAreaId)
+                TrackingAreaId = TrackingAreaId.decode("utf-8")
+                DiameterLogger.info("Final Base64 Encoded TrackingAreaId " + str(TrackingAreaId))
 
         VisitedPLMNID = ''
 
