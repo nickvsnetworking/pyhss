@@ -212,9 +212,18 @@ def on_new_client(clientsocket,client_address):
                 orig_avps = avps
 
                 HSS_Logger.info("Generating ISD")
-                ISD_request = diameter.Request_16777251_319(packet_vars, avps, GetLocation=True)
-                print(ISD_request)
-                clientsocket.sendall(bytes.fromhex(ISD_request))  
+
+
+                try:
+                    ISD_request = diameter.Request_16777251_319(packet_vars, avps, GetLocation=True)
+                    print(ISD_request)
+                    clientsocket.sendall(bytes.fromhex(ISD_request))
+                except Exception as e:
+                    HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
+                    HSS_Logger.info(e)
+                    traceback.print_exc()
+                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    continue
                
                 print("Sent! Waiting for response back for ISD...")
 
