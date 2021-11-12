@@ -1198,7 +1198,7 @@ class Diameter:
         return response
 
 #3GPP Sh User-Data Answer
-    def Answer_16777217_306(self, packet_vars, avps):
+    def Answer_16777217_306(self, packet_vars, avps, IDR_AVPs):
         logtool.RedisIncrimenter('Answer_16777217_306_attempt_count')
         
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
@@ -1209,6 +1209,7 @@ class Diameter:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             print(user_identity_avp)
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
+            msisdn = self.TBCD_decode(msisdn)
             DiameterLogger.info("Got MSISDN with value " + str(msisdn))
 
         except:
@@ -1240,9 +1241,38 @@ class Diameter:
         
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
 
-        #Sh-User-Data (XML)
-        xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>21401</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
+        DiameterLogger.info("getting EPS location information AVP")
+        eps_location_information_avp = self.get_avp_data(IDR_AVPs, 1496)[0]
+        DiameterLogger.info("eps_location_information_avp: " + str(eps_location_information_avp))
 
+        mme_location_information = self.decode_avp_packet(eps_location_information_avp)
+        mme_location_information = self.decode_avp_packet(mme_location_information[0]['misc_data'])
+        
+
+        for sub_avps in mme_location_information[0]['misc_data']:
+            DiameterLogger.info("Sub AVP: " + str(sub_avps))
+            import base64
+            if sub_avps['avp_code'] == 1602:
+                UTRANCellGlobalId = sub_avps['misc_data'][8:]
+                DiameterLogger.info("Got UTRANCellGlobalId hex value: " + str(UTRANCellGlobalId))
+                UTRANCellGlobalId = bytes.fromhex(UTRANCellGlobalId)
+                UTRANCellGlobalId = base64.b64encode(UTRANCellGlobalId)
+                UTRANCellGlobalId = UTRANCellGlobalId.decode("utf-8")
+                DiameterLogger.info("Final Base64 Encoded UTRANCellGlobalId " + str(UTRANCellGlobalId))
+            if sub_avps['avp_code'] == 1603:
+                TrackingAreaId = sub_avps['misc_data'][8:]
+                DiameterLogger.info("Got TrackingAreaId hex value: " + str(TrackingAreaId))
+                TrackingAreaId = bytes.fromhex(TrackingAreaId)
+                TrackingAreaId = base64.b64encode(TrackingAreaId)
+                TrackingAreaId = TrackingAreaId.decode("utf-8")
+                DiameterLogger.info("Final Base64 Encoded TrackingAreaId " + str(TrackingAreaId))
+
+        VisitedPLMNID = ''
+
+        #Sh-User-Data (XML)
+        xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><E-UTRANCellGlobalId>' + str(UTRANCellGlobalId) + '</E-UTRANCellGlobalId><TrackingAreaId>' + str(TrackingAreaId) + '</TrackingAreaId><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>' + str(VisitedPLMNID) + '</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
+        DiameterLogger.info("XML User Data: ")
+        DiameterLogger.info(xmlbody)
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -1504,13 +1534,10 @@ class Diameter:
         return response
 
     #3GPP S6a/S6d Insert Subscriber Data Request (ISD)
-    def Request_16777251_319(self, packet_vars, avps):
+    def Request_16777251_319(self, packet_vars, avps, **kwargs):
         logtool.RedisIncrimenter('Request_16777251_319_attempt_count')
 
-        #APNs from DB
-        APN_Configuration = ''
-        imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
-        imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Convert IMSI
+
 
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
@@ -1523,27 +1550,65 @@ class Diameter:
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                 #AVP Vendor ID
         avp += self.generate_avp(277, 40, "00000001")                                               #Auth-Session-State
 
+
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a) 
+
         #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
         SupportedFeatures = ''
         SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
         SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
         SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
-        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+        if 'GetLocation' in kwargs:
+            DiameterLogger.debug("Requsted Get Location ISD")
+            #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
+            SupportedFeatures = ''
+            SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+            SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+            SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "18000007")             #Feature-List Flags
+            avp += self.generate_vendor_avp(1490, "c0", 10415, "00000018")                        #IDR-Flags
+            avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+
+            try:
+                user_identity_avp = self.get_avp_data(avps, 700)[0]
+                print(user_identity_avp)
+                msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
+                msisdn = self.TBCD_decode(msisdn)
+                DiameterLogger.info("Got MSISDN with value " + str(msisdn))
+            except:
+                DiameterLogger.error("No MSISDN present")
+                return
+            #Get Subscriber Location from Database
+            subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
 
 
-        destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
-        destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
-        DiameterLogger.debug("Recieved originHost to use as destinationHost is " + str(destinationHost))
-        destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
-        destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
-        DiameterLogger.debug("Recieved originRealm to use as destinationRealm is " + str(destinationRealm))
-        avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
-        avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))                                                         #Destination-Realm
+            DiameterLogger.info("Getting IMSI for MSISDN " + str(msisdn))
+            imsi = database.Get_IMSI_from_MSISDN(msisdn)
+            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
 
-        avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
-        avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")                              #IDR-Flags
+            DiameterLogger.info("Got back location data: " + str(subscriber_location))
 
+            #Populate Destination Host & Realm
+            avp += self.generate_avp(293, 40, self.string_to_hex(subscriber_location))      #Destination Host                                                      #Destination-Host
+            avp += self.generate_avp(283, 40, self.string_to_hex('epc.mnc001.mcc214.3gppnetwork.org'))     #Destination Realm
 
+        else:
+            #APNs from DB
+            imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
+            imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Convert IMSI
+            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
+            avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+            avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")                              #IDR-Flags
+
+            destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
+            destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
+            DiameterLogger.debug("Recieved originHost to use as destinationHost is " + str(destinationHost))
+            destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
+            destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
+            DiameterLogger.debug("Recieved originRealm to use as destinationRealm is " + str(destinationRealm))
+            avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
+            avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))
+
+        APN_Configuration = ''
 
         try:
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
@@ -1697,7 +1762,11 @@ class Diameter:
             DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
             subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
-        avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
+
+        if 'GetLocation' in kwargs:
+            avp += self.generate_vendor_avp(1400, "c0", 10415, "")                            #Subscription-Data
+        else:
+            avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
         response = self.generate_diameter_packet("01", "C0", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_319_success_count')
@@ -1832,7 +1901,7 @@ class Diameter:
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-                
+
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(293, 40, str(binascii.hexlify(b'hss.localdomain'),'ascii'))                 #Destination Host
         

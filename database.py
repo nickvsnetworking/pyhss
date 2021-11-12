@@ -379,7 +379,33 @@ class MSSQL:
             except:
                 raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
-            
+    def GetSubscriberIMSI(self, msisdn):
+        with self._lock:
+            try:
+                DBLogger.debug("Getting Subscriber IMSI from MSISDN" + str(msisdn))
+                sql = 'hss_get_imsi_by_msisdn @msisdn=' + str(msisdn) + ';'
+                DBLogger.debug(sql)
+                self.conn.execute_query(sql)
+                DBLogger.debug(self.conn)
+            except Exception as e:
+                DBLogger.error("MSSQL failed to run SP " + str(sql))  
+                DBLogger.error(e)
+                raise ValueError("MSSQL failed to run SP " + str(sql))  
+        DBLogger.debug("Ran Query OK...")
+        try:
+            DBLogger.debug(self.conn)
+            result = [ row for row in self.conn ][0]
+            DBLogger.debug("Returned data:")
+            DBLogger.debug(result)
+            DBLogger.debug("Stripping to only include imsi")
+            result = result['imsi']
+            DBLogger.debug("Final result is: " + str(result))            
+            DBLogger.debug(result)
+            DBLogger.debug("Final result is: " + str(result))
+            return result
+        except:
+            DBLogger.debug("IMSI for MSISDN Provided.")
+            raise ValueError("IMSI for MSISDN Provided.")
 class MySQL:
     import mysql.connector
     def __init__(self):
@@ -447,6 +473,9 @@ def GetSubscriberLocation(*args, **kwargs):
         msisdn = kwargs.get('msisdn', None)
         return DB.GetSubscriberLocation(msisdn=msisdn)
 
+def Get_IMSI_from_MSISDN(msisdn):
+    return DB.GetSubscriberIMSI(msisdn)
+
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     test_sub_imsi = yaml_config['hss']['test_sub_imsi']
@@ -454,4 +483,5 @@ if __name__ == "__main__":
     DB.UpdateSubscriber(test_sub_imsi, 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
     origin_host = DB.GetSubscriberLocation(imsi=test_sub_imsi)
     print("Origin Host is " + str(origin_host))
+    print(DB.GetSubscriberIMSI(34604610206))
     

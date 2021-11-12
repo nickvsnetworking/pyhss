@@ -119,8 +119,9 @@ def on_new_client(clientsocket,client_address):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
                     HSS_Logger.info("Generated error DIAMETER_USER_DATA_NOT_AVAILABLE ULA")
 
-                #Send ULA data
+                #Send ULA data & clear tx buffer
                 clientsocket.sendall(bytes.fromhex(response))
+                response = ''
                 if 'Insert_Subscriber_Data_Force' in yaml_config['hss']:
                     if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
                         HSS_Logger.debug("ISD triggered after ULA")
@@ -130,12 +131,11 @@ def on_new_client(clientsocket,client_address):
                         #Send ISD data
                         clientsocket.sendall(bytes.fromhex(response))
                         HSS_Logger.info("Sent IDR")
-
+                continue
             #S6a inbound Insert-Data-Answer in response to our IDR
             elif packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
                 HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
                 continue
-
             #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
             elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
                 HSS_Logger.info("Received Request with command code 321 (3GPP Purge UE Request) from " + orignHost + "\n\tGenerating (PUA)")
@@ -204,18 +204,55 @@ def on_new_client(clientsocket,client_address):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
                 HSS_Logger.info("Generated Cx Multimedia Authentication Answer")
 
+
             #Sh User-Data-Answer
             elif packet_vars['command_code'] == 306 and packet_vars['ApplicationId'] == 16777217:
-                HSS_Logger.info("Received Request with command code 306 (3GPP Sh User-Data Request) from " + orignHost + "\n\tGenerating (UDA)")
+                HSS_Logger.info("Received Request with command code 306 (3GPP Sh User-Data Request) from " + orignHost + "\n\tGenerating (IDR to get Subscriber Data)")
+                orig_packet_vars = packet_vars
+                orig_avps = avps
+
                 try:
-                    response = diameter.Answer_16777217_306(packet_vars, avps)      #Generate Diameter packet
+                    HSS_Logger.info("Generating ISD")
+                    ISD_request = diameter.Request_16777251_319(packet_vars, avps, GetLocation=True)
+                    HSS_Logger.info(ISD_request)
+                    clientsocket.sendall(bytes.fromhex(ISD_request))
                 except Exception as e:
                     HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
                     HSS_Logger.info(e)
                     traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated Sh User-Data Answer")            
+                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    clientsocket.sendall(bytes.fromhex(response))
+                    HSS_Logger.info("Sent negative response")
+                    continue
+                HSS_Logger.info("Sent! Waiting for response back for ISD...")
 
+                #Wait to recieve Insert Subscriber Data Answer back...
+                data = clientsocket.recv(32)
+                packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
+                data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
+                packet_vars, IDR_AVPs = diameter.decode_diameter_packet(data_sum)           #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
+
+                #S6a inbound Insert-Data-Answer in response to our IDR
+                if packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
+                    HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
+                
+                HSS_Logger.info("Got response back from ISD")
+                HSS_Logger.info(packet_vars)
+                HSS_Logger.info(IDR_AVPs)
+
+
+                try:
+                    response = diameter.Answer_16777217_306(orig_packet_vars, orig_avps, IDR_AVPs)      #Generate Diameter packet
+                except Exception as e:
+                    HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
+                    HSS_Logger.info(e)
+                    traceback.print_exc()
+                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    clientsocket.sendall(bytes.fromhex(response))
+                    HSS_Logger.info("Sent negative response")
+                    continue
+                HSS_Logger.info("Generated Sh User-Data Answer")                   
+            
             #S13 ME-Identity-Check Answer
             elif packet_vars['command_code'] == 324 and packet_vars['ApplicationId'] == 16777252:
                 HSS_Logger.info("Received Request with command code 324 (3GPP S13 ME-Identity-Check Request) from " + orignHost + "\n\tGenerating (MICA)")
@@ -307,3 +344,4 @@ while True:
     HSS_Logger.info('Waiting for a connection...')
     connection, client_address = sock.accept()
     _thread.start_new_thread(on_new_client,(connection,client_address))
+
