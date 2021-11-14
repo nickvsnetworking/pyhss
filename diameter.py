@@ -1157,6 +1157,8 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         for avps_to_check in avps:                                                                  #Only include AVP 260 (Vendor-Specific-Application-ID) if inital request included it
             if avps_to_check['avp_code'] == 260:
                 concat_subavp = ''

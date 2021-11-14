@@ -220,7 +220,7 @@ def on_new_client(clientsocket,client_address):
                     HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
                     HSS_Logger.info(e)
                     traceback.print_exc()
-                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 5001) #DIAMETER_ERROR_USER_UNKNOWN
                     clientsocket.sendall(bytes.fromhex(response))
                     HSS_Logger.info("Sent negative response")
                     continue
@@ -247,7 +247,7 @@ def on_new_client(clientsocket,client_address):
                     HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
                     HSS_Logger.info(e)
                     traceback.print_exc()
-                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+                    response = diameter.Respond_ResultCode(orig_packet_vars, orig_avps, 5001) #DIAMETER_ERROR_USER_UNKNOWN
                     clientsocket.sendall(bytes.fromhex(response))
                     HSS_Logger.info("Sent negative response")
                     continue
