@@ -1538,14 +1538,11 @@ class Diameter:
     #3GPP S6a/S6d Insert Subscriber Data Request (ISD)
     def Request_16777251_319(self, packet_vars, avps, **kwargs):
         logtool.RedisIncrimenter('Request_16777251_319_attempt_count')
-
-
-
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
-        session_id = self.get_avp_data(avps, 263)[0]                                                #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                               #Session-ID AVP set
+        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                 #Session ID generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))     #Session ID set AVP
         avp += self.generate_vendor_avp(266, 40, 10415, '')                                         #AVP Vendor ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
