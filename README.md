@@ -13,7 +13,7 @@ The underlying library - ``diameter.py`` provided here can be easily worked with
 ## Usage
 Basic configuration is set in the ``config.yaml`` file,
 
-You will need to set the IP address to bind to, the Diameter hostname, realm, your PLMN and transport type to use (SCTP or TCP).
+You will need to set the IP address to bind to (IPv4 or IPv6), the Diameter hostname, realm, your PLMN and transport type to use (SCTP or TCP).
 
 Then you will need to select a database backend to use. PyHSS supports many different backends and the datbase backend you use is up to you, premade configs exist for MongoDB, MSSQL and MySQL.
 

@@ -43,14 +43,24 @@ class Diameter:
         else:
             return 4
 
-    #Converts a dotted-decimal IPv4 address to hex
+    #Converts a dotted-decimal IPv4 address or IPV6 address to hex
     def ip_to_hex(self, ip):
-        ip = ip.split('.')
-        ip_hex = "0001"         #Only works for IPv4
-        ip_hex = ip_hex + str(format(int(ip[0]), 'x').zfill(2))
-        ip_hex = ip_hex + str(format(int(ip[1]), 'x').zfill(2))
-        ip_hex = ip_hex + str(format(int(ip[2]), 'x').zfill(2))
-        ip_hex = ip_hex + str(format(int(ip[3]), 'x').zfill(2))
+        #Determine IPvX version:
+        if "." in ip:
+            ip = ip.split('.')
+            ip_hex = "0001"         #IPv4
+            ip_hex = ip_hex + str(format(int(ip[0]), 'x').zfill(2))
+            ip_hex = ip_hex + str(format(int(ip[1]), 'x').zfill(2))
+            ip_hex = ip_hex + str(format(int(ip[2]), 'x').zfill(2))
+            ip_hex = ip_hex + str(format(int(ip[3]), 'x').zfill(2))
+        else:
+            ip_hex = "0002"         #IPv6
+            for parts in ip.split(":"):
+                if parts == '':
+                    ip_hex += "00000000"    #If :: represent as full
+                else:
+                    ip_hex += str(parts).zfill(4)
+        DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
 
     #Converts string to hex
@@ -409,7 +419,7 @@ class Diameter:
             avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
-        #avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
+        avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
@@ -1157,8 +1167,11 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        try:
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        except:
+            DiameterLogger.info("Failed to add SessionID")
         for avps_to_check in avps:                                                                  #Only include AVP 260 (Vendor-Specific-Application-ID) if inital request included it
             if avps_to_check['avp_code'] == 260:
                 concat_subavp = ''

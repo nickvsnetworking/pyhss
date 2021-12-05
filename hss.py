@@ -305,11 +305,17 @@ def on_new_client(clientsocket,client_address):
             HSS_Logger.info("Connection closed niceley due to keyboard interrupt")
             sys.exit()
     
+if ":" in yaml_config['hss']['bind_ip'][0]:
+    HSS_Logger.info("IPv6 Address Specified")
+    socket_family = socket.AF_INET6
+else:
+    HSS_Logger.info("IPv4 Address Specified")
+    socket_family = socket.AF_INET
 
 if yaml_config['hss']['transport'] == "SCTP":
     HSS_Logger.debug("Using SCTP for Transport")
     # Create a SCTP socket
-    sock = sctp.sctpsocket_tcp(socket.AF_INET)
+    sock = sctp.sctpsocket_tcp(socket_family)
     # Loop through the possible Binding IPs from the config and bind to each for Multihoming
     server_addresses = []
 
@@ -327,7 +333,7 @@ if yaml_config['hss']['transport'] == "SCTP":
 elif yaml_config['hss']['transport'] == "TCP":
     HSS_Logger.debug("Using TCP socket")
     # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock = socket.socket(socket_family, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # Bind the socket to the port
     server_address = (str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port']))    
