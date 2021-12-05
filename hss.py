@@ -327,7 +327,13 @@ if yaml_config['hss']['transport'] == "SCTP":
 elif yaml_config['hss']['transport'] == "TCP":
     HSS_Logger.debug("Using TCP socket")
     # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if ":" in yaml_config['hss']['bind_ip'][0]:
+        HSS_Logger.info("IPv6 Address Specified")
+        socket_family = socket.AF_INET6
+    else:
+        HSS_Logger.info("IPv4 Address Specified")
+        socket_family = socket.AF_INET
+    sock = socket.socket(socket_family, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # Bind the socket to the port
     server_address = (str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port']))    
