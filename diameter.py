@@ -9,7 +9,7 @@ import os
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 
-
+import jinja2
 import yaml
 
 with open("config.yaml", 'r') as stream:
@@ -962,88 +962,12 @@ class Diameter:
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
         
-        xmlbody = """<?xml version="1.0" encoding="UTF-8"?>
-        <IMSSubscription>
-            <PrivateID>""" + str(imsi) + '@' + str(domain) + """</PrivateID>
-            <ServiceProfile>
-                <PublicIdentity>
-                    <Identity>sip:""" + str(imsi) + '@' + str(domain) + """</Identity>
-                    <Extension>
-                        <IdentityType>0</IdentityType>
-                    </Extension>
-                </PublicIdentity>
-                <InitialFilterCriteria>
-                    <Priority>30</Priority>
-                    <TriggerPoint>
-                        <ConditionTypeCNF>1</ConditionTypeCNF>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>0</Group>
-                            <Method>INVITE</Method>
-                            <Extension></Extension>
-                        </SPT>
-                    </TriggerPoint>
-                    <ApplicationServer>
-                        <ServerName>sip:applicationserver.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
-                        <DefaultHandling>0</DefaultHandling>
-                    </ApplicationServer>
-                </InitialFilterCriteria>                
-                <InitialFilterCriteria>
-                    <Priority>20</Priority>
-                    <TriggerPoint>
-                        <ConditionTypeCNF>1</ConditionTypeCNF>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>0</Group>
-                            <Method>MESSAGE</Method>
-                            <Extension></Extension>
-                        </SPT>
-                        <SPT>
-                            <ConditionNegated>1</ConditionNegated>
-                            <Group>1</Group>
-                            <SIPHeader>
-                            <Header>Server</Header>
-                            </SIPHeader>
-                        </SPT>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>2</Group>
-                            <SessionCase>0</SessionCase>
-                            <Extension></Extension>
-                        </SPT>
-                    </TriggerPoint>
-                    <ApplicationServer>
-                        <ServerName>sip:smsc.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
-                        <DefaultHandling>0</DefaultHandling>
-                    </ApplicationServer>
-                </InitialFilterCriteria>
+        templateLoader = jinja2.FileSystemLoader(searchpath="./")
+        templateEnv = jinja2.Environment(loader=templateLoader)
+        template = templateEnv.get_template(yaml_config['Default_iFC'])
+        iFC_vars = {'imsi' : imsi, 'domain' : domain, 'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
+        xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
 
-                <InitialFilterCriteria>
-                    <Priority>10</Priority>
-                    <TriggerPoint>
-                        <ConditionTypeCNF>1</ConditionTypeCNF>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>0</Group>
-                            <Method>REGISTER</Method>
-                            <Extension></Extension>
-                        </SPT>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>1</Group>
-                            <SessionCase>0</SessionCase>
-                            <Extension></Extension>
-                        </SPT>
-                    </TriggerPoint>
-                    <ApplicationServer>
-                        <ServerName>sip:smsc.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
-                        <DefaultHandling>0</DefaultHandling>
-                    </ApplicationServer>
-                </InitialFilterCriteria>
-
-            </ServiceProfile>
-        </IMSSubscription>
-        """
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
