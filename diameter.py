@@ -60,7 +60,7 @@ class Diameter:
                     ip_hex += "00000000"    #If :: represent as full
                 else:
                     ip_hex += str(parts).zfill(4)
-        DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
+        #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
 
     #Converts string to hex
@@ -962,9 +962,11 @@ class Diameter:
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
         
+        #This loads a Jinja XML template as the default iFC
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        template = templateEnv.get_template(yaml_config['Default_iFC'])
+        template = templateEnv.get_template(yaml_config['hss']['Default_iFC'])
+        #These variables are passed to the template for use
         iFC_vars = {'imsi' : imsi, 'domain' : domain, 'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
         xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
 

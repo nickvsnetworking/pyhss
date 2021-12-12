@@ -11,7 +11,7 @@ hss:
   OriginHost: "hss"
 
   #Value to populate as the OriginRealm in Diameter responses
-  OriginRealm: "mnc001.mcc001.3gppnetwork.org"
+  OriginRealm: "mnc380.mcc313.3gppnetwork.org"
 
   #Value to populate as the Product name in Diameter responses
   ProductName: "pyHSS"
@@ -28,7 +28,7 @@ hss:
   test_sub_imsi: '208310001859912'
 
   #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
-  Insert_Subscriber_Data_Force: True
+  Insert_Subscriber_Data_Force: False
 
   #Default Initial Filter Criteria for IMS Subscribers
   #Jinja Formatted Template, see the example for variables passed to it.
