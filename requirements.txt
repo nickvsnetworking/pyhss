@@ -7,3 +7,4 @@ mongo==0.2.0
 pymssql==2.1.5
 pysctp==0.6.1
 pysnmp==4.4.12
+mysql-connector==2.2.9
