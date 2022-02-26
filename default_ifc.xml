@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--This is the default iFC template used by PyHSS, variables come from the Jinja2 template passed inside diameter.py where you can additional variables if required -->
+<IMSSubscription>
+    <PrivateID>{{ iFC_vars['imsi'] }}@{{ iFC_vars['domain'] }}</PrivateID>
+    <ServiceProfile>
+        <PublicIdentity>
+            <Identity>sip:{{ iFC_vars['imsi'] }}@{{ iFC_vars['domain'] }}</Identity>
+            <Extension>
+                <IdentityType>0</IdentityType>
+            </Extension>
+        </PublicIdentity>
+        <PublicIdentity>
+            <Identity>tel:1{{ iFC_vars['imsi'][-4:] }}</Identity>
+            <Extension>
+                <IdentityType>0</IdentityType>
+            </Extension>
+        </PublicIdentity>
+        <!-- SIP INVITE Traffic -->
+        <InitialFilterCriteria>
+            <Priority>30</Priority>
+            <TriggerPoint>
+                <ConditionTypeCNF>1</ConditionTypeCNF>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>0</Group>
+                    <Method>INVITE</Method>
+                    <Extension></Extension>
+                </SPT>
+            </TriggerPoint>
+            <ApplicationServer>
+                <ServerName>sip:inviteapplicationserver.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <DefaultHandling>0</DefaultHandling>
+            </ApplicationServer>
+        </InitialFilterCriteria>
+        <!-- SIP MESSAGE Traffic -->
+        <InitialFilterCriteria>
+            <Priority>20</Priority>
+            <TriggerPoint>
+                <ConditionTypeCNF>1</ConditionTypeCNF>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>0</Group>
+                    <Method>MESSAGE</Method>
+                    <Extension></Extension>
+                </SPT>
+                <SPT>
+                    <ConditionNegated>1</ConditionNegated>
+                    <Group>1</Group>
+                    <SIPHeader>
+                        <Header>Server</Header>
+                    </SIPHeader>
+                </SPT>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>2</Group>
+                    <SessionCase>0</SessionCase>
+                    <Extension></Extension>
+                </SPT>
+            </TriggerPoint>
+            <ApplicationServer>
+                <ServerName>sip:smsc.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <DefaultHandling>0</DefaultHandling>
+            </ApplicationServer>
+        </InitialFilterCriteria>
+
+        <!-- Copy SIP REGISTER towards Application Server -->
+        <InitialFilterCriteria>
+            <Priority>10</Priority>
+            <TriggerPoint>
+                <ConditionTypeCNF>0</ConditionTypeCNF>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>0</Group>
+                    <Method>REGISTER</Method>
+                    <Extension></Extension>
+                </SPT>
+            </TriggerPoint>
+            <ApplicationServer>
+                <ServerName>sip:smsc.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <DefaultHandling>0</DefaultHandling>
+                <Extension>
+                    <IncludeRegisterRequest/>
+                    <IncludeRegisterResponse/>
+                </Extension>
+            </ApplicationServer>
+        </InitialFilterCriteria>
+
+    </ServiceProfile>
+</IMSSubscription>
