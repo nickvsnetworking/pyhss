@@ -14,7 +14,8 @@
             <Extension>
                 <IdentityType>0</IdentityType>
             </Extension>
-        </PublicIdentity>        
+        </PublicIdentity>
+        <!-- SIP INVITE Traffic -->
         <InitialFilterCriteria>
             <Priority>30</Priority>
             <TriggerPoint>
@@ -27,10 +28,11 @@
                 </SPT>
             </TriggerPoint>
             <ApplicationServer>
-                <ServerName>sip:applicationserver.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <ServerName>sip:inviteapplicationserver.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
                 <DefaultHandling>0</DefaultHandling>
             </ApplicationServer>
         </InitialFilterCriteria>
+        <!-- SIP MESSAGE Traffic -->
         <InitialFilterCriteria>
             <Priority>20</Priority>
             <TriggerPoint>
@@ -56,11 +58,12 @@
                 </SPT>
             </TriggerPoint>
             <ApplicationServer>
-                <ServerName>sip:applicationserver.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <ServerName>sip:smsc.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
                 <DefaultHandling>0</DefaultHandling>
             </ApplicationServer>
         </InitialFilterCriteria>
 
+        <!-- Copy SIP REGISTER towards Application Server -->
         <InitialFilterCriteria>
             <Priority>10</Priority>
             <TriggerPoint>
