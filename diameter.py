@@ -9,7 +9,7 @@ import os
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 
-
+import jinja2
 import yaml
 
 with open("config.yaml", 'r') as stream:
@@ -60,7 +60,7 @@ class Diameter:
                     ip_hex += "00000000"    #If :: represent as full
                 else:
                     ip_hex += str(parts).zfill(4)
-        DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
+        #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
 
     #Converts string to hex
@@ -921,7 +921,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:6060")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
 
 
         experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
@@ -945,12 +945,7 @@ class Diameter:
     #3GPP Cx Server Assignment Answer
     def Answer_16777216_301(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_301_attempt_count')
-        
-        username = self.get_avp_data(avps, 601)[0]                                                     
-        username = binascii.unhexlify(username).decode('utf-8')
-        imsi = username.split('@')[0]   #Strip Domain
-        domain = username.split('@')[1] #Get Domain Part
-        imsi = imsi[4:]                 #Strip SIP: from start of string
+
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
@@ -959,91 +954,29 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         #ToDo - Make this Dynamic
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
+
+        try:
+            username = self.get_avp_data(avps, 601)[0]                                                     
+            username = binascii.unhexlify(username).decode('utf-8')
+            imsi = username.split('@')[0]   #Strip Domain
+            domain = username.split('@')[1] #Get Domain Part
+            imsi = imsi[4:]                 #Strip SIP: from start of string
+        except:
+            DiameterLogger.debug("Could not find Username in Cx Server Assignemnt Request.")
+            username = '1234'
+            imsi = '1234'
+            domain = 'test.com'
+        
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
         
-        xmlbody = """<?xml version="1.0" encoding="UTF-8"?>
-        <IMSSubscription>
-            <PrivateID>""" + str(imsi) + '@' + str(domain) + """</PrivateID>
-            <ServiceProfile>
-                <PublicIdentity>
-                    <Identity>sip:""" + str(imsi) + '@' + str(domain) + """</Identity>
-                    <Extension>
-                        <IdentityType>0</IdentityType>
-                    </Extension>
-                </PublicIdentity>
-                <InitialFilterCriteria>
-                    <Priority>30</Priority>
-                    <TriggerPoint>
-                        <ConditionTypeCNF>1</ConditionTypeCNF>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>0</Group>
-                            <Method>INVITE</Method>
-                            <Extension></Extension>
-                        </SPT>
-                    </TriggerPoint>
-                    <ApplicationServer>
-                        <ServerName>sip:applicationserver.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
-                        <DefaultHandling>0</DefaultHandling>
-                    </ApplicationServer>
-                </InitialFilterCriteria>                
-                <InitialFilterCriteria>
-                    <Priority>20</Priority>
-                    <TriggerPoint>
-                        <ConditionTypeCNF>1</ConditionTypeCNF>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>0</Group>
-                            <Method>MESSAGE</Method>
-                            <Extension></Extension>
-                        </SPT>
-                        <SPT>
-                            <ConditionNegated>1</ConditionNegated>
-                            <Group>1</Group>
-                            <SIPHeader>
-                            <Header>Server</Header>
-                            </SIPHeader>
-                        </SPT>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>2</Group>
-                            <SessionCase>0</SessionCase>
-                            <Extension></Extension>
-                        </SPT>
-                    </TriggerPoint>
-                    <ApplicationServer>
-                        <ServerName>sip:smsc.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
-                        <DefaultHandling>0</DefaultHandling>
-                    </ApplicationServer>
-                </InitialFilterCriteria>
-
-                <InitialFilterCriteria>
-                    <Priority>10</Priority>
-                    <TriggerPoint>
-                        <ConditionTypeCNF>1</ConditionTypeCNF>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>0</Group>
-                            <Method>REGISTER</Method>
-                            <Extension></Extension>
-                        </SPT>
-                        <SPT>
-                            <ConditionNegated>0</ConditionNegated>
-                            <Group>1</Group>
-                            <SessionCase>0</SessionCase>
-                            <Extension></Extension>
-                        </SPT>
-                    </TriggerPoint>
-                    <ApplicationServer>
-                        <ServerName>sip:smsc.mnc""" + self.MNC.zfill(3) + '.mcc' + self.MCC.zfill(3) + """.3gppnetwork.org:5060</ServerName>
-                        <DefaultHandling>0</DefaultHandling>
-                    </ApplicationServer>
-                </InitialFilterCriteria>
-
-            </ServiceProfile>
-        </IMSSubscription>
-        """
+        #This loads a Jinja XML template as the default iFC
+        templateLoader = jinja2.FileSystemLoader(searchpath="./")
+        templateEnv = jinja2.Environment(loader=templateLoader)
+        template = templateEnv.get_template(yaml_config['hss']['Default_iFC'])
+        #These variables are passed to the template for use
+        iFC_vars = {'imsi' : imsi, 'domain' : domain, 'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
+        xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
@@ -1066,11 +999,7 @@ class Diameter:
         username = self.get_avp_data(avps, 601)[0]
         username = binascii.unhexlify(username).decode('utf-8')
         DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
-        if str(username) == "tel:+12722123":
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:as.mnc023.mcc505.3gppnetwork.org:5060")),'ascii'))
-            DiameterLogger.debug("Destination is 12722123 - Routing to Application Server")
-        else:
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc023.mcc505.3gppnetwork.org:6060")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:5060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_302_success_count')
@@ -1841,7 +1770,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
-        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:6060'))                 #Public-Identity
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:5060'))                 #Public-Identity
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
         avp += self.generate_vendor_avp(614, "c0", 10415, format(int(1),"x").zfill(8))              #Server Assignment Type
         avp += self.generate_vendor_avp(624, "c0", 10415, "00000000")                               #User Data Already Available (Not Available)
