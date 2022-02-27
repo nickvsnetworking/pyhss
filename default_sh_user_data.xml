@@ -3,19 +3,19 @@
 <Sh-Data>
     <!-- This provides the Public Identifiers to the Application Server -->
     <PublicIdentifiers>
-        <IMSPublicIdentity>sip:{{ iFC_vars['msisdn'] }@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</IMSPublicIdentity>
-        <MSISDN>{{ iFC_vars['msisdn'] }</MSISDN>
+        <IMSPublicIdentity>sip:{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</IMSPublicIdentity>
+        <MSISDN>{{ Sh_template_vars['msisdn'] }}</MSISDN>
     </PublicIdentifiers>
 
     <!-- This optional extension provides the Location of the serving MME for this subscriber and the TAC for the ULA -->
     <Extension>
         <EPSLocationInformation>
-            <E-UTRANCellGlobalId>' + str(UTRANCellGlobalId) + '</E-UTRANCellGlobalId>
-            <TrackingAreaId>' + str(TrackingAreaId) + '</TrackingAreaId>
-            <MMEName>' + str(subscriber_location) + '</MMEName>
+            <E-UTRANCellGlobalId></E-UTRANCellGlobalId>
+            <TrackingAreaId></TrackingAreaId>
+            <MMEName></MMEName>
             <AgeOfLocationInformation>0</AgeOfLocationInformation>
             <Extension>
-                <VisitedPLMNID>' + str(VisitedPLMNID) + '</VisitedPLMNID>
+                <VisitedPLMNID></VisitedPLMNID>
             </Extension>
         </EPSLocationInformation>
     </Extension>
@@ -42,7 +42,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ iFC_vars['imsi'][-4:] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -53,7 +53,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ iFC_vars['imsi'][-4:] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -64,7 +64,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ iFC_vars['imsi'][-4:] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -75,7 +75,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ iFC_vars['imsi'][-4:] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -86,7 +86,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ iFC_vars['imsi'][-4:] }@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
