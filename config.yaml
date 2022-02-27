@@ -33,6 +33,10 @@ hss:
   #Default Initial Filter Criteria for IMS Subscribers
   #Jinja Formatted Template, see the example for variables passed to it.
   Default_iFC: 'default_ifc.xml'
+
+  #Default XCAP XML for IMS Subscribers
+  #Jinja Formatted Template, see the example for variables passed to it.
+  Default_iFC: 'default_xcap.xml'  
   
 logging:
   level: DEBUG
