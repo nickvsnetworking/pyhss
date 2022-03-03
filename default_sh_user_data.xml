@@ -1,5 +1,5 @@
-<!--This is the default iFC template used by PyHSS, variables come from the Jinja2 template passed inside diameter.py where you can additional variables if required -->
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--This is the default iFC template used by PyHSS, variables come from the Jinja2 template passed inside diameter.py where you can additional variables if required -->
 <Sh-Data>
     <!-- This provides the Public Identifiers to the Application Server -->
     <PublicIdentifiers>
@@ -26,6 +26,11 @@
         <SequenceNumber>0</SequenceNumber>
         <ServiceData>
             <!-- This is the actual XCAP Data for the Subscriber -->
+            {% if XCAP_Data in Sh_template_vars %}
+            <!-- XCAP data from Database -->
+            {{ XCAP_Data }}
+            {% else %}
+            <!-- XCAP Default Template (no XCAP Data stored in Database) -->
             <simservs xmlns="http://uri.etsi.org/ngn/params/xml/simservs/xcap" xmlns:cp="urn:ietf:params:xml:ns:common-policy">
                 <originating-identity-presentation active="true" />
                 <originating-identity-presentation-restriction active="true">
@@ -42,7 +47,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:{{ Sh_template_vars['msisdn'] }}@voicemail.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -53,7 +58,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:{{ Sh_template_vars['msisdn'] }}@voicemail.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -64,7 +69,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:{{ Sh_template_vars['msisdn'] }}@voicemail.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -75,7 +80,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:{{ Sh_template_vars['msisdn'] }}@voicemail.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -86,7 +91,7 @@
                             </cp:conditions>
                             <cp:actions>
                                 <forward-to>
-                                    <target>sip:1{{ Sh_template_vars['msisdn'] }}@ims.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
+                                    <target>sip:{{ Sh_template_vars['msisdn'] }}@voicemail.mnc{{ Sh_template_vars['mnc'] }}.mcc{{ Sh_template_vars['mcc'] }}.3gppnetwork.org</target>
                                 </forward-to>
                             </cp:actions>
                         </cp:rule>
@@ -109,6 +114,7 @@
             </simservs>
 
         </ServiceData>
+        {% endif %}
     </RepositoryData>
 
 </Sh-Data>
