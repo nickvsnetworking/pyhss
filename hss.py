@@ -24,6 +24,7 @@ import binascii
 import time
 import _thread
 from threading import Thread, Lock
+import threading
 import sctp
 import traceback
 
@@ -40,6 +41,20 @@ def on_new_client(clientsocket,client_address):
 
     HSS_Logger.debug('New connection from ' + str(client_address))
     logtool.Manage_Diameter_Peer(client_address, client_address, "add")
+    x = threading.Thread(target=manage_client, args=(clientsocket,client_address,diameter,))
+    logging.info("Main    : before manage_client thread")
+    x.start()
+
+    y = threading.Thread(target=manage_client_async, args=(clientsocket,client_address,diameter,))
+    logging.info("Main    : before manage_client_async thread")
+    y.start()
+
+    z = threading.Thread(target=manage_client_dwr, args=(clientsocket,client_address,diameter,))
+    logging.info("Main    : before manage_client_dwr thread")
+    z.start()    
+
+
+def manage_client(clientsocket,client_address,diameter):
     data_sum = b''
     while True:
         try:
@@ -277,6 +292,9 @@ def on_new_client(clientsocket,client_address):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
                 HSS_Logger.info("Generated SLh LCS-Routing-Info-Answer")
 
+            elif packet_vars['flags'] == "00":
+                HSS_Logger.info("Got response back with command code " + str(packet_vars['command_code'] == 8388622))
+                response = ''
             else:
                 HSS_Logger.error("\n\nRecieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
                 for keys in packet_vars:
@@ -305,6 +323,44 @@ def on_new_client(clientsocket,client_address):
             HSS_Logger.info("Connection closed niceley due to keyboard interrupt")
             sys.exit()
     
+def manage_client_async(clientsocket,client_address,diameter):
+    while True:
+        try:
+            time.sleep(yaml_config['hss']['async_check_interval'])
+        except:
+            logging.error("No async_check_interval Timer set - Not checking Async Queue")
+            break
+        if int(yaml_config['hss']['async_check_interval']) == 0:
+            logging.error("No async_check_interval Timer set - Not checking Async Queue")
+            break
+        try:
+            HSS_Logger.debug("Reading data from Redis")
+            data_to_send = logtool.RedisHMGET(client_address[0])
+            HSS_Logger.debug(data_to_send)
+            for key in data_to_send:
+                HSS_Logger.debug("Sending key " + str(key) + " to " + str(client_address[0]))
+                data = data_to_send[key].decode('utf-8')
+                HSS_Logger.debug("Sending Hex Data: " + str(data))
+                clientsocket.sendall(bytes.fromhex(data))
+                logtool.RedisHDEL(client_address[0], key)
+                
+        except:
+            HSS_Logger.debug("Failed to get data from Redis")
+    logging.debug("Left manage_client_async() for this thread")
+
+
+def manage_client_dwr(clientsocket,client_address,diameter):
+    while True:
+        try:
+            time.sleep(yaml_config['hss']['device_watchdog_request_interval'])
+        except:
+            logging.error("No DWR Timer set - Not sending Device Watchdog Requests")
+            break
+        HSS_Logger.debug("Sending Keepalive to " + str(client_address) + "...")
+        request = diameter.Request_280()
+        clientsocket.sendall(bytes.fromhex(request))             #Send it
+        HSS_Logger.debug("Sent Keepalive to " + str(client_address) + "...")    
+
 if ":" in yaml_config['hss']['bind_ip'][0]:
     HSS_Logger.info("IPv6 Address Specified")
     socket_family = socket.AF_INET6

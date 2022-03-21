@@ -51,7 +51,30 @@ def RedisGet(key):
         except:
             logging.error("failed to set Redis key " + str(key))    
 
+def RedisHMSET(key, value_dict):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            redis_store.hmset(key, value_dict)
+        except:
+            logging.error("failed to set hm Redis key " + str(key) + " to value " + str(value_dict))    
 
+def RedisHMGET(key):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            logging.debug("Getting HM Get from " + str(key))
+            data = redis_store.hgetall(key)
+            logging.debug("Result: " + str(data))
+            return data
+        except:
+            logging.error("failed to get hm Redis key " + str(key))
+
+def RedisHDEL(key, item):
+    if yaml_config['redis']['enabled'] == True:
+        try:
+            logging.debug("Removing item " + str(item) + " from key " + str(key))
+            redis_store.hdel(key, item)
+        except:
+            logging.error("failed to hdel Redis key " + str(key) + " item " + str(item))   
 
 def RedisStoreDict(key, value):
     if yaml_config['redis']['enabled'] == True:

@@ -6,7 +6,7 @@ import _thread
 global recv_ip
 
 #Values to change / tweak
-recv_ip = "127.0.0.1"                                                         #IP of this Machine
+recv_ip = "127.0.0.2"                                                         #IP of this Machine
 diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
 realm = "mnc001.mcc001.3gppnetwork.org"                                         #Diameter Realm of this machine
 DestinationHost = "hss.localdomain"                                             #Diameter Host of Destination
@@ -39,8 +39,7 @@ except Exception as e:
     sys.exit()
 
 
-def ReadBuffer():
-    
+def ReadBuffer(): 
     while True:
         try:
                 data = clientsocket.recv(32)

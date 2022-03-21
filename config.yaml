@@ -8,18 +8,18 @@ hss:
   bind_port: 3868
 
   #Value to populate as the OriginHost in Diameter responses
-  OriginHost: "hss"
+  OriginHost: "hss01"
 
   #Value to populate as the OriginRealm in Diameter responses
-  OriginRealm: "mnc380.mcc313.3gppnetwork.org"
+  OriginRealm: "mnc000.mcc738.3gppnetwork.org"
 
   #Value to populate as the Product name in Diameter responses
   ProductName: "pyHSS"
 
   #Your Home Mobile Country Code (Used for PLMN calcluation)
-  MCC: "313"
+  MCC: "738"
   #Your Home Mobile Network Code (Used for PLMN calcluation)
-  MNC: "380"
+  MNC: "00"
 
   #Enable GMLC / SLh Interface
   SLh_enabled: True
@@ -27,12 +27,21 @@ hss:
   #IMSI of Test Subscriber for Unit Checks (Optional)
   test_sub_imsi: '208310001859912'
 
+  #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
+  device_watchdog_request_interval: 30
+
+  #Async Queue Check Interval (In Seconds - If set to 0 disabled)
+  async_check_interval: 0
+
   #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
   Insert_Subscriber_Data_Force: False
 
   #Default Initial Filter Criteria for IMS Subscribers
   #Jinja Formatted Template, see the example for variables passed to it.
   Default_iFC: 'default_ifc.xml'
+
+  #Default Sh User Data
+  Default_Sh_UserData: 'default_sh_user_data.xml'
   
 logging:
   level: DEBUG
@@ -66,7 +75,7 @@ database:
 ## Stats Parameters
 redis:
   enabled: True
-  clear_stats_on_boot: False
+  clear_stats_on_boot: True
   host: localhost
   port: 6379
 
