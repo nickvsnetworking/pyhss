@@ -349,7 +349,7 @@ def manage_client_async(clientsocket,client_address,diameter):
             HSS_Logger.error("No async_check_interval Timer set - Not checking Async Queue for host connection " + str(DiameterHostname))
             break
         try:
-            HSS_Logger.debug("Reading data from Redis for host connection " + str(DiameterHostname))
+            HSS_Logger.debugprint("Reading from request Queue '" + str(DiameterHostname)  + "_request_queue'")
             data_to_send = logtool.RedisHMGET(str(DiameterHostname) + "_request_queue")
             HSS_Logger.debug(data_to_send)
             for key in data_to_send:
@@ -359,7 +359,7 @@ def manage_client_async(clientsocket,client_address,diameter):
                 clientsocket.sendall(bytes.fromhex(data))
                 logtool.RedisHDEL(str(DiameterHostname) + "_request_queue", key)
         except:
-            HSS_Logger.debug("Failed to get data from Redis")
+            continue
     logging.debug("Left manage_client_async() for this thread")
 
 def manage_client_dwr(clientsocket,client_address,diameter):

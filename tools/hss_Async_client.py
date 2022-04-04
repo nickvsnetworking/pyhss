@@ -22,7 +22,7 @@ hostname = "127.0.0.1"                                                         #
 mcc = '001'                                                                     #Mobile Country Code
 mnc = '01'                                                                      #Mobile Network Code
 
-diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
+diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-Async-client', str(mcc), str(mnc))
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR"]
 
