@@ -28,10 +28,10 @@ hss:
   test_sub_imsi: '208310001859912'
 
   #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
-  device_watchdog_request_interval: 30
+  device_watchdog_request_interval: 0
 
   #Async Queue Check Interval (In Seconds - If set to 0 disabled)
-  async_check_interval: 0
+  async_check_interval: 10
 
   #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
   Insert_Subscriber_Data_Force: False
