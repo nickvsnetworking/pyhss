@@ -13,7 +13,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 import logtool
-
+logtool = logtool.LogTool()
 logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 DBLogger = logging.getLogger('DBLogger')
 
@@ -163,7 +163,6 @@ class MongoDB:
                 DBLogger.debug("Failed to pull subscriber info")
                 raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
 
-
 class MSSQL:
     import _mssql
     def __init__(self):
@@ -288,7 +287,6 @@ class MSSQL:
                 DBLogger.error(e)
                 raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
                 
-
 
     def GetSubscriberLocation(self, *args, **kwargs):
         with self._lock:

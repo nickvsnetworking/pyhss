@@ -17,6 +17,7 @@ with open("config.yaml", 'r') as stream:
 
 #Setup Logging
 import logtool
+logtool = logtool.LogTool()
 logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diameter_logging_file'], level=yaml_config['logging']['level'])
 DiameterLogger = logging.getLogger('DiameterLogger')
 
@@ -110,6 +111,7 @@ class Diameter:
             plmn = plmn + bits
         DiameterLogger.debug("Encoded PLMN: " + str(plmn))
         return plmn
+
     def TBCD_special_chars(self, input):
         DiameterLogger.debug("Special character possible in " + str(input))
         if input == "*":
@@ -131,7 +133,6 @@ class Diameter:
             binform = "{:04b}".format(int(input))
             DiameterLogger.debug("input " + str(input) + " is not a special char, converted to bin: " + str(binform))
             return (binform)
-
 
     def TBCD_encode(self, input):
         DiameterLogger.debug("TBCD_encode input value is " + str(input))
@@ -171,11 +172,8 @@ class Diameter:
                     bit = "f" + last_digit
                 offset = offset + 2
                 output = output + bit
-                
         DiameterLogger.debug("TBCD_encode final output value is " + str(output))
         return output
-
-
 
     def TBCD_decode(self, input):
         DiameterLogger.debug("TBCD_decode Input value is " + str(input))
@@ -203,7 +201,6 @@ class Diameter:
 
         DiameterLogger.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
         DiameterLogger.info("PLMN is " + str(MCC) + "/" + str(MNC))
-
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -373,18 +370,15 @@ class Diameter:
                 misc_data.append(keys['misc_data'])
         return misc_data
 
-
     def decode_diameter_packet_length(self, data):
         packet_vars = {}
         data = data.hex()
-
         packet_vars['packet_version'] = data[0:2]
         packet_vars['length'] = int(data[2:8], 16)
         if packet_vars['packet_version'] == "01":
             return packet_vars['length']
         else:
             return False
-
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
