@@ -24,8 +24,6 @@ DiameterLogger = logging.getLogger('DiameterLogger')
 DiameterLogger.info("Initialised Diameter Logger, importing database")
 import database
 
-
-
 if yaml_config['redis']['enabled'] == True:
     DiameterLogger.debug("Redis support enabled")
     import redis

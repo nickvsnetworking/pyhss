@@ -12,7 +12,7 @@ sys.path.append(os.path.realpath('lib'))
 
 #Setup Logging
 import logtool
-logtool = logtool.LogTool()
+logtool = logtool.LogTool(HSS_Init=True)
 logtool.setup_logger('HSS_Logger', yaml_config['logging']['logfiles']['hss_logging_file'], level=yaml_config['logging']['level'])
 HSS_Logger = logging.getLogger('HSS_Logger')
 

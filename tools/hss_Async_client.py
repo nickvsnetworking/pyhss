@@ -11,6 +11,7 @@ with open('config.yaml') as stream:
 import json
 import redis
 import diameter
+import time
 
 #Values to change / tweak
 diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
@@ -21,12 +22,9 @@ hostname = "127.0.0.1"                                                         #
 mcc = '001'                                                                     #Mobile Country Code
 mnc = '01'                                                                      #Mobile Network Code
 
-
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR"]
-
-
 
 r = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
 
@@ -46,14 +44,14 @@ for keys in ActivePeerDict:
     for subkeys in ActivePeerDict[keys]:
         print("\t" + str(subkeys) + ": \t" + str(ActivePeerDict[keys][subkeys]))
     print('\n')
-DiameterHostname = ''
+DiameterHostname = input("Enter DiameterHostname to send Request to: ")
 
 def SendRequest(request):
-    r.hmset(str(DiameterHostname) + "_request_queue", request)
+    print("Writing request to Queue '" + str(DiameterHostname)  + "_request_queue'")
+    r.hset(str(DiameterHostname) + "_request_queue", "hss_Async_client_" + str(int(time.time())), request)
     print("Written to Queue to send.")
 
-
-
+hostname = DiameterHostname
 print("Sending Request to connected Diameter peer " + str(hostname))
 request = input("Enter request type:\t")
 if request == "CER":

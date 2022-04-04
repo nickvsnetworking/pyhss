@@ -12,23 +12,32 @@ import json
 import pickle
 
 class LogTool:
-    def __init__(self):
-        logging.debug("Instantiating LogTool")
+    def __init__(self, **kwargs):
+        print("Instantiating LogTool with Kwargs " + str(kwargs.items()))
         if yaml_config['redis']['enabled'] == True:
-            logging.debug("Redis support enabled")
+            print("Redis support enabled")
             import redis
             redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
             self.redis_store = redis_store
             try:
-                redis_store.incr('restart_count')
-                if yaml_config['redis']['clear_stats_on_boot'] == True:
-                    logging.debug("Clearing all Redis keys")
-                    redis_store.flushall()
+                if "HSS_Init" in kwargs:
+                    print("Called Init for HSS_Init")
+                    redis_store.incr('restart_count')
+                    if yaml_config['redis']['clear_stats_on_boot'] == True:
+                        logging.debug("Clearing all Redis keys")
+                        redis_store.flushall()
+                    else:
+                        logging.debug("Leaving prexisting Redis keys")
+                    #Clear ActivePeerDict
+                    redis_store.delete('ActivePeerDict')
+
+                    #Clear Async Keys
+                    for key in redis_store.scan_iter("*_request_queue"):
+                        print("Deleting Key: " + str(key))
+                        redis_store.delete(key)
+                    logging.info("Connected to Redis server")
                 else:
-                    logging.debug("Leaving prexisting Redis keys")
-                #Clear ActivePeerDict
-                redis_store.delete('ActivePeerDict')
-                logging.info("Connected to Redis server")
+                    logging.info("Init of Logtool but not from HSS_Init")
             except:
                 logging.error("Failed to connect to Redis server - Disabling")
                 yaml_config['redis']['enabled'] == False
