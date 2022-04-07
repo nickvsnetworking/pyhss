@@ -654,7 +654,7 @@ class Diameter:
         if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
             DiameterLogger.debug("CancelLocationRequest_Enabled - Retriving location")
             try:
-                full_location = database.GetFullSubscriberLocation(imsi)
+                full_location = database.ManageFullSubscriberLocation(imsi, str(self.OriginHost), str(orignHost), str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
             except Exception as E:
                 DiameterLogger.error("Failed to get full subscriber location, " + str(E))
 
@@ -672,11 +672,6 @@ class Diameter:
                 orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
                 DiameterLogger.debug("Recieved originHost is " + str(orignHost))
                 database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host=str(orignHost))
-                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', \
-                    serving_hss=str(self.OriginHost), \
-                    serving_mme=str(orignHost), \
-                    dra=str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
-                #database.UpdateSubscriber(imsi, subscriber_details['SQN'], '')
             except:
                 DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
         

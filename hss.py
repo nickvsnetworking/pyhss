@@ -329,27 +329,28 @@ def manage_client(clientsocket,client_address,diameter):
 def manage_client_async(clientsocket,client_address,diameter):
     #Sleep for 30 seconds to wait for the Connection to come up
     time.sleep(10)
-    HSS_Logger.debug("Getting ActivePeerDict")
+    HSS_Logger.debug("Async Getting ActivePeerDict")
     ActivePeerDict = logtool.GetDiameterPeers()
-    HSS_Logger.debug("Got Active Peer dict in Async Thread: " + str(ActivePeerDict))
+    HSS_Logger.debug("Async Got Active Peer dict in Async Thread: " + str(ActivePeerDict))
     if client_address[0] in ActivePeerDict:
-        HSS_Logger.debug("This is host: " + str(ActivePeerDict[str(client_address[0])]['DiameterHostname']))
+        HSS_Logger.debug("Async This is host: " + str(ActivePeerDict[str(client_address[0])]['DiameterHostname']))
         DiameterHostname = str(ActivePeerDict[str(client_address[0])]['DiameterHostname'])
     else:
-        HSS_Logger.debug("No matching Diameter Host found.")
+        HSS_Logger.debug("Async No matching Diameter Host found.")
         return
 
     while True:
         try:
             time.sleep(yaml_config['hss']['async_check_interval'])
+            HSS_Logger.debug("Async sleep interval expired for Diameter Peer " + str(DiameterHostname))
         except:
-            HSS_Logger.error("No async_check_interval Timer set - Not checking Async Queue for host connection " + str(DiameterHostname))
+            HSS_Logger.error("Async No async_check_interval Timer set - Not checking Async Queue for host connection " + str(DiameterHostname))
             break
         if int(yaml_config['hss']['async_check_interval']) == 0:
-            HSS_Logger.error("No async_check_interval Timer set - Not checking Async Queue for host connection " + str(DiameterHostname))
+            HSS_Logger.error("Async No async_check_interval Timer set - Not checking Async Queue for host connection " + str(DiameterHostname))
             break
         try:
-            HSS_Logger.debugprint("Reading from request Queue '" + str(DiameterHostname)  + "_request_queue'")
+            HSS_Logger.debug("Async Reading from request Queue '" + str(DiameterHostname)  + "_request_queue'")
             data_to_send = logtool.RedisHMGET(str(DiameterHostname) + "_request_queue")
             HSS_Logger.debug(data_to_send)
             for key in data_to_send:
@@ -360,7 +361,7 @@ def manage_client_async(clientsocket,client_address,diameter):
                 logtool.RedisHDEL(str(DiameterHostname) + "_request_queue", key)
         except:
             continue
-    logging.debug("Left manage_client_async() for this thread")
+    logging.debug("Async Left manage_client_async() for this thread")
 
 def manage_client_dwr(clientsocket,client_address,diameter):
     while True:

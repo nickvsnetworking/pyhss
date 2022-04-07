@@ -332,7 +332,8 @@ class MSSQL:
                 DBLogger.debug("No location stored in database for Subscriber")
                 raise ValueError("No location stored in database for Subscriber")
 
-    def GetFullSubscriberLocation(self, imsi):
+    def ManageFullSubscriberLocation(self, imsi, serving_hss, serving_mme, dra):
+        DBLogger.debug("Called ManageFullSubscriberLocation with IMSI " + str(imsi))
         with self._lock:
             try:
                 DBLogger.debug("Getting full location for IMSI" + str(imsi))
@@ -344,15 +345,26 @@ class MSSQL:
                 DBLogger.error("MSSQL failed to run SP " + str(sql))  
                 DBLogger.error(e)
                 raise ValueError("MSSQL failed to run SP " + str(sql))  
-        DBLogger.debug("Ran Query OK...")
-        try:
-            DBLogger.debug(self.conn)
-            result = [ row for row in self.conn ][0]
-            DBLogger.debug("Final result is: " + str(result))
+            DBLogger.debug("Ran Query OK...")
+            try:
+                DBLogger.debug(self.conn)
+                result = [ row for row in self.conn ][0]
+                DBLogger.debug("Final result is: " + str(result))
+            except:
+                DBLogger.debug("Failed to get result from query")
+
+            DBLogger.debug("Full MME Location to write to DB, serving HSS: " + str(serving_hss) + ", serving_mme: " + str(serving_mme) + " connected via Diameter Peer " + str(dra))
+            try:
+                sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + ', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @dra=\'' + str(dra) + '\';'
+                DBLogger.debug(sql)
+                self.conn.execute_query(sql)
+                DBLogger.debug("Successfully raun hss_cancl_loc_imsi_insert_info for " + str(imsi))
+            except:
+                DBLogger.error("MSSQL failed to run SP hss_cancl_loc_imsi_insert_info with IMSI " + str(imsi))
+
+            DBLogger.debug("Completed ManageFullSubscriberLocation")
             return result
-        except:
-            DBLogger.debug("Failed to get result from query")
-            raise ValueError("Failed to get result from query")
+
 
     def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         with self._lock:
@@ -394,24 +406,7 @@ class MSSQL:
                             DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
                 else:
                     DBLogger.debug("origin_host not present - not updating UE location in database")
-
-                if 'serving_hss' in kwargs:
-                    DBLogger.debug("Storing full location")
-                    serving_hss = kwargs.get('serving_hss', None)
-                    serving_mme = kwargs.get('serving_mme', None)
-                    dra = kwargs.get('dra', None)
-
-                    DBLogger.debug("Full MME Location to write to DB, serving HSS: " + str(serving_hss) + ", serving_mme: " + str(serving_mme) + " connected via Diameter Peer " + str(dra))
-                    try:
-                        sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + ', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @dra=\'' + str(dra) + '\';'
-                        DBLogger.debug(sql)
-                        self.conn.execute_query(sql)
-                        DBLogger.debug("Successfully raun hss_cancl_loc_imsi_insert_info for " + str(imsi))
-                    except:
-                        DBLogger.error("MSSQL failed to run SP hss_cancl_loc_imsi_insert_info with IMSI " + str(imsi))
-
-                else:
-                    DBLogger.debug("Required parameters for full MME location storage not present - not updating UE location in database, provided kwargs are " + str(kwargs))
+                
             except:
                 raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
