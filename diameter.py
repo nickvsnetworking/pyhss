@@ -660,7 +660,7 @@ class Diameter:
                 orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
                 DiameterLogger.debug("Recieved originHost is " + str(orignHost))
                 database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host=str(orignHost))
-                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', serving_hss=str(self.OriginHost), serving_hss=str(orignHost), serving_hss=str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
+                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', serving_hss=str(self.OriginHost), serving_mme=str(orignHost), dra=str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
                 #database.UpdateSubscriber(imsi, subscriber_details['SQN'], '')
             except:
                 DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
