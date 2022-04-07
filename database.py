@@ -355,7 +355,7 @@ class MSSQL:
 
             DBLogger.debug("Full MME Location to write to DB, serving HSS: " + str(serving_hss) + ", serving_mme: " + str(serving_mme) + " connected via Diameter Peer " + str(dra))
             try:
-                sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + '\', @diameter_realm=\'' + str(realm) + '\', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @dra=\'' + str(dra) + '\';'
+                sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + '\', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @diameter_realm=\'' + str(realm) + '\', @dra=\'' + str(dra) + '\';'
                 DBLogger.debug(sql)
                 self.conn.execute_query(sql)
                 DBLogger.debug("Successfully raun hss_cancl_loc_imsi_insert_info for " + str(imsi))
