@@ -539,8 +539,6 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))     #Context Identifier
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
-
-
         apn_list = subscriber_details['pdn']
         DiameterLogger.debug("APN list: " + str(apn_list))
         APN_context_identifer_count = 1
@@ -652,6 +650,20 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_316_success_count')
 
+
+        if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
+            DiameterLogger.debug("CancelLocationRequest_Enabled - Retriving location")
+            try:
+                full_location = database.GetFullSubscriberLocation(imsi)
+            except Exception as E:
+                DiameterLogger.error("Failed to get full subscriber location, " + str(E))
+
+            try:
+                DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi))
+                DiameterLogger.info(full_location)
+            except Exception as E:
+                DiameterLogger.error("Failed to generate CLR")
+
         #Write back current MME location to Database
         if yaml_config['hss']['SLh_enabled'] == True:
             DiameterLogger.debug("SLh Enabled - Must log location")
@@ -664,8 +676,8 @@ class Diameter:
                 #database.UpdateSubscriber(imsi, subscriber_details['SQN'], '')
             except:
                 DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
-                
-            
+        
+
 
 
         DiameterLogger.debug("Successfully Generated ULA")
@@ -1155,6 +1167,7 @@ class Diameter:
         if msisdn is not None:
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
                 subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
             result_code = 5005
@@ -1291,9 +1304,11 @@ class Diameter:
         if imsi is not None:
                 DiameterLogger.debug("Getting susbcriber location based on IMSI")
                 subscriber_location = database.GetSubscriberLocation(imsi=imsi)
+                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         elif msisdn is not None:
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
                 subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
             result_code = 5005
@@ -1513,6 +1528,7 @@ class Diameter:
                 return
             #Get Subscriber Location from Database
             subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+            DiameterLogger.debug("Got subscriber location: " + subscriber_location)
 
 
             DiameterLogger.info("Getting IMSI for MSISDN " + str(msisdn))

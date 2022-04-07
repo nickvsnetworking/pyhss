@@ -332,6 +332,28 @@ class MSSQL:
                 DBLogger.debug("No location stored in database for Subscriber")
                 raise ValueError("No location stored in database for Subscriber")
 
+    def GetFullSubscriberLocation(self, imsi):
+        with self._lock:
+            try:
+                DBLogger.debug("Getting full location for IMSI" + str(imsi))
+                sql = 'hss_cancel_loc_get_imsi_info @imsi=' + str(imsi) + ';'
+                DBLogger.debug(sql)
+                self.conn.execute_query(sql)
+                DBLogger.debug(self.conn)
+            except Exception as e:
+                DBLogger.error("MSSQL failed to run SP " + str(sql))  
+                DBLogger.error(e)
+                raise ValueError("MSSQL failed to run SP " + str(sql))  
+        DBLogger.debug("Ran Query OK...")
+        try:
+            DBLogger.debug(self.conn)
+            result = [ row for row in self.conn ][0]
+            DBLogger.debug("Final result is: " + str(result))
+            return result
+        except:
+            DBLogger.debug("Failed to get result from query")
+            raise ValueError("Failed to get result from query")
+
     def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         with self._lock:
             try:
@@ -420,6 +442,7 @@ class MSSQL:
         except:
             DBLogger.debug("IMSI for MSISDN Provided.")
             raise ValueError("IMSI for MSISDN Provided.")
+
 class MySQL:
     import mysql.connector
     def __init__(self):
