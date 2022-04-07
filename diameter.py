@@ -663,6 +663,7 @@ class Diameter:
             try:
                 DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi))
                 DiameterLogger.info(full_location)
+                self.Request_16777251_317(imsi, '', full_location['serving_mme'])
             except Exception as E:
                 DiameterLogger.error("Failed to generate CLR")
 

@@ -332,7 +332,7 @@ class MSSQL:
                 DBLogger.debug("No location stored in database for Subscriber")
                 raise ValueError("No location stored in database for Subscriber")
 
-    def ManageFullSubscriberLocation(self, imsi, serving_hss, serving_mme, realm, dra):
+    def ManageFullSubscriberLocation(self, imsi, serving_hss, serving_mme, dra):
         DBLogger.debug("Called ManageFullSubscriberLocation with IMSI " + str(imsi))
         with self._lock:
             try:
