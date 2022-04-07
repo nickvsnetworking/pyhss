@@ -344,7 +344,6 @@ class MSSQL:
             except Exception as e:
                 DBLogger.error("MSSQL failed to run SP " + str(sql))  
                 DBLogger.error(e)
-                raise ValueError("MSSQL failed to run SP " + str(sql))  
             DBLogger.debug("Ran Query OK...")
             try:
                 DBLogger.debug(self.conn)
