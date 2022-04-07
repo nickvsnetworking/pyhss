@@ -395,7 +395,7 @@ class MSSQL:
                 else:
                     DBLogger.debug("origin_host not present - not updating UE location in database")
 
-                if ('serving_hss' in kwargs) and ('serving_mme' in kwargs) and ('dra' in kwargs) :
+                if 'serving_hss' in kwargs:
                     DBLogger.debug("Storing full location")
                     serving_hss = kwargs.get('serving_hss', None)
                     serving_mme = kwargs.get('serving_mme', None)
@@ -411,7 +411,7 @@ class MSSQL:
                         DBLogger.error("MSSQL failed to run SP hss_cancl_loc_imsi_insert_info with IMSI " + str(imsi))
 
                 else:
-                    DBLogger.debug("Required parameters for full MME location storage not present - not updating UE location in database")
+                    DBLogger.debug("Required parameters for full MME location storage not present - not updating UE location in database, provided kwargs are " + str(kwargs))
             except:
                 raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
