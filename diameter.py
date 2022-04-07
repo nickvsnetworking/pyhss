@@ -655,7 +655,7 @@ class Diameter:
             DiameterLogger.debug("CancelLocationRequest_Enabled - Retriving location")
             try:
                 DestinationHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-                DestinationHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
+                DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')           #Format it
                 full_location = database.ManageFullSubscriberLocation(imsi, str(self.OriginHost), str(DestinationHost), str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
             except Exception as E:
                 DiameterLogger.error("Failed to get full subscriber location, " + str(E))
