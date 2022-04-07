@@ -656,14 +656,19 @@ class Diameter:
             try:
                 DestinationHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
                 DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')           #Format it
-                full_location = database.ManageFullSubscriberLocation(imsi, str(self.OriginHost), str(DestinationHost), str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
+                full_location = database.ManageFullSubscriberLocation(imsi, str(self.OriginHost), str(DestinationHost), str(self.OriginRealm), str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
             except Exception as E:
                 DiameterLogger.error("Failed to get full subscriber location, " + str(E))
 
             try:
                 DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi))
                 DiameterLogger.info(full_location)
-                self.Request_16777251_317(imsi, '', full_location['serving_mme'])
+                request = self.Request_16777251_317(imsi, '', full_location['serving_mme'])
+                DiameterLogger.info(request)
+                DiameterHostname = 'draxxx'
+                logtool.Async_SendRequest(request, DiameterHostname)
+                DiameterLogger.info("Async sent.")
+                
             except Exception as E:
                 DiameterLogger.error("Failed to generate CLR")
 

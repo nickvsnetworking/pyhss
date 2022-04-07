@@ -71,6 +71,16 @@ class LogTool:
             except:
                 logging.error("failed to set hm Redis key " + str(key) + " to value " + str(value_dict))    
 
+    def Async_SendRequest(self, request, DiameterHostname):
+        if yaml_config['redis']['enabled'] == True:
+            try:
+                import time
+                print("Writing request to Queue '" + str(DiameterHostname)  + "_request_queue'")
+                self.redis_store.hset(str(DiameterHostname) + "_request_queue", "hss_Async_client_" + str(int(time.time())), request)
+                print("Written to Queue to send.")
+            except Exception as E:
+                logging.error("failed to run Async_SendRequest to " + str(DiameterHostname))
+    
     def RedisHMGET(self, key):
         if yaml_config['redis']['enabled'] == True:
             try:
@@ -115,7 +125,7 @@ class LogTool:
 
     def Manage_Diameter_Peer(self, peername, ip, action):
         try:
-            logging.debug("Adding Diameter peer to Redis with hostname" + str(peername) + " and IP " + str(ip))
+            logging.debug("Managing Diameter peer to Redis with hostname" + str(peername) + " and IP " + str(ip))
             now = datetime.now()
             timestamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -168,8 +178,9 @@ class LogTool:
                 ActivePeerDict[str(ip)]['last_dwr_timestamp'] = str(timestamp)
                 ActivePeerDict[str(ip)]['connection_status'] = "Connected"
                 self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
-        except:
+        except Exception as E:
             logging.error("failed to add/update/remove Diameter peer from Redis")
+            logging.error(E)
             
 
     def setup_logger(self, logger_name, log_file, level=logging.DEBUG):

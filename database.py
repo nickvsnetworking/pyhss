@@ -332,7 +332,7 @@ class MSSQL:
                 DBLogger.debug("No location stored in database for Subscriber")
                 raise ValueError("No location stored in database for Subscriber")
 
-    def ManageFullSubscriberLocation(self, imsi, serving_hss, serving_mme, dra):
+    def ManageFullSubscriberLocation(self, imsi, serving_hss, serving_mme, realm, dra):
         DBLogger.debug("Called ManageFullSubscriberLocation with IMSI " + str(imsi))
         with self._lock:
             try:
@@ -355,7 +355,7 @@ class MSSQL:
 
             DBLogger.debug("Full MME Location to write to DB, serving HSS: " + str(serving_hss) + ", serving_mme: " + str(serving_mme) + " connected via Diameter Peer " + str(dra))
             try:
-                sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + ', @diameter_realm=\'' + str('') + ', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @dra=\'' + str(dra) + '\';'
+                sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + '\', @diameter_realm=\'' + str(realm) + '\', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @dra=\'' + str(dra) + '\';'
                 DBLogger.debug(sql)
                 self.conn.execute_query(sql)
                 DBLogger.debug("Successfully raun hss_cancl_loc_imsi_insert_info for " + str(imsi))
@@ -508,8 +508,8 @@ def GetSubscriberLocation(*args, **kwargs):
 def Get_IMSI_from_MSISDN(msisdn):
     return DB.GetSubscriberIMSI(msisdn)
 
-def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, dra):
-    return DB.ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, dra)
+def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra):
+    return DB.ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra)
 
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
