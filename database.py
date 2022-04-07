@@ -508,6 +508,9 @@ def GetSubscriberLocation(*args, **kwargs):
 def Get_IMSI_from_MSISDN(msisdn):
     return DB.GetSubscriberIMSI(msisdn)
 
+def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, dra):
+    return DB.ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, dra)
+
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     test_sub_imsi = yaml_config['hss']['test_sub_imsi']
