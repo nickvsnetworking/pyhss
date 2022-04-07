@@ -352,7 +352,6 @@ class MSSQL:
                     DBLogger.debug("origin_host present - Updating MME Identity of subscriber in MSSQL")
                     origin_host = kwargs.get('origin_host', None)
                     DBLogger.debug("Origin to write to DB is " + str(origin_host))
-
                     if len(origin_host) != 0:
                         try:
                             DBLogger.debug("origin-host valid - Writing back to DB")
@@ -362,7 +361,6 @@ class MSSQL:
                             DBLogger.debug("Successfully updated location for " + str(imsi))
                         except:
                             DBLogger.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
-                        
                     else:
                         try:
                             DBLogger.debug("Removing MME Identity as new MME Identity is empty")
@@ -374,6 +372,24 @@ class MSSQL:
                             DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
                 else:
                     DBLogger.debug("origin_host not present - not updating UE location in database")
+
+                if ('serving_hss' in kwargs) and ('serving_mme' in kwargs) and ('dra' in kwargs) :
+                    DBLogger.debug("Storing full location")
+                    serving_hss = kwargs.get('serving_hss', None)
+                    serving_mme = kwargs.get('serving_mme', None)
+                    dra = kwargs.get('dra', None)
+
+                    DBLogger.debug("Full MME Location to write to DB, serving HSS: " + str(serving_hss) + ", serving_mme: " + str(serving_mme) + " connected via Diameter Peer " + str(dra))
+                    try:
+                        sql = 'hss_cancl_loc_imsi_insert_info @imsi=' + str(imsi) + ', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @dra=\'' + str(dra) + '\';'
+                        DBLogger.debug(sql)
+                        self.conn.execute_query(sql)
+                        DBLogger.debug("Successfully raun hss_cancl_loc_imsi_insert_info for " + str(imsi))
+                    except:
+                        DBLogger.error("MSSQL failed to run SP hss_cancl_loc_imsi_insert_info with IMSI " + str(imsi))
+
+                else:
+                    DBLogger.debug("Required parameters for full MME location storage not present - not updating UE location in database")
             except:
                 raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
