@@ -411,7 +411,7 @@ class Diameter:
             avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
-        avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
+        #avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
@@ -660,6 +660,7 @@ class Diameter:
                 orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
                 DiameterLogger.debug("Recieved originHost is " + str(orignHost))
                 database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host=str(orignHost))
+                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', serving_hss=str(self.OriginHost), serving_hss=str(orignHost), serving_hss=str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
                 #database.UpdateSubscriber(imsi, subscriber_details['SQN'], '')
             except:
                 DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
