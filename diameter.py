@@ -663,9 +663,8 @@ class Diameter:
             try:
                 DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi))
                 DiameterLogger.info(full_location)
-                request = self.Request_16777251_317(imsi, '', full_location['serving_mme'])
+                request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
                 DiameterLogger.info(request)
-                #DiameterHostname = 'draxxx'
                 logtool.Async_SendRequest(request, 'DSC101.epc.mnc001.mcc214.3gppnetwork.org')
                 logtool.Async_SendRequest(request, 'DSC201.epc.mnc001.mcc214.3gppnetwork.org')
                 DiameterLogger.info("Async sent.")
