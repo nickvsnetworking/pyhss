@@ -71,7 +71,7 @@ elif request == "ULR":
 elif request == "CLR":
     imsi = str(input("IMSI:\t"))
     print("Sending Cancel Location Request to " + str(hostname))
-    SendRequest(diameter.Request_16777251_317(imsi, DestinationHost, DestinationRealm))        
+    SendRequest(diameter.Request_16777251_317(imsi, DestinationRealm, DestinationHost))
 elif request == "AIR":
     imsi = str(input("IMSI:\t"))
     requested_vectors = str(input("Number of Vectors:\t"))
