@@ -898,47 +898,61 @@ class Diameter:
         avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type (ToDo - Check dyanmically generating)
         avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number (ToDo - Check dyanmically generating)
         if int(CC_Request_Type) == 1:
-            DiameterLogger.info("Request type for CCA is 1")                                                                                        
-            try:
-                DiameterLogger.debug("packet_vars: " + str(packet_vars))
-                DiameterLogger.debug("avps: " + str(avps))
+            DiameterLogger.info("Request type for CCA is 1")
+                                                                                                    #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
+            avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
+                                                                                                    #Supported-Features(628) (Gx feature list)
+            avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+            DiameterLogger.info("Creating QoS Information")
+                                                                                                    #QoS-Information
+            QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
+            QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
+            DiameterLogger.info("Created both QoS AVPs")
+            DiameterLogger.info("Populated QoS_Infomration")
+            avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+            DiameterLogger.info("Added to AVP List")
+            
+            DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
+            # try:
+            #     DiameterLogger.debug("packet_vars: " + str(packet_vars))
+            #     DiameterLogger.debug("avps: " + str(avps))
                 
-                for sub_avp in avps:
-                    DiameterLogger.debug("AVP# " + str(sub_avp['avp_code']))
-                    DiameterLogger.debug("\t: " + str(sub_avp))
-                #Default-EPS-Bearer-QoS(1049) (Copy from Credit Control Request
-                # DiameterLogger.info("EPS Bearer QoS recieved is")
-                # DiameterLogger.info(self.get_avp_data(avps, 1049))
-                # EPS_Bearer_QoS = str(self.get_avp_data(avps, 1049)[0])
-                # DiameterLogger.info("With Entry 0 is " + str(EPS_Bearer_QoS))
-                # DiameterLogger.info("EPS_Bearer_QoS is type " + str(type(EPS_Bearer_QoS)) + " and value: " + str(EPS_Bearer_QoS))
-                # DiameterLogger.info("Calling: self.generate_vendor_avp(1049, \"80\", 10415, \"" + str(EPS_Bearer_QoS) + "\")")
-                # EPS_Bearer_QoS_AVP = self.generate_vendor_avp(1049, "80", 10415, EPS_Bearer_QoS)
-                # DiameterLogger.info("Generated EPS_Bearer_QoS_AVP with type " + str(type(EPS_Bearer_QoS_AVP)) + " and value: " + str(EPS_Bearer_QoS_AVP))
-                # avp += EPS_Bearer_QoS_AVP
-                # DiameterLogger.info("AVP Added for 1049")
-                avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
+            #     for sub_avp in avps:
+            #         DiameterLogger.debug("AVP# " + str(sub_avp['avp_code']))
+            #         DiameterLogger.debug("\t: " + str(sub_avp))
+            #     #Default-EPS-Bearer-QoS(1049) (Copy from Credit Control Request
+            #     # DiameterLogger.info("EPS Bearer QoS recieved is")
+            #     # DiameterLogger.info(self.get_avp_data(avps, 1049))
+            #     # EPS_Bearer_QoS = str(self.get_avp_data(avps, 1049)[0])
+            #     # DiameterLogger.info("With Entry 0 is " + str(EPS_Bearer_QoS))
+            #     # DiameterLogger.info("EPS_Bearer_QoS is type " + str(type(EPS_Bearer_QoS)) + " and value: " + str(EPS_Bearer_QoS))
+            #     # DiameterLogger.info("Calling: self.generate_vendor_avp(1049, \"80\", 10415, \"" + str(EPS_Bearer_QoS) + "\")")
+            #     # EPS_Bearer_QoS_AVP = self.generate_vendor_avp(1049, "80", 10415, EPS_Bearer_QoS)
+            #     # DiameterLogger.info("Generated EPS_Bearer_QoS_AVP with type " + str(type(EPS_Bearer_QoS_AVP)) + " and value: " + str(EPS_Bearer_QoS_AVP))
+            #     # avp += EPS_Bearer_QoS_AVP
+            #     # DiameterLogger.info("AVP Added for 1049")
+            #     avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
 
-                #QoS-Information(1016) (Copy from Credit Control Request)
-                DiameterLogger.info("QoS_Information recieved is")
-                DiameterLogger.info(self.get_avp_data(avps, 1016))
-                ambr_list = self.get_avp_data(avps, 1016)[0]
-                DiameterLogger.info("Got AMBR List: " + str(ambr_list))
-                ambr_obj_str = ''
-                for ambr_obj in self.get_avp_data(avps, 1016)[0]:
-                    DiameterLogger.debug("ambr_obj: " + str(ambr_obj))
-                    ambr_avp = self.generate_vendor_avp(ambr_obj['avp_code'], "80", 10415, ambr_obj['misc_data'][:8])
-                    DiameterLogger.debug("Generated Sub AVP: " + str(ambr_avp))
-                    ambr_obj_str += ambr_avp
+            #     #QoS-Information(1016) (Copy from Credit Control Request)
+            #     DiameterLogger.info("QoS_Information recieved is")
+            #     DiameterLogger.info(self.get_avp_data(avps, 1016))
+            #     ambr_list = self.get_avp_data(avps, 1016)[0]
+            #     DiameterLogger.info("Got AMBR List: " + str(ambr_list))
+            #     ambr_obj_str = ''
+            #     for ambr_obj in self.get_avp_data(avps, 1016)[0]:
+            #         DiameterLogger.debug("ambr_obj: " + str(ambr_obj))
+            #         ambr_avp = self.generate_vendor_avp(ambr_obj['avp_code'], "80", 10415, ambr_obj['misc_data'][:8])
+            #         DiameterLogger.debug("Generated Sub AVP: " + str(ambr_avp))
+            #         ambr_obj_str += ambr_avp
                 
-                DiameterLogger.info("ambr_obj_str is " + str(ambr_obj_str))
-                avp += self.generate_vendor_avp(1016, "80", 10415, ambr_obj_str)
-                DiameterLogger.debug("Generated AVP 1016")
-                #Supported-Features(628) (Gx feature list)
-                avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+            #     DiameterLogger.info("ambr_obj_str is " + str(ambr_obj_str))
+            #     avp += self.generate_vendor_avp(1016, "80", 10415, ambr_obj_str)
+            #     DiameterLogger.debug("Generated AVP 1016")
+            #     #Supported-Features(628) (Gx feature list)
+            #     avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
 
-            except Exception as E:
-                DiameterLogger.error("Failed to generate CCA, " + str(E))
+            # except Exception as E:
+            #     DiameterLogger.error("Failed to generate CCA, " + str(E))
 
                 
         
