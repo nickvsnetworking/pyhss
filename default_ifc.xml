@@ -28,7 +28,7 @@
                 </SPT>
             </TriggerPoint>
             <ApplicationServer>
-                <ServerName>sip:inviteapplicationserver.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <ServerName>sip:mo.invite.ifc.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
                 <DefaultHandling>0</DefaultHandling>
             </ApplicationServer>
         </InitialFilterCriteria>
