@@ -661,12 +661,12 @@ class Diameter:
                 DiameterLogger.error("Failed to get full subscriber location, " + str(E))
 
             try:
-                DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi))
+                DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
                 DiameterLogger.info(full_location)
                 request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
                 DiameterLogger.info(request)
-                logtool.Async_SendRequest(request, 'DSC101.epc.mnc001.mcc214.3gppnetwork.org')
-                logtool.Async_SendRequest(request, 'DSC201.epc.mnc001.mcc214.3gppnetwork.org')
+                for diameter_host in yaml_config['hss']['CancelLocationRequest_Targets']:
+                    logtool.Async_SendRequest(request, diameter_host)
                 DiameterLogger.info("Async sent.")
                 
             except Exception as E:
