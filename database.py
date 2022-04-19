@@ -336,8 +336,8 @@ class MSSQL:
         DBLogger.debug("Called ManageFullSubscriberLocation with IMSI " + str(imsi))
         with self._lock:
             try:
-                DBLogger.debug("Getting full location for IMSI" + str(imsi))
-                sql = 'hss_cancel_loc_get_imsi_info @imsi=' + str(imsi) + ';'
+                DBLogger.debug("Getting full location for IMSI: " + str(imsi))
+                sql = "hss_cancel_loc_get_imsi_info @imsi='" + str(imsi) + "';"
                 DBLogger.debug(sql)
                 self.conn.execute_query(sql)
                 DBLogger.debug(self.conn)
@@ -358,7 +358,7 @@ class MSSQL:
                 sql = 'hss_cancl_loc_imsi_insert_info @imsi=\'' + str(imsi) + '\', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @diameter_realm=\'' + str(realm) + '\', @dra=\'' + str(dra) + '\';'
                 DBLogger.debug(sql)
                 self.conn.execute_query(sql)
-                DBLogger.debug("Successfully raun hss_cancl_loc_imsi_insert_info for " + str(imsi))
+                DBLogger.debug("Successfully ran hss_cancl_loc_imsi_insert_info for " + str(imsi))
             except:
                 DBLogger.error("MSSQL failed to run SP hss_cancl_loc_imsi_insert_info with IMSI " + str(imsi))
 

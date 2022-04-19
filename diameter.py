@@ -664,13 +664,14 @@ class Diameter:
                     str(self.OriginRealm), \
                     str('DestinationHost_TBA')\
                 )
+                DiameterLogger.info("Data back from Database is: " + str(full_location))
                 #Check if CLR is required
                 if str(OriginHost) == str(full_location['serving_mme']):
                     DiameterLogger.debug("MME is unchanged, no need to send CLR")
                 else:
                     DiameterLogger.debug("MME is changed, need to send CLR")
                     DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
-                    DiameterLogger.info(full_location)
+                    
                     #full_location['serving_mme'] = binascii.unhexlify(str(full_location['serving_mme'])).decode('utf-8')
                     DiameterLogger.info("Serving MME is " + str(full_location['serving_mme']))
                     request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
