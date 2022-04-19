@@ -657,12 +657,25 @@ class Diameter:
                 DestinationHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
                 DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')      #Format it
                 OriginHost = binascii.unhexlify(self.OriginHost).decode('utf-8')           #Format it
+                DRA_Host = ''
+                try:
+                    Origin_IP = packet_vars['Source_IP']
+                    DiameterLogger.debug("Async Getting ActivePeerDict")
+                    ActivePeerDict = logtool.GetDiameterPeers()
+                    DiameterLogger.debug("Async Got Active Peer dict in Async Thread: " + str(ActivePeerDict))
+                    if Origin_IP in ActivePeerDict:
+                        DiameterLogger.debug("Async This is host: " + str(ActivePeerDict[str(Origin_IP)]['DiameterHostname']))
+                        DRA_Host = str(ActivePeerDict[str(Origin_IP)]['DiameterHostname'])
+                        DiameterLogger.debug("Got DRA host: " + str(DRA_Host))
+                except:
+                    DiameterLogger.debug("Failed to map Source IP into a host")
+
                 full_location = database.ManageFullSubscriberLocation(\
                     imsi, \
                     str(OriginHost), \
                     str(DestinationHost), \
                     str(self.OriginRealm), \
-                    str('DestinationHost_TBA')\
+                    str(DRA_Host)\
                 )
                 DiameterLogger.info("Data back from Database is: " + str(full_location))
                 #Check if CLR is required
