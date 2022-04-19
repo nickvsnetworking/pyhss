@@ -663,6 +663,7 @@ class Diameter:
             try:
                 DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
                 DiameterLogger.info(full_location)
+                full_location['serving_mme'] = binascii.unhexlify(full_location['serving_mme']).decode('utf-8')
                 request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
                 DiameterLogger.info(request)
                 for diameter_host in yaml_config['hss']['CancelLocationRequest_Targets']:
