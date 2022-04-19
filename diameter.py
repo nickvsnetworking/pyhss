@@ -654,24 +654,36 @@ class Diameter:
         if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
             DiameterLogger.debug("CancelLocationRequest_Enabled - Retriving location")
             try:
-                DestinationHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-                DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')           #Format it
-                full_location = database.ManageFullSubscriberLocation(imsi, str(self.OriginHost), str(DestinationHost), str(self.OriginRealm), str('DSC201.epc.mnc001.mcc214.3gppnetwork.org'))
+                DestinationHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+                DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')      #Format it
+                OriginHost = binascii.unhexlify(self.OriginHost).decode('utf-8')           #Format it
+                full_location = database.ManageFullSubscriberLocation(\
+                    imsi, \
+                    str(OriginHost), \
+                    str(DestinationHost), \
+                    str(self.OriginRealm), \
+                    str('DestinationHost_TBA')\
+                )
+                #Check if CLR is required
+                if str(OriginHost) == str(full_location['serving_mme']):
+                    DiameterLogger.debug("MME is unchanged, no need to send CLR")
+                else:
+                    DiameterLogger.debug("MME is changed, need to send CLR")
+                    DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
+                    DiameterLogger.info(full_location)
+                    #full_location['serving_mme'] = binascii.unhexlify(str(full_location['serving_mme'])).decode('utf-8')
+                    DiameterLogger.info("Serving MME is " + str(full_location['serving_mme']))
+                    request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
+                    DiameterLogger.info(request)
+                    DiameterLogger.info("Generated CLR hex, now to send it to:")
+                    for diameter_host in yaml_config['hss']['CancelLocationRequest_Targets']:
+                        DiameterLogger.info("Sending CLR to host " + str(diameter_host))
+                        logtool.Async_SendRequest(request, diameter_host)
+                    DiameterLogger.info("Async sent to " + str(len(yaml_config['hss']['CancelLocationRequest_Targets'])) + " peers")
             except Exception as E:
-                DiameterLogger.error("Failed to get full subscriber location, " + str(E))
+                DiameterLogger.error("Failed to send CLR, error: " + str(E))
 
-            try:
-                DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
-                DiameterLogger.info(full_location)
-                full_location['serving_mme'] = binascii.unhexlify(full_location['serving_mme']).decode('utf-8')
-                request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
-                DiameterLogger.info(request)
-                for diameter_host in yaml_config['hss']['CancelLocationRequest_Targets']:
-                    logtool.Async_SendRequest(request, diameter_host)
-                DiameterLogger.info("Async sent.")
-                
-            except Exception as E:
-                DiameterLogger.error("Failed to generate CLR")
+
 
         #Write back current MME location to Database
         if yaml_config['hss']['SLh_enabled'] == True:
