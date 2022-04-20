@@ -656,7 +656,9 @@ class Diameter:
             try:
                 DestinationHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
                 DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')      #Format it
-                OriginHost = binascii.unhexlify(self.OriginHost).decode('utf-8')           #Format it
+                OriginHost = self.get_avp_data(avps, 296)[0]                          #Get OriginHost from AVP
+                OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+               #Format it
                 DRA_Host = ''
                 DestinationRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginHost from AVP
                 DestinationRealm = binascii.unhexlify(DestinationRealm).decode('utf-8')      #Format it

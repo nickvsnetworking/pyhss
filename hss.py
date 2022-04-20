@@ -164,7 +164,6 @@ def manage_client(clientsocket,client_address,diameter):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
                     HSS_Logger.error("Failed to generate PUA")
                 HSS_Logger.info("Generated PUA")
-
             #S6a Purge UE Answer (NOA) response to Notify Request (NOR)
             elif packet_vars['command_code'] == 323 and packet_vars['ApplicationId'] == 16777251:
                 HSS_Logger.info("Received Request with command code 323 (3GPP Notify Request) from " + orignHost + "\n\tGenerating (NOA)")
@@ -174,6 +173,9 @@ def manage_client(clientsocket,client_address,diameter):
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
                     HSS_Logger.error("Failed to generate NOA")
                 HSS_Logger.info("Generated NOA")
+            #S6a Cancel Location Answer eater
+            elif packet_vars['command_code'] == 317 and packet_vars['ApplicationId'] == 16777251:
+                HSS_Logger.info("Received Request with command code 317 (3GPP Cancel Location Request) from " + orignHost + "\n\tDoing nothing")
 
             #Cx Authentication Answer
             elif packet_vars['command_code'] == 300 and packet_vars['ApplicationId'] == 16777216:
