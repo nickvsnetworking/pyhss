@@ -688,7 +688,7 @@ class Diameter:
                     
                     #full_location['serving_mme'] = binascii.unhexlify(str(full_location['serving_mme'])).decode('utf-8')
                     DiameterLogger.info("Serving MME is " + str(full_location['serving_mme']))
-                    request = self.Request_16777251_317(imsi, self.OriginRealm, full_location['serving_mme'])
+                    request = self.Request_16777251_317(imsi, full_location['diameter_realm'], full_location['serving_mme'])
                     DiameterLogger.info(request)
                     DiameterLogger.info("Generated CLR hex, now to send it to:")
                     for diameter_host in yaml_config['hss']['CancelLocationRequest_Targets']:
