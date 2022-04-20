@@ -683,10 +683,10 @@ class Diameter:
                 )
                 DiameterLogger.info("Data back from Database is: " + str(full_location))
                 #Check if CLR is required
-                if str(OriginHost) == str(full_location['serving_mme']):
+                if str(DestinationHost) == str(full_location['serving_mme']):
                     DiameterLogger.debug("MME is unchanged, no need to send CLR")
                 else:
-                    DiameterLogger.debug("MME is changed, need to send CLR")
+                    DiameterLogger.debug("MME is changed - Was " + str(DestinationHost) + " is now " + str(full_location['serving_mme']) + ", need to send CLR")
                     DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
                     
                     #full_location['serving_mme'] = binascii.unhexlify(str(full_location['serving_mme'])).decode('utf-8')
