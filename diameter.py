@@ -693,10 +693,8 @@ class Diameter:
                     DiameterLogger.info("Serving MME is " + str(full_location['serving_mme']))
                     request = self.Request_16777251_317(imsi, full_location['diameter_realm'], full_location['serving_mme'])
                     DiameterLogger.info(request)
-                    DiameterLogger.info("Generated CLR hex, now to send it to:")
-                    for diameter_host in yaml_config['hss']['CancelLocationRequest_Targets']:
-                        DiameterLogger.info("Sending CLR to host " + str(diameter_host))
-                        logtool.Async_SendRequest(request, diameter_host)
+                    DiameterLogger.info("Generated CLR hex, now to send it to: " + str(full_location['dra']))
+                    logtool.Async_SendRequest(request, str(full_location['dra']))
                     DiameterLogger.info("Async sent to " + str(len(yaml_config['hss']['CancelLocationRequest_Targets'])) + " peers")
             except Exception as E:
                 DiameterLogger.error("Failed to send CLR, error: " + str(E))
