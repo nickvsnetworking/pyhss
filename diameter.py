@@ -658,6 +658,7 @@ class Diameter:
                 DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')      #Format it
                 OriginHost = binascii.unhexlify(self.OriginHost).decode('utf-8')           #Format it
                 DRA_Host = ''
+                OriginRealm = binascii.unhexlify(self.OriginRealm).decode('utf-8')
                 try:
                     Origin_IP = packet_vars['Source_IP']
                     DiameterLogger.debug("Async Getting ActivePeerDict")
@@ -674,7 +675,7 @@ class Diameter:
                     imsi, \
                     str(OriginHost), \
                     str(DestinationHost), \
-                    str(self.OriginRealm), \
+                    str(OriginRealm), \
                     str(DRA_Host)\
                 )
                 DiameterLogger.info("Data back from Database is: " + str(full_location))
