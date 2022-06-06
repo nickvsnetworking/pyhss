@@ -33,6 +33,7 @@ hss:
   #Default Initial Filter Criteria for IMS Subscribers
   #Jinja Formatted Template, see the example for variables passed to it.
   Default_iFC: 'default_ifc.xml'
+  Default_Sh_UserData: 'default_sh_user_data.xml'
   
 logging:
   level: DEBUG

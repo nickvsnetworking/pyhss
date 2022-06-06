@@ -25,6 +25,8 @@ Once the configuration is done you can run the HSS by running ``hss.py`` and the
 * S13 - MME to EIR verification of devices (Ie ME-Identity-Check-Request)
 * Cx - For P/S/I/E-CSCF Authentication and Routing (Ie User-Authentication-Request, Location-Information-Request)
 * SLh - For Location of Subscriber MME from GMLC (Ie LCS-Routing-Info-Answer Request)
+* Sh - For Application Servers to IMS & XCAP Data
+* Zh/Zn - For generating GBA Credentials
 
  
 ## Structure

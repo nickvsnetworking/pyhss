@@ -419,7 +419,6 @@ class Diameter:
             avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
-        avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
@@ -1142,41 +1141,43 @@ class Diameter:
         return response
 
 #3GPP Sh User-Data Answer
-    def Answer_16777217_306(self, packet_vars, avps, IDR_AVPs):
+    def Answer_16777217_306(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777217_306_attempt_count')
-        
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
 
         #Define values so we can check if they've been changed
         msisdn = None
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
-            print(user_identity_avp)
-            msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
+            msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
+            DiameterLogger.info("Got raw MSISDN with value " + str(msisdn))
             msisdn = self.TBCD_decode(msisdn)
             DiameterLogger.info("Got MSISDN with value " + str(msisdn))
-
         except:
-            DiameterLogger.error("No MSISDN")
+            DiameterLogger.info("No MSISDN in Answer_16777217_306()")
+            try:
+                #Determine if Public Identity is present
+                user_identity_avp = self.get_avp_data(avps, 700)[0]
+                public_identity = self.get_avp_data(user_identity_avp, 601)[0]                                                         #Get MSISDN from AVP in request
+                DiameterLogger.info("Got raw public_identity with value " + str(public_identity))
+                public_identity = self.TBCD_decode(public_identity)
+                DiameterLogger.info("Got public_identity with value " + str(public_identity))
 
-        if msisdn is not None:
-                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
-        else:
-            DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
-            result_code = 5005
-            #Experimental Result AVP
-            avp_experimental_result = ''
-            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
-            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
-            response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            return response
+                #Lookup MSISDN from IMSI
+                #ToDo
+                msisdn = '11111'
+
+            except:
+                DiameterLogger.info("MSISDN and Public Identity AVPs missing. Returning error")
+                result_code = 5005
+                #Experimental Result AVP
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                return response
         
-        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
-
-
-
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
@@ -1185,38 +1186,19 @@ class Diameter:
         
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
 
-        DiameterLogger.info("getting EPS location information AVP")
-        eps_location_information_avp = self.get_avp_data(IDR_AVPs, 1496)[0]
-        DiameterLogger.info("eps_location_information_avp: " + str(eps_location_information_avp))
-
-        mme_location_information = self.decode_avp_packet(eps_location_information_avp)
-        mme_location_information = self.decode_avp_packet(mme_location_information[0]['misc_data'])
-        
-
-        for sub_avps in mme_location_information[0]['misc_data']:
-            DiameterLogger.info("Sub AVP: " + str(sub_avps))
-            import base64
-            if sub_avps['avp_code'] == 1602:
-                UTRANCellGlobalId = sub_avps['misc_data'][8:]
-                DiameterLogger.info("Got UTRANCellGlobalId hex value: " + str(UTRANCellGlobalId))
-                UTRANCellGlobalId = bytes.fromhex(UTRANCellGlobalId)
-                UTRANCellGlobalId = base64.b64encode(UTRANCellGlobalId)
-                UTRANCellGlobalId = UTRANCellGlobalId.decode("utf-8")
-                DiameterLogger.info("Final Base64 Encoded UTRANCellGlobalId " + str(UTRANCellGlobalId))
-            if sub_avps['avp_code'] == 1603:
-                TrackingAreaId = sub_avps['misc_data'][8:]
-                DiameterLogger.info("Got TrackingAreaId hex value: " + str(TrackingAreaId))
-                TrackingAreaId = bytes.fromhex(TrackingAreaId)
-                TrackingAreaId = base64.b64encode(TrackingAreaId)
-                TrackingAreaId = TrackingAreaId.decode("utf-8")
-                DiameterLogger.info("Final Base64 Encoded TrackingAreaId " + str(TrackingAreaId))
-
-        VisitedPLMNID = ''
-
         #Sh-User-Data (XML)
-        xmlbody = '<?xml version="1.0" encoding="UTF-8"?><Sh-Data><Extension><Extension><Extension><Extension><EPSLocationInformation><E-UTRANCellGlobalId>' + str(UTRANCellGlobalId) + '</E-UTRANCellGlobalId><TrackingAreaId>' + str(TrackingAreaId) + '</TrackingAreaId><MMEName>' + str(subscriber_location) + '</MMEName><AgeOfLocationInformation>0</AgeOfLocationInformation><Extension><VisitedPLMNID>' + str(VisitedPLMNID) + '</VisitedPLMNID></Extension></EPSLocationInformation></Extension></Extension></Extension></Extension></Sh-Data>'
-        DiameterLogger.info("XML User Data: ")
-        DiameterLogger.info(xmlbody)
+        #This loads a Jinja XML template containing the Sh-User-Data
+        templateLoader = jinja2.FileSystemLoader(searchpath="./")
+        templateEnv = jinja2.Environment(loader=templateLoader)
+        template = templateEnv.get_template(yaml_config['hss']['Default_Sh_UserData'])
+        #These variables are passed to the template for use
+        Sh_template_vars = {
+            'msisdn' : msisdn, 
+            'mnc':self.MNC.zfill(3), 
+            'mcc': self.MCC.zfill(3)
+            }
+        DiameterLogger.info("Rendering template with values: " + str(Sh_template_vars))
+        xmlbody = template.render(Sh_template_vars=Sh_template_vars)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -1359,7 +1341,6 @@ class Diameter:
         avp += self.generate_avp(257, 40, self.ip_to_hex(socket.gethostbyname(socket.gethostname())))         #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                                    #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                                   #Product-Name
-        #avp += self.generate_avp(267, 40, "000027d9")                                                    #Firmware-Revision
         avp += self.generate_avp(260, 40, "000001024000000c01000023" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c01000016" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(260, 40, "000001024000000c01000027" +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (SLg)
@@ -1833,7 +1814,7 @@ class Diameter:
         return response
 
     #3GPP Sh User-Data Request (UDR)
-    def Request_16777217_306(self, msisdn):
+    def Request_16777217_306(self, **kwargs):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
         avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
@@ -1853,12 +1834,15 @@ class Diameter:
         #* [ Route-Record ]
         avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
         
-        avp += self.generate_vendor_avp(703, "c0", 10415, "0000000e")                         #Data-Reference - LocationInformation
-        msisdn = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn)))                                             #MSISDN
-        avp += self.generate_vendor_avp(700, "c0", 10415, msisdn)                         #User-Identity
-        avp += self.generate_vendor_avp(707, "c0", 10415, "00000001")                     #Initiate Active Location Retrival
-        avp += self.generate_vendor_avp(706, "c0", 10415, "00000001")                     #Requested Domain (PS-Domain)
-        avp += self.generate_vendor_avp(713, "c0", 10415, "00000001")                     #Requested Nodes (MME)
+        if "msisdn" in kwargs:
+            msisdn = kwargs['msisdn']
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn)))                                             #MSISDN
+            avp += self.generate_vendor_avp(700, "c0", 10415, msisdn_avp)                         #User-Identity
+            avp += self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn))) 
+        elif "imsi" in kwargs:
+            imsi = kwargs['imsi']
+            public_identity_avp = self.generate_vendor_avp(601, 'c0', 10415, self.string_to_hex(imsi))                                             #MSISDN
+            avp += self.generate_vendor_avp(700, "c0", 10415, public_identity_avp)                                          #Username (IMSI)
 
         response = self.generate_diameter_packet("01", "c0", 306, 16777217, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
 
