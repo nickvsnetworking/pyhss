@@ -48,13 +48,14 @@ def on_new_client(clientsocket,client_address):
     logging.info("Main    : before manage_client thread")
     x.start()
 
-    y = threading.Thread(target=manage_client_async, args=(clientsocket,client_address,diameter_inst,))
-    logging.info("Main    : before manage_client_async thread")
-    y.start()
+    if yaml_config['redis']['enabled'] == True:
+        y = threading.Thread(target=manage_client_async, args=(clientsocket,client_address,diameter_inst,))
+        logging.info("Main    : before manage_client_async thread")
+        y.start()
 
-    z = threading.Thread(target=manage_client_dwr, args=(clientsocket,client_address,diameter_inst,))
-    logging.info("Main    : before manage_client_dwr thread")
-    z.start()    
+        z = threading.Thread(target=manage_client_dwr, args=(clientsocket,client_address,diameter_inst,))
+        logging.info("Main    : before manage_client_dwr thread")
+        z.start()    
 
 def manage_client(clientsocket,client_address,diameter):
     data_sum = b''

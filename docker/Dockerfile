@@ -5,4 +5,3 @@ WORKDIR pyhss
 RUN mkdir -p log
 RUN pip3 install -r requirements.txt
 CMD python3 hss.py
-
