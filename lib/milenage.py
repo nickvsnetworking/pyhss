@@ -15,6 +15,7 @@ from lte import BaseLTEAuthAlgo
 
 import logging
 import logtool
+logtool = logtool.LogTool()
 import os
 import sys
 sys.path.append(os.path.realpath('../'))

@@ -13,7 +13,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 import logtool
-
+logtool = logtool.LogTool()
 logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 DBLogger = logging.getLogger('DBLogger')
 
@@ -91,8 +91,10 @@ class MongoDB:
                 subscriber_details['pdn'][i]['qos']['qci'] = subscriber_details['pdn'][i]['qos']['index']
                 #Map static P-GW Address
                 if 'smf' in subscriber_details['pdn'][i]:
-                    subscriber_details['pdn'][i]['ue'] = {}
-                    subscriber_details['pdn'][i]['ue']['ip'] = subscriber_details['pdn'][i]['smf']['addr']
+                    DBLogger.debug("SMF / PGW Address statically set in Subscriber profile")
+                    subscriber_details['pdn'][i]['MIP6-Agent-Info'] = subscriber_details['pdn'][i]['smf']['addr']
+                    DBLogger.debug("SMF IP is: " + str(subscriber_details['pdn'][i]['smf']['addr']))
+                    #['PDN_GW_Allocation_Type'] ToDo - set to static
                 i += 1
             DBLogger.debug(subscriber_details)
             return subscriber_details
@@ -162,7 +164,6 @@ class MongoDB:
             except:
                 DBLogger.debug("Failed to pull subscriber info")
                 raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
-
 
 class MSSQL:
     import _mssql
@@ -289,7 +290,6 @@ class MSSQL:
                 raise ValueError("MSSQL failed to return valid data for IMSI " + str(imsi))   
                 
 
-
     def GetSubscriberLocation(self, *args, **kwargs):
         with self._lock:
             DBLogger.debug("Called GetSubscriberLocation")
@@ -334,6 +334,40 @@ class MSSQL:
                 DBLogger.debug("No location stored in database for Subscriber")
                 raise ValueError("No location stored in database for Subscriber")
 
+    def ManageFullSubscriberLocation(self, imsi, serving_hss, serving_mme, realm, dra):
+        DBLogger.debug("Called ManageFullSubscriberLocation with IMSI " + str(imsi))
+        with self._lock:
+            try:
+                DBLogger.debug("Getting full location for IMSI: " + str(imsi))
+                sql = "hss_cancel_loc_get_imsi_info @imsi='" + str(imsi) + "';"
+                DBLogger.debug(sql)
+                self.conn.execute_query(sql)
+                DBLogger.debug(self.conn)
+                try:
+                    DBLogger.debug(self.conn)
+                    result = [ row for row in self.conn ][0]
+                    DBLogger.debug("Final result is: " + str(result))
+                except:
+                    DBLogger.debug("Failed to get result from query")
+            except Exception as e:
+                DBLogger.error("MSSQL failed to run SP " + str(sql))  
+                DBLogger.error(e)
+            DBLogger.debug("Ran Query OK...")
+
+
+            DBLogger.debug("Full MME Location to write to DB, serving HSS: " + str(serving_hss) + ", realm: " + str(realm) + ", serving_mme: " + str(serving_mme) + " connected via Diameter Peer " + str(dra))
+            try:
+                sql = 'hss_cancl_loc_imsi_insert_info @imsi=\'' + str(imsi) + '\', @serving_hss=\'' + str(serving_hss) + '\', @serving_mme=\'' + str(serving_mme) + '\', @diameter_realm=\'' + str(realm) + '\', @dra=\'' + str(dra) + '\';'
+                DBLogger.debug(sql)
+                self.conn.execute_query(sql)
+                DBLogger.debug("Successfully ran hss_cancl_loc_imsi_insert_info for " + str(imsi))
+            except:
+                DBLogger.error("MSSQL failed to run SP hss_cancl_loc_imsi_insert_info with IMSI " + str(imsi))
+
+            DBLogger.debug("Completed ManageFullSubscriberLocation")
+            return result
+
+
     def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         with self._lock:
             try:
@@ -354,7 +388,6 @@ class MSSQL:
                     DBLogger.debug("origin_host present - Updating MME Identity of subscriber in MSSQL")
                     origin_host = kwargs.get('origin_host', None)
                     DBLogger.debug("Origin to write to DB is " + str(origin_host))
-
                     if len(origin_host) != 0:
                         try:
                             DBLogger.debug("origin-host valid - Writing back to DB")
@@ -364,7 +397,6 @@ class MSSQL:
                             DBLogger.debug("Successfully updated location for " + str(imsi))
                         except:
                             DBLogger.error("MSSQL failed to run SP hss_update_mme_identity with IMSI " + str(imsi) + " and Origin_Host " + str(origin_host))
-                        
                     else:
                         try:
                             DBLogger.debug("Removing MME Identity as new MME Identity is empty")
@@ -376,6 +408,7 @@ class MSSQL:
                             DBLogger.error("MSSQL failed to run SP hss_delete_mme_identity with IMSI " + str(imsi))
                 else:
                     DBLogger.debug("origin_host not present - not updating UE location in database")
+                
             except:
                 raise ValueError("MSSQL failed to update IMSI " + str(imsi))   
         
@@ -406,6 +439,7 @@ class MSSQL:
         except:
             DBLogger.debug("IMSI for MSISDN Provided.")
             raise ValueError("IMSI for MSISDN Provided.")
+
 class MySQL:
     import mysql.connector
     def __init__(self):
@@ -476,12 +510,17 @@ def GetSubscriberLocation(*args, **kwargs):
 def Get_IMSI_from_MSISDN(msisdn):
     return DB.GetSubscriberIMSI(msisdn)
 
+def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra):
+    return DB.ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra)
+
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     test_sub_imsi = yaml_config['hss']['test_sub_imsi']
+    print("YAML config HSS Key: " + str(yaml_config['hss']))
+    print("Checking database connectivity with test sub: " + str(yaml_config['hss']['test_sub_imsi']))
     DB.GetSubscriberInfo(test_sub_imsi)
     DB.UpdateSubscriber(test_sub_imsi, 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
     origin_host = DB.GetSubscriberLocation(imsi=test_sub_imsi)
     print("Origin Host is " + str(origin_host))
-    print(DB.GetSubscriberIMSI(34604610206))
+    #print(DB.GetSubscriberIMSI(34604610206))
     

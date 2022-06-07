@@ -17,13 +17,12 @@ with open("config.yaml", 'r') as stream:
 
 #Setup Logging
 import logtool
+logtool = logtool.LogTool()
 logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diameter_logging_file'], level=yaml_config['logging']['level'])
 DiameterLogger = logging.getLogger('DiameterLogger')
 
 DiameterLogger.info("Initialised Diameter Logger, importing database")
 import database
-
-
 
 if yaml_config['redis']['enabled'] == True:
     DiameterLogger.debug("Redis support enabled")
@@ -110,6 +109,7 @@ class Diameter:
             plmn = plmn + bits
         DiameterLogger.debug("Encoded PLMN: " + str(plmn))
         return plmn
+
     def TBCD_special_chars(self, input):
         DiameterLogger.debug("Special character possible in " + str(input))
         if input == "*":
@@ -131,7 +131,6 @@ class Diameter:
             binform = "{:04b}".format(int(input))
             DiameterLogger.debug("input " + str(input) + " is not a special char, converted to bin: " + str(binform))
             return (binform)
-
 
     def TBCD_encode(self, input):
         DiameterLogger.debug("TBCD_encode input value is " + str(input))
@@ -171,11 +170,8 @@ class Diameter:
                     bit = "f" + last_digit
                 offset = offset + 2
                 output = output + bit
-                
         DiameterLogger.debug("TBCD_encode final output value is " + str(output))
         return output
-
-
 
     def TBCD_decode(self, input):
         DiameterLogger.debug("TBCD_decode Input value is " + str(input))
@@ -203,7 +199,6 @@ class Diameter:
 
         DiameterLogger.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
         DiameterLogger.info("PLMN is " + str(MCC) + "/" + str(MNC))
-
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
@@ -286,7 +281,8 @@ class Diameter:
 
         packet_vars['packet_version'] = data[0:2]
         packet_vars['length'] = int(data[2:8], 16)
-        packet_vars['flags'] = data[8:10]       
+        packet_vars['flags'] = data[8:10]
+        packet_vars['flags_bin'] = bin(int(data[8:10], 16))[2:].zfill(8)
         packet_vars['command_code'] = int(data[10:16], 16)
         packet_vars['ApplicationId'] = int(data[16:24], 16)
         packet_vars['hop-by-hop-identifier'] = data[24:32]
@@ -373,18 +369,16 @@ class Diameter:
                 misc_data.append(keys['misc_data'])
         return misc_data
 
-
     def decode_diameter_packet_length(self, data):
+        print("Decoding packet length")
         packet_vars = {}
         data = data.hex()
-
         packet_vars['packet_version'] = data[0:2]
         packet_vars['length'] = int(data[2:8], 16)
         if packet_vars['packet_version'] == "01":
             return packet_vars['length']
         else:
             return False
-
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
@@ -419,6 +413,9 @@ class Diameter:
             avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
+
+        #avp += self.generate_avp(267, 40, "000027d9")                                               #Firmware-Revision
+
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777252),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S13)
@@ -546,8 +543,6 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))     #Context Identifier
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
-
-
         apn_list = subscriber_details['pdn']
         DiameterLogger.debug("APN list: " + str(apn_list))
         APN_context_identifer_count = 1
@@ -593,13 +588,12 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
+            #If static SMF / PGW-C defined
             if 'MIP6-Agent-Info' in apn_profile:
-                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
-                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
-                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
-                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
-                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
+                DiameterLogger.info("MIP6-Agent-Info present (Static SMF/PGW-C), value " + str(apn_profile['MIP6-Agent-Info']))
+                MIP_Home_Agent_Address = self.generate_avp(334, '40', self.ip_to_hex(apn_profile['MIP6-Agent-Info']))
+                MIP6_Agent_Info = self.generate_avp(486, '40', MIP_Home_Agent_Address)
+                
             else:
                 MIP6_Agent_Info = ''
 
@@ -659,6 +653,57 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_316_success_count')
 
+
+        if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
+            DiameterLogger.debug("CancelLocationRequest_Enabled - Retriving location")
+            try:
+                DestinationHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+                DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')      #Format it
+                OriginHost = self.get_avp_data(avps, 296)[0]                          #Get OriginHost from AVP
+                OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+               #Format it
+                DRA_Host = ''
+                DestinationRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginHost from AVP
+                DestinationRealm = binascii.unhexlify(DestinationRealm).decode('utf-8')      #Format it
+                try:
+                    Origin_IP = packet_vars['Source_IP']
+                    DiameterLogger.debug("Async Getting ActivePeerDict")
+                    ActivePeerDict = logtool.GetDiameterPeers()
+                    DiameterLogger.debug("Async Got Active Peer dict in Async Thread: " + str(ActivePeerDict))
+                    if Origin_IP in ActivePeerDict:
+                        DiameterLogger.debug("Async This is host: " + str(ActivePeerDict[str(Origin_IP)]['DiameterHostname']))
+                        DRA_Host = str(ActivePeerDict[str(Origin_IP)]['DiameterHostname'])
+                        DiameterLogger.debug("Got DRA host: " + str(DRA_Host))
+                except:
+                    DiameterLogger.debug("Failed to map Source IP into a host")
+
+                full_location = database.ManageFullSubscriberLocation(\
+                    imsi, \
+                    str(OriginHost), \
+                    str(DestinationHost), \
+                    str(DestinationRealm), \
+                    str(DRA_Host)\
+                )
+                DiameterLogger.info("Data back from Database is: " + str(full_location))
+                #Check if CLR is required
+                if str(DestinationHost) == str(full_location['serving_mme']):
+                    DiameterLogger.debug("MME is unchanged, no need to send CLR")
+                else:
+                    DiameterLogger.debug("MME is changed - Was " + str(DestinationHost) + " is now " + str(full_location['serving_mme']) + ", need to send CLR")
+                    DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
+                    
+                    #full_location['serving_mme'] = binascii.unhexlify(str(full_location['serving_mme'])).decode('utf-8')
+                    DiameterLogger.info("Serving MME is " + str(full_location['serving_mme']))
+                    request = self.Request_16777251_317(imsi, full_location['diameter_realm'], full_location['serving_mme'])
+                    DiameterLogger.info(request)
+                    DiameterLogger.info("Generated CLR hex, now to send it to: " + str(full_location['dra']))
+                    logtool.Async_SendRequest(request, str(full_location['dra']))
+                    DiameterLogger.info("Async sent to " + str(len(yaml_config['hss']['CancelLocationRequest_Targets'])) + " peers")
+            except Exception as E:
+                DiameterLogger.error("Failed to send CLR, error: " + str(E))
+
+
+
         #Write back current MME location to Database
         if yaml_config['hss']['SLh_enabled'] == True:
             DiameterLogger.debug("SLh Enabled - Must log location")
@@ -667,11 +712,10 @@ class Diameter:
                 orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
                 DiameterLogger.debug("Recieved originHost is " + str(orignHost))
                 database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host=str(orignHost))
-                #database.UpdateSubscriber(imsi, subscriber_details['SQN'], '')
             except:
                 DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
-                
-            
+        
+
 
 
         DiameterLogger.debug("Successfully Generated ULA")
@@ -900,7 +944,50 @@ class Diameter:
             avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
             DiameterLogger.info("Added to AVP List")
             
-            DiameterLogger.debug("QoS Information: " + str(QoS_Information))
+            DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
+            # try:
+            #     DiameterLogger.debug("packet_vars: " + str(packet_vars))
+            #     DiameterLogger.debug("avps: " + str(avps))
+                
+            #     for sub_avp in avps:
+            #         DiameterLogger.debug("AVP# " + str(sub_avp['avp_code']))
+            #         DiameterLogger.debug("\t: " + str(sub_avp))
+            #     #Default-EPS-Bearer-QoS(1049) (Copy from Credit Control Request
+            #     # DiameterLogger.info("EPS Bearer QoS recieved is")
+            #     # DiameterLogger.info(self.get_avp_data(avps, 1049))
+            #     # EPS_Bearer_QoS = str(self.get_avp_data(avps, 1049)[0])
+            #     # DiameterLogger.info("With Entry 0 is " + str(EPS_Bearer_QoS))
+            #     # DiameterLogger.info("EPS_Bearer_QoS is type " + str(type(EPS_Bearer_QoS)) + " and value: " + str(EPS_Bearer_QoS))
+            #     # DiameterLogger.info("Calling: self.generate_vendor_avp(1049, \"80\", 10415, \"" + str(EPS_Bearer_QoS) + "\")")
+            #     # EPS_Bearer_QoS_AVP = self.generate_vendor_avp(1049, "80", 10415, EPS_Bearer_QoS)
+            #     # DiameterLogger.info("Generated EPS_Bearer_QoS_AVP with type " + str(type(EPS_Bearer_QoS_AVP)) + " and value: " + str(EPS_Bearer_QoS_AVP))
+            #     # avp += EPS_Bearer_QoS_AVP
+            #     # DiameterLogger.info("AVP Added for 1049")
+            #     avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
+
+            #     #QoS-Information(1016) (Copy from Credit Control Request)
+            #     DiameterLogger.info("QoS_Information recieved is")
+            #     DiameterLogger.info(self.get_avp_data(avps, 1016))
+            #     ambr_list = self.get_avp_data(avps, 1016)[0]
+            #     DiameterLogger.info("Got AMBR List: " + str(ambr_list))
+            #     ambr_obj_str = ''
+            #     for ambr_obj in self.get_avp_data(avps, 1016)[0]:
+            #         DiameterLogger.debug("ambr_obj: " + str(ambr_obj))
+            #         ambr_avp = self.generate_vendor_avp(ambr_obj['avp_code'], "80", 10415, ambr_obj['misc_data'][:8])
+            #         DiameterLogger.debug("Generated Sub AVP: " + str(ambr_avp))
+            #         ambr_obj_str += ambr_avp
+                
+            #     DiameterLogger.info("ambr_obj_str is " + str(ambr_obj_str))
+            #     avp += self.generate_vendor_avp(1016, "80", 10415, ambr_obj_str)
+            #     DiameterLogger.debug("Generated AVP 1016")
+            #     #Supported-Features(628) (Gx feature list)
+            #     avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+
+            # except Exception as E:
+            #     DiameterLogger.error("Failed to generate CCA, " + str(E))
+
+                
+        
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
@@ -1154,14 +1241,26 @@ class Diameter:
             msisdn = self.TBCD_decode(msisdn)
             DiameterLogger.info("Got MSISDN with value " + str(msisdn))
         except:
-            DiameterLogger.info("No MSISDN in Answer_16777217_306()")
-            try:
-                #Determine if Public Identity is present
-                user_identity_avp = self.get_avp_data(avps, 700)[0]
-                public_identity = self.get_avp_data(user_identity_avp, 601)[0]                                                         #Get MSISDN from AVP in request
-                DiameterLogger.info("Got raw public_identity with value " + str(public_identity))
-                public_identity = self.TBCD_decode(public_identity)
-                DiameterLogger.info("Got public_identity with value " + str(public_identity))
+            DiameterLogger.error("No MSISDN")
+
+        if msisdn is not None:
+                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
+                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
+        else:
+            DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
+            result_code = 5005
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        
+        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
+
+
 
                 #Lookup MSISDN from IMSI
                 #ToDo
@@ -1280,9 +1379,11 @@ class Diameter:
         if imsi is not None:
                 DiameterLogger.debug("Getting susbcriber location based on IMSI")
                 subscriber_location = database.GetSubscriberLocation(imsi=imsi)
+                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         elif msisdn is not None:
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
                 subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
             result_code = 5005
@@ -1381,7 +1482,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         mcc = str(imsi)[:3]
@@ -1501,6 +1602,7 @@ class Diameter:
                 return
             #Get Subscriber Location from Database
             subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+            DiameterLogger.debug("Got subscriber location: " + subscriber_location)
 
 
             DiameterLogger.info("Getting IMSI for MSISDN " + str(msisdn))
