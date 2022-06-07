@@ -10,7 +10,7 @@ recv_ip = "127.0.0.2"                                                         #I
 diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
 realm = "mnc001.mcc001.3gppnetwork.org"                                         #Diameter Realm of this machine
 DestinationHost = "hss.localdomain"                                             #Diameter Host of Destination
-DestinationRealm = "localdomain"                                                #Diameter Realm of Destination
+DestinationRealm = "mnc001.mcc001.3gppnetwork.org"                                                #Diameter Realm of Destination
 hostname = "127.0.0.1"                                                         #IP of Remote Diameter Host
 mcc = '001'                                                                     #Mobile Country Code
 mnc = '01'                                                                      #Mobile Network Code
@@ -116,7 +116,7 @@ while True:
         imsi = str(input("IMSI:\t"))
         requested_vectors = str(input("Number of Vectors:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm, requested_vectors))
+        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm))
     elif request == "UAR":
         imsi = str(input("IMSI:\t"))
         domain = str(input("Domain:\t"))
