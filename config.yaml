@@ -2,7 +2,7 @@
 hss:
   transport: "TCP"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
-  bind_ip: ["10.0.1.252"]
+  bind_ip: ["0.0.0.0"]
 
   #Port to listen on (Same for TCP & SCTP)
   bind_port: 3868
@@ -11,33 +11,30 @@ hss:
   OriginHost: "hss01"
 
   #Value to populate as the OriginRealm in Diameter responses
-  OriginRealm: "mnc000.mcc738.3gppnetwork.org"
+  OriginRealm: "epc.mnc001.mcc001.3gppnetwork.org"
 
   #Value to populate as the Product name in Diameter responses
   ProductName: "pyHSS"
 
   #Your Home Mobile Country Code (Used for PLMN calcluation)
-  MCC: "738"
+  MCC: "001"
   #Your Home Mobile Network Code (Used for PLMN calcluation)
-  MNC: "00"
+  MNC: "01"
 
   #Enable GMLC / SLh Interface
-  SLh_enabled: True
+  SLh_enabled: False
 
   #IMSI of Test Subscriber for Unit Checks (Optional)
-  test_sub_imsi: '208310001859912'
+  test_sub_imsi: '001011234567890'
 
   #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
   device_watchdog_request_interval: 0
 
   #Async Queue Check Interval (In Seconds - If set to 0 disabled)
-  async_check_interval: 10
+  async_check_interval: 0
 
   #If enabled sends CLRs to old MME when new MME attaches active sub
   CancelLocationRequest_Enabled: False
-  CancelLocationRequest_Targets:
-    - DSC101.epc.mnc001.mcc214.3gppnetwork.org
-    - DSC201.epc.mnc001.mcc214.3gppnetwork.org
 
   #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
   Insert_Subscriber_Data_Force: False
@@ -66,16 +63,6 @@ database:
     mongodb_username: root
     mongodb_password: password
     mongodb_port: 27017
-  # mssql:
-  #   server: 10.22.7.20
-  #   Database: hlrdb_20210210
-  #   Login: appuser
-  #   Password: LON$#%2021
-  # mysql:
-  #   server: 127.0.0.1
-  #   username: newuser
-  #   password: password
-  #   database: hss
 
 
 ## Stats Parameters
