@@ -38,19 +38,19 @@ for config_sections in yaml_config:
 def on_new_client(clientsocket,client_address):
     #Initialize Diameter
     import diameter
-    diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
+    diameter_inst = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
 
     HSS_Logger.debug('New connection from ' + str(client_address))
     logtool.Manage_Diameter_Peer(client_address, client_address, "add")
-    x = threading.Thread(target=manage_client, args=(clientsocket,client_address,diameter,))
+    x = threading.Thread(target=manage_client, args=(clientsocket,client_address,diameter_inst,))
     logging.info("Main    : before manage_client thread")
     x.start()
 
-    y = threading.Thread(target=manage_client_async, args=(clientsocket,client_address,diameter,))
+    y = threading.Thread(target=manage_client_async, args=(clientsocket,client_address,diameter_inst,))
     logging.info("Main    : before manage_client_async thread")
     y.start()
 
-    z = threading.Thread(target=manage_client_dwr, args=(clientsocket,client_address,diameter,))
+    z = threading.Thread(target=manage_client_dwr, args=(clientsocket,client_address,diameter_inst,))
     logging.info("Main    : before manage_client_dwr thread")
     z.start()    
 
