@@ -28,7 +28,6 @@ from threading import Thread, Lock
 import threading
 import sctp
 import traceback
-import diameter
 
 HSS_Logger.info("Current config file values:")
 for config_sections in yaml_config:
@@ -38,6 +37,7 @@ for config_sections in yaml_config:
 
 def on_new_client(clientsocket,client_address):
     #Initialize Diameter
+    import diameter
     diameter = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
 
     HSS_Logger.debug('New connection from ' + str(client_address))
