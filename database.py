@@ -91,8 +91,10 @@ class MongoDB:
                 subscriber_details['pdn'][i]['qos']['qci'] = subscriber_details['pdn'][i]['qos']['index']
                 #Map static P-GW Address
                 if 'smf' in subscriber_details['pdn'][i]:
-                    subscriber_details['pdn'][i]['ue'] = {}
-                    subscriber_details['pdn'][i]['ue']['ip'] = subscriber_details['pdn'][i]['smf']['addr']
+                    DBLogger.debug("SMF / PGW Address statically set in Subscriber profile")
+                    subscriber_details['pdn'][i]['MIP6-Agent-Info'] = subscriber_details['pdn'][i]['smf']['addr']
+                    DBLogger.debug("SMF IP is: " + str(subscriber_details['pdn'][i]['smf']['addr']))
+                    #['PDN_GW_Allocation_Type'] ToDo - set to static
                 i += 1
             DBLogger.debug(subscriber_details)
             return subscriber_details
@@ -514,9 +516,11 @@ def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra):
 #Unit test if file called directly (instead of imported)
 if __name__ == "__main__":
     test_sub_imsi = yaml_config['hss']['test_sub_imsi']
+    print("YAML config HSS Key: " + str(yaml_config['hss']))
+    print("Checking database connectivity with test sub: " + str(yaml_config['hss']['test_sub_imsi']))
     DB.GetSubscriberInfo(test_sub_imsi)
     DB.UpdateSubscriber(test_sub_imsi, 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
     origin_host = DB.GetSubscriberLocation(imsi=test_sub_imsi)
     print("Origin Host is " + str(origin_host))
-    print(DB.GetSubscriberIMSI(34604610206))
+    #print(DB.GetSubscriberIMSI(34604610206))
     

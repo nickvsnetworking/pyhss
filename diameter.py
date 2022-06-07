@@ -281,7 +281,8 @@ class Diameter:
 
         packet_vars['packet_version'] = data[0:2]
         packet_vars['length'] = int(data[2:8], 16)
-        packet_vars['flags'] = data[8:10]       
+        packet_vars['flags'] = data[8:10]
+        packet_vars['flags_bin'] = bin(int(data[8:10], 16))[2:].zfill(8)
         packet_vars['command_code'] = int(data[10:16], 16)
         packet_vars['ApplicationId'] = int(data[16:24], 16)
         packet_vars['hop-by-hop-identifier'] = data[24:32]
@@ -369,6 +370,7 @@ class Diameter:
         return misc_data
 
     def decode_diameter_packet_length(self, data):
+        print("Decoding packet length")
         packet_vars = {}
         data = data.hex()
         packet_vars['packet_version'] = data[0:2]
@@ -584,13 +586,12 @@ class Diameter:
             except:
                 Served_Party_Address = ""
 
+            #If static SMF / PGW-C defined
             if 'MIP6-Agent-Info' in apn_profile:
-                DiameterLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
-                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
-                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
-                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
-                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-                DiameterLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
+                DiameterLogger.info("MIP6-Agent-Info present (Static SMF/PGW-C), value " + str(apn_profile['MIP6-Agent-Info']))
+                MIP_Home_Agent_Address = self.generate_avp(334, '40', self.ip_to_hex(apn_profile['MIP6-Agent-Info']))
+                MIP6_Agent_Info = self.generate_avp(486, '40', MIP_Home_Agent_Address)
+                
             else:
                 MIP6_Agent_Info = ''
 
@@ -1486,7 +1487,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
         mcc = str(imsi)[:3]
