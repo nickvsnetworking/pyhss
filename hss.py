@@ -29,6 +29,9 @@ import threading
 import sctp
 import traceback
 
+import diameter as DiameterLib
+HSS_Logger.debug("Imported Diameter Library.")
+
 HSS_Logger.info("Current config file values:")
 for config_sections in yaml_config:
     HSS_Logger.info("\tConfig Section: " + str(config_sections))
@@ -37,8 +40,7 @@ for config_sections in yaml_config:
 
 def on_new_client(clientsocket,client_address):
     #Initialize Diameter
-    import diameter
-    diameter_inst = diameter.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
+    diameter_inst = DiameterLib.Diameter(str(yaml_config['hss']['OriginHost']), str(yaml_config['hss']['OriginRealm']), str(yaml_config['hss']['ProductName']), str(yaml_config['hss']['MNC']), str(yaml_config['hss']['MCC']))
 
     HSS_Logger.debug('New connection from ' + str(client_address))
     logtool.Manage_Diameter_Peer(client_address, client_address, "add")
