@@ -75,9 +75,14 @@ def manage_client(clientsocket,client_address,diameter):
             orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
             orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
 
+            #Gobble up any Response traffic that is sent to us:
+            if packet_vars['flags_bin'][0:1] == "0":
+                HSS_Logger.info("Got a Response, not a request - dropping it.")
+                HSS_Logger.info(packet_vars)
+                continue
 
             #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
-            if packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
+            elif packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
                 HSS_Logger.info("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
                 try:
                     response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
