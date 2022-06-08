@@ -719,7 +719,6 @@ class Diameter:
 
 
         DiameterLogger.debug("Successfully Generated ULA")
-        DiameterLogger.debug(response)
         return response
 
 
