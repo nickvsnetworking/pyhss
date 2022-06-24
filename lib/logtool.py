@@ -124,63 +124,64 @@ class LogTool:
                 logging.error("Failed to get ActivePeerDict")
 
     def Manage_Diameter_Peer(self, peername, ip, action):
-        try:
-            logging.debug("Managing Diameter peer to Redis with hostname" + str(peername) + " and IP " + str(ip))
-            now = datetime.now()
-            timestamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
-
-            #Try and get IP and Port seperately
+        if yaml_config['redis']['enabled'] == True:
             try:
-                ip = ip[0]
-                port = ip[1]
-            except:
-                pass
+                logging.debug("Managing Diameter peer to Redis with hostname" + str(peername) + " and IP " + str(ip))
+                now = datetime.now()
+                timestamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
 
-            if self.redis_store.exists('ActivePeerDict') == False:
-                #Initialise empty active peer dict in Redis
-                logging.debug("Populated new empty ActivePeerDict Redis key")
-                ActivePeerDict = {}
-                ActivePeerDict['internal_connection'] = {"connect_timestamp" : timestamp}
-                self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
-            
-            if action == "add":
-                data = self.RedisGet('ActivePeerDict')
-                ActivePeerDict = json.loads(data)
-                logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict) + " to add peer " + str(peername) + " with ip " + str(ip))
-
-
-                #If key has already existed in dict due to disconnect / reconnect, get reconnection count
+                #Try and get IP and Port seperately
                 try:
-                    reconnection_count = ActivePeerDict[str(ip)]['reconnection_count'] + 1
+                    ip = ip[0]
+                    port = ip[1]
                 except:
-                    reconnection_count = 0
+                    pass
 
-                ActivePeerDict[str(ip)] = {"connect_timestamp" : timestamp, \
-                    "recv_ip_address" : str(ip), "DiameterHostname" : "Unknown - Socket connection only", \
-                    "reconnection_count" : reconnection_count,
-                    "connection_status" : "Pending"}
-                self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+                if self.redis_store.exists('ActivePeerDict') == False:
+                    #Initialise empty active peer dict in Redis
+                    logging.debug("Populated new empty ActivePeerDict Redis key")
+                    ActivePeerDict = {}
+                    ActivePeerDict['internal_connection'] = {"connect_timestamp" : timestamp}
+                    self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+                
+                if action == "add":
+                    data = self.RedisGet('ActivePeerDict')
+                    ActivePeerDict = json.loads(data)
+                    logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict) + " to add peer " + str(peername) + " with ip " + str(ip))
 
-            if action == "remove":
-                data = self.RedisGet('ActivePeerDict')
-                ActivePeerDict = json.loads(data)
-                logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict))
-                ActivePeerDict[str(ip)] = {"disconnect_timestamp" : str(timestamp), \
-                    "DiameterHostname" : str(ActivePeerDict[str(ip)]['DiameterHostname']), \
-                    "reconnection_count" : ActivePeerDict[str(ip)]['reconnection_count'],
-                    "connection_status" : "Disconnected"}
-                self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))        
 
-            if action == "update":
-                data = self.RedisGet('ActivePeerDict')
-                ActivePeerDict = json.loads(data)
-                ActivePeerDict[str(ip)]['DiameterHostname'] = str(peername)
-                ActivePeerDict[str(ip)]['last_dwr_timestamp'] = str(timestamp)
-                ActivePeerDict[str(ip)]['connection_status'] = "Connected"
-                self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
-        except Exception as E:
-            logging.error("failed to add/update/remove Diameter peer from Redis")
-            logging.error(E)
+                    #If key has already existed in dict due to disconnect / reconnect, get reconnection count
+                    try:
+                        reconnection_count = ActivePeerDict[str(ip)]['reconnection_count'] + 1
+                    except:
+                        reconnection_count = 0
+
+                    ActivePeerDict[str(ip)] = {"connect_timestamp" : timestamp, \
+                        "recv_ip_address" : str(ip), "DiameterHostname" : "Unknown - Socket connection only", \
+                        "reconnection_count" : reconnection_count,
+                        "connection_status" : "Pending"}
+                    self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+
+                if action == "remove":
+                    data = self.RedisGet('ActivePeerDict')
+                    ActivePeerDict = json.loads(data)
+                    logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict))
+                    ActivePeerDict[str(ip)] = {"disconnect_timestamp" : str(timestamp), \
+                        "DiameterHostname" : str(ActivePeerDict[str(ip)]['DiameterHostname']), \
+                        "reconnection_count" : ActivePeerDict[str(ip)]['reconnection_count'],
+                        "connection_status" : "Disconnected"}
+                    self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))        
+
+                if action == "update":
+                    data = self.RedisGet('ActivePeerDict')
+                    ActivePeerDict = json.loads(data)
+                    ActivePeerDict[str(ip)]['DiameterHostname'] = str(peername)
+                    ActivePeerDict[str(ip)]['last_dwr_timestamp'] = str(timestamp)
+                    ActivePeerDict[str(ip)]['connection_status'] = "Connected"
+                    self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
+            except Exception as E:
+                logging.error("failed to add/update/remove Diameter peer from Redis")
+                logging.error(E)
             
 
     def setup_logger(self, logger_name, log_file, level=logging.DEBUG):

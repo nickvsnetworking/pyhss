@@ -719,7 +719,6 @@ class Diameter:
 
 
         DiameterLogger.debug("Successfully Generated ULA")
-        DiameterLogger.debug(response)
         return response
 
 
@@ -1258,25 +1257,7 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
-        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
-
-
-
-                #Lookup MSISDN from IMSI
-                #ToDo
-                msisdn = '11111'
-
-            except:
-                DiameterLogger.info("MSISDN and Public Identity AVPs missing. Returning error")
-                result_code = 5005
-                #Experimental Result AVP
-                avp_experimental_result = ''
-                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
-                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
-                response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-                return response
-        
+        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))       
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
