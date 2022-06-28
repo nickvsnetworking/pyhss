@@ -493,7 +493,11 @@ class PostgreSQL:
             where subscribers.imsi = '" +  str(imsi) + "' and subscribers.enabled = True;"
         DBLogger.debug(sql)
         self.cursor.execute(sql)
-        sql_result = self.cursor.fetchall()[0]
+        try:
+            sql_result = self.cursor.fetchall()[0]
+        except:
+            DBLogger.info("Failed to get subscriber " + str(imsi))
+            raise ValueError("No matching subscriber found in database")
         DBLogger.debug(sql_result)
 
         #Format default APN

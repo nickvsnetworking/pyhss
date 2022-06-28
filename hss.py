@@ -28,15 +28,13 @@ from threading import Thread, Lock
 import threading
 import sctp
 import traceback
+import pprint
 
 import diameter as DiameterLib
 HSS_Logger.debug("Imported Diameter Library.")
 
 HSS_Logger.info("Current config file values:")
-for config_sections in yaml_config:
-    HSS_Logger.info("\tConfig Section: " + str(config_sections))
-    for lower_keys in yaml_config[config_sections]:
-        HSS_Logger.info("\t\t" + str(lower_keys) + "\t" + str(yaml_config[config_sections][lower_keys]))
+HSS_Logger.info(pprint.pprint(yaml_config))
 
 def on_new_client(clientsocket,client_address):
     #Initialize Diameter

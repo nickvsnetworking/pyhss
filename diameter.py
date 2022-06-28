@@ -370,7 +370,6 @@ class Diameter:
         return misc_data
 
     def decode_diameter_packet_length(self, data):
-        print("Decoding packet length")
         packet_vars = {}
         data = data.hex()
         packet_vars['packet_version'] = data[0:2]
@@ -1193,6 +1192,13 @@ class Diameter:
                     concat_subavp += self.generate_avp(sub_avp['avp_code'], sub_avp['avp_flags'], sub_avp['misc_data'])
                 avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
         avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                   #Response Code
+        
+        #Experimental Result AVP(Response Code for Failure)
+        avp_experimental_result = ''
+        avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+        avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_Respond_Command_success_count')
         return response
@@ -1574,7 +1580,7 @@ class Diameter:
 
             try:
                 user_identity_avp = self.get_avp_data(avps, 700)[0]
-                print(user_identity_avp)
+                DiameterLogger.info(user_identity_avp)
                 msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
                 msisdn = self.TBCD_decode(msisdn)
                 DiameterLogger.info("Got MSISDN with value " + str(msisdn))
