@@ -9,3 +9,4 @@ pysctp==0.6.1
 pysnmp==4.4.12
 mysql-connector==2.2.9
 jinja2
+psycopg2

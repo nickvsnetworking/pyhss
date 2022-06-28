@@ -25,7 +25,7 @@ hss:
   SLh_enabled: False
 
   #IMSI of Test Subscriber for Unit Checks (Optional)
-  test_sub_imsi: '001011234567890'
+  test_sub_imsi: '001021234567890'
 
   #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
   device_watchdog_request_interval: 0
@@ -58,11 +58,12 @@ logging:
 #Multiple database types are supported, and additional database can be added easily.
 #See ``databases.md`` for information on connecting to your database of choice, with your preferred schema.
 database:
-  mongodb:
-    mongodb_server: 127.0.0.1
-    mongodb_username: root
-    mongodb_password: password
-    mongodb_port: 27017
+  postgresql:
+    server: 127.0.0.1
+    username: dbeaver
+    password: password
+    database: hss
+    port: 5432
 
 
 ## Stats Parameters

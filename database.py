@@ -16,8 +16,7 @@ import logtool
 logtool = logtool.LogTool()
 logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 DBLogger = logging.getLogger('DBLogger')
-
-
+import pprint
 DBLogger.info("DB Log Initialised.")
 
 ##Data Output Format
@@ -468,7 +467,96 @@ class MySQL:
         DBLogger.debug(query)
         self.cursor.execute(query)
         
-            
+class PostgreSQL:
+    def __init__(self):
+        import psycopg
+        from psycopg.rows import dict_row
+        DBLogger.info("Configured to use Postgresql server: " + str(yaml_config['database']['postgresql']['server']))
+        self.serverinfo = yaml_config['database']['postgresql']
+        self.mydb = psycopg.connect(
+        host=self.serverinfo['server'],
+        port=self.serverinfo['port'],
+        dbname=self.serverinfo['database'],
+        user=self.serverinfo['username'],
+        password=self.serverinfo['password'],
+        row_factory=dict_row)
+        self.mydb.autocommit = True
+        cursor = self.mydb.cursor()
+        self.cursor = cursor
+        
+        
+    def GetSubscriberInfo(self, imsi):
+        DBLogger.debug("Getting subscriber info from Postgresql for IMSI " + str(imsi))
+        sql = "select * from subscribers \
+            left join auc on subscribers.imsi = auc.imsi \
+            left join apn on subscribers.apn_default  = apn.id  \
+            where subscribers.imsi = '" +  str(imsi) + "' and subscribers.enabled = True;"
+        DBLogger.debug(sql)
+        self.cursor.execute(sql)
+        sql_result = self.cursor.fetchall()[0]
+        DBLogger.debug(sql_result)
+
+        #Format default APN
+        APN_list = []
+        APN_list.append({ "name": str(sql_result['apn']), "type": 3, \
+                            "ambr" : {"uplink" : int(sql_result['apn_ambr_ul']), "downlink": int(sql_result['apn_ambr_dl'])},
+                            'qos': {'qci': int(sql_result['qci']), 'arp': {'priority_level': int(sql_result['arp_priority']), 'pre_emption_vulnerability': int(sql_result['arp_preemption_vulnerability']), 'pre_emption_capability': int(sql_result['arp_preemption_capability'])}}
+                        })
+
+        #Check if additional APNs set:
+        if len(sql_result['apn_additional_list']) > 0:
+            DBLogger.debug("Additional APNs set - Retrieving all APNs")
+            try:
+                apn_list = sql_result['apn_additional_list'].split(',')
+                DBLogger.debug("Additional APN IDs: " + str(apn_list))
+                #Get all the APNs from the database
+                sql = "select * from apn;"
+                DBLogger.debug(sql)
+                self.cursor.execute(sql)
+                apn_sql_result = self.cursor.fetchall()
+                for apn in apn_sql_result:
+                    if str(apn['id']) in apn_list:
+                        DBLogger.debug("Adding APN ID " + str(apn['id']) + " " + str(apn['apn']) + " into APN list ")
+                        DBLogger.debug(apn)
+                        APN_list.append({ "name": str(apn['apn']), "type": 3, \
+                            "ambr" : {"uplink" : int(apn['apn_ambr_ul']), "downlink": int(apn['apn_ambr_dl'])},
+                            'qos': {'qci': int(apn['qci']), 'arp': {'priority_level': int(apn['arp_priority']), 'pre_emption_vulnerability': int(apn['arp_preemption_vulnerability']), 'pre_emption_capability': int(apn['arp_preemption_capability'])}}
+                        })
+                    else:
+                        DBLogger.debug("APN ID " + str(apn['id']) + " " + str(apn['apn']) + " is not available for this subscriber")
+
+            except Exception as E:
+                DBLogger.error("Failed to retrieve all additional APNs for sub " + str(imsi))
+                DBLogger.error(E)
+        else:
+            DBLogger.debug("Only default APN set")
+
+
+        subscriber_details = {
+            'imsi' : str(sql_result['imsi']),
+            'K': str(sql_result['ki']), 'OPc': str(sql_result['opc']), 'AMF': str(sql_result['amf']), 'RAND': str(sql_result['rand']), 'SQN': int(sql_result['sqn']),
+            'pdn' : APN_list,
+            'msisdn' : str(sql_result['msisdn'])
+        }
+        DBLogger.debug(pprint.pprint(subscriber_details))
+
+
+        return subscriber_details
+
+    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
+        DBLogger.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
+        query = "update auc set sqn = " + str(sqn) + " where imsi = '" + str(imsi) + "';"
+        DBLogger.debug(query)
+        self.cursor.execute(query)
+
+        if 'origin_host' in kwargs:
+            DBLogger.debug("UpdateSubscriber called with origin_host present")
+            query = "update subscribers set serving_mme = '" + str(kwargs.get('origin_host', None)) + "', serving_mme_timestamp = current_timestamp where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+        
+       
+
 #Load DB functions based on Config
 for db_option in yaml_config['database']:
     DBLogger.debug("Selected DB backend " + str(db_option))
@@ -480,6 +568,8 @@ elif db_option == "mssql":
     DB = MSSQL()
 elif db_option == "mysql":
     DB = MySQL()
+elif db_option == "postgresql":
+    DB = PostgreSQL()
 else:
     DBLogger.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
@@ -519,8 +609,7 @@ if __name__ == "__main__":
     print("YAML config HSS Key: " + str(yaml_config['hss']))
     print("Checking database connectivity with test sub: " + str(yaml_config['hss']['test_sub_imsi']))
     DB.GetSubscriberInfo(test_sub_imsi)
-    DB.UpdateSubscriber(test_sub_imsi, 998, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
-    origin_host = DB.GetSubscriberLocation(imsi=test_sub_imsi)
-    print("Origin Host is " + str(origin_host))
+    DB.UpdateSubscriber(test_sub_imsi, 666, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
+
     #print(DB.GetSubscriberIMSI(34604610206))
     
