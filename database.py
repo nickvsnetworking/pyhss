@@ -502,10 +502,15 @@ class PostgreSQL:
 
         #Format default APN
         APN_list = []
-        APN_list.append({ "apn": str(sql_result['apn']), "type": 3, \
+        apn_obj = { "apn": str(sql_result['apn']), "type": 3, \
                             "ambr" : {"uplink" : int(sql_result['apn_ambr_ul']), "downlink": int(sql_result['apn_ambr_dl'])},
-                            'qos': {'qci': int(sql_result['qci']), 'arp': {'priority_level': int(sql_result['arp_priority']), 'pre_emption_vulnerability': int(sql_result['arp_preemption_vulnerability']), 'pre_emption_capability': int(sql_result['arp_preemption_capability'])}}
-                        })
+                            'qos': {'qci': int(sql_result['qci']), 'arp': {'priority_level': int(sql_result['arp_priority']), 'pre_emption_vulnerability': int(sql_result['arp_preemption_vulnerability']), 'pre_emption_capability': int(sql_result['arp_preemption_capability'])}},
+        }
+        if sql_result['pgw-address'] is not None:
+            DBLogger.debug("Static PGW selection set to " + str(sql_result['pgw-address']))
+            apn_obj['MIP6-Agent-Info'] = str(sql_result['pgw-address'])
+
+        APN_list.append(apn_obj)
 
         #Check if additional APNs set:
         if len(sql_result['apn_additional_list']) > 0:
@@ -522,10 +527,14 @@ class PostgreSQL:
                     if str(apn['id']) in apn_list:
                         DBLogger.debug("Adding APN ID " + str(apn['id']) + " " + str(apn['apn']) + " into APN list ")
                         DBLogger.debug(apn)
-                        APN_list.append({ "apn": str(apn['apn']), "type": 3, \
+                        apn_obj = { "apn": str(apn['apn']), "type": 3, \
                             "ambr" : {"uplink" : int(apn['apn_ambr_ul']), "downlink": int(apn['apn_ambr_dl'])},
                             'qos': {'qci': int(apn['qci']), 'arp': {'priority_level': int(apn['arp_priority']), 'pre_emption_vulnerability': int(apn['arp_preemption_vulnerability']), 'pre_emption_capability': int(apn['arp_preemption_capability'])}}
-                        })
+                        }
+                        if apn['pgw-address'] is not None:
+                            DBLogger.debug("Static PGW selection set to " + str(apn['pgw-address']))
+                            apn_obj['MIP6-Agent-Info'] = str(apn['pgw-address'])
+                        APN_list.append(apn_obj)
                     else:
                         DBLogger.debug("APN ID " + str(apn['id']) + " " + str(apn['apn']) + " is not available for this subscriber")
 
