@@ -502,7 +502,7 @@ class PostgreSQL:
 
         #Format default APN
         APN_list = []
-        APN_list.append({ "name": str(sql_result['apn']), "type": 3, \
+        APN_list.append({ "apn": str(sql_result['apn']), "type": 3, \
                             "ambr" : {"uplink" : int(sql_result['apn_ambr_ul']), "downlink": int(sql_result['apn_ambr_dl'])},
                             'qos': {'qci': int(sql_result['qci']), 'arp': {'priority_level': int(sql_result['arp_priority']), 'pre_emption_vulnerability': int(sql_result['arp_preemption_vulnerability']), 'pre_emption_capability': int(sql_result['arp_preemption_capability'])}}
                         })
@@ -522,7 +522,7 @@ class PostgreSQL:
                     if str(apn['id']) in apn_list:
                         DBLogger.debug("Adding APN ID " + str(apn['id']) + " " + str(apn['apn']) + " into APN list ")
                         DBLogger.debug(apn)
-                        APN_list.append({ "name": str(apn['apn']), "type": 3, \
+                        APN_list.append({ "apn": str(apn['apn']), "type": 3, \
                             "ambr" : {"uplink" : int(apn['apn_ambr_ul']), "downlink": int(apn['apn_ambr_dl'])},
                             'qos': {'qci': int(apn['qci']), 'arp': {'priority_level': int(apn['arp_priority']), 'pre_emption_vulnerability': int(apn['arp_preemption_vulnerability']), 'pre_emption_capability': int(apn['arp_preemption_capability'])}}
                         })
