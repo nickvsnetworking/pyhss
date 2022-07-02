@@ -29,7 +29,8 @@ RUN apt-get update && \
         libnghttp2-dev \
         libtins-dev \
         libidn11-dev \
-        libtalloc-dev
+        libtalloc-dev \
+        libpq-dev
 RUN git clone https://github.com/nickvsnetworking/pyhss.git
 WORKDIR pyhss
 RUN mkdir -p log
