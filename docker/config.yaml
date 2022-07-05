@@ -1,0 +1,78 @@
+## HSS Parameters (Docker)
+hss:
+  transport: "TCP"
+  #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
+  bind_ip: ["template_HSS_IP"]
+
+  #Port to listen on (Same for TCP & SCTP)
+  bind_port: 3868
+
+  #Value to populate as the OriginHost in Diameter responses
+  OriginHost: "template_HSS_HOSTNAME.template_EPC_DOMAIN"
+
+  #Value to populate as the OriginRealm in Diameter responses
+  OriginRealm: "template_EPC_DOMAIN"
+
+  #Value to populate as the Product name in Diameter responses
+  ProductName: "pyHSS"
+
+  #Your Home Mobile Country Code (Used for PLMN calcluation)
+  MCC: "template_MCC"
+  #Your Home Mobile Network Code (Used for PLMN calcluation)
+  MNC: "template_MNC"
+
+  #Enable GMLC / SLh Interface
+  SLh_enabled: False
+
+  #IMSI of Test Subscriber for Unit Checks (Optional)
+  test_sub_imsi: 'Test_Subscriber_IMSI'
+
+  #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
+  device_watchdog_request_interval: 0
+
+  #Async Queue Check Interval (In Seconds - If set to 0 disabled)
+  async_check_interval: 0
+
+  #If enabled sends CLRs to old MME when new MME attaches active sub
+  CancelLocationRequest_Enabled: False
+
+  #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
+  Insert_Subscriber_Data_Force: False
+
+  #Default Initial Filter Criteria for IMS Subscribers
+  #Jinja Formatted Template, see the example for variables passed to it.
+  Default_iFC: 'default_ifc.xml'
+
+  #Default Sh User Data
+  Default_Sh_UserData: 'default_sh_user_data.xml'
+  
+logging:
+  level: DEBUG
+  logfiles:
+    hss_logging_file: log/hss.log
+    diameter_logging_file: log/diameter.log
+    database_logging_file: log/db.log
+  log_to_terminal: true
+
+## Database Parameters
+#Multiple database types are supported, and additional database can be added easily.
+#See ``databases.md`` for information on connecting to your database of choice, with your preferred schema.
+database:
+  HSS_DB_TYPE:
+    server: HSS_DB_SERVER
+    username: HSS_DB_USERNAME
+    password: HSS_DB_PASSWORD
+    database: HSS_DB_DB
+    port: HSS_DB_PORT
+
+## Stats Parameters
+redis:
+  enabled: False
+  clear_stats_on_boot: True
+  host: localhost
+  port: 6379
+
+
+snmp:
+  port: 1161
+  listen_address: 127.0.0.1
