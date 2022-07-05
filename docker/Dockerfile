@@ -30,7 +30,8 @@ RUN apt-get update && \
         libtins-dev \
         libidn11-dev \
         libtalloc-dev \
-        libpq-dev
+        libpq-dev \
+        python3-psycopg2
 RUN git clone https://github.com/nickvsnetworking/pyhss.git
 WORKDIR pyhss
 RUN mkdir -p log
