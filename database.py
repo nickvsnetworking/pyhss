@@ -101,9 +101,6 @@ class MongoDB:
         #if no results returned raise error
         raise ValueError("Mongodb has no matching subscriber details for IMSI " + str(imsi) + " from MongoDB")
 
-
-
-
     #Update a subscriber's information in MongoDB
     def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
         DBLogger.debug("Updating " + str(imsi))
@@ -163,6 +160,7 @@ class MongoDB:
             except:
                 DBLogger.debug("Failed to pull subscriber info")
                 raise ValueError("Failed to pull subscriber details for IMSI " + str(imsi) + " from MongoDB")
+        
 
 class MSSQL:
     import _mssql
@@ -556,17 +554,36 @@ class PostgreSQL:
 
         return subscriber_details
 
-    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
+    def UpdateSubscriber(self, imsi, sqn, rand, **kwargs):
+        DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
+        if 'serving_mme' in kwargs:
+            DBLogger.debug("UpdateSubscriber called with Serving MME present")
+            query = "update subscribers set serving_mme = '" + str(kwargs.get('serving_mme', None)) + "', serving_mme_timestamp = current_timestamp where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+            return
+
+        if 'serving_pgw' in kwargs:
+            DBLogger.debug("UpdateSubscriber called with Serving PGW present")
+            query = "update subscribers set serving_pgw = '" + str(kwargs.get('serving_pgw', None)) + "', serving_pgw_timestamp = current_timestamp where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+            return
+
+        if 'clearloc' in kwargs:
+            DBLogger.debug("UpdateSubscriber called to clear location")
+            if kwargs.get('clearloc', None) == 'pgw':
+                query = "update subscribers set serving_pgw = NULL, serving_pgw_timestamp = NULL where imsi = '" + str(imsi) + "';"
+            elif kwargs.get('clearloc', None) == 'mme':
+                query = "update subscribers set serving_mme = NULL, serving_mme_timestamp = NULL where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+            return
+
         DBLogger.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
         query = "update auc set sqn = " + str(sqn) + " where imsi = '" + str(imsi) + "';"
         DBLogger.debug(query)
         self.cursor.execute(query)
-
-        if 'origin_host' in kwargs:
-            DBLogger.debug("UpdateSubscriber called with origin_host present")
-            query = "update subscribers set serving_mme = '" + str(kwargs.get('origin_host', None)) + "', serving_mme_timestamp = current_timestamp where imsi = '" + str(imsi) + "';"
-            DBLogger.debug(query)
-            self.cursor.execute(query)
         
        
 
@@ -590,14 +607,9 @@ else:
 def GetSubscriberInfo(imsi):
     return DB.GetSubscriberInfo(imsi)
 
-def UpdateSubscriber(imsi, sqn, rand, *args, **kwargs):
-    if 'origin_host' in kwargs:
-        DBLogger.debug("UpdateSubscriber called with origin_host present")
-        origin_host = kwargs.get('origin_host', None)
-        DBLogger.debug("Origin Host: " + str(origin_host))
-        return DB.UpdateSubscriber(imsi, sqn, rand, origin_host=str(origin_host))
-    else:
-        return DB.UpdateSubscriber(imsi, sqn, rand)
+def UpdateSubscriber(imsi, sqn, rand, **kwargs):
+    DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
+    return DB.UpdateSubscriber(imsi, sqn, rand, **kwargs)
 
 def GetSubscriberLocation(*args, **kwargs):
     #Input can be either MSISDN or IMSI
