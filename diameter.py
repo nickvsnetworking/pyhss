@@ -492,6 +492,7 @@ class Diameter:
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -626,7 +627,7 @@ class Diameter:
             APN_context_identifer_count = APN_context_identifer_count + 1  
             DiameterLogger.debug("Processed APN profile " + str(apn_profile['apn']))
         
-        #subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
 
@@ -996,8 +997,49 @@ class Diameter:
             DiameterLogger.info("Populated QoS_Infomration")
             avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
             DiameterLogger.info("Added to AVP List")
-            
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
+
+            #Install Charging Rules
+            Charging_Rule_Name = self.generate_vendor_avp(1005, "80", 10415, str(binascii.hexlify(str.encode("testrule")),'ascii'))
+
+            #Flow Information 1
+            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(2, 4))
+            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode("permit in ip from any to any")),'ascii'))
+            Flow_Information = self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
+
+            #Flow Information 2
+            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(1, 4))
+            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode("permit out ip from any to any")),'ascii'))
+            Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
+
+            Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
+
+            QoS_Information = ''
+            #QCI 
+            QoS_Information += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
+            #ARP
+            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(2, 4))
+            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(0, 4))
+            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(0, 4))
+            QoS_Information += self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+            #Max Requested Bandwidth
+            QoS_Information += self.generate_vendor_avp(516, "c0", 10415, "00019000")
+            QoS_Information += self.generate_vendor_avp(515, "c0", 10415, "00019000")
+            #GBR
+            QoS_Information += self.generate_vendor_avp(1026, "c0", 10415, "00010000")
+            QoS_Information += self.generate_vendor_avp(1025, "c0", 10415, "00010000")
+
+            #Precedence
+            Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(1, 4))
+            
+            #Complete Charging Rule Defintion
+            ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
+            ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+
+            #Charging Rule Install
+            avp += self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
 
             #Store PGW location into Database
             database.UpdateSubscriber(imsi, 1, 1, serving_pgw=OriginHost)
@@ -1765,7 +1807,7 @@ class Diameter:
             APN_context_identifer_count = APN_context_identifer_count + 1  
             DiameterLogger.debug("Processed APN profile " + str(apn_profile['apn']))
         
-        #subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
 
