@@ -97,8 +97,9 @@ def manage_client(clientsocket,client_address,diameter):
                 HSS_Logger.info("Received 3GPP Credit-Control-Request from " + orignHost + "\n\tGenerating (CCA)")
                 try:
                     response = diameter.Answer_16777238_272(packet_vars, avps)          #Generate Diameter packet
-                except:
+                except Exception as E:
                     response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
+                    HSS_Logger.error("Failed to generate response " + str(E))
                 HSS_Logger.info("Generated CCA")
 
             #Send Device Watchdog Answer (DWA) response to Device Watchdog Requests (DWR)

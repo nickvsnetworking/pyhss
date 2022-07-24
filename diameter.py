@@ -6,6 +6,7 @@ import binascii
 import math
 import uuid
 import os
+from construct import Default
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 
@@ -506,6 +507,12 @@ class Diameter:
             DiameterLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
+        #Store MME Location into Database
+        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+        DiameterLogger.debug("Subscriber is served by MME " + str(OriginHost))
+        database.UpdateSubscriber(imsi, 1, 1, serving_mme=OriginHost)
+
 
         #Boilerplate AVPs
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
@@ -710,7 +717,7 @@ class Diameter:
                 orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
                 orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
                 DiameterLogger.debug("Recieved originHost is " + str(orignHost))
-                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host=str(orignHost))
+                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', serving_mme=str(orignHost))
             except:
                 DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
         
@@ -921,16 +928,64 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777238_272_attempt_count')
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
+        #Called Station ID
+        DiameterLogger.critical("Attempting to find APN in CCR")
+        DiameterLogger.critical(self.get_avp_data(avps, 30)[0])
+        apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
+        DiameterLogger.debug("CCR for APN " + str(apn))
+
+        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+
+
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
         avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type (ToDo - Check dyanmically generating)
         avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number (ToDo - Check dyanmically generating)
+        
+
+        #Get Subscriber info from Subscription ID
+        for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+            for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                DiameterLogger.debug("Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI")
+                if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                    imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                    DiameterLogger.debug("Found IMSI " + str(imsi))
+
+        DiameterLogger.info("\n\n\nSubscriptionID: " + str(self.get_avp_data(avps, 443)))
+        try:
+            DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")
+            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            DiameterLogger.debug("Looping through APNs to find this APN")
+            for apn_profile_obj in subscriber_details['pdn']:
+                if apn_profile_obj['apn'] == apn:
+                    DiameterLogger.debug("Found matching APN")
+                    apn_profile = apn_profile_obj
+
+        except:
+            #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+            DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR")
+            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
+            experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
+            #Experimental Result (297)
+            avp += self.generate_avp(297, 40, experimental_result)
+            response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
         if int(CC_Request_Type) == 1:
-            DiameterLogger.info("Request type for CCA is 1")
-                                                                                                    #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI. ToDo - Check Spec as to correct value encoding)
-            avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
+            DiameterLogger.info("Request type for CCA is 1 - Initial")
+
+            DiameterLogger.debug(apn_profile)
+            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
+            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
+            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_vulnerability']), 4))
+            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['qci']), 4))
+            #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI)
+            avp += self.generate_vendor_avp(1049, "c0", 10415, AVP_QoS + AVP_ARP)
+
                                                                                                     #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
             DiameterLogger.info("Creating QoS Information")
@@ -943,48 +998,13 @@ class Diameter:
             DiameterLogger.info("Added to AVP List")
             
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
-            # try:
-            #     DiameterLogger.debug("packet_vars: " + str(packet_vars))
-            #     DiameterLogger.debug("avps: " + str(avps))
-                
-            #     for sub_avp in avps:
-            #         DiameterLogger.debug("AVP# " + str(sub_avp['avp_code']))
-            #         DiameterLogger.debug("\t: " + str(sub_avp))
-            #     #Default-EPS-Bearer-QoS(1049) (Copy from Credit Control Request
-            #     # DiameterLogger.info("EPS Bearer QoS recieved is")
-            #     # DiameterLogger.info(self.get_avp_data(avps, 1049))
-            #     # EPS_Bearer_QoS = str(self.get_avp_data(avps, 1049)[0])
-            #     # DiameterLogger.info("With Entry 0 is " + str(EPS_Bearer_QoS))
-            #     # DiameterLogger.info("EPS_Bearer_QoS is type " + str(type(EPS_Bearer_QoS)) + " and value: " + str(EPS_Bearer_QoS))
-            #     # DiameterLogger.info("Calling: self.generate_vendor_avp(1049, \"80\", 10415, \"" + str(EPS_Bearer_QoS) + "\")")
-            #     # EPS_Bearer_QoS_AVP = self.generate_vendor_avp(1049, "80", 10415, EPS_Bearer_QoS)
-            #     # DiameterLogger.info("Generated EPS_Bearer_QoS_AVP with type " + str(type(EPS_Bearer_QoS_AVP)) + " and value: " + str(EPS_Bearer_QoS_AVP))
-            #     # avp += EPS_Bearer_QoS_AVP
-            #     # DiameterLogger.info("AVP Added for 1049")
-            #     avp += self.generate_vendor_avp(1049, "80", 10415, "00000404c0000010000028af000000050000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001")
 
-            #     #QoS-Information(1016) (Copy from Credit Control Request)
-            #     DiameterLogger.info("QoS_Information recieved is")
-            #     DiameterLogger.info(self.get_avp_data(avps, 1016))
-            #     ambr_list = self.get_avp_data(avps, 1016)[0]
-            #     DiameterLogger.info("Got AMBR List: " + str(ambr_list))
-            #     ambr_obj_str = ''
-            #     for ambr_obj in self.get_avp_data(avps, 1016)[0]:
-            #         DiameterLogger.debug("ambr_obj: " + str(ambr_obj))
-            #         ambr_avp = self.generate_vendor_avp(ambr_obj['avp_code'], "80", 10415, ambr_obj['misc_data'][:8])
-            #         DiameterLogger.debug("Generated Sub AVP: " + str(ambr_avp))
-            #         ambr_obj_str += ambr_avp
-                
-            #     DiameterLogger.info("ambr_obj_str is " + str(ambr_obj_str))
-            #     avp += self.generate_vendor_avp(1016, "80", 10415, ambr_obj_str)
-            #     DiameterLogger.debug("Generated AVP 1016")
-            #     #Supported-Features(628) (Gx feature list)
-            #     avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+            #Store PGW location into Database
+            database.UpdateSubscriber(imsi, 1, 1, serving_pgw=OriginHost)
 
-            # except Exception as E:
-            #     DiameterLogger.error("Failed to generate CCA, " + str(E))
-
-                
+        elif int(CC_Request_Type) == 3:
+            DiameterLogger.info("Request type for CCA is 3 - Termination")
+            database.UpdateSubscriber(imsi, 1, 1, clearloc='pgw')
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
