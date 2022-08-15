@@ -1,4 +1,5 @@
 #Diameter Packet Decoder / Encoder & Tools
+from multiprocessing.sharedctypes import Value
 import socket
 import logging
 import sys
@@ -1108,10 +1109,8 @@ class Diameter:
             domain = username.split('@')[1] #Get Domain Part
             imsi = imsi[4:]                 #Strip SIP: from start of string
         except:
-            DiameterLogger.debug("Could not find Username in Cx Server Assignemnt Request.")
-            username = '1234'
-            imsi = '1234'
-            domain = 'test.com'
+            DiameterLogger.error("Could not find Username in Cx Server Assignemnt Request.")
+            raise ValueError("Could not find Username")
         
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
@@ -1121,7 +1120,18 @@ class Diameter:
         templateEnv = jinja2.Environment(loader=templateLoader)
         template = templateEnv.get_template(yaml_config['hss']['Default_iFC'])
         #These variables are passed to the template for use
-        iFC_vars = {'imsi' : imsi, 'domain' : domain, 'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
+        try:
+            subscriber_details = database.GetSubscriberInfo(imsi)   
+            DiameterLogger.debug("Subscriber Details: " + str(subscriber_details))  
+        except:
+            DiameterLogger.error("Could not retrive subscriber profile from Cx Server Assignemnt Request.")
+            raise ValueError("Could not find Username")
+
+        iFC_vars = {\
+            'imsi' : imsi, \
+            'msisdn' : str(subscriber_details['msisdn']),
+            'domain' : domain, \
+            'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
         xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
