@@ -57,7 +57,7 @@ def on_new_client(clientsocket,client_address):
         logging.info("Main    : before manage_client_dwr thread")
         z.start()    
 
-prom_diam_response_time_diam.time()
+@prom_diam_response_time_diam.time()
 def process_Diameter_request(clientsocket,client_address,diameter,data):
     packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
     data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
@@ -70,6 +70,9 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
     orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
     orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
 
+    #label_values = str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request'
+    prom_diam_request_count.labels(str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request').inc()
+
     #Gobble up any Response traffic that is sent to us:
     if packet_vars['flags_bin'][0:1] == "0":
         HSS_Logger.info("Got a Response, not a request - dropping it.")
@@ -79,15 +82,15 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
     #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
     elif packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
         HSS_Logger.info("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
-        prom_diam_request_count.inc()
         try:
             response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
-            prom_diam_response_count_successful.inc()
+            #prom_diam_response_count_successful.inc()
         except:
             response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-            prom_diam_response_count_fail.inc()
+            #prom_diam_response_count_fail.inc()
         HSS_Logger.info("Generated CEA")
         logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
+        prom_diam_connected_peers.labels(orignHost).set(1)
 
     #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
     elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:
@@ -115,6 +118,7 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
         response = diameter.Answer_282(packet_vars, avps)               #Generate Diameter packet
         HSS_Logger.info("Generated DPA")
         logtool.Manage_Diameter_Peer(orignHost, client_address, "remove")
+        prom_diam_connected_peers.labels(orignHost).set(0)
 
     #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
     elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
@@ -293,6 +297,10 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
             HSS_Logger.debug("Diameter Response Body: " + str(response))
             HSS_Logger.info(e)
             traceback.print_exc()
+
+
+with prom_diam_response_time_diam.time():
+  pass
 
 def manage_client(clientsocket,client_address,diameter):
     data_sum = b''

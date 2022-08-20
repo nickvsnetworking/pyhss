@@ -549,8 +549,8 @@ class PostgreSQL:
             'K': str(sql_result['ki']), 'OPc': str(sql_result['opc']), 'AMF': str(sql_result['amf']), 'RAND': str(sql_result['rand']), 'SQN': int(sql_result['sqn']),
             'pdn' : APN_list,
             'msisdn' : str(sql_result['msisdn']),
-            'ue_ambr_ul' : int(sql_result['apn_ambr_ul']),
-            'ue_ambr_dl' : int(sql_result['apn_ambr_dl']),
+            'ue_ambr_ul' : int(sql_result['ue_ambr_ul']),
+            'ue_ambr_dl' : int(sql_result['ue_ambr_dl']),
         }
         DBLogger.debug(pprint.pprint(subscriber_details))
 
@@ -607,16 +607,13 @@ else:
     DBLogger.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
 
-prom_diam_response_time_db.time()
 def GetSubscriberInfo(imsi):
     return DB.GetSubscriberInfo(imsi)
 
-prom_diam_response_time_db.time()
 def UpdateSubscriber(imsi, sqn, rand, **kwargs):
     DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
     return DB.UpdateSubscriber(imsi, sqn, rand, **kwargs)
 
-prom_diam_response_time_db.time()
 def GetSubscriberLocation(*args, **kwargs):
     #Input can be either MSISDN or IMSI
     if 'imsi' in kwargs:
@@ -628,11 +625,9 @@ def GetSubscriberLocation(*args, **kwargs):
         msisdn = kwargs.get('msisdn', None)
         return DB.GetSubscriberLocation(msisdn=msisdn)
 
-prom_diam_response_time_db.time()
 def Get_IMSI_from_MSISDN(msisdn):
     return DB.GetSubscriberIMSI(msisdn)
 
-prom_diam_response_time_db.time()
 def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra):
     return DB.ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra)
 
