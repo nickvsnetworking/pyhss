@@ -18,6 +18,7 @@ logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_lo
 DBLogger = logging.getLogger('DBLogger')
 import pprint
 DBLogger.info("DB Log Initialised.")
+from logtool import *
 
 ##Data Output Format
 ###Get Subscriber Info
@@ -606,13 +607,16 @@ else:
     DBLogger.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
 
+prom_diam_response_time_db.time()
 def GetSubscriberInfo(imsi):
     return DB.GetSubscriberInfo(imsi)
 
+prom_diam_response_time_db.time()
 def UpdateSubscriber(imsi, sqn, rand, **kwargs):
     DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
     return DB.UpdateSubscriber(imsi, sqn, rand, **kwargs)
 
+prom_diam_response_time_db.time()
 def GetSubscriberLocation(*args, **kwargs):
     #Input can be either MSISDN or IMSI
     if 'imsi' in kwargs:
@@ -624,9 +628,11 @@ def GetSubscriberLocation(*args, **kwargs):
         msisdn = kwargs.get('msisdn', None)
         return DB.GetSubscriberLocation(msisdn=msisdn)
 
+prom_diam_response_time_db.time()
 def Get_IMSI_from_MSISDN(msisdn):
     return DB.GetSubscriberIMSI(msisdn)
 
+prom_diam_response_time_db.time()
 def ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra):
     return DB.ManageFullSubscriberLocation(imsi, serving_hss, serving_mme, realm, dra)
 

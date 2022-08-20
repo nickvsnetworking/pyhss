@@ -11,6 +11,20 @@ with open("config.yaml", 'r') as stream:
 import json
 import pickle
 
+from prometheus_client import Counter, Gauge, Histogram, Summary
+
+from prometheus_client import start_http_server
+
+start_http_server(8000)
+
+prom_diam_request_count = Counter('prom_diam_request_count', 'Number of Diameter Requests')
+prom_diam_response_count_successful = Counter('prom_diam_response_count_successful', 'Number of Successful Diameter Responses')
+prom_diam_response_count_fail = Counter('prom_diam_response_count_fail', 'Number of Failed Diameter Responses')
+prom_diam_connected_peers = Gauge('prom_diam_connected_peers', 'Connected Diameter Peer Count')
+prom_diam_response_time_diam = Histogram('prom_diam_response_time_diam', 'Diameter Response Times')
+prom_diam_response_time_db = Summary('prom_diam_response_time_db', 'Diameter Response Times from Database')
+
+
 class LogTool:
     def __init__(self, **kwargs):
         print("Instantiating LogTool with Kwargs " + str(kwargs.items()))
@@ -123,6 +137,7 @@ class LogTool:
             except:
                 logging.error("Failed to get ActivePeerDict")
 
+    
     def Manage_Diameter_Peer(self, peername, ip, action):
         if yaml_config['redis']['enabled'] == True:
             try:
@@ -145,6 +160,7 @@ class LogTool:
                     self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
                 
                 if action == "add":
+                    prom_diam_connected_peers.inc()
                     data = self.RedisGet('ActivePeerDict')
                     ActivePeerDict = json.loads(data)
                     logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict) + " to add peer " + str(peername) + " with ip " + str(ip))
@@ -163,6 +179,7 @@ class LogTool:
                     self.RedisStore('ActivePeerDict', json.dumps(ActivePeerDict))
 
                 if action == "remove":
+                    prom_diam_connected_peers.dec()
                     data = self.RedisGet('ActivePeerDict')
                     ActivePeerDict = json.loads(data)
                     logging.debug("ActivePeerDict back from Redis" + str(ActivePeerDict))
