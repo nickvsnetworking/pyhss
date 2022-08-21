@@ -422,7 +422,7 @@ class Diameter:
     #Device Watchdog Answer                                                 
     def Answer_280(self, packet_vars, avps): 
         logtool.RedisIncrimenter('Answer_280_attempt_count')
-        start_time = time.time()
+        
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -435,7 +435,6 @@ class Diameter:
         DiameterLogger.debug("Successfully Generated DWA")
         orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
         orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
-        prom_diam_response_time_method.labels(str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request').observe(time.time()-start_time)
         return response
 
     #Disconnect Peer Answer    

@@ -16,6 +16,7 @@ logtool = logtool.LogTool(HSS_Init=True)
 logtool.setup_logger('HSS_Logger', yaml_config['logging']['logfiles']['hss_logging_file'], level=yaml_config['logging']['level'])
 HSS_Logger = logging.getLogger('HSS_Logger')
 from logtool import *
+import time
 
 
 if yaml_config['logging']['log_to_terminal'] == True:
@@ -67,6 +68,7 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
     except:
         HSS_Logger.debug("Failed to add Source_IP to packet_vars")
 
+    start_time = time.time()
     orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
     orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
 
@@ -288,6 +290,8 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
         HSS_Logger.error("Sending negative response")
         response = diameter.Respond_ResultCode(packet_vars, avps, 3001)      #Generate Diameter response with "Command Unsupported" (3001)
         clientsocket.sendall(bytes.fromhex(response))                           #Send it
+
+    prom_diam_response_time_method.labels(str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request').observe(time.time()-start_time)
 
     #Handle actual sending
     try:
