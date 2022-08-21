@@ -7,7 +7,6 @@ import binascii
 import math
 import uuid
 import os
-from construct import Default
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 
