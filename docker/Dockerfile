@@ -34,8 +34,8 @@ RUN apt-get update && \
         python3-psycopg2
 RUN git clone https://github.com/nickvsnetworking/pyhss.git
 WORKDIR pyhss
-COPY config.yaml .
-COPY *.sh .
+COPY config.yaml ./
+COPY *.sh ./
 RUN mkdir -p log && \
     pip3 install -r requirements.txt && \
     cp /pyhss/tools/Diameter_client.py /pyhss/ && \
