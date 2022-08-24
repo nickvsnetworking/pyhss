@@ -17,6 +17,8 @@ The MongoDB schema is fully compatible with the Open5GS WebUI to make life easy,
 
 MySQL support has had most of the groundwork done but has not yet been finished - To get it working you would need to map the names of the keys in the returned dict to match that of MongoDB.
 
+A database option called "stub" can be used when no Database functionality is needed, to allow the library to start up without a database connected.
+
 ## PostgreSQL
 
 Database Schema:
