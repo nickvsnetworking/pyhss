@@ -1528,7 +1528,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
         response = self.generate_diameter_packet("01", "c0", 321, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
@@ -1544,7 +1544,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
         response = self.generate_diameter_packet("01", "c0", 323, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
@@ -1559,7 +1559,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                          #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                           #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                           #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                        #Username (IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
         avp += self.generate_vendor_avp(1420, "c0", 10415,  self.int_to_hex(2, 4))                       #Cancellation-Type (Subscription Withdrawl)

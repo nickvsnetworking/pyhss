@@ -465,6 +465,19 @@ class MySQL:
         DBLogger.debug(query)
         self.cursor.execute(query)
         
+class Stub:
+    def __init__(self):
+        DBLogger.info("Configured to use stub database - No actual database connection exists")
+        
+    def GetSubscriberInfo(self, imsi):
+        DBLogger.debug("Not getting subscriber info from Postgresql for IMSI " + str(imsi))
+        return
+
+    def UpdateSubscriber(self, imsi, sqn, rand, **kwargs):
+        DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
+        DBLogger.debug("Not updating subscriber info from Postgresql for IMSI " + str(imsi))
+        return
+
 class PostgreSQL:
     def __init__(self):
         import psycopg
@@ -584,7 +597,6 @@ class PostgreSQL:
         query = "update auc set sqn = " + str(sqn) + " where imsi = '" + str(imsi) + "';"
         DBLogger.debug(query)
         self.cursor.execute(query)
-        
        
 
 #Load DB functions based on Config
@@ -600,6 +612,8 @@ elif db_option == "mysql":
     DB = MySQL()
 elif db_option == "postgresql":
     DB = PostgreSQL()
+elif db_option == "stub":
+    DB = Stub()
 else:
     DBLogger.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
