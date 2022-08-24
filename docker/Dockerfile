@@ -36,6 +36,7 @@ RUN git clone https://github.com/nickvsnetworking/pyhss.git
 WORKDIR pyhss
 RUN mkdir -p log
 RUN pip3 install -r requirements.txt
+RUN cp /pyhss/tools/Diameter_client.py /pyhss/
 COPY config.yaml .
 COPY pyhss_init.sh .
 CMD sh pyhss_init.sh
