@@ -113,7 +113,7 @@ while True:
     elif request == "ULR":
         imsi = str(input("IMSI:\t"))
         print("Sending Update Location Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_316(imsi))
+        SendRequest(diameter.Request_16777251_316(imsi, DestinationRealm))
     elif request == "CLR":
         imsi = str(input("IMSI:\t"))
         print("Sending Cancel Location Request to " + str(hostname))
