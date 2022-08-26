@@ -12,17 +12,22 @@ import json
 import redis
 import diameter
 import time
+import yaml
+with open("config.yaml", 'r') as stream:
+    yaml_config = (yaml.safe_load(stream))
 
 #Values to change / tweak
-diameter_host = 'nick-pc'                                                       #Diameter Host of this Machine
-realm = "mnc001.mcc001.3gppnetwork.org"                                         #Diameter Realm of this machine
-DestinationHost = "dra"                                             #Diameter Host of Destination
-DestinationRealm = "mnc001.mcc001.3gppnetwork.org"                                                #Diameter Realm of Destination
-hostname = "127.0.0.1"                                                         #IP of Remote Diameter Host
-mcc = '001'                                                                     #Mobile Country Code
-mnc = '01'                                                                      #Mobile Network Code
+recv_ip = yaml_config['hss']['bind_ip']                                                         #IP of this Machine
+diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
+realm = yaml_config['hss']['OriginRealm']                                          #Diameter Realm of this machine
+DestinationHost = ""                                             #Diameter Host of Destination
+DestinationRealm = input("Enter Diameter Realm: ")                                                #Diameter Realm of Destination
+hostname = input("Enter IP of Diameter Peer to connect to: ")                                                         #IP of Remote Diameter Host
+mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
+mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
+transport = yaml_config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
-diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-Async-client', str(mcc), str(mnc))
+diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR"]
 
