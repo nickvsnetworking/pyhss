@@ -15,6 +15,9 @@ import logtool
 logtool = logtool.LogTool(HSS_Init=True)
 logtool.setup_logger('HSS_Logger', yaml_config['logging']['logfiles']['hss_logging_file'], level=yaml_config['logging']['level'])
 HSS_Logger = logging.getLogger('HSS_Logger')
+from logtool import *
+import time
+
 
 if yaml_config['logging']['log_to_terminal'] == True:
     logging.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
@@ -55,6 +58,254 @@ def on_new_client(clientsocket,client_address):
         logging.info("Main    : before manage_client_dwr thread")
         z.start()    
 
+@prom_diam_response_time_diam.time()
+def process_Diameter_request(clientsocket,client_address,diameter,data):
+    packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
+    data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
+    packet_vars, avps = diameter.decode_diameter_packet(data_sum)           #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
+    try:
+        packet_vars['Source_IP'] = client_address[0]
+    except:
+        HSS_Logger.debug("Failed to add Source_IP to packet_vars")
+
+    start_time = time.time()
+    orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
+    orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
+
+    #label_values = str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request'
+    prom_diam_request_count.labels(str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request').inc()
+
+    #Gobble up any Response traffic that is sent to us:
+    if packet_vars['flags_bin'][0:1] == "0":
+        HSS_Logger.info("Got a Response, not a request - dropping it.")
+        HSS_Logger.info(packet_vars)
+        return
+
+    #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
+    elif packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
+        HSS_Logger.info("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
+        try:
+            response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
+            #prom_diam_response_count_successful.inc()
+        except:
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
+            #prom_diam_response_count_fail.inc()
+        HSS_Logger.info("Generated CEA")
+        logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
+        prom_diam_connected_peers.labels(orignHost).set(1)
+
+    #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
+    elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:
+        HSS_Logger.info("Received 3GPP Credit-Control-Request from " + orignHost + "\n\tGenerating (CCA)")
+        try:
+            response = diameter.Answer_16777238_272(packet_vars, avps)          #Generate Diameter packet
+        except Exception as E:
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
+            HSS_Logger.error("Failed to generate response " + str(E))
+        HSS_Logger.info("Generated CCA")
+
+    #Send Device Watchdog Answer (DWA) response to Device Watchdog Requests (DWR)
+    elif packet_vars['command_code'] == 280 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
+        HSS_Logger.info("Received Request with command code 280 (DWR) from " + orignHost + "\n\tSending response (DWA)")
+        try:
+            response = diameter.Answer_280(packet_vars, avps)                   #Generate Diameter packet
+        except:
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
+        HSS_Logger.info("Generated DWA")
+        logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
+
+    #Send Disconnect Peer Answer (DPA) response to Disconnect Peer Request (DPR)
+    elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
+        HSS_Logger.info("Received Request with command code 282 (DPR) from " + orignHost + "\n\tForwarding request...")
+        response = diameter.Answer_282(packet_vars, avps)               #Generate Diameter packet
+        HSS_Logger.info("Generated DPA")
+        logtool.Manage_Diameter_Peer(orignHost, client_address, "remove")
+        prom_diam_connected_peers.labels(orignHost).set(0)
+
+    #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
+    elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
+        HSS_Logger.info("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + orignHost + "\n\tGenerating (AIA)")
+        try:
+            response = diameter.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
+            HSS_Logger.info("Generated AIR")
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for AIR")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+            HSS_Logger.info("Generated DIAMETER_USER_DATA_NOT_AVAILABLE AIR")
+
+    #S6a Update Location Answer (ULA) response to Update Location Request (ULR)
+    elif packet_vars['command_code'] == 316 and packet_vars['ApplicationId'] == 16777251:
+        HSS_Logger.info("Received Request with command code 316 (3GPP Update Location-Request) from " + orignHost + "\n\tGenerating (ULA)")
+        try:
+            response = diameter.Answer_16777251_316(packet_vars, avps)      #Generate Diameter packet
+            HSS_Logger.info("Generated ULA")
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for ULR")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+            HSS_Logger.info("Generated error DIAMETER_USER_DATA_NOT_AVAILABLE ULA")
+
+        #Send ULA data & clear tx buffer
+        clientsocket.sendall(bytes.fromhex(response))
+        response = ''
+        if 'Insert_Subscriber_Data_Force' in yaml_config['hss']:
+            if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
+                HSS_Logger.debug("ISD triggered after ULA")
+                #Generate Insert Subscriber Data Request
+                response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
+                HSS_Logger.info("Generated IDR")
+                #Send ISD data
+                clientsocket.sendall(bytes.fromhex(response))
+                HSS_Logger.info("Sent IDR")
+        return
+    #S6a inbound Insert-Data-Answer in response to our IDR
+    elif packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
+        HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
+        return
+    #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
+    elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
+        HSS_Logger.info("Received Request with command code 321 (3GPP Purge UE Request) from " + orignHost + "\n\tGenerating (PUA)")
+        try:
+            response = diameter.Answer_16777251_321(packet_vars, avps)      #Generate Diameter packet
+        except:
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
+            HSS_Logger.error("Failed to generate PUA")
+        HSS_Logger.info("Generated PUA")
+    #S6a Purge UE Answer (NOA) response to Notify Request (NOR)
+    elif packet_vars['command_code'] == 323 and packet_vars['ApplicationId'] == 16777251:
+        HSS_Logger.info("Received Request with command code 323 (3GPP Notify Request) from " + orignHost + "\n\tGenerating (NOA)")
+        try:
+            response = diameter.Answer_16777251_323(packet_vars, avps)      #Generate Diameter packet
+        except:
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
+            HSS_Logger.error("Failed to generate NOA")
+        HSS_Logger.info("Generated NOA")
+    #S6a Cancel Location Answer eater
+    elif packet_vars['command_code'] == 317 and packet_vars['ApplicationId'] == 16777251:
+        HSS_Logger.info("Received Request with command code 317 (3GPP Cancel Location Request) from " + orignHost + "\n\tDoing nothing")
+
+    #Cx Authentication Answer
+    elif packet_vars['command_code'] == 300 and packet_vars['ApplicationId'] == 16777216:
+        HSS_Logger.info("Received Request with command code 300 (3GPP Cx User Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
+        try:
+            response = diameter.Answer_16777216_300(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for Cx Auth Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+        HSS_Logger.info("Generated Cx Auth Answer")
+
+    #Cx Server Assignment Answer
+    elif packet_vars['command_code'] == 301 and packet_vars['ApplicationId'] == 16777216:
+        HSS_Logger.info("Received Request with command code 301 (3GPP Cx Server Assignemnt Request) from " + orignHost + "\n\tGenerating (MAA)")
+        try:
+            response = diameter.Answer_16777216_301(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for Cx Server Assignment Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+        HSS_Logger.info("Generated Cx Server Assignment Answer")
+
+    #Cx Location Information Answer
+    elif packet_vars['command_code'] == 302 and packet_vars['ApplicationId'] == 16777216:
+        HSS_Logger.info("Received Request with command code 302 (3GPP Cx Location Information Request) from " + orignHost + "\n\tGenerating (MAA)")
+        try:
+            response = diameter.Answer_16777216_302(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for Cx Location Information Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+        HSS_Logger.info("Generated Cx Location Information Answer")
+
+    #Cx Multimedia Authentication Answer
+    elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
+        HSS_Logger.info("Received Request with command code 303 (3GPP Cx Multimedia Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
+        try:
+            response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for Cx Multimedia Authentication Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+        HSS_Logger.info("Generated Cx Multimedia Authentication Answer")
+
+
+    #Sh User-Data-Answer
+    elif packet_vars['command_code'] == 306 and packet_vars['ApplicationId'] == 16777217:
+        HSS_Logger.info("Received Request with command code 306 (3GPP Sh User-Data Request) from " + orignHost)
+        try:
+            response = diameter.Answer_16777217_306(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5001) #DIAMETER_ERROR_USER_UNKNOWN
+            clientsocket.sendall(bytes.fromhex(response))
+            HSS_Logger.info("Sent negative response")
+            return
+        HSS_Logger.info("Generated Sh User-Data Answer")                   
+    
+    #S13 ME-Identity-Check Answer
+    elif packet_vars['command_code'] == 324 and packet_vars['ApplicationId'] == 16777252:
+        HSS_Logger.info("Received Request with command code 324 (3GPP S13 ME-Identity-Check Request) from " + orignHost + "\n\tGenerating (MICA)")
+        try:
+            response = diameter.Answer_16777252_324(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for S13 ME-Identity Check Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+        HSS_Logger.info("Generated S13 ME-Identity Check Answer")
+
+    #SLh LCS-Routing-Info-Answer
+    elif packet_vars['command_code'] == 8388622 and packet_vars['ApplicationId'] == 16777291:
+        HSS_Logger.info("Received Request with command code 324 (3GPP SLh LCS-Routing-Info-Answer Request) from " + orignHost + "\n\tGenerating (MICA)")
+        try:
+            response = diameter.Answer_16777291_8388622(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for SLh LCS-Routing-Info-Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
+        HSS_Logger.info("Generated SLh LCS-Routing-Info-Answer")
+
+    #Handle Responses generated by the Async functions
+    elif packet_vars['flags'] == "00":
+        HSS_Logger.info("Got response back with command code " + str(packet_vars['command_code']))
+        HSS_Logger.info("response packet_vars: " + str(packet_vars))
+        HSS_Logger.info("response avps: " + str(avps))
+        response = ''
+    else:
+        HSS_Logger.error("\n\nRecieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
+        for keys in packet_vars:
+            HSS_Logger.error(keys)
+            HSS_Logger.error("\t" + str(packet_vars[keys]))
+        HSS_Logger.error(avps)
+        HSS_Logger.error("Sending negative response")
+        response = diameter.Respond_ResultCode(packet_vars, avps, 3001)      #Generate Diameter response with "Command Unsupported" (3001)
+        clientsocket.sendall(bytes.fromhex(response))                           #Send it
+
+    prom_diam_response_time_method.labels(str(packet_vars['ApplicationId']), str(packet_vars['command_code']), orignHost, 'request').observe(time.time()-start_time)
+
+    #Handle actual sending
+    try:
+        clientsocket.sendall(bytes.fromhex(response))                           #Send it
+    except Exception as e:
+            HSS_Logger.info("Failed to send Diameter Response")
+            HSS_Logger.debug("Diameter Response Body: " + str(response))
+            HSS_Logger.info(e)
+            traceback.print_exc()
+
+
+with prom_diam_response_time_diam.time():
+  pass
+
 def manage_client(clientsocket,client_address,diameter):
     data_sum = b''
     while True:
@@ -65,238 +316,7 @@ def manage_client(clientsocket,client_address,diameter):
                 logtool.Manage_Diameter_Peer(client_address, client_address, "remove")
                 break
             
-            packet_length = diameter.decode_diameter_packet_length(data)            #Calculate length of packet from start of packet
-            data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
-            packet_vars, avps = diameter.decode_diameter_packet(data_sum)           #Decode packet into array of AVPs and Dict of Packet Variables (packet_vars)
-            try:
-                packet_vars['Source_IP'] = client_address[0]
-            except:
-                HSS_Logger.debug("Failed to add Source_IP to packet_vars")
-
-            orignHost = diameter.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-            orignHost = binascii.unhexlify(orignHost).decode('utf-8')               #Format it
-
-            #Gobble up any Response traffic that is sent to us:
-            if packet_vars['flags_bin'][0:1] == "0":
-                HSS_Logger.info("Got a Response, not a request - dropping it.")
-                HSS_Logger.info(packet_vars)
-                continue
-
-            #Send Capabilities Exchange Answer (CEA) response to Capabilites Exchange Request (CER)
-            elif packet_vars['command_code'] == 257 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":                    
-                HSS_Logger.info("Received Request with command code 257 (CER) from " + orignHost + "\n\tSending response (CEA)")
-                try:
-                    response = diameter.Answer_257(packet_vars, avps, str(yaml_config['hss']['bind_ip'][0]))                   #Generate Diameter packet
-                except:
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-                HSS_Logger.info("Generated CEA")
-                logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
-
-            #Send Credit Control Answer (CCA) response to Credit Control Request (CCR)
-            elif packet_vars['command_code'] == 272 and packet_vars['ApplicationId'] == 16777238:
-                HSS_Logger.info("Received 3GPP Credit-Control-Request from " + orignHost + "\n\tGenerating (CCA)")
-                try:
-                    response = diameter.Answer_16777238_272(packet_vars, avps)          #Generate Diameter packet
-                except Exception as E:
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-                    HSS_Logger.error("Failed to generate response " + str(E))
-                HSS_Logger.info("Generated CCA")
-
-            #Send Device Watchdog Answer (DWA) response to Device Watchdog Requests (DWR)
-            elif packet_vars['command_code'] == 280 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
-                HSS_Logger.info("Received Request with command code 280 (DWR) from " + orignHost + "\n\tSending response (DWA)")
-                try:
-                    response = diameter.Answer_280(packet_vars, avps)                   #Generate Diameter packet
-                except:
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-                HSS_Logger.info("Generated DWA")
-                logtool.Manage_Diameter_Peer(orignHost, client_address, "update")
-
-            #Send Disconnect Peer Answer (DPA) response to Disconnect Peer Request (DPR)
-            elif packet_vars['command_code'] == 282 and packet_vars['ApplicationId'] == 0 and packet_vars['flags'] == "80":
-                HSS_Logger.info("Received Request with command code 282 (DPR) from " + orignHost + "\n\tForwarding request...")
-                response = diameter.Answer_282(packet_vars, avps)               #Generate Diameter packet
-                HSS_Logger.info("Generated DPA")
-                logtool.Manage_Diameter_Peer(orignHost, client_address, "remove")
-
-            #S6a Authentication Information Answer (AIA) response to Authentication Information Request (AIR)
-            elif packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
-                HSS_Logger.info("Received Request with command code 318 (3GPP Authentication-Information-Request) from " + orignHost + "\n\tGenerating (AIA)")
-                try:
-                    response = diameter.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
-                    HSS_Logger.info("Generated AIR")
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for AIR")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                    HSS_Logger.info("Generated DIAMETER_USER_DATA_NOT_AVAILABLE AIR")
-
-            #S6a Update Location Answer (ULA) response to Update Location Request (ULR)
-            elif packet_vars['command_code'] == 316 and packet_vars['ApplicationId'] == 16777251:
-                HSS_Logger.info("Received Request with command code 316 (3GPP Update Location-Request) from " + orignHost + "\n\tGenerating (ULA)")
-                try:
-                    response = diameter.Answer_16777251_316(packet_vars, avps)      #Generate Diameter packet
-                    HSS_Logger.info("Generated ULA")
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for ULR")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                    HSS_Logger.info("Generated error DIAMETER_USER_DATA_NOT_AVAILABLE ULA")
-
-                #Send ULA data & clear tx buffer
-                clientsocket.sendall(bytes.fromhex(response))
-                response = ''
-                if 'Insert_Subscriber_Data_Force' in yaml_config['hss']:
-                    if yaml_config['hss']['Insert_Subscriber_Data_Force'] == True:
-                        HSS_Logger.debug("ISD triggered after ULA")
-                        #Generate Insert Subscriber Data Request
-                        response = diameter.Request_16777251_319(packet_vars, avps)      #Generate Diameter packet
-                        HSS_Logger.info("Generated IDR")
-                        #Send ISD data
-                        clientsocket.sendall(bytes.fromhex(response))
-                        HSS_Logger.info("Sent IDR")
-                continue
-            #S6a inbound Insert-Data-Answer in response to our IDR
-            elif packet_vars['command_code'] == 319 and packet_vars['ApplicationId'] == 16777251:
-                HSS_Logger.info("Received response with command code 319 (3GPP Insert-Subscriber-Answer) from " + orignHost)
-                continue
-            #S6a Purge UE Answer (PUA) response to Purge UE Request (PUR)
-            elif packet_vars['command_code'] == 321 and packet_vars['ApplicationId'] == 16777251:
-                HSS_Logger.info("Received Request with command code 321 (3GPP Purge UE Request) from " + orignHost + "\n\tGenerating (PUA)")
-                try:
-                    response = diameter.Answer_16777251_321(packet_vars, avps)      #Generate Diameter packet
-                except:
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-                    HSS_Logger.error("Failed to generate PUA")
-                HSS_Logger.info("Generated PUA")
-            #S6a Purge UE Answer (NOA) response to Notify Request (NOR)
-            elif packet_vars['command_code'] == 323 and packet_vars['ApplicationId'] == 16777251:
-                HSS_Logger.info("Received Request with command code 323 (3GPP Notify Request) from " + orignHost + "\n\tGenerating (NOA)")
-                try:
-                    response = diameter.Answer_16777251_323(packet_vars, avps)      #Generate Diameter packet
-                except:
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 5012)      #Generate Diameter response with "DIAMETER_UNABLE_TO_COMPLY" (5012)
-                    HSS_Logger.error("Failed to generate NOA")
-                HSS_Logger.info("Generated NOA")
-            #S6a Cancel Location Answer eater
-            elif packet_vars['command_code'] == 317 and packet_vars['ApplicationId'] == 16777251:
-                HSS_Logger.info("Received Request with command code 317 (3GPP Cancel Location Request) from " + orignHost + "\n\tDoing nothing")
-
-            #Cx Authentication Answer
-            elif packet_vars['command_code'] == 300 and packet_vars['ApplicationId'] == 16777216:
-                HSS_Logger.info("Received Request with command code 300 (3GPP Cx User Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
-                try:
-                    response = diameter.Answer_16777216_300(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for Cx Auth Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated Cx Auth Answer")
-
-            #Cx Server Assignment Answer
-            elif packet_vars['command_code'] == 301 and packet_vars['ApplicationId'] == 16777216:
-                HSS_Logger.info("Received Request with command code 301 (3GPP Cx Server Assignemnt Request) from " + orignHost + "\n\tGenerating (MAA)")
-                try:
-                    response = diameter.Answer_16777216_301(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for Cx Server Assignment Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated Cx Server Assignment Answer")
-
-            #Cx Location Information Answer
-            elif packet_vars['command_code'] == 302 and packet_vars['ApplicationId'] == 16777216:
-                HSS_Logger.info("Received Request with command code 302 (3GPP Cx Location Information Request) from " + orignHost + "\n\tGenerating (MAA)")
-                try:
-                    response = diameter.Answer_16777216_302(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for Cx Location Information Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated Cx Location Information Answer")
-
-            #Cx Multimedia Authentication Answer
-            elif packet_vars['command_code'] == 303 and packet_vars['ApplicationId'] == 16777216:
-                HSS_Logger.info("Received Request with command code 303 (3GPP Cx Multimedia Authentication Request) from " + orignHost + "\n\tGenerating (MAA)")
-                try:
-                    response = diameter.Answer_16777216_303(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for Cx Multimedia Authentication Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated Cx Multimedia Authentication Answer")
-
-
-            #Sh User-Data-Answer
-            elif packet_vars['command_code'] == 306 and packet_vars['ApplicationId'] == 16777217:
-                HSS_Logger.info("Received Request with command code 306 (3GPP Sh User-Data Request) from " + orignHost)
-                try:
-                    response = diameter.Answer_16777217_306(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 5001) #DIAMETER_ERROR_USER_UNKNOWN
-                    clientsocket.sendall(bytes.fromhex(response))
-                    HSS_Logger.info("Sent negative response")
-                    continue
-                HSS_Logger.info("Generated Sh User-Data Answer")                   
-            
-            #S13 ME-Identity-Check Answer
-            elif packet_vars['command_code'] == 324 and packet_vars['ApplicationId'] == 16777252:
-                HSS_Logger.info("Received Request with command code 324 (3GPP S13 ME-Identity-Check Request) from " + orignHost + "\n\tGenerating (MICA)")
-                try:
-                    response = diameter.Answer_16777252_324(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for S13 ME-Identity Check Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated S13 ME-Identity Check Answer")
-
-            #SLh LCS-Routing-Info-Answer
-            elif packet_vars['command_code'] == 8388622 and packet_vars['ApplicationId'] == 16777291:
-                HSS_Logger.info("Received Request with command code 324 (3GPP SLh LCS-Routing-Info-Answer Request) from " + orignHost + "\n\tGenerating (MICA)")
-                try:
-                    response = diameter.Answer_16777291_8388622(packet_vars, avps)      #Generate Diameter packet
-                except Exception as e:
-                    HSS_Logger.info("Failed to generate Diameter Response for SLh LCS-Routing-Info-Answer")
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-                    response = diameter.Respond_ResultCode(packet_vars, avps, 4100) #DIAMETER_USER_DATA_NOT_AVAILABLE
-                HSS_Logger.info("Generated SLh LCS-Routing-Info-Answer")
-
-            #Handle Responses generated by the Async functions
-            elif packet_vars['flags'] == "00":
-                HSS_Logger.info("Got response back with command code " + str(packet_vars['command_code']))
-                HSS_Logger.info("response packet_vars: " + str(packet_vars))
-                HSS_Logger.info("response avps: " + str(avps))
-                response = ''
-            else:
-                HSS_Logger.error("\n\nRecieved unrecognised request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
-                for keys in packet_vars:
-                    HSS_Logger.error(keys)
-                    HSS_Logger.error("\t" + str(packet_vars[keys]))
-                HSS_Logger.error(avps)
-                HSS_Logger.error("Sending negative response")
-                response = diameter.Respond_ResultCode(packet_vars, avps, 3001)      #Generate Diameter response with "Command Unsupported" (3001)
-                clientsocket.sendall(bytes.fromhex(response))                           #Send it
-
-            #Handle actual sending
-            try:
-                clientsocket.sendall(bytes.fromhex(response))                           #Send it
-            except Exception as e:
-                    HSS_Logger.info("Failed to send Diameter Response")
-                    HSS_Logger.debug("Diameter Response Body: " + str(response))
-                    HSS_Logger.info(e)
-                    traceback.print_exc()
-
+            process_Diameter_request(clientsocket,client_address,diameter,data)
                     
         except KeyboardInterrupt:
             #Clean up the connection on keyboard interupt
@@ -370,6 +390,7 @@ if yaml_config['hss']['transport'] == "SCTP":
     HSS_Logger.debug("Using SCTP for Transport")
     # Create a SCTP socket
     sock = sctp.sctpsocket_tcp(socket_family)
+    sock.initparams.num_ostreams = 64
     # Loop through the possible Binding IPs from the config and bind to each for Multihoming
     server_addresses = []
 

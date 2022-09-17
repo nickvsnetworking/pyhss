@@ -18,6 +18,7 @@ logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_lo
 DBLogger = logging.getLogger('DBLogger')
 import pprint
 DBLogger.info("DB Log Initialised.")
+from logtool import *
 
 ##Data Output Format
 ###Get Subscriber Info
@@ -653,7 +654,9 @@ class PostgreSQL:
             'imsi' : str(sql_result['imsi']),
             'K': str(sql_result['ki']), 'OPc': str(sql_result['opc']), 'AMF': str(sql_result['amf']), 'RAND': str(sql_result['rand']), 'SQN': int(sql_result['sqn']),
             'pdn' : APN_list,
-            'msisdn' : str(sql_result['msisdn'])
+            'msisdn' : str(sql_result['msisdn']),
+            'ue_ambr_ul' : int(sql_result['ue_ambr_ul']),
+            'ue_ambr_dl' : int(sql_result['ue_ambr_dl']),
         }
         DBLogger.debug(pprint.pprint(subscriber_details))
 
