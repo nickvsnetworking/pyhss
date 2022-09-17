@@ -22,6 +22,7 @@ A database option called "stub" can be used when no Database functionality is ne
 ## PostgreSQL
 
 Database Schema:
+```
 -- public.subscribers definition
 
 -- Drop table
@@ -123,9 +124,6 @@ COMMENT ON COLUMN public.apn.apn_ambr_ul IS 'APN level AMBR (Uplink)';
 COMMENT ON COLUMN public.apn.qci IS 'QoS Class Identifier';
 COMMENT ON COLUMN public.apn.arp_priority IS 'Alocation and Retention Policy Priority';
 
-
-
-
 ```
 
 ## MS-SQL
@@ -136,40 +134,60 @@ Running MSSQL inside container:
 
 ## MySQL
 Example Schema: 
-```CREATE USER 'newuser'@'localhost' IDENTIFIED BY 'password';
+```
+CREATE USER 'newuser'@'localhost' IDENTIFIED BY 'password';
 GRANT ALL PRIVILEGES ON * . * TO 'newuser'@'localhost';
 FLUSH PRIVILEGES;
+-- Cell_HSS.apn definition
 
-create table subscribers(
-   id INT NOT NULL AUTO_INCREMENT,
-   imsi VARCHAR(15) NOT NULL,
-   opc VARCHAR(32) NOT NULL,
-   k VARCHAR(32) NOT NULL,
-   amf VARCHAR(4) NOT NULL,
-   sqn VARCHAR(4) NOT NULL,
-   ue_ambr_dl VARCHAR(32) NOT NULL,
-   ue_ambr_ul VARCHAR(32) NOT NULL,
-   submission_date DATE,
-   PRIMARY KEY ( id )
-);
-insert into subscribers values( 1, '001010000000003', 'E8ED289DEBA952E4283B54E88E6183CA', 'E8ED289DEBA952E4283B54E88E6183CA', '8000', '0', '1024000', '1024000', '');
-create table subscriber_apns(
-   id INT NOT NULL AUTO_INCREMENT,
-   imsi VARCHAR(15) NOT NULL,
-   apn_id VARCHAR(32) NOT NULL,
-   PRIMARY KEY ( id )
-);
-insert into subscriber_apns values('1', '001010000000003', '1');
-create table apns(
-   apn_id INT NOT NULL AUTO_INCREMENT,
-   apn VARCHAR(32) NOT NULL,
-   qci VARCHAR(32) NOT NULL,
-   arp VARCHAR(32) NOT NULL,
-   preemption_capability VARCHAR(32) NOT NULL,
-   preemption_vunerability VARCHAR(32) NOT NULL,
-   apn_ambr_dl VARCHAR(32) NOT NULL,
-   apn_ambr_ul VARCHAR(32) NOT NULL,
-   PRIMARY KEY ( apn_id )
-);
-insert into apns values ('1', 'internet', '9', '8', 'Disabled', 'Disabled', '1024000', '1024000');
+CREATE TABLE `apn` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `apn` varchar(100) NOT NULL COMMENT 'Access Point Name',
+  `pgw-address` varchar(100) DEFAULT NULL COMMENT 'P-GW IP Address',
+  `sgw-address` varchar(100) DEFAULT NULL COMMENT 'S-GW IP Address',
+  `charging_characteristics` varchar(100) DEFAULT NULL COMMENT 'Hex representation of charging characteristics',
+  `apn_ambr_dl` int(11) NOT NULL,
+  `apn_ambr_ul` int(11) NOT NULL,
+  `qci` int(11) NOT NULL,
+  `arp_priority` int(11) NOT NULL,
+  `arp_preemption_capability` bit(1) DEFAULT b'0',
+  `arp_preemption_vulnerability` bit(1) DEFAULT b'1',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4;
+
+
+-- Cell_HSS.auc definition
+
+CREATE TABLE `auc` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `imsi` varchar(100) NOT NULL COMMENT 'IMSI of SIM Card',
+  `ki` varchar(100) NOT NULL COMMENT 'Ki Key of the SIM',
+  `opc` varchar(100) NOT NULL COMMENT 'OPc Key of the SIM',
+  `sqn` int(11) NOT NULL DEFAULT '1' COMMENT 'Sequence Number',
+  `rand` varchar(100) DEFAULT NULL,
+  `amf` varchar(100) NOT NULL DEFAULT '8000' COMMENT 'Authentication Management Field (Default 8000)',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4;
+
+
+-- Cell_HSS.subscribers definition
+
+CREATE TABLE `subscribers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `imsi` varchar(100) NOT NULL COMMENT 'IMSI of Subscriber',
+  `enabled` bit(1) DEFAULT b'1' COMMENT 'Subscriber Enabled',
+  `msisdn` varchar(100) NOT NULL COMMENT 'MISDN of the Subscriber',
+  `ue_ambr_ul` int(11) NOT NULL DEFAULT '30000' COMMENT 'UE level AMBR value (Uplink)',
+  `ue_ambr_dl` int(11) NOT NULL DEFAULT '60000' COMMENT 'UE level AMBR value (Downlink)',
+  `network_access_mode` int(11) NOT NULL DEFAULT '0' COMMENT 'Network Access Mode (0 is PACKET_AND_CIRCUIT)',
+  `apn_default` int(11) NOT NULL COMMENT 'Default APN referenced by ID from the APN Table',
+  `apn_additional_list` varchar(100) NOT NULL COMMENT 'Additional APN referenced by ID from APN Table',
+  `subscribed_rau_tau_timer` int(11) NOT NULL DEFAULT '3000' COMMENT 'Periodic TAU Timer',
+  `serving_pgw` varchar(100) DEFAULT NULL COMMENT 'Most recent serving PGW',
+  `serving_pgw_timestamp` datetime DEFAULT NULL COMMENT 'Timestamp for serving_pgw entry',
+  `serving_mme` varchar(100) DEFAULT NULL COMMENT 'Most recent serving MME',
+  `serving_mme_timestamp` datetime DEFAULT NULL COMMENT 'Timestamp for serving_mme entry',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4;
+
 ```
