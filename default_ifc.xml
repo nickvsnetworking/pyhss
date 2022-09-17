@@ -54,6 +54,13 @@
                     <Method>INVITE</Method>
                     <Extension></Extension>
                 </SPT>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>0</Group>
+                    <SIPHeader>
+                      <Header>P-Access-Network-Info</Header>
+                    </SIPHeader>
+                </SPT>                
             </TriggerPoint>
             <ApplicationServer>
                 <ServerName>sip:mo.invite.ifc.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>

@@ -27,6 +27,7 @@ from logtool import *
 # 'APN_list': 'internet', 'pdn': [{'apn': 'internet', '_id': ObjectId('5fe2815ce601d905f8c597b3'), 'pcc_rule': [], 'qos': {'qci': 9, 'arp': {'priority_level': 8, 'pre_emption_vulnerability': 1, 'pre_emption_capability': 1}}, 'type': 2}]}
 
 
+
 class MongoDB:
     import mongo
     import pymongo
@@ -447,7 +448,8 @@ class MySQL:
           host=self.server['server'],
           user=self.server['username'],
           password=self.server['password'],
-          database=self.server['database']
+          database=self.server['database'],
+          auth_plugin='mysql_native_password'
         )
         self.mydb.autocommit = True
         self.mydb.SQL_QUERYTIMEOUT = 3
@@ -456,16 +458,120 @@ class MySQL:
         
     def GetSubscriberInfo(self, imsi):
         DBLogger.debug("Getting subscriber info from MySQL for IMSI " + str(imsi))
-        self.cursor.execute("select * from subscribers left join subscriber_apns on subscribers.imsi = subscriber_apns.imsi left join apns on subscriber_apns.apn_id = apns.apn_id where subscribers.imsi = " + str(imsi))
-        subscriber_details = self.cursor.fetchall()
+        sql = "select * from subscribers \
+            left join auc on subscribers.imsi = auc.imsi \
+            left join apn on subscribers.apn_default  = apn.id  \
+            where subscribers.imsi LIKE '" +  str(imsi) + "' and subscribers.enabled = True;"
+        DBLogger.debug(sql)
+        self.cursor.execute(sql)
+        try:
+            sql_result = self.cursor.fetchall()[0]
+        except:
+            DBLogger.info("Failed to get subscriber " + str(imsi))
+            raise ValueError("No matching subscriber found in database")
+        DBLogger.debug("sql_result: " + str(sql_result))
+
+
+        #Format default APN
+        APN_list = []
+        apn_obj = { "apn": str(sql_result['apn']), "type": 3, "ambr" : {"uplink" : int(sql_result['apn_ambr_ul']), "downlink": int(sql_result['apn_ambr_dl'])},
+                            'qos': {'qci': int(sql_result['qci']), 'arp': {'priority_level': int(sql_result['arp_priority']), 'pre_emption_vulnerability': int(sql_result['arp_preemption_vulnerability']), 'pre_emption_capability': int(sql_result['arp_preemption_capability'])}},
+        }
+        if sql_result['pgw-address'] is not None:
+            DBLogger.debug("Static PGW selection set to " + str(sql_result['pgw-address']))
+            apn_obj['MIP6-Agent-Info'] = str(sql_result['pgw-address'])
+
+        APN_list.append(apn_obj)
+
+
+        #Check if additional APNs set:
+        if len(sql_result['apn_additional_list']) > 0:
+            DBLogger.debug("Additional APNs set - Retrieving all APNs")
+            try:
+                apn_list = sql_result['apn_additional_list'].split(',')
+                DBLogger.debug("Additional APN IDs: " + str(apn_list))
+                #Get all the APNs from the database
+                sql = "select * from apn;"
+                DBLogger.debug(sql)
+                self.cursor.execute(sql)
+                apn_sql_result = self.cursor.fetchall()
+                for apn in apn_sql_result:
+                    if str(apn['id']) in apn_list:
+                        DBLogger.debug("Adding APN ID " + str(apn['id']) + " " + str(apn['apn']) + " into APN list ")
+                        DBLogger.debug(apn)
+                        apn_obj = { "apn": str(apn['apn']), "type": 3, \
+                            "ambr" : {"uplink" : int(apn['apn_ambr_ul']), "downlink": int(apn['apn_ambr_dl'])},
+                            'qos': {'qci': int(apn['qci']), 'arp': {'priority_level': int(apn['arp_priority']), 'pre_emption_vulnerability': int(apn['arp_preemption_vulnerability']), 'pre_emption_capability': int(apn['arp_preemption_capability'])}}
+                        }
+                        if apn['pgw-address'] is not None:
+                            DBLogger.debug("Static PGW selection set to " + str(apn['pgw-address']))
+                            apn_obj['MIP6-Agent-Info'] = str(apn['pgw-address'])
+                        APN_list.append(apn_obj)
+                    else:
+                        DBLogger.debug("APN ID " + str(apn['id']) + " " + str(apn['apn']) + " is not available for this subscriber")
+
+            except Exception as E:
+                DBLogger.error("Failed to retrieve all additional APNs for sub " + str(imsi))
+                DBLogger.error(E)
+        else:
+            DBLogger.debug("Only default APN set")
+
+
+        subscriber_details = {
+            'imsi' : str(sql_result['imsi']),
+            'K': str(sql_result['ki']), 'OPc': str(sql_result['opc']), 'AMF': str(sql_result['amf']), 'RAND': str(sql_result['rand']), 'SQN': int(sql_result['sqn']),
+            'pdn' : APN_list,
+            'msisdn' : str(sql_result['msisdn'])
+        }
+        DBLogger.debug(pprint.pprint(subscriber_details))
+
+
         return subscriber_details
 
-    def UpdateSubscriber(self, imsi, sqn, rand, *args, **kwargs):
+    def UpdateSubscriber(self, imsi, sqn, rand, **kwargs):
+        DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
+        if 'serving_mme' in kwargs:
+            DBLogger.debug("UpdateSubscriber called with Serving MME present")
+            query = "update subscribers set serving_mme = '" + str(kwargs.get('serving_mme', None)) + "', serving_mme_timestamp = current_timestamp where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+            return
+
+        if 'serving_pgw' in kwargs:
+            DBLogger.debug("UpdateSubscriber called with Serving PGW present")
+            query = "update subscribers set serving_pgw = '" + str(kwargs.get('serving_pgw', None)) + "', serving_pgw_timestamp = current_timestamp where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+            return
+
+        if 'clearloc' in kwargs:
+            DBLogger.debug("UpdateSubscriber called to clear location")
+            if kwargs.get('clearloc', None) == 'pgw':
+                query = "update subscribers set serving_pgw = NULL, serving_pgw_timestamp = NULL where imsi = '" + str(imsi) + "';"
+            elif kwargs.get('clearloc', None) == 'mme':
+                query = "update subscribers set serving_mme = NULL, serving_mme_timestamp = NULL where imsi = '" + str(imsi) + "';"
+            DBLogger.debug(query)
+            self.cursor.execute(query)
+            return
+
         DBLogger.debug("Updating SQN for imsi " + str(imsi) + " to " + str(sqn))
-        query = 'update subscribers set sqn = ' + str(sqn) + ' where imsi = ' + str(imsi)
+        query = "update auc set sqn = " + str(sqn) + " where imsi = '" + str(imsi) + "';"
         DBLogger.debug(query)
         self.cursor.execute(query)
+       
+class Stub:
+    def __init__(self):
+        DBLogger.info("Configured to use stub database - No actual database connection exists")
         
+    def GetSubscriberInfo(self, imsi):
+        DBLogger.debug("Not getting subscriber info from Postgresql for IMSI " + str(imsi))
+        return
+
+    def UpdateSubscriber(self, imsi, sqn, rand, **kwargs):
+        DBLogger.debug("Called UpdateSubscriber() for IMSI " + str(imsi) + " and kwargs " + str(kwargs))
+        DBLogger.debug("Not updating subscriber info from Postgresql for IMSI " + str(imsi))
+        return
+
 class PostgreSQL:
     def __init__(self):
         import psycopg
@@ -587,7 +693,6 @@ class PostgreSQL:
         query = "update auc set sqn = " + str(sqn) + " where imsi = '" + str(imsi) + "';"
         DBLogger.debug(query)
         self.cursor.execute(query)
-        
        
 
 #Load DB functions based on Config
@@ -603,6 +708,8 @@ elif db_option == "mysql":
     DB = MySQL()
 elif db_option == "postgresql":
     DB = PostgreSQL()
+elif db_option == "stub":
+    DB = Stub()
 else:
     DBLogger.fatal("Failed to find any compatible database backends. Please ensure the database type you have in the config.yaml file corresponds to a database type defined in database.py Exiting.")
     sys.exit()
@@ -637,7 +744,7 @@ if __name__ == "__main__":
     print("YAML config HSS Key: " + str(yaml_config['hss']))
     print("Checking database connectivity with test sub: " + str(yaml_config['hss']['test_sub_imsi']))
     DB.GetSubscriberInfo(test_sub_imsi)
-    DB.UpdateSubscriber(test_sub_imsi, 666, '', origin_host='mme01.epc.mnc001.mcc01.3gppnetwork.org')
+    DB.UpdateSubscriber(test_sub_imsi, 666, '', serving_mme='mme01.epc.mnc001.mcc01.3gppnetwork.org')
 
     #print(DB.GetSubscriberIMSI(34604610206))
     

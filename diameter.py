@@ -1538,7 +1538,7 @@ class Diameter:
         return response
 
     #3GPP S6a/S6d Update Location Request (ULR)
-    def Request_16777251_316(self, imsi):
+    def Request_16777251_316(self, imsi, DestinationRealm):
         mcc = imsi[0:3]
         mnc = imsi[3:5]
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
@@ -1547,7 +1547,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
+        avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_vendor_avp(1032, "80", 10415, self.int_to_hex(1004, 4))                    #RAT-Type val=EUTRAN (1004)
         avp += self.generate_vendor_avp(1405, "c0", 10415, "00000002")                                  #ULR-Flags val=2
@@ -1566,7 +1566,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
         response = self.generate_diameter_packet("01", "c0", 321, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
@@ -1582,7 +1582,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                               #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
         response = self.generate_diameter_packet("01", "c0", 323, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
@@ -1597,7 +1597,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                          #Destination Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                           #Destination Host
+        #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                           #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                        #Username (IMSI)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
         avp += self.generate_vendor_avp(1420, "c0", 10415,  self.int_to_hex(2, 4))                       #Cancellation-Type (Subscription Withdrawl)
