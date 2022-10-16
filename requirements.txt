@@ -12,3 +12,5 @@ mysql-connector==2.2.9
 jinja2
 psycopg2
 psycopg
+sqlalchemy_utils
+sqlalchemy
