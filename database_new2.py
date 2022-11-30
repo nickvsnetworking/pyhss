@@ -16,14 +16,6 @@ else:
     # Connect the database if exists.
     engine.connect()
 
-class Customers(Base):
-   __tablename__ = 'customers'
-   id = Column(Integer, primary_key=True)
-
-   name = Column(String(50))
-   address = Column(String(50))
-   email = Column(String(50))
-
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True)
@@ -127,36 +119,50 @@ def CreateObj(obj_type, json_data):
     result.pop('_sa_instance_state')
     return result
 
+def Generate_JSON_Model_for_Flask(obj_type):
+    from alchemyjsonschema import SchemaFactory
+    from alchemyjsonschema import NoForeignKeyWalker
+    import pprint as pp
+    factory = SchemaFactory(NoForeignKeyWalker)
+    dictty = dict(factory(obj_type))
+    dictty['properties'] = dict(dictty['properties'])
+    return dictty
+
 if __name__ == "__main__":
 
+    import binascii,os
     apn2 = {'apn':'fadsgdsags', \
         'apn_ambr_dl' : 9999, 'apn_ambr_ul' : 9999, \
         'arp_priority': 1, 'arp_preemption_capability' : False, \
         'arp_preemption_vulnerability': True}
     newObj = CreateObj(APN, apn2)
     print(newObj)
-    input("Created new Object")
+    #input("Created new Object")
     print(GetObj(APN, newObj['apn_id']))
     newObj['apn'] = 'updatedonapn'
     newObj = UpdateObj(APN, newObj, newObj['apn_id'])
     print(newObj)
-    input("Updated new Object")
+    #input("Updated new Object")
     print(DeleteObj(APN, newObj['apn_id']))
 
-    sys.exit()
-    # session.add(apn1)
-    # session.commit()
-    # print("\n\n\n\n\n\n")
-    # print(apn2)
-    # newAPN = APN(**apn2)
-    # print(newAPN)
-    # session.add(newAPN)
-    # session.commit()
+    #Create AuC
+    auc_json = {
+    "ki": binascii.b2a_hex(os.urandom(16)).zfill(16),
+    "opc": binascii.b2a_hex(os.urandom(16)).zfill(16),
+    "amf": "9000",
+    "sqn": 0
+    }
+    print(auc_json)
+    newObj = CreateObj(AUC, auc_json)
+    print(newObj)
 
+    #Get AuC
+    print(GetObj(AUC, newObj['auc_id']))
 
-    result = session.query(APN).filter(APN.apn_id==1).one()
-    print(result)
-    sys.exit()
+    #Update AuC (failing)
+    newObj['sqn'] = newObj['sqn'] + 10
+    newObj = UpdateObj(AUC, newObj, newObj['auc_id'])
 
-
+    #Delete AuC
+    print(DeleteObj(AUC, newObj['auc_id']))
 

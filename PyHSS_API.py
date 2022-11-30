@@ -7,6 +7,10 @@ app = Flask(__name__)
 
 import database_new2
 APN = database_new2.APN
+Serving_APN = database_new2.Serving_APN
+AUC = database_new2.AUC
+Subscriber = database_new2.Subscriber
+IMS_Subscriber = database_new2.IMS_Subscriber
 
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
@@ -20,21 +24,22 @@ ns = api.namespace('PyHSS', description='PyHSS API Functions')
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
 
-APN_model = api.schema_model('APN JSON', {
-    'properties': {
-        'apn': {'type': 'string', 'required': True},
-        'sgw_address' : {'type': 'string'},
-        'pgw_address' : {'type': 'string'},
-        'apn_ambr_dl' : {'type': 'number'},
-        'apn_ambr_ul' : {'type': 'string'},
-        'qci' : {'type': 'number'},
-        'arp_preemption_capability' : {'type': 'boolean'},
-        'arp_preemption_vulnerability' : {'type': 'boolean'},
-        'arp_priority' : {'type': 'number'},
-        'charging_characteristics' : {'type': 'string'},
-    },
-    'type': 'object'
-})
+APN_model = api.schema_model('APN JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(APN)
+)
+Serving_APN_model = api.schema_model('Serving APN JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(Serving_APN)
+)
+AUC_model = api.schema_model('AUC JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(AUC)
+)
+Subscriber_model = api.schema_model('Subscriber JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(Subscriber)
+)
+IMS_Subscriber_model = api.schema_model('IMS_Subscriber JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(IMS_Subscriber)
+)
+
 
 @ns.route('/apn/<string:apn_id>')
 class PyHSS_APN_Get(Resource):
@@ -88,6 +93,114 @@ class PyHSS_APN(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : "Failed to create APN"}
+            return jsonify(response_json), 404
+
+@ns.route('/auc/<string:auc_id>')
+class PyHSS_AUC_Get(Resource):
+    def get(self, auc_id):
+        '''Get all AuC data for specified AuC ID'''
+        try:
+            apn_data = database_new2.GetObj(AUC, auc_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "auc_id ID not found " + str(auc_id)}
+            return jsonify(response_json), 404
+
+    def delete(self, auc_id):
+        '''Delete all AUC data for specified AUC ID'''
+        try:
+            data = database_new2.DeleteObj(AUC, auc_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "AUC ID not found " + str(auc_id)}
+            return jsonify(response_json), 404
+
+    @ns.doc('Update AUC Object')
+    @ns.expect(AUC_model)
+    def patch(self, auc_id):
+        '''Update AuC data for specified AuC ID'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database_new2.UpdateObj(AUC, json_data, auc_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
+            return jsonify(response_json), 404
+
+@ns.route('/auc')
+class PyHSS_AUC(Resource):
+    @ns.doc('Create AUC Object')
+    @ns.expect(AUC_model)
+    def put(self):
+        '''Create new AUC'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database_new2.CreateObj(AUC, json_data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create AUC"}
+            return jsonify(response_json), 404
+
+@ns.route('/subscriber/<string:subscriber_id>')
+class PyHSS_Subscriber_Get(Resource):
+    def get(self, subscriber_id):
+        '''Get all Subscriber data for specified subscriber_id'''
+        try:
+            apn_data = database_new2.GetObj(Subscriber, subscriber_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "subscriber_id ID not found " + str(subscriber_id)}
+            return jsonify(response_json), 404
+
+    def delete(self, subscriber_id):
+        '''Delete all data for specified subscriber_id'''
+        try:
+            data = database_new2.DeleteObj(Subscriber, subscriber_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "subscriber_id not found " + str(subscriber_id)}
+            return jsonify(response_json), 404
+
+    @ns.doc('Update Subscriber Object')
+    @ns.expect(Subscriber_model)
+    def patch(self, subscriber_id):
+        '''Update Subscriber data for specified subscriber_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database_new2.UpdateObj(Subscriber, json_data, subscriber_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
+            return jsonify(response_json), 404
+
+@ns.route('/subscriber')
+class PyHSS_Subscriber(Resource):
+    @ns.doc('Create Subscriber Object')
+    @ns.expect(Subscriber_model)
+    def put(self):
+        '''Create new Subscriber'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database_new2.CreateObj(Subscriber, json_data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create Subscriber"}
             return jsonify(response_json), 404
 
 if __name__ == '__main__':
