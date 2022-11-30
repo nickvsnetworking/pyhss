@@ -19,12 +19,7 @@ parser.add_argument('APN JSON', type=str, help='APN Body')
 
 todo = api.schema_model('Todo', {
     'properties': {
-        'id': {
-            'type': 'string'
-        },
-        'task': {
-            'type': 'string'
-        }
+        'apn': {'type': 'string'},
     },
     'type': 'object'
 })
@@ -51,35 +46,37 @@ class PyHSS_APN_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
             return jsonify(response_json), 404
     
-    @api.doc(parser=parser)
-    def patch(self, apn_id):
-        '''Update APN data for specified APN ID'''
-        try:
-            apn_data = database_new2.DeleteAPN(apn_id)
-            return apn_data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
-            return jsonify(response_json), 404
 
 @ns.route('/apn')
 class PyHSS_APN(Resource):
-    @ns.doc('create_todo')
+    @ns.doc('Create APN Object')
     @ns.expect(todo)
-    def put(self, apn_id):
-        '''Get all APN data for specified APN ID'''
+    def put(self):
+        '''Create new APN'''
         try:
-            apn_data = database_new2.GetAPN(apn_id)
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            apn_id = database_new2.CreateAPN(json_data)
+            return {"apn_id" : int(apn_id)}, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create APN"}
+            return jsonify(response_json), 404
+
+
+    @ns.doc('Update APN Object')
+    @ns.expect(todo)
+    def patch(self):
+        '''Update APN data for specified APN ID'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            apn_data = database_new2.UpdateAPN(json_data)
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
+            response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
             return jsonify(response_json), 404
-
-    @ns.doc('Create an APN Object')
-    def post(self):
-        json_data = request.get_json(force=True)
-        return json_data, 201
 
 if __name__ == '__main__':
     app.run(debug=True)
