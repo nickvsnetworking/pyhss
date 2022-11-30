@@ -115,19 +115,44 @@ def UpdateAPN(apn_data):
     session.commit()
     return apn_data
 
+
+def GetObj(obj_type, obj_id):
+    result = session.query(obj_type).get(obj_id)
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result
+
+def DeleteObj(obj_type, obj_id):
+    res = session.query(obj_type).get(obj_id)
+    session.delete(res)
+    session.commit()
+    return {"Result":"OK"}
+
+def CreateObj(obj_type, json_data):
+    newObj = obj_type(**json_data)
+    session.add(newObj)
+    session.commit()
+    session.refresh(newObj)
+    result = newObj.__dict__
+    result.pop('_sa_instance_state')
+    return result
+
 if __name__ == "__main__":
-    # apn_id = 1
-    # apn_data = GetAPN(apn_id)
-    # print(apn_data)
-    # apn_data = json.dumps(apn_data)
-    # print(apn_data)
-    # sys.exit()
-    #apn1 = APN(apn='NickTest', apn_ambr_dl=9999, apn_ambr_ul=9999)
-    apn2 = {'apn_id' : 11, 'apn':'fadsgdsags', \
+
+    apn2 = {'apn':'fadsgdsags', \
         'apn_ambr_dl' : 9999, 'apn_ambr_ul' : 9999, \
         'arp_priority': 1, 'arp_preemption_capability' : False, \
         'arp_preemption_vulnerability': True}
-    UpdateAPN(apn2)
+    newObj = CreateObj(APN, apn2)
+    print(newObj)
+    input("Created new Object")
+    print(GetObj(APN, newObj['apn_id']))
+    newObj['apn'] = 'updatedonapn'
+    newObj = UpdateAPN(newObj)
+    print(newObj)
+    input("Updated new Object")
+    print(DeleteObj(APN, newObj['apn_id']))
+
     sys.exit()
     # session.add(apn1)
     # session.commit()
