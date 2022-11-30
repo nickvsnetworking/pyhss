@@ -1,52 +1,85 @@
-# import imp
-# from flask import request,  jsonify, Response
-# from app import app
 import sys
-import logging
-import requests
-from urllib3.exceptions import InsecureRequestWarning
-# Suppress only the single warning from urllib3 needed.
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
-from werkzeug.datastructures import FileStorage
-import time
-sys.path.append('../')
-sys.path.append('../lib/')
-import database
-import os
-import yaml
-with open(os.path.dirname(__file__) + "/config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
-
+import json
 from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
-import subprocess
-import json
 app = Flask(__name__)
-
+import database_new2
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 api = Api(app, version='1.0', title='PyHSS OAM API',
-    description='Restful API for working with HSS',
+    description='Restful API for working with PyHSS',
     doc='/docs/'
 )
 
 ns = api.namespace('PyHSS', description='PyHSS API Functions')
 
-@ns.route('/<string:imsi>')
-class PyHSS(Resource):
+parser = reqparse.RequestParser()
+parser.add_argument('APN JSON', type=str, help='APN Body')
 
-    def get(self, imsi):
-        '''Get all Subscriber data for specified IMSI'''
+todo = api.schema_model('Todo', {
+    'properties': {
+        'id': {
+            'type': 'string'
+        },
+        'task': {
+            'type': 'string'
+        }
+    },
+    'type': 'object'
+})
+
+@ns.route('/apn/<string:apn_id>')
+class PyHSS_APN_Get(Resource):
+    def get(self, apn_id):
+        '''Get all APN data for specified APN ID'''
         try:
-            subscriber_details = database.GetSubscriberInfo(imsi)
-            return subscriber_details, 200
+            apn_data = database_new2.GetAPN(apn_id)
+            return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : "Sub not found " + str(imsi)}
+            response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
             return jsonify(response_json), 404
 
+    def delete(self, apn_id):
+        '''Delete all APN data for specified APN ID'''
+        try:
+            apn_data = database_new2.DeleteAPN(apn_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
+            return jsonify(response_json), 404
+    
+    @api.doc(parser=parser)
+    def patch(self, apn_id):
+        '''Update APN data for specified APN ID'''
+        try:
+            apn_data = database_new2.DeleteAPN(apn_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
+            return jsonify(response_json), 404
 
+@ns.route('/apn')
+class PyHSS_APN(Resource):
+    @ns.doc('create_todo')
+    @ns.expect(todo)
+    def put(self, apn_id):
+        '''Get all APN data for specified APN ID'''
+        try:
+            apn_data = database_new2.GetAPN(apn_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
+            return jsonify(response_json), 404
+
+    @ns.doc('Create an APN Object')
+    def post(self):
+        json_data = request.get_json(force=True)
+        return json_data, 201
 
 if __name__ == '__main__':
     app.run(debug=True)
