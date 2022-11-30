@@ -88,39 +88,29 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
 session = Session()
 
-def GetAPN(apn_id):
-    result = session.query(APN).filter(APN.apn_id==int(apn_id)).one()
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    return result
-
-def DeleteAPN(apn_id):
-    session.query(APN).filter(APN.apn_id==int(apn_id)).delete()
-    session.commit()
-    return {"Result":"OK"}
-
-def CreateAPN(apn_data):
-    newAPN = APN(**apn_data)
-    session.add(newAPN)
-    session.commit()
-    session.refresh(newAPN)
-    return newAPN.apn_id
-
-def UpdateAPN(apn_data):
-    print("Called UpdateAPN() with JSON data: " + str(apn_data))
-    print("Updating APN with ID " + str(apn_data['apn_id']))
-    result = session.query(APN).filter(APN.apn_id==int(apn_data['apn_id']))
-    print("got result: " + str(result.__dict__))
-    result.update(apn_data, synchronize_session = False)
-    session.commit()
-    return apn_data
-
-
 def GetObj(obj_type, obj_id):
     result = session.query(obj_type).get(obj_id)
     result = result.__dict__
     result.pop('_sa_instance_state')
     return result
+
+def UpdateObj(obj_type, json_data, obj_id):
+    print("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
+    result = session.query(obj_type).get(obj_id)
+    print("got result: " + str(result.__dict__))
+    result.update(json_data, synchronize_session = False)
+    session.commit()
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result
+
+def UpdateObj(obj_type, apn_data, obj_id):
+    print("Called UpdateObj() for object " + str(obj_type) + " ID " + str(obj_id) + " with JSON data: " + str(apn_data))
+    result = session.query(obj_type).filter(APN.apn_id==int(obj_id))
+    print("got result: " + str(result.__dict__))
+    result.update(apn_data, synchronize_session = False)
+    session.commit()
+    return apn_data
 
 def DeleteObj(obj_type, obj_id):
     res = session.query(obj_type).get(obj_id)
@@ -148,7 +138,7 @@ if __name__ == "__main__":
     input("Created new Object")
     print(GetObj(APN, newObj['apn_id']))
     newObj['apn'] = 'updatedonapn'
-    newObj = UpdateAPN(newObj)
+    newObj = UpdateObj(APN, newObj, newObj['apn_id'])
     print(newObj)
     input("Updated new Object")
     print(DeleteObj(APN, newObj['apn_id']))
