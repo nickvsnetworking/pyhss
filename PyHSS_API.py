@@ -20,9 +20,18 @@ ns = api.namespace('PyHSS', description='PyHSS API Functions')
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
 
-todo = api.schema_model('Todo', {
+APN_model = api.schema_model('APN JSON', {
     'properties': {
-        'apn': {'type': 'string'},
+        'apn': {'type': 'string', 'required': True},
+        'sgw_address' : {'type': 'string'},
+        'pgw_address' : {'type': 'string'},
+        'apn_ambr_dl' : {'type': 'number'},
+        'apn_ambr_ul' : {'type': 'string'},
+        'qci' : {'type': 'number'},
+        'arp_preemption_capability' : {'type': 'boolean'},
+        'arp_preemption_vulnerability' : {'type': 'boolean'},
+        'arp_priority' : {'type': 'number'},
+        'charging_characteristics' : {'type': 'string'},
     },
     'type': 'object'
 })
@@ -50,7 +59,7 @@ class PyHSS_APN_Get(Resource):
             return jsonify(response_json), 404
 
     @ns.doc('Update APN Object')
-    @ns.expect(todo)
+    @ns.expect(APN_model)
     def patch(self, apn_id):
         '''Update APN data for specified APN ID'''
         try:
@@ -68,7 +77,7 @@ class PyHSS_APN_Get(Resource):
 @ns.route('/apn')
 class PyHSS_APN(Resource):
     @ns.doc('Create APN Object')
-    @ns.expect(todo)
+    @ns.expect(APN_model)
     def put(self):
         '''Create new APN'''
         try:
