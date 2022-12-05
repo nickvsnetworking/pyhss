@@ -126,6 +126,11 @@ def Generate_JSON_Model_for_Flask(obj_type):
     factory = SchemaFactory(NoForeignKeyWalker)
     dictty = dict(factory(obj_type))
     dictty['properties'] = dict(dictty['properties'])
+
+    #Set the ID Object to not required
+    obj_type_str = str(dictty['title']).lower()
+    dictty['required'].remove(obj_type_str + '_id')
+   
     return dictty
 
 if __name__ == "__main__":
