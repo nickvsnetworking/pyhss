@@ -97,6 +97,73 @@ class AUC_Tests(unittest.TestCase):
         xres = {"Result": "OK"}
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
+
+class Subscriber_Tests(unittest.TestCase):
+    subscriber_id = 0
+    template_data = {
+    "imsi": "001001000000001",
+    "enabled": True,
+    "msisdn": "123456789",
+    "ue_ambr_dl": 999999,
+    "ue_ambr_ul": 999999,
+    "nam": 0,
+    "subscribed_rau_tau_timer": 600,
+    }
+
+
+    def test_A_create_AUC_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put('http://localhost:5001/auc', data=json.dumps({"ki": "fad51018f65affc04e6d56d699df3a76","opc": "fad51018f65affc04e6d56d699df3a76","amf": "8000","sqn": 99}), headers=headers)
+        log.debug("Created AUC ID " + str(r.json()['auc_id']))
+        self.__class__.template_data['auc_id'] = r.json()['auc_id']
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_A_create_APN_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put('http://localhost:5001/apn', data=json.dumps({"apn": "UnitTest", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
+        log.debug("Created APN ID " + str(r.json()['apn_id']))
+        self.__class__.template_data['default_apn'] = r.json()['apn_id']
+        self.__class__.template_data['apn_list'] = '1,2,' + str(r.json()['apn_id'])
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+
+    def test_B_create_Subscriber(self):
+        log.debug(self.__class__.template_data)
+        headers = {"Content-Type": "application/json"}
+        r = requests.put('http://localhost:5001/subscriber', data=json.dumps(self.__class__.template_data), headers=headers)
+        self.__class__.subscriber_id = r.json()['subscriber_id']
+        log.debug("Created Subscriber ID " + str(self.__class__.subscriber_id))
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    # def test_C_Get_Subscriber(self):
+    #     r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
+    #     #Add Subscriber ID into Template for Validating
+    #     self.__class__.template_data['subscriber_id'] = self.__class__.subscriber_id
+    #     self.__class__.template_data['serving_mme'] = None
+    #     self.__class__.template_data['serving_mme_timestamp'] = None
+    #     self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+
+    # def test_D_Patch_Subscriber(self):
+    #     headers = {"Content-Type": "application/json"}
+    #     patch_template_data = self.__class__.template_data
+    #     patch_template_data['Enabled'] = False
+    #     r = requests.patch('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id), data=json.dumps(patch_template_data), headers=headers)
+    #     self.assertEqual(patch_template_data, r.json(), "JSON body should match input")
+
+    # def test_E_Get_Patched_Subscriber(self):
+    #     r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
+    #     #Add Subscriber ID into Template for Validating
+    #     self.__class__.template_data['Enabled'] = False
+    #     self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+
+    # def test_F_Delete_Patched_Subscriber(self):
+    #     r = requests.delete('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
+    #     xres = {"Result": "OK"}
+    #     self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
+
+
+
+
 if __name__ == '__main__':
     logging.basicConfig( stream=sys.stderr )
     logging.getLogger("UnitTestLogger").setLevel( logging.DEBUG )
