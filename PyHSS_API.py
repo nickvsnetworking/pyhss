@@ -19,7 +19,9 @@ api = Api(app, version='1.0', title='PyHSS OAM API',
     doc='/docs/'
 )
 
-ns = api.namespace('PyHSS', description='PyHSS API Functions')
+ns_apn = api.namespace('apn', description='PyHSS APN Functions')
+ns_auc = api.namespace('auc', description='PyHSS AUC Functions')
+ns_subscriber = api.namespace('subscriber', description='PyHSS Subscriber Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -41,7 +43,7 @@ IMS_Subscriber_model = api.schema_model('IMS_Subscriber JSON',
 )
 
 
-@ns.route('/apn/<string:apn_id>')
+@ns_apn.route('/<string:apn_id>')
 class PyHSS_APN_Get(Resource):
     def get(self, apn_id):
         '''Get all APN data for specified APN ID'''
@@ -63,8 +65,8 @@ class PyHSS_APN_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "APN ID not found " + str(apn_id)}
             return jsonify(response_json), 404
 
-    @ns.doc('Update APN Object')
-    @ns.expect(APN_model)
+    @ns_apn.doc('Update APN Object')
+    @ns_apn.expect(APN_model)
     def patch(self, apn_id):
         '''Update APN data for specified APN ID'''
         try:
@@ -79,10 +81,10 @@ class PyHSS_APN_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
             return jsonify(response_json), 404    
 
-@ns.route('/apn')
+@ns_apn.route('/')
 class PyHSS_APN(Resource):
-    @ns.doc('Create APN Object')
-    @ns.expect(APN_model)
+    @ns_apn.doc('Create APN Object')
+    @ns_apn.expect(APN_model)
     def put(self):
         '''Create new APN'''
         try:
@@ -95,7 +97,7 @@ class PyHSS_APN(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Failed to create APN"}
             return jsonify(response_json), 404
 
-@ns.route('/auc/<string:auc_id>')
+@ns_auc.route('/<string:auc_id>')
 class PyHSS_AUC_Get(Resource):
     def get(self, auc_id):
         '''Get all AuC data for specified AuC ID'''
@@ -117,8 +119,8 @@ class PyHSS_AUC_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "AUC ID not found " + str(auc_id)}
             return jsonify(response_json), 404
 
-    @ns.doc('Update AUC Object')
-    @ns.expect(AUC_model)
+    @ns_auc.doc('Update AUC Object')
+    @ns_auc.expect(AUC_model)
     def patch(self, auc_id):
         '''Update AuC data for specified AuC ID'''
         try:
@@ -133,10 +135,10 @@ class PyHSS_AUC_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
             return jsonify(response_json), 404
 
-@ns.route('/auc')
+@ns_auc.route('/')
 class PyHSS_AUC(Resource):
-    @ns.doc('Create AUC Object')
-    @ns.expect(AUC_model)
+    @ns_auc.doc('Create AUC Object')
+    @ns_auc.expect(AUC_model)
     def put(self):
         '''Create new AUC'''
         try:
@@ -149,7 +151,7 @@ class PyHSS_AUC(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Failed to create AUC"}
             return jsonify(response_json), 404
 
-@ns.route('/subscriber/<string:subscriber_id>')
+@ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_Subscriber_Get(Resource):
     def get(self, subscriber_id):
         '''Get all Subscriber data for specified subscriber_id'''
@@ -171,8 +173,8 @@ class PyHSS_Subscriber_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "subscriber_id not found " + str(subscriber_id)}
             return jsonify(response_json), 404
 
-    @ns.doc('Update Subscriber Object')
-    @ns.expect(Subscriber_model)
+    @ns_subscriber.doc('Update Subscriber Object')
+    @ns_subscriber.expect(Subscriber_model)
     def patch(self, subscriber_id):
         '''Update Subscriber data for specified subscriber_id'''
         try:
@@ -187,10 +189,10 @@ class PyHSS_Subscriber_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
             return jsonify(response_json), 404
 
-@ns.route('/subscriber')
+@ns_subscriber.route('/')
 class PyHSS_Subscriber(Resource):
-    @ns.doc('Create Subscriber Object')
-    @ns.expect(Subscriber_model)
+    @ns_subscriber.doc('Create Subscriber Object')
+    @ns_subscriber.expect(Subscriber_model)
     def put(self):
         '''Create new Subscriber'''
         try:
