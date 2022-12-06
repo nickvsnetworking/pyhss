@@ -149,12 +149,50 @@ class Subscriber_Tests(unittest.TestCase):
         r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
-    # def test_F_Delete_Patched_Subscriber(self):
-    #     r = requests.delete('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
-    #     xres = {"Result": "OK"}
-    #     self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
+    def test_F_Delete_Patched_Subscriber(self):
+        r = requests.delete('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
+class IMS_Subscriber(unittest.TestCase):
+    ims_subscriber_id = 0
+    template_data = {
+        "msisdn": "5231231",
+        "msisdn_list": "5231231",
+        "imsi": "5231231",
+        "ifc_path": "fdasfd.xml",
+        "sh_profile": "fdasfd.xml",
+    }
 
+    def test_B_create_IMS_Subscriber(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put('http://localhost:5001/ims_subscriber', data=json.dumps(self.__class__.template_data), headers=headers)
+        self.__class__.ims_subscriber_id = r.json()['ims_subscriber_id']
+        log.debug("Created ims_subscriber_id " + str(self.__class__.ims_subscriber_id))
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_C_Get_IMS_Subscriber(self):
+        r = requests.get('http://localhost:5001/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        #Add IMS_Subscriber ID into Template for Validating
+        self.__class__.template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
+        self.__class__.template_data['scscf'] = None
+        self.__class__.template_data['scscf_timestamp'] = None
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+
+    def test_D_Patch_IMS_Subscriber(self):
+        headers = {"Content-Type": "application/json"}
+        self.__class__.template_data['msisdn'] = "5132312321"
+        r = requests.patch('http://localhost:5001/ims_subscriber/' + str(self.__class__.ims_subscriber_id), data=json.dumps(self.__class__.template_data), headers=headers)
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+
+    def test_E_Get_Patched_IMS_Subscriber(self):
+        r = requests.get('http://localhost:5001/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+
+    def test_F_Delete_Patched_IMS_Subscriber(self):
+        r = requests.delete('http://localhost:5001/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
 
 if __name__ == '__main__':

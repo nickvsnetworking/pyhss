@@ -22,6 +22,7 @@ api = Api(app, version='1.0', title='PyHSS OAM API',
 ns_apn = api.namespace('apn', description='PyHSS APN Functions')
 ns_auc = api.namespace('auc', description='PyHSS AUC Functions')
 ns_subscriber = api.namespace('subscriber', description='PyHSS SUBSCRIBER Functions')
+ns_ims_subscriber = api.namespace('ims_subscriber', description='PyHSS IMS SUBSCRIBER Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -204,6 +205,61 @@ class PyHSS_SUBSCRIBER(Resource):
             print(E)
             response_json = {'result': 'Failed', 'Reason' : "Failed to create SUBSCRIBER"}
             return jsonify(response_json), 404
+
+@ns_ims_subscriber.route('/<string:ims_subscriber_id>')
+class PyHSS_IMS_SUBSCRIBER_Get(Resource):
+    def get(self, ims_subscriber_id):
+        '''Get all SUBSCRIBER data for specified ims_subscriber_id'''
+        try:
+            apn_data = database_new2.GetObj(IMS_SUBSCRIBER, ims_subscriber_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "ims_subscriber_id ID not found " + str(ims_subscriber_id)}
+            return jsonify(response_json), 404
+
+    def delete(self, ims_subscriber_id):
+        '''Delete all data for specified ims_subscriber_id'''
+        try:
+            data = database_new2.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "ims_subscriber_id not found " + str(ims_subscriber_id)}
+            return jsonify(response_json), 404
+
+    @ns_ims_subscriber.doc('Update IMS SUBSCRIBER Object')
+    @ns_ims_subscriber.expect(IMS_SUBSCRIBER_model)
+    def patch(self, ims_subscriber_id):
+        '''Update IMS SUBSCRIBER data for specified ims_subscriber'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database_new2.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
+            return jsonify(response_json), 404
+
+@ns_ims_subscriber.route('/')
+class PyHSS_IMS_SUBSCRIBER(Resource):
+    @ns_ims_subscriber.doc('Create IMS SUBSCRIBER Object')
+    @ns_ims_subscriber.expect(IMS_SUBSCRIBER_model)
+    def put(self):
+        '''Create new IMS SUBSCRIBER'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database_new2.CreateObj(IMS_SUBSCRIBER, json_data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create IMS_SUBSCRIBER"}
+            return jsonify(response_json), 404
+
 
 if __name__ == '__main__':
     app.run(debug=True)
