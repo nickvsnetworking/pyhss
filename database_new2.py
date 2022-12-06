@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     #New Subscriber
     subscriber_json = {
-        "imsi": "001001000000021",
+        "imsi": "001001000000024",
         "enabled": True,
         "msisdn": "123456789",
         "ue_ambr_dl": 999999,
@@ -191,7 +191,23 @@ if __name__ == "__main__":
     newObj['msisdn'] = '99942131'
     newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
 
+
+    #New IMS Subscriber
+    ims_subscriber_json = {
+        "msisdn": "123456789012", 
+        "msisdn_list": "1234567890",
+        "imsi": "123456789",
+        "ifc_path" : "default_ifc.xml",
+        "sh_profile" : "default_sh_user_data.xml"
+    }
+    print(ims_subscriber_json)
+    newObj = CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
+    print(newObj)
+    ims_subscriber_id = newObj['ims_subscriber_id']
+
     input("Delete?")
+    #Delete IMS Subscriber
+    print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
     #Delete Subscriber
     print(DeleteObj(SUBSCRIBER, subscriber_id))
     #Delete AuC
