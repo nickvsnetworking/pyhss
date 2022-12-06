@@ -137,13 +137,12 @@ if __name__ == "__main__":
     print(newObj)
     #input("Created new Object")
     print(GetObj(APN, newObj['apn_id']))
+    apn_id = newObj['apn_id']
     UpdatedObj = newObj
     UpdatedObj['apn'] = 'UpdatedInUnitTest'
     
     newObj = UpdateObj(APN, UpdatedObj, newObj['apn_id'])
     print(newObj)
-    input("Updated new Object")
-    print(DeleteObj(APN, newObj['apn_id']))
 
     #Create AuC
     auc_json = {
@@ -157,12 +156,45 @@ if __name__ == "__main__":
     print(newObj)
 
     #Get AuC
-    print(GetObj(AUC, newObj['auc_id']))
+    newObj = GetObj(AUC, newObj['auc_id'])
+    auc_id = newObj['auc_id']
+    print(newObj)
 
-    #Update AuC (failing)
+
+    #Update AuC
     newObj['sqn'] = newObj['sqn'] + 10
-    newObj = UpdateObj(AUC, newObj, newObj['auc_id'])
+    newObj = UpdateObj(AUC, newObj, auc_id)
 
+    #New Subscriber
+    subscriber_json = {
+        "imsi": "001001000000021",
+        "enabled": True,
+        "msisdn": "123456789",
+        "ue_ambr_dl": 999999,
+        "ue_ambr_ul": 999999,
+        "nam": 0,
+        "subscribed_rau_tau_timer": 600,
+        "auc_id" : auc_id,
+        "default_apn" : apn_id,
+        "apn_list" : apn_id
+    }
+    print(subscriber_json)
+    newObj = CreateObj(SUBSCRIBER, subscriber_json)
+    print(newObj)
+    subscriber_id = newObj['subscriber_id']
+
+    #Get SUBSCRIBER
+    newObj = GetObj(SUBSCRIBER, subscriber_id)
+    print(newObj)
+
+    #Update SUBSCRIBER
+    newObj['msisdn'] = '99942131'
+    newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
+
+    input("Delete?")
+    #Delete Subscriber
+    print(DeleteObj(SUBSCRIBER, subscriber_id))
     #Delete AuC
-    print(DeleteObj(AUC, newObj['auc_id']))
-
+    print(DeleteObj(AUC, auc_id))
+    #Delete APN
+    print(DeleteObj(APN, apn_id))
