@@ -14,3 +14,4 @@ psycopg2
 psycopg
 sqlalchemy_utils
 sqlalchemy
+alchemyjsonschema
