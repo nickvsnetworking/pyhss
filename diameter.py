@@ -23,7 +23,7 @@ logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diame
 DiameterLogger = logging.getLogger('DiameterLogger')
 
 DiameterLogger.info("Initialised Diameter Logger, importing database")
-import database
+import database_new2
 
 if yaml_config['redis']['enabled'] == True:
     DiameterLogger.debug("Redis support enabled")
@@ -491,7 +491,7 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            subscriber_details = database_new2.Get_Subscriber(imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -511,7 +511,7 @@ class Diameter:
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
         DiameterLogger.debug("Subscriber is served by MME " + str(OriginHost))
-        database.UpdateSubscriber(imsi, 1, 1, serving_mme=OriginHost)
+        database_new2.Update_Serving_MME(imsi, OriginHost)
 
 
         #Boilerplate AVPs
@@ -528,18 +528,8 @@ class Diameter:
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-        if 'ue_ambr_ul' in subscriber_details:
-            ue_ambr_ul = int(subscriber_details['ue_ambr_ul'])
-        else:
-            #use default AMBR of unlimited if no value in subscriber_details
-            ue_ambr_ul = 1048576000
-
-        if 'ue_ambr_dl' in subscriber_details:
-            ue_ambr_dl = int(subscriber_details['ue_ambr_dl'])
-        else:
-            #use default AMBR of unlimited if no value in subscriber_details
-            ue_ambr_dl = 1048576000
-
+        ue_ambr_ul = int(subscriber_details['ue_ambr_ul'])
+        ue_ambr_dl = int(subscriber_details['ue_ambr_dl'])
         AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
         AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
         subscription_data += self.generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
@@ -549,12 +539,24 @@ class Diameter:
         APN_Configuration_Profile += self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))     #Context Identifier
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
-        apn_list = subscriber_details['pdn']
+        apn_list = subscriber_details['apn_list'].split(',')
         DiameterLogger.debug("APN list: " + str(apn_list))
         APN_context_identifer_count = 1
-        for apn_profile in apn_list:
-            DiameterLogger.debug("Processing APN profile " + str(apn_profile))
-            APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
+        for apn_id in apn_list:
+            DiameterLogger.debug("Processing APN ID " + str(apn_id))
+            apn_data = database_new2.Get_APN(apn_id)
+            {'charging_characteristics': '0800', 
+            'apn': 'UpdatedInUnitTest', 
+            'pgw_address': None, 
+            'apn_ambr_ul': 9999, 
+            'arp_priority': 1, 
+            'arp_preemption_vulnerability': True, 
+            'sgw_address': None, 
+            'apn_id': 65, 
+            'apn_ambr_dl': 9999, 
+            'qci': 9, 
+            'arp_preemption_capability': False}
+            APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_data['apn'])))
 
             DiameterLogger.debug("Setting APN Configuration Profile")
             #Sub AVPs of APN Configuration Profile
@@ -564,25 +566,19 @@ class Diameter:
             DiameterLogger.debug("Setting APN AMBR")
             #AMBR
             AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-            if 'AMBR' in apn_profile:
-                ue_ambr_ul = int(apn_profile['AMBR']['apn_ambr_ul'])
-                ue_ambr_dl = int(apn_profile['AMBR']['apn_ambr_dl'])
-            else:
-                #use default AMBR of unlimited if no value in subscriber_details
-                ue_ambr_ul = 50000000
-                ue_ambr_dl = 100000000
-
-            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
-            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+            apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+            apn_ambr_dl = int(apn_data['apn_ambr_dl'])
+            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
             DiameterLogger.debug("Setting APN Allocation-Retention-Priority")
             #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
-            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_vulnerability']), 4))
+            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
+            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
+            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
             AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['qci']), 4))
+            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
             APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
 
@@ -595,11 +591,10 @@ class Diameter:
                 Served_Party_Address = ""
 
             #If static SMF / PGW-C defined
-            if 'MIP6-Agent-Info' in apn_profile:
-                DiameterLogger.info("MIP6-Agent-Info present (Static SMF/PGW-C), value " + str(apn_profile['MIP6-Agent-Info']))
-                MIP_Home_Agent_Address = self.generate_avp(334, '40', self.ip_to_hex(apn_profile['MIP6-Agent-Info']))
+            if apn_data['pgw_address'] is not None:
+                DiameterLogger.info("MIP6-Agent-Info present (Static SMF/PGW-C), value " + str(apn_data['pgw_address']))
+                MIP_Home_Agent_Address = self.generate_avp(334, '40', self.ip_to_hex(apn_data['pgw_address']))
                 MIP6_Agent_Info = self.generate_avp(486, '40', MIP_Home_Agent_Address)
-                
             else:
                 MIP6_Agent_Info = ''
 
@@ -630,12 +625,10 @@ class Diameter:
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
 
-        #If MSISDN is present include it in Subscription Data
-        if 'msisdn' in subscriber_details:
-            DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
-            DiameterLogger.debug(msisdn_avp)
-            subscription_data += msisdn_avp
+        DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+        msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
+        DiameterLogger.debug(msisdn_avp)
+        subscription_data += msisdn_avp
 
         if 'RAT_freq_priorityID' in subscriber_details:
             DiameterLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")

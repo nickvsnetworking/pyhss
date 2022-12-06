@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker
 import json
+import datetime
 #engine = create_engine('sqlite:///sales.db', echo = True)
 engine = create_engine('mysql://dbeaver:password@localhost/hss2', echo = True)
 from sqlalchemy.ext.declarative import declarative_base
@@ -126,6 +127,51 @@ def Generate_JSON_Model_for_Flask(obj_type):
    
     return dictty
 
+def Get_IMS_Subscriber(imsi):
+    return
+
+def Get_Subscriber(imsi):
+    try:
+        result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
+    except:
+        raise ValueError("Subscriber not Found")
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result
+
+def Get_APN(apn_id):
+    try:
+        result = session.query(APN).filter_by(apn_id=apn_id).one()
+    except:
+        raise ValueError("APN not Found")
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result    
+
+def Get_Vectors(imsi):
+    return
+
+def Update_AuC(imsi, sqn):
+    return
+
+def Update_Serving_MME(imsi, serving_mme):
+    result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
+    if len(serving_mme) != 0:
+        result.serving_mme = serving_mme
+        result.serving_mme_timestamp = datetime.datetime.now()
+    else:
+        #Clear values
+        result.serving_mme = None
+        result.serving_mme_timestamp = None
+    session.commit()
+    return
+
+def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
+    return
+
+def Get_IMSI_from_MSISDN(msisdn):
+    return
+
 if __name__ == "__main__":
 
     import binascii,os
@@ -167,7 +213,7 @@ if __name__ == "__main__":
 
     #New Subscriber
     subscriber_json = {
-        "imsi": "001001000000024",
+        "imsi": "001001000000003",
         "enabled": True,
         "msisdn": "123456789",
         "ue_ambr_dl": 999999,
@@ -192,22 +238,36 @@ if __name__ == "__main__":
     newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
 
 
-    #New IMS Subscriber
-    ims_subscriber_json = {
-        "msisdn": "123456789012", 
-        "msisdn_list": "1234567890",
-        "imsi": "123456789",
-        "ifc_path" : "default_ifc.xml",
-        "sh_profile" : "default_sh_user_data.xml"
-    }
-    print(ims_subscriber_json)
-    newObj = CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
-    print(newObj)
-    ims_subscriber_id = newObj['ims_subscriber_id']
+    # #New IMS Subscriber
+    # ims_subscriber_json = {
+    #     "msisdn": "123456789013", 
+    #     "msisdn_list": "1234567890",
+    #     "imsi": "123456789",
+    #     "ifc_path" : "default_ifc.xml",
+    #     "sh_profile" : "default_sh_user_data.xml"
+    # }
+    # print(ims_subscriber_json)
+    # newObj = CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
+    # print(newObj)
+    # ims_subscriber_id = newObj['ims_subscriber_id']
+
+
+    #Test Get Subscriber
+    GetSubscriber_Result = Get_Subscriber(subscriber_json['imsi'])
+    print(GetSubscriber_Result)
+
+    #Test Update MME Location
+    Update_Serving_MME(subscriber_json['imsi'], 'serving_mme.3gppnetwork.org')
+    input("Clear MME Location?")
+    Update_Serving_MME(subscriber_json['imsi'], '')
+
+    #Test getting APNs
+    GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
+    print(GetAPN_Result)
 
     input("Delete?")
     #Delete IMS Subscriber
-    print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
+    #print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
     #Delete Subscriber
     print(DeleteObj(SUBSCRIBER, subscriber_id))
     #Delete AuC
