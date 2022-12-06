@@ -88,21 +88,13 @@ def GetObj(obj_type, obj_id):
 
 def UpdateObj(obj_type, json_data, obj_id):
     print("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
-    result = session.query(obj_type).get(obj_id)
-    print("got result: " + str(result.__dict__))
-    result.update(json_data, synchronize_session = False)
+    obj_type_str = str(obj_type)[17:].split("'")[0]
+    filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
+    sessionquery = session.query(obj_type).filter(filter_input)
+    print("got result: " + str(sessionquery.__dict__))
+    sessionquery.update(json_data, synchronize_session = False)
     session.commit()
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    return result
-
-def UpdateObj(obj_type, apn_data, obj_id):
-    print("Called UpdateObj() for object " + str(obj_type) + " ID " + str(obj_id) + " with JSON data: " + str(apn_data))
-    result = session.query(obj_type).filter(APN.apn_id==int(obj_id))
-    print("got result: " + str(result.__dict__))
-    result.update(apn_data, synchronize_session = False)
-    session.commit()
-    return apn_data
+    return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id):
     res = session.query(obj_type).get(obj_id)
@@ -144,8 +136,10 @@ if __name__ == "__main__":
     print(newObj)
     #input("Created new Object")
     print(GetObj(APN, newObj['apn_id']))
-    newObj['apn'] = 'updatedonapn'
-    newObj = UpdateObj(APN, newObj, newObj['apn_id'])
+    UpdatedObj = {}
+    UpdatedObj['apn'] = 'updatedonapn'
+    
+    newObj = UpdateObj(APN, UpdatedObj, newObj['apn_id'])
     print(newObj)
     #input("Updated new Object")
     print(DeleteObj(APN, newObj['apn_id']))
