@@ -9,8 +9,8 @@ import database_new2
 APN = database_new2.APN
 Serving_APN = database_new2.Serving_APN
 AUC = database_new2.AUC
-Subscriber = database_new2.Subscriber
-IMS_Subscriber = database_new2.IMS_Subscriber
+SUBSCRIBER = database_new2.SUBSCRIBER
+IMS_SUBSCRIBER = database_new2.IMS_SUBSCRIBER
 
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
@@ -21,7 +21,7 @@ api = Api(app, version='1.0', title='PyHSS OAM API',
 
 ns_apn = api.namespace('apn', description='PyHSS APN Functions')
 ns_auc = api.namespace('auc', description='PyHSS AUC Functions')
-ns_subscriber = api.namespace('subscriber', description='PyHSS Subscriber Functions')
+ns_subscriber = api.namespace('subscriber', description='PyHSS SUBSCRIBER Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -35,11 +35,11 @@ Serving_APN_model = api.schema_model('Serving APN JSON',
 AUC_model = api.schema_model('AUC JSON', 
     database_new2.Generate_JSON_Model_for_Flask(AUC)
 )
-Subscriber_model = api.schema_model('Subscriber JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(Subscriber)
+SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(SUBSCRIBER)
 )
-IMS_Subscriber_model = api.schema_model('IMS_Subscriber JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(IMS_Subscriber)
+IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
+    database_new2.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
 )
 
 
@@ -152,11 +152,11 @@ class PyHSS_AUC(Resource):
             return jsonify(response_json), 404
 
 @ns_subscriber.route('/<string:subscriber_id>')
-class PyHSS_Subscriber_Get(Resource):
+class PyHSS_SUBSCRIBER_Get(Resource):
     def get(self, subscriber_id):
-        '''Get all Subscriber data for specified subscriber_id'''
+        '''Get all SUBSCRIBER data for specified subscriber_id'''
         try:
-            apn_data = database_new2.GetObj(Subscriber, subscriber_id)
+            apn_data = database_new2.GetObj(SUBSCRIBER, subscriber_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -166,21 +166,21 @@ class PyHSS_Subscriber_Get(Resource):
     def delete(self, subscriber_id):
         '''Delete all data for specified subscriber_id'''
         try:
-            data = database_new2.DeleteObj(Subscriber, subscriber_id)
+            data = database_new2.DeleteObj(SUBSCRIBER, subscriber_id)
             return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : "subscriber_id not found " + str(subscriber_id)}
             return jsonify(response_json), 404
 
-    @ns_subscriber.doc('Update Subscriber Object')
-    @ns_subscriber.expect(Subscriber_model)
+    @ns_subscriber.doc('Update SUBSCRIBER Object')
+    @ns_subscriber.expect(SUBSCRIBER_model)
     def patch(self, subscriber_id):
-        '''Update Subscriber data for specified subscriber_id'''
+        '''Update SUBSCRIBER data for specified subscriber_id'''
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.UpdateObj(Subscriber, json_data, subscriber_id)
+            data = database_new2.UpdateObj(SUBSCRIBER, json_data, subscriber_id)
             print("Updated object")
             print(data)
             return data, 200
@@ -190,19 +190,19 @@ class PyHSS_Subscriber_Get(Resource):
             return jsonify(response_json), 404
 
 @ns_subscriber.route('/')
-class PyHSS_Subscriber(Resource):
-    @ns_subscriber.doc('Create Subscriber Object')
-    @ns_subscriber.expect(Subscriber_model)
+class PyHSS_SUBSCRIBER(Resource):
+    @ns_subscriber.doc('Create SUBSCRIBER Object')
+    @ns_subscriber.expect(SUBSCRIBER_model)
     def put(self):
-        '''Create new Subscriber'''
+        '''Create new SUBSCRIBER'''
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.CreateObj(Subscriber, json_data)
+            data = database_new2.CreateObj(SUBSCRIBER, json_data)
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : "Failed to create Subscriber"}
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create SUBSCRIBER"}
             return jsonify(response_json), 404
 
 if __name__ == '__main__':

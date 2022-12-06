@@ -48,7 +48,7 @@ class AUC(Base):
     sqn = Column(Integer)
 
 
-class Subscriber(Base):
+class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
     subscriber_id = Column(Integer, primary_key = True)
     imsi = Column(String(18), unique=True)
@@ -64,7 +64,7 @@ class Subscriber(Base):
     serving_mme = Column(String(50))
     serving_mme_timestamp = Column(DateTime)
 
-class IMS_Subscriber(Base):
+class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
     ims_subscriber_id = Column(Integer, primary_key = True)
     msisdn = Column(String(18), unique=True)
@@ -88,7 +88,8 @@ def GetObj(obj_type, obj_id):
 
 def UpdateObj(obj_type, json_data, obj_id):
     print("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
-    obj_type_str = str(obj_type)[17:].split("'")[0]
+    obj_type_str = str(obj_type.__table__.name).upper()
+    print("obj_type_str is " + str(obj_type_str))
     filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
     sessionquery = session.query(obj_type).filter(filter_input)
     print("got result: " + str(sessionquery.__dict__))
@@ -136,12 +137,12 @@ if __name__ == "__main__":
     print(newObj)
     #input("Created new Object")
     print(GetObj(APN, newObj['apn_id']))
-    UpdatedObj = {}
-    UpdatedObj['apn'] = 'updatedonapn'
+    UpdatedObj = newObj
+    UpdatedObj['apn'] = 'UpdatedInUnitTest'
     
     newObj = UpdateObj(APN, UpdatedObj, newObj['apn_id'])
     print(newObj)
-    #input("Updated new Object")
+    input("Updated new Object")
     print(DeleteObj(APN, newObj['apn_id']))
 
     #Create AuC

@@ -81,15 +81,12 @@ class AUC_Tests(unittest.TestCase):
 
     def test_D_Patch_AUC(self):
         headers = {"Content-Type": "application/json"}
-        patch_template_data = self.__class__.template_data
-        patch_template_data['ki'] = patch_template_data['ki'][::-1]
-        r = requests.patch('http://localhost:5001/auc/' + str(self.__class__.auc_id), data=json.dumps(patch_template_data), headers=headers)
-        self.assertEqual(patch_template_data, r.json(), "JSON body should match input")
+        self.__class__.template_data['ki'] = "xxxxxx18f65affc04e6d56d699df3a76"
+        r = requests.patch('http://localhost:5001/auc/' + str(self.__class__.auc_id), data=json.dumps(self.__class__.template_data), headers=headers)
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
     def test_E_Get_Patched_AUC(self):
         r = requests.get('http://localhost:5001/auc/' + str(self.__class__.auc_id))
-        #Add AUC ID into Template for Validating
-        self.__class__.template_data['ki'] = self.__class__.template_data['ki'][::-1]
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
     def test_F_Delete_Patched_AUC(self):
@@ -97,11 +94,10 @@ class AUC_Tests(unittest.TestCase):
         xres = {"Result": "OK"}
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
-
 class Subscriber_Tests(unittest.TestCase):
     subscriber_id = 0
     template_data = {
-    "imsi": "001001000000001",
+    "imsi": "001001000000019",
     "enabled": True,
     "msisdn": "123456789",
     "ue_ambr_dl": 999999,
@@ -135,26 +131,23 @@ class Subscriber_Tests(unittest.TestCase):
         log.debug("Created Subscriber ID " + str(self.__class__.subscriber_id))
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
-    # def test_C_Get_Subscriber(self):
-    #     r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
-    #     #Add Subscriber ID into Template for Validating
-    #     self.__class__.template_data['subscriber_id'] = self.__class__.subscriber_id
-    #     self.__class__.template_data['serving_mme'] = None
-    #     self.__class__.template_data['serving_mme_timestamp'] = None
-    #     self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+    def test_C_Get_Subscriber(self):
+        r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
+        #Add Subscriber ID into Template for Validating
+        self.__class__.template_data['subscriber_id'] = self.__class__.subscriber_id
+        self.__class__.template_data['serving_mme'] = None
+        self.__class__.template_data['serving_mme_timestamp'] = None
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
-    # def test_D_Patch_Subscriber(self):
-    #     headers = {"Content-Type": "application/json"}
-    #     patch_template_data = self.__class__.template_data
-    #     patch_template_data['Enabled'] = False
-    #     r = requests.patch('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id), data=json.dumps(patch_template_data), headers=headers)
-    #     self.assertEqual(patch_template_data, r.json(), "JSON body should match input")
+    def test_D_Patch_Subscriber(self):
+        headers = {"Content-Type": "application/json"}
+        self.__class__.template_data['msisdn'] = '123414299213'
+        r = requests.patch('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id), data=json.dumps(self.__class__.template_data), headers=headers)
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
-    # def test_E_Get_Patched_Subscriber(self):
-    #     r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
-    #     #Add Subscriber ID into Template for Validating
-    #     self.__class__.template_data['Enabled'] = False
-    #     self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+    def test_E_Get_Patched_Subscriber(self):
+        r = requests.get('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
     # def test_F_Delete_Patched_Subscriber(self):
     #     r = requests.delete('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id))
