@@ -11,7 +11,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 #engine = create_engine('sqlite:///sales.db', echo = True)
-db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['db_type'])
+db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'])
 print(db_string)
 engine = create_engine(db_string, echo = True)
 from sqlalchemy.ext.declarative import declarative_base
@@ -94,9 +94,13 @@ Session = sessionmaker(bind = engine)
 session = Session()
 
 def GetObj(obj_type, obj_id):
+    print("Called GetObj for type " + str(obj_type) + " with id " + str(obj_id))
     result = session.query(obj_type).get(obj_id)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    for keys in result:
+        if type(result[keys]) == DateTime:
+            result[keys] = str(result[keys])
     return result
 
 def UpdateObj(obj_type, json_data, obj_id):
@@ -111,6 +115,7 @@ def UpdateObj(obj_type, json_data, obj_id):
     return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id):
+    print("Called DeleteObj for type " + str(obj_type) + " with id " + str(obj_id))
     res = session.query(obj_type).get(obj_id)
     session.delete(res)
     session.commit()
@@ -143,6 +148,7 @@ def Get_IMS_Subscriber(imsi):
     return
 
 def Get_Subscriber(imsi):
+    print("Get_Subscriber for IMSI " + str(imsi))
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
     except:
@@ -152,7 +158,7 @@ def Get_Subscriber(imsi):
     return result
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
-
+    print("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
     key_data = GetObj(AUC, auc_id)
     vector_dict = {}
     
@@ -176,6 +182,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         
 
 def Get_APN(apn_id):
+    print("Getting APN " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn_id=apn_id).one()
     except:
@@ -191,12 +198,15 @@ def Update_AuC(auc_id, sqn=1):
     return
 
 def Update_Serving_MME(imsi, serving_mme):
+    print("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
     result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-    if len(serving_mme) != 0:
+    if type(serving_mme) == str:
+        print("Updating serving MME")
         result.serving_mme = serving_mme
         result.serving_mme_timestamp = datetime.datetime.now()
     else:
         #Clear values
+        print("Clearing serving MME")
         result.serving_mme = None
         result.serving_mme_timestamp = None
     session.commit()
@@ -209,9 +219,6 @@ def Get_IMSI_from_MSISDN(msisdn):
     return
 
 if __name__ == "__main__":
-
-    Get_Vectors_AuC(64, plmn='12ff')
-    sys.exit()
 
     import binascii,os
     apn2 = {'apn':'fadsgdsags', \
@@ -245,14 +252,16 @@ if __name__ == "__main__":
     auc_id = newObj['auc_id']
     print(newObj)
 
-
     #Update AuC
     newObj['sqn'] = newObj['sqn'] + 10
     newObj = UpdateObj(AUC, newObj, auc_id)
 
+    #Generate Vectors
+    Get_Vectors_AuC(auc_id, "air", plmn='12ff')
+
     #New Subscriber
     subscriber_json = {
-        "imsi": "001001000000003",
+        "imsi": "001001000000004",
         "enabled": True,
         "msisdn": "123456789",
         "ue_ambr_dl": 999999,
@@ -276,6 +285,12 @@ if __name__ == "__main__":
     newObj['msisdn'] = '99942131'
     newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
 
+    #Set MME Location for Subscriber
+    Update_Serving_MME(newObj['imsi'], "Test123")
+    #Clear MME Location for Subscriber    
+    Update_Serving_MME(newObj['imsi'], None)
+
+
 
     # #New IMS Subscriber
     # ims_subscriber_json = {
@@ -294,11 +309,6 @@ if __name__ == "__main__":
     #Test Get Subscriber
     GetSubscriber_Result = Get_Subscriber(subscriber_json['imsi'])
     print(GetSubscriber_Result)
-
-    #Test Update MME Location
-    Update_Serving_MME(subscriber_json['imsi'], 'serving_mme.3gppnetwork.org')
-    input("Clear MME Location?")
-    Update_Serving_MME(subscriber_json['imsi'], '')
 
     #Test getting APNs
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])

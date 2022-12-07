@@ -731,12 +731,8 @@ class Diameter:
             eutranvector += self.generate_vendor_avp(1450, "c0", 10415, vector_dict['kasme'])                               #And KASME
 
             requested_vectors = requested_vectors - 1
-            #sqn = sqn + 1
             eutranvector_complete += self.generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
-            
 
-
-        DiameterLogger.debug("Crypto done")
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -785,16 +781,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777251_321_success_count')
         
 
-        #Write back current MME location to Database
-        if yaml_config['hss']['SLh_enabled'] == True:
-            try:
-                DiameterLogger.debug("SLh Enabled - Clearing Location for Subscriber")
-                subscriber_details = database.GetSubscriberInfo(imsi)
-                DiameterLogger.debug("Setting origin_host to null")
-                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', origin_host='')
-                DiameterLogger.debug("originHost cleared for imsi " + str(imsi))
-            except:
-                DiameterLogger.error("failed to clear subscriber location for IMSI " + str(imsi))
+        database_new2.Update_Serving_MME(imsi, None)
         DiameterLogger.debug("Successfully Generated PUA")
         return response
 
