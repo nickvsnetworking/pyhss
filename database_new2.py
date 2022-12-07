@@ -5,8 +5,15 @@ from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker
 import json
 import datetime
+
+import yaml
+with open("config.yaml", 'r') as stream:
+    yaml_config = (yaml.safe_load(stream))
+
 #engine = create_engine('sqlite:///sales.db', echo = True)
-engine = create_engine('mysql://dbeaver:password@localhost/hss2', echo = True)
+db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['db_type'])
+print(db_string)
+engine = create_engine(db_string, echo = True)
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
@@ -165,7 +172,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         print("Resync SQN")
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
         print("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
-        Update_AuC(auc_id, sqn=sqn)
+        Update_AuC(auc_id, sqn=sqn+100)
         
 
 def Get_APN(apn_id):

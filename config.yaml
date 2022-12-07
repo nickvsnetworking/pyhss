@@ -58,17 +58,16 @@ logging:
 #Multiple database types are supported, and additional database can be added easily.
 #See ``databases.md`` for information on connecting to your database of choice, with your preferred schema.
 database:
-  postgresql:
-    server: 127.0.0.1
-    username: dbeaver
-    password: password
-    database: hss
-    port: 5432
+  db_type: mysql
+  server: 127.0.0.1
+  username: dbeaver
+  password: password
+  database: hss2
 
 
 ## Stats Parameters
 redis:
-  enabled: True
+  enabled: False
   clear_stats_on_boot: True
   host: localhost
   port: 6379
