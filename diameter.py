@@ -1014,8 +1014,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
-            database.UpdateSubscriber(imsi, int(subscriber_details['SQN']) + 1, str(subscriber_details['RAND']))#Incriment SQN
+            subscriber_details = database_new2.Get_Subscriber(imsi)                                               #Get subscriber details
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
@@ -1026,15 +1025,10 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
-        key = subscriber_details['K']                                                               #Format keys
-        opc = subscriber_details['OPc']                                                             #Format keys
-        amf = subscriber_details['AMF']                                                             #Format keys
-        sqn = subscriber_details['SQN']                                                             #Format keys
-
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
+        vector_dict = database_new2.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
         
-        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key, opc, amf, sqn, plmn) 
         DiameterLogger.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
@@ -1044,21 +1038,19 @@ class Diameter:
         #diameter.3GPP-SIP-Auth-Data-Items
         ##AVP Code: 613 3GPP-SIP-Item-Number
         avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
-        
         ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
         avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
-        
         ##AVP Code: 609 3GPP-SIP-Authenticate
-        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(SIP_Authenticate),'ascii'))   #RAND + AUTN
+        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(vector_dict['SIP_Authenticate']),'ascii'))   #RAND + AUTN
         
         ##AVP Code: 610 3GPP-SIP-Authorization
-        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(xres),'ascii'))  #XRES
+        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(vector_dict['xres']),'ascii'))  #XRES
         
         ##AVP Code: 625 Confidentiality-Key
-        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(ck),'ascii'))  #CK
+        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(vector_dict['ck']),'ascii'))  #CK
         
         ##AVP Code: 626 Integrity-Key
-        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(ik),'ascii'))          #IK
+        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(vector_dict['ik']),'ascii'))          #IK
 
         
         auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key

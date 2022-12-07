@@ -179,7 +179,16 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
         print("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
         Update_AuC(auc_id, sqn=sqn+100)
-        
+        return
+    
+    elif action == "sip_auth":
+        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+        vector_dict['SIP_Authenticate'] = SIP_Authenticate
+        vector_dict['xres'] = xres
+        vector_dict['ck'] = ck
+        vector_dict['ik'] = ik
+        return vector_dict
+
 
 def Get_APN(apn_id):
     print("Getting APN " + str(apn_id))
@@ -258,6 +267,8 @@ if __name__ == "__main__":
 
     #Generate Vectors
     Get_Vectors_AuC(auc_id, "air", plmn='12ff')
+    print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
+    input("See vectors?")
 
     #New Subscriber
     subscriber_json = {
