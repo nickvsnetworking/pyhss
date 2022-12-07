@@ -10,6 +10,11 @@ engine = create_engine('mysql://dbeaver:password@localhost/hss2', echo = True)
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
+import os
+from construct import Default
+sys.path.append(os.path.realpath('lib'))
+import S6a_crypt
+
 # Create database if it does not exist.
 if not database_exists(engine.url):
     create_database(engine.url)
@@ -139,6 +144,30 @@ def Get_Subscriber(imsi):
     result.pop('_sa_instance_state')
     return result
 
+def Get_Vectors_AuC(auc_id, action, **kwargs):
+
+    key_data = GetObj(AUC, auc_id)
+    vector_dict = {}
+    
+    if action == "air":
+        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn']) 
+        vector_dict['rand'] = rand
+        vector_dict['xres'] = xres
+        vector_dict['autn'] = autn
+        vector_dict['kasme'] = kasme
+
+        #Incriment SQN
+        Update_AuC(auc_id, sqn=key_data['sqn']+1)
+
+        return vector_dict
+
+    elif action == "air_resync":
+        print("Resync SQN")
+        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
+        print("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
+        Update_AuC(auc_id, sqn=sqn)
+        
+
 def Get_APN(apn_id):
     try:
         result = session.query(APN).filter_by(apn_id=apn_id).one()
@@ -148,10 +177,10 @@ def Get_APN(apn_id):
     result.pop('_sa_instance_state')
     return result    
 
-def Get_Vectors(imsi):
-    return
 
-def Update_AuC(imsi, sqn):
+def Update_AuC(auc_id, sqn=1):
+    print("Incrimenting SQN for sub " + str(auc_id))
+    print(UpdateObj(AUC, {'sqn': sqn}, auc_id))
     return
 
 def Update_Serving_MME(imsi, serving_mme):
@@ -173,6 +202,9 @@ def Get_IMSI_from_MSISDN(msisdn):
     return
 
 if __name__ == "__main__":
+
+    Get_Vectors_AuC(64, plmn='12ff')
+    sys.exit()
 
     import binascii,os
     apn2 = {'apn':'fadsgdsags', \

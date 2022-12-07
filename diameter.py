@@ -24,6 +24,7 @@ DiameterLogger = logging.getLogger('DiameterLogger')
 
 DiameterLogger.info("Initialised Diameter Logger, importing database")
 import database_new2
+DiameterLogger.info("Imported database")
 
 if yaml_config['redis']['enabled'] == True:
     DiameterLogger.debug("Redis support enabled")
@@ -273,6 +274,8 @@ class Diameter:
 
 
     def decode_diameter_packet(self, data):
+        print("Decoding Diameter packet with input:")
+        print(data)
         packet_vars = {}
         avps = []
         
@@ -545,17 +548,6 @@ class Diameter:
         for apn_id in apn_list:
             DiameterLogger.debug("Processing APN ID " + str(apn_id))
             apn_data = database_new2.Get_APN(apn_id)
-            {'charging_characteristics': '0800', 
-            'apn': 'UpdatedInUnitTest', 
-            'pgw_address': None, 
-            'apn_ambr_ul': 9999, 
-            'arp_priority': 1, 
-            'arp_preemption_vulnerability': True, 
-            'sgw_address': None, 
-            'apn_id': 65, 
-            'apn_ambr_dl': 9999, 
-            'qci': 9, 
-            'arp_preemption_capability': False}
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_data['apn'])))
 
             DiameterLogger.debug("Setting APN Configuration Profile")
@@ -582,13 +574,29 @@ class Diameter:
             APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
 
-            #If static UE IP is specified
-            try:
-                apn_ip = apn_profile['ue']['addr']
-                DiameterLogger.debug("Found static IP for UE " + str(apn_ip))
-                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
-            except:
-                Served_Party_Address = ""
+            #If static UE IP is specified - ToDo Fix This
+            # try:
+            #     Served_Party_Address = ""
+            #     apn_ip = apn_profile['ue']['addr']
+            #     DiameterLogger.debug("Found static IP for UE " + str(apn_ip))
+            #     Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
+            # except:
+            #     Served_Party_Address = ""
+            #if 'PDN_GW_Allocation_Type' in apn_profile:
+            #     DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
+            #     PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
+            #     DiameterLogger.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
+            # else:
+            #     PDN_GW_Allocation_Type = ''
+            # if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
+            #     DiameterLogger.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
+            #     VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
+            #     DiameterLogger.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
+            # else:
+            #     VPLMN_Dynamic_Address_Allowed = ''            
+            PDN_GW_Allocation_Type = ''
+            Served_Party_Address = ""
+            VPLMN_Dynamic_Address_Allowed = ''
 
             #If static SMF / PGW-C defined
             if apn_data['pgw_address'] is not None:
@@ -598,20 +606,6 @@ class Diameter:
             else:
                 MIP6_Agent_Info = ''
 
-            if 'PDN_GW_Allocation_Type' in apn_profile:
-                DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
-                PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
-                DiameterLogger.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
-            else:
-                PDN_GW_Allocation_Type = ''
-
-            if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
-                DiameterLogger.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
-                VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
-                DiameterLogger.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
-            else:
-                VPLMN_Dynamic_Address_Allowed = ''
-
             APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
                 + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info + PDN_GW_Allocation_Type + VPLMN_Dynamic_Address_Allowed
             
@@ -619,7 +613,7 @@ class Diameter:
             
             #Incriment Context Identifier Count to keep track of how many APN Profiles returned
             APN_context_identifer_count = APN_context_identifer_count + 1  
-            DiameterLogger.debug("Processed APN profile " + str(apn_profile['apn']))
+            DiameterLogger.debug("Processed APN ID " + str(apn_id))
         
         #subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
@@ -636,85 +630,21 @@ class Diameter:
             DiameterLogger.debug(rat_freq_priorityID)
             subscription_data += rat_freq_priorityID
 
-        if '3gpp-charging-characteristics' in subscriber_details:
-            DiameterLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA")
-            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['3gpp-charging-characteristics'])))
+        if 'charging_characteristics' in subscriber_details:
+            DiameterLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['charging_characteristics']) + " - Adding in ULA")
+            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['charging_characteristics'])))
             subscription_data += _3gpp_charging_characteristics
             DiameterLogger.debug(_3gpp_charging_characteristics)
 
-            
-        if 'APN_OI_replacement' in subscriber_details:
-            DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
-            subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
+        #ToDo - Fix this  
+        # if 'APN_OI_replacement' in subscriber_details:
+        #     DiameterLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
+        #     subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777251_316_success_count')
-
-
-        if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
-            DiameterLogger.debug("CancelLocationRequest_Enabled - Retriving location")
-            try:
-                DestinationHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
-                DestinationHost = binascii.unhexlify(DestinationHost).decode('utf-8')      #Format it
-                OriginHost = self.get_avp_data(avps, 296)[0]                          #Get OriginHost from AVP
-                OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
-               #Format it
-                DRA_Host = ''
-                DestinationRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginHost from AVP
-                DestinationRealm = binascii.unhexlify(DestinationRealm).decode('utf-8')      #Format it
-                try:
-                    Origin_IP = packet_vars['Source_IP']
-                    DiameterLogger.debug("Async Getting ActivePeerDict")
-                    ActivePeerDict = logtool.GetDiameterPeers()
-                    DiameterLogger.debug("Async Got Active Peer dict in Async Thread: " + str(ActivePeerDict))
-                    if Origin_IP in ActivePeerDict:
-                        DiameterLogger.debug("Async This is host: " + str(ActivePeerDict[str(Origin_IP)]['DiameterHostname']))
-                        DRA_Host = str(ActivePeerDict[str(Origin_IP)]['DiameterHostname'])
-                        DiameterLogger.debug("Got DRA host: " + str(DRA_Host))
-                except:
-                    DiameterLogger.debug("Failed to map Source IP into a host")
-
-                full_location = database.ManageFullSubscriberLocation(\
-                    imsi, \
-                    str(OriginHost), \
-                    str(DestinationHost), \
-                    str(DestinationRealm), \
-                    str(DRA_Host)\
-                )
-                DiameterLogger.info("Data back from Database is: " + str(full_location))
-                #Check if CLR is required
-                if str(DestinationHost) == str(full_location['serving_mme']):
-                    DiameterLogger.debug("MME is unchanged, no need to send CLR")
-                else:
-                    DiameterLogger.debug("MME is changed - Was " + str(DestinationHost) + " is now " + str(full_location['serving_mme']) + ", need to send CLR")
-                    DiameterLogger.info("Trying to generate CLR for IMSI " + str(imsi) + " previously served by " + str(full_location['serving_mme']))
-                    
-                    #full_location['serving_mme'] = binascii.unhexlify(str(full_location['serving_mme'])).decode('utf-8')
-                    DiameterLogger.info("Serving MME is " + str(full_location['serving_mme']))
-                    request = self.Request_16777251_317(imsi, full_location['diameter_realm'], full_location['serving_mme'])
-                    DiameterLogger.info(request)
-                    DiameterLogger.info("Generated CLR hex, now to send it to: " + str(full_location['dra']))
-                    logtool.Async_SendRequest(request, str(full_location['dra']))
-                    DiameterLogger.info("Async sent to " + str(len(yaml_config['hss']['CancelLocationRequest_Targets'])) + " peers")
-            except Exception as E:
-                DiameterLogger.error("Failed to send CLR, error: " + str(E))
-
-
-
-        #Write back current MME location to Database
-        if yaml_config['hss']['SLh_enabled'] == True:
-            DiameterLogger.debug("SLh Enabled - Must log location")
-            try:
-                orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-                orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
-                DiameterLogger.debug("Recieved originHost is " + str(orignHost))
-                database.UpdateSubscriber(imsi, subscriber_details['SQN'], '', serving_mme=str(orignHost))
-            except:
-                DiameterLogger.error("Failed to update OriginHost for subscriber " + str(imsi))
-        
-
 
 
         DiameterLogger.debug("Successfully Generated ULA")
@@ -731,7 +661,7 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            subscriber_details = database_new2.Get_Subscriber(imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
@@ -764,12 +694,6 @@ class Diameter:
 
             
 
-        key = subscriber_details['K']                                                               #Format keys
-        opc = subscriber_details['OPc']                                                             #Format keys
-        amf = subscriber_details['AMF']                                                             #Format keys
-        sqn = subscriber_details['SQN']                                                             #Format keys
-        DiameterLogger.debug("Formatted crypto keys")
-
         requested_vectors = 1
         for avp in avps:
             if avp['avp_code'] == 1408:
@@ -781,18 +705,12 @@ class Diameter:
                     if sub_avp['avp_code'] == 1411:
                         DiameterLogger.debug("Re-Synchronization required - SQN is out of sync")
                         logtool.RedisIncrimenter('S6a_resync_count')
-                        sqn_origional = sqn
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
                         #rand = subscriber_details['RAND']
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
-                        sqn, mac_s = S6a_crypt.generate_resync_s6a(key, opc, amf, auts, rand)
-                        #Write correct SQN back
-                        database.UpdateSubscriber(imsi, str(sqn), str(subscriber_details['RAND']))
-                        #Print SQN correct value
-                        DiameterLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(sqn_origional) + "(Difference of " + str(int(sqn) - int(sqn_origional)) + ")")
-                        sqn = sqn + 100
+                        database_new2.Get_Vectors_AuC(subscriber_details['auc_id'], "air_resync", auts=auts, rand=rand)
 
                     #Get number of requested vectors
                     if sub_avp['avp_code'] == 1410:
@@ -804,24 +722,13 @@ class Diameter:
         while requested_vectors != 0:
             DiameterLogger.debug("Generating vector number " + str(requested_vectors))
             plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-            DiameterLogger.debug("SQN used in vector: " + str(sqn))
-            try:
-                DiameterLogger.debug("Inputted K   " + str(key))
-                DiameterLogger.debug("Inputted OPc " + str(opc))
-                DiameterLogger.debug("Inputted AMF " + str(amf))
-                DiameterLogger.debug("Inputted SQN " + str(sqn))
-                DiameterLogger.debug("Inputted PLMN " + str(plmn))
-                rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key, opc, amf, sqn, plmn) 
-            except Exception as e:
-                DiameterLogger.error("Error generating EUTRAN vector")
-                DiameterLogger.error(e)
-                raise ValueError("Failed to generate EUTRAN vector")
+            vector_dict = database_new2.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
             eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
             eutranvector += self.generate_vendor_avp(1419, "c0", 10415, self.int_to_hex(requested_vectors, 4))
-            eutranvector += self.generate_vendor_avp(1447, "c0", 10415, rand)                                #And is made up of other AVPs joined together with RAND
-            eutranvector += self.generate_vendor_avp(1448, "c0", 10415, xres)                                #XRes
-            eutranvector += self.generate_vendor_avp(1449, "c0", 10415, autn)                                #AUTN
-            eutranvector += self.generate_vendor_avp(1450, "c0", 10415, kasme)                               #And KASME
+            eutranvector += self.generate_vendor_avp(1447, "c0", 10415, vector_dict['rand'])                                #And is made up of other AVPs joined together with RAND
+            eutranvector += self.generate_vendor_avp(1448, "c0", 10415, vector_dict['xres'])                                #XRes
+            eutranvector += self.generate_vendor_avp(1449, "c0", 10415, vector_dict['autn'])                                #AUTN
+            eutranvector += self.generate_vendor_avp(1450, "c0", 10415, vector_dict['kasme'])                               #And KASME
 
             requested_vectors = requested_vectors - 1
             #sqn = sqn + 1
@@ -841,9 +748,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")
         #avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         
-        response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        database.UpdateSubscriber(imsi, int(sqn + 1), '')              #Incriment SQN
-        logtool.RedisIncrimenter('Answer_16777251_318_success_count')
+        response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet        logtool.RedisIncrimenter('Answer_16777251_318_success_count')
         DiameterLogger.debug("Successfully Generated AIA")
         DiameterLogger.debug(response)
         return response
