@@ -615,7 +615,7 @@ class Diameter:
             APN_context_identifer_count = APN_context_identifer_count + 1  
             DiameterLogger.debug("Processed APN ID " + str(apn_id))
         
-        #subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
 
@@ -1650,7 +1650,7 @@ class Diameter:
             APN_context_identifer_count = APN_context_identifer_count + 1  
             DiameterLogger.debug("Processed APN profile " + str(apn_profile['apn']))
         
-        #subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
             self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
 
