@@ -96,6 +96,7 @@ class AUC_Tests(unittest.TestCase):
 
 class Subscriber_Tests(unittest.TestCase):
     subscriber_id = 0
+    apn_secondary = 0
     template_data = {
     "imsi": "001001000000019",
     "enabled": True,
@@ -122,6 +123,14 @@ class Subscriber_Tests(unittest.TestCase):
         self.__class__.template_data['apn_list'] = '1,2,' + str(r.json()['apn_id'])
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
+    def test_A_create_another_APN_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put('http://localhost:5001/apn', data=json.dumps({"apn": "UnitTest", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
+        log.debug("Created APN ID " + str(r.json()['apn_id']))
+        self.__class__.apn_secondary = r.json()['apn_id']
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+
 
     def test_B_create_Subscriber(self):
         log.debug(self.__class__.template_data)
@@ -142,6 +151,7 @@ class Subscriber_Tests(unittest.TestCase):
     def test_D_Patch_Subscriber(self):
         headers = {"Content-Type": "application/json"}
         self.__class__.template_data['msisdn'] = '123414299213'
+        self.__class__.template_data['apn_list'] = self.__class__.template_data['apn_list'] + "," + str(self.__class__.apn_secondary)
         r = requests.patch('http://localhost:5001/subscriber/' + str(self.__class__.subscriber_id), data=json.dumps(self.__class__.template_data), headers=headers)
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 

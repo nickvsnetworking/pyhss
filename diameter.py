@@ -952,9 +952,6 @@ class Diameter:
             imsi = imsi[4:]                 #Strip SIP: from start of string
         except:
             DiameterLogger.debug("Could not find Username in Cx Server Assignemnt Request.")
-            username = '1234'
-            imsi = '1234'
-            domain = 'test.com'
         
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
@@ -964,7 +961,11 @@ class Diameter:
         templateEnv = jinja2.Environment(loader=templateLoader)
         template = templateEnv.get_template(yaml_config['hss']['Default_iFC'])
         #These variables are passed to the template for use
-        iFC_vars = {'imsi' : imsi, 'domain' : domain, 'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
+        iFC_vars = {
+            'imsi' : imsi, 
+            'domain' : domain,
+            'msisdn_list' : ['12345678', '987654321'],
+            'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
         xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
@@ -1147,20 +1148,19 @@ class Diameter:
 
         if msisdn is not None:
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
-                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
+                subscriber_details = database_new2.Get_IMS_Subscriber(msisdn=msisdn)
+                DiameterLogger.debug("Got subscriber details: " + subscriber_details)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
             result_code = 5005
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
-        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))       
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
@@ -1173,15 +1173,14 @@ class Diameter:
         #This loads a Jinja XML template containing the Sh-User-Data
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        template = templateEnv.get_template(yaml_config['hss']['Default_Sh_UserData'])
+        sh_userdata_template = yaml_config['hss']['Default_Sh_UserData']
+        DiameterLogger.info("Using template " + str(sh_userdata_template) + " for SH user data")
+        template = templateEnv.get_template(sh_userdata_template)
         #These variables are passed to the template for use
-        Sh_template_vars = {
-            'msisdn' : msisdn, 
-            'mnc':self.MNC.zfill(3), 
-            'mcc': self.MCC.zfill(3)
-            }
-        DiameterLogger.info("Rendering template with values: " + str(Sh_template_vars))
-        xmlbody = template.render(Sh_template_vars=Sh_template_vars)  # this is where to put args to the template renderer
+        subscriber_details['mnc'] = self.MNC.zfill(3)
+        subscriber_details['mcc'] = self.MCC.zfill(3)
+        DiameterLogger.info("Rendering template with values: " + str(subscriber_details))
+        xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -1262,9 +1261,10 @@ class Diameter:
 
         if imsi is not None:
                 DiameterLogger.debug("Getting susbcriber location based on IMSI")
-                subscriber_location = database.GetSubscriberLocation(imsi=imsi)
+                subscriber_location = database_new2.Get_Subscriber(imsi=imsi)['serving_mme']
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         elif msisdn is not None:
+                #ToDo - Impliment
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
                 subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
