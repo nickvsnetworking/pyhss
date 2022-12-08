@@ -4,7 +4,7 @@
 subscribers.csv
 ts_129171v090200p.pdf
 config.yaml
-
+lib/*.pyc
 
 log/*.log
 *.1
@@ -23,3 +23,6 @@ log/pyhss_db.log
 log/pyhss_diameter.log
 log/pyhss.log
 scratchpad.py
+lib/__pycache__/lte.cpython-36.pyc
+lib/__pycache__/milenage.cpython-36.pyc
+.gitignore

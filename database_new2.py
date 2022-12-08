@@ -144,12 +144,20 @@ def Generate_JSON_Model_for_Flask(obj_type):
    
     return dictty
 
-def Get_IMS_Subscriber(imsi):
-    print("Get_IMS_Subscriber for IMSI " + str(imsi))
-    try:
-        result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
-    except:
-        raise ValueError("IMS Subscriber not Found")
+def Get_IMS_Subscriber(**kwargs):
+    #Get subscriber by IMSI or MSISDN
+    if 'msisdn' in kwargs:
+        print("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
+        try:
+            result = session.query(SUBSCRIBER).filter_by(msisdn=kwargs['msisdn']).one()
+        except:
+            raise ValueError("Subscriber not Found")
+    elif 'imsi' in kwargs:
+        print("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
+        try:
+            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=kwargs['imsi']).one()
+        except:
+            raise ValueError("IMS Subscriber not Found")
     result = result.__dict__
     result.pop('_sa_instance_state')
     return result
@@ -257,7 +265,7 @@ if __name__ == "__main__":
         'arp_preemption_vulnerability': True}
     newObj = CreateObj(APN, apn2)
     print(newObj)
-    
+
     print(GetObj(APN, newObj['apn_id']))
     apn_id = newObj['apn_id']
     UpdatedObj = newObj
@@ -341,8 +349,8 @@ if __name__ == "__main__":
 
     #Test IMS Get Subscriber
     print("\n\n\n")
-    GetIMSSubscriber_Result = Get_IMS_Subscriber('001001000000006')
-    print(GetIMSSubscriber_Result)    
+    print(Get_IMS_Subscriber(imsi='001001000000006'))
+    print(Get_IMS_Subscriber(msisdn='12345678'))
 
     #Set SCSCF for Subscriber
     Update_Serving_CSCF(newObj['imsi'], "NickTestCSCF")
