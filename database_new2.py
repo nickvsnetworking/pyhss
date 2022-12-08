@@ -145,7 +145,14 @@ def Generate_JSON_Model_for_Flask(obj_type):
     return dictty
 
 def Get_IMS_Subscriber(imsi):
-    return
+    print("Get_IMS_Subscriber for IMSI " + str(imsi))
+    try:
+        result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
+    except:
+        raise ValueError("IMS Subscriber not Found")
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result
 
 def Get_Subscriber(imsi):
     print("Get_Subscriber for IMSI " + str(imsi))
@@ -189,7 +196,6 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['ik'] = ik
         return vector_dict
 
-
 def Get_APN(apn_id):
     print("Getting APN " + str(apn_id))
     try:
@@ -199,7 +205,6 @@ def Get_APN(apn_id):
     result = result.__dict__
     result.pop('_sa_instance_state')
     return result    
-
 
 def Update_AuC(auc_id, sqn=1):
     print("Incrimenting SQN for sub " + str(auc_id))
@@ -221,6 +226,21 @@ def Update_Serving_MME(imsi, serving_mme):
     session.commit()
     return
 
+def Update_Serving_CSCF(imsi, serving_cscf):
+    print("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
+    result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
+    if type(serving_cscf) == str:
+        print("Updating serving CSCF")
+        result.scscf = serving_cscf
+        result.scscf_timestamp = datetime.datetime.now()
+    else:
+        #Clear values
+        print("Clearing serving CSCF")
+        result.scscf = None
+        result.scscf_timestamp = None
+    session.commit()
+    return    
+
 def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
     return
 
@@ -229,6 +249,7 @@ def Get_IMSI_from_MSISDN(msisdn):
 
 if __name__ == "__main__":
 
+
     import binascii,os
     apn2 = {'apn':'fadsgdsags', \
         'apn_ambr_dl' : 9999, 'apn_ambr_ul' : 9999, \
@@ -236,7 +257,7 @@ if __name__ == "__main__":
         'arp_preemption_vulnerability': True}
     newObj = CreateObj(APN, apn2)
     print(newObj)
-    #input("Created new Object")
+    
     print(GetObj(APN, newObj['apn_id']))
     apn_id = newObj['apn_id']
     UpdatedObj = newObj
@@ -268,13 +289,12 @@ if __name__ == "__main__":
     #Generate Vectors
     Get_Vectors_AuC(auc_id, "air", plmn='12ff')
     print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
-    input("See vectors?")
 
     #New Subscriber
     subscriber_json = {
-        "imsi": "001001000000004",
+        "imsi": "001001000000006",
         "enabled": True,
-        "msisdn": "123456789",
+        "msisdn": "12345678",
         "ue_ambr_dl": 999999,
         "ue_ambr_ul": 999999,
         "nam": 0,
@@ -293,7 +313,7 @@ if __name__ == "__main__":
     print(newObj)
 
     #Update SUBSCRIBER
-    newObj['msisdn'] = '99942131'
+    newObj['ue_ambr_ul'] = 999995
     newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
 
     #Set MME Location for Subscriber
@@ -301,33 +321,41 @@ if __name__ == "__main__":
     #Clear MME Location for Subscriber    
     Update_Serving_MME(newObj['imsi'], None)
 
-
-
-    # #New IMS Subscriber
-    # ims_subscriber_json = {
-    #     "msisdn": "123456789013", 
-    #     "msisdn_list": "1234567890",
-    #     "imsi": "123456789",
-    #     "ifc_path" : "default_ifc.xml",
-    #     "sh_profile" : "default_sh_user_data.xml"
-    # }
-    # print(ims_subscriber_json)
-    # newObj = CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
-    # print(newObj)
-    # ims_subscriber_id = newObj['ims_subscriber_id']
+    #New IMS Subscriber
+    ims_subscriber_json = {
+        "msisdn": newObj['msisdn'], 
+        "msisdn_list": newObj['msisdn'],
+        "imsi": subscriber_json['imsi'],
+        "ifc_path" : "default_ifc.xml",
+        "sh_profile" : "default_sh_user_data.xml"
+    }
+    print(ims_subscriber_json)
+    newObj = CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
+    print(newObj)
+    ims_subscriber_id = newObj['ims_subscriber_id']
 
 
     #Test Get Subscriber
     GetSubscriber_Result = Get_Subscriber(subscriber_json['imsi'])
     print(GetSubscriber_Result)
 
+    #Test IMS Get Subscriber
+    print("\n\n\n")
+    GetIMSSubscriber_Result = Get_IMS_Subscriber('001001000000006')
+    print(GetIMSSubscriber_Result)    
+
+    #Set SCSCF for Subscriber
+    Update_Serving_CSCF(newObj['imsi'], "NickTestCSCF")
+    #Clear MME Location for Subscriber    
+    Update_Serving_CSCF(newObj['imsi'], None)
+
     #Test getting APNs
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
-    input("Delete?")
+
     #Delete IMS Subscriber
-    #print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
+    print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
     #Delete Subscriber
     print(DeleteObj(SUBSCRIBER, subscriber_id))
     #Delete AuC
