@@ -949,24 +949,34 @@ class Diameter:
             username = binascii.unhexlify(username).decode('utf-8')
             imsi = username.split('@')[0]   #Strip Domain
             domain = username.split('@')[1] #Get Domain Part
-            imsi = imsi[4:]                 #Strip SIP: from start of string
+            imsi = imsi[4:]                 #Strip SIP: from start of string            
+            ims_subscriber_details = database_new2.Get_IMS_Subscriber(imsi=imsi)
+            DiameterLogger.debug("Got subscriber details: " + ims_subscriber_details)
         except:
-            DiameterLogger.debug("Could not find Username in Cx Server Assignemnt Request.")
-        
+            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
+            result_code = 5005
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
         
         #This loads a Jinja XML template as the default iFC
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        template = templateEnv.get_template(yaml_config['hss']['Default_iFC'])
+        DiameterLogger.debug("Loading iFC from path " + str(ims_subscriber_details['ifc_path']))
+        template = templateEnv.get_template(ims_subscriber_details['ifc_path'])
+        
         #These variables are passed to the template for use
-        iFC_vars = {
-            'imsi' : imsi, 
-            'domain' : domain,
-            'msisdn_list' : ['12345678', '987654321'],
-            'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
-        xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
+        ims_subscriber_details['mnc'] = self.MNC.zfill(3)
+        ims_subscriber_details['mcc'] = self.MCC.zfill(3)
+
+        xmlbody = template.render(iFC_vars=ims_subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")

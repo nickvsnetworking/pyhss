@@ -10,7 +10,7 @@
             </Extension>
         </PublicIdentity>
         <PublicIdentity>
-            <Identity>tel:1{{ iFC_vars['imsi'][-4:] }}</Identity>
+            <Identity>tel:{{ iFC_vars['msisdn'] }}</Identity>
             <Extension>
                 <IdentityType>0</IdentityType>
             </Extension>
