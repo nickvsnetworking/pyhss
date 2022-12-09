@@ -954,8 +954,9 @@ class Diameter:
             imsi = imsi[4:]                 #Strip SIP: from start of string
             DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
             ims_subscriber_details = database_new2.Get_IMS_Subscriber(imsi=imsi)
-            DiameterLogger.debug("Got subscriber details: " + ims_subscriber_details)
-        except:
+            DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
             result_code = 5005
             #Experimental Result AVP
