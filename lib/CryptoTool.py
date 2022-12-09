@@ -15,8 +15,8 @@ key = str(args.k)
 amf = 8000
 sqn = 1
 plmn = '37f800'
-
-if 'op' in args:
+print(args)
+if args.op is not None:
     op = str(args.op)
     print("Generating OPc key from OP & K")
     key = key.encode('utf-8')

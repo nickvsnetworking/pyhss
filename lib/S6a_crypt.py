@@ -12,7 +12,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 logtool = logtool.LogTool()
-logtool.setup_logger('CryptoLogger', 'log/crypto.log', level=yaml_config['logging']['level'])
+logtool.setup_logger('CryptoLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 CryptoLogger = logging.getLogger('CryptoLogger')
 
 CryptoLogger.info("Initialised Diameter Logger, importing database")
