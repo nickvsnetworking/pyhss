@@ -149,17 +149,22 @@ def Get_IMS_Subscriber(**kwargs):
     if 'msisdn' in kwargs:
         print("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
-            result = session.query(SUBSCRIBER).filter_by(msisdn=kwargs['msisdn']).one()
+            result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except:
-            raise ValueError("Subscriber not Found")
+            raise ValueError("IMS Subscriber not Found")
     elif 'imsi' in kwargs:
         print("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
-            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=kwargs['imsi']).one()
+            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except:
             raise ValueError("IMS Subscriber not Found")
+    print("Converting result to dict")
     result = result.__dict__
-    result.pop('_sa_instance_state')
+    try:
+        result.pop('_sa_instance_state')
+    except:
+        pass
+    print("Returning IMS Subscriber Data: " + str(result))
     return result
 
 def Get_Subscriber(imsi):
