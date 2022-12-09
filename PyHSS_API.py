@@ -5,12 +5,12 @@ from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 app = Flask(__name__)
 
-import database_new2
-APN = database_new2.APN
-Serving_APN = database_new2.Serving_APN
-AUC = database_new2.AUC
-SUBSCRIBER = database_new2.SUBSCRIBER
-IMS_SUBSCRIBER = database_new2.IMS_SUBSCRIBER
+import database
+APN = database.APN
+Serving_APN = database.Serving_APN
+AUC = database.AUC
+SUBSCRIBER = database.SUBSCRIBER
+IMS_SUBSCRIBER = database.IMS_SUBSCRIBER
 
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
@@ -28,19 +28,19 @@ parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
 
 APN_model = api.schema_model('APN JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(APN)
+    database.Generate_JSON_Model_for_Flask(APN)
 )
 Serving_APN_model = api.schema_model('Serving APN JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(Serving_APN)
+    database.Generate_JSON_Model_for_Flask(Serving_APN)
 )
 AUC_model = api.schema_model('AUC JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(AUC)
+    database.Generate_JSON_Model_for_Flask(AUC)
 )
 SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(SUBSCRIBER)
+    database.Generate_JSON_Model_for_Flask(SUBSCRIBER)
 )
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
-    database_new2.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
+    database.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
 )
 
 
@@ -49,7 +49,7 @@ class PyHSS_APN_Get(Resource):
     def get(self, apn_id):
         '''Get all APN data for specified APN ID'''
         try:
-            apn_data = database_new2.GetObj(APN, apn_id)
+            apn_data = database.GetObj(APN, apn_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -59,7 +59,7 @@ class PyHSS_APN_Get(Resource):
     def delete(self, apn_id):
         '''Delete all APN data for specified APN ID'''
         try:
-            apn_data = database_new2.DeleteObj(APN, apn_id)
+            apn_data = database.DeleteObj(APN, apn_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -73,7 +73,7 @@ class PyHSS_APN_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            apn_data = database_new2.UpdateObj(APN, json_data, apn_id)
+            apn_data = database.UpdateObj(APN, json_data, apn_id)
             print("Updated object")
             print(apn_data)
             return apn_data, 200
@@ -91,7 +91,7 @@ class PyHSS_APN(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            apn_id = database_new2.CreateObj(APN, json_data)
+            apn_id = database.CreateObj(APN, json_data)
             return apn_id, 200
         except Exception as E:
             print(E)
@@ -103,7 +103,7 @@ class PyHSS_AUC_Get(Resource):
     def get(self, auc_id):
         '''Get all AuC data for specified AuC ID'''
         try:
-            apn_data = database_new2.GetObj(AUC, auc_id)
+            apn_data = database.GetObj(AUC, auc_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -113,7 +113,7 @@ class PyHSS_AUC_Get(Resource):
     def delete(self, auc_id):
         '''Delete all AUC data for specified AUC ID'''
         try:
-            data = database_new2.DeleteObj(AUC, auc_id)
+            data = database.DeleteObj(AUC, auc_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -127,7 +127,7 @@ class PyHSS_AUC_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.UpdateObj(AUC, json_data, auc_id)
+            data = database.UpdateObj(AUC, json_data, auc_id)
             print("Updated object")
             print(data)
             return data, 200
@@ -145,7 +145,7 @@ class PyHSS_AUC(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.CreateObj(AUC, json_data)
+            data = database.CreateObj(AUC, json_data)
             return data, 200
         except Exception as E:
             print(E)
@@ -157,7 +157,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
     def get(self, subscriber_id):
         '''Get all SUBSCRIBER data for specified subscriber_id'''
         try:
-            apn_data = database_new2.GetObj(SUBSCRIBER, subscriber_id)
+            apn_data = database.GetObj(SUBSCRIBER, subscriber_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -167,7 +167,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
     def delete(self, subscriber_id):
         '''Delete all data for specified subscriber_id'''
         try:
-            data = database_new2.DeleteObj(SUBSCRIBER, subscriber_id)
+            data = database.DeleteObj(SUBSCRIBER, subscriber_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -181,7 +181,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.UpdateObj(SUBSCRIBER, json_data, subscriber_id)
+            data = database.UpdateObj(SUBSCRIBER, json_data, subscriber_id)
             print("Updated object")
             print(data)
             return data, 200
@@ -199,7 +199,7 @@ class PyHSS_SUBSCRIBER(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.CreateObj(SUBSCRIBER, json_data)
+            data = database.CreateObj(SUBSCRIBER, json_data)
             return data, 200
         except Exception as E:
             print(E)
@@ -211,7 +211,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
     def get(self, ims_subscriber_id):
         '''Get all SUBSCRIBER data for specified ims_subscriber_id'''
         try:
-            apn_data = database_new2.GetObj(IMS_SUBSCRIBER, ims_subscriber_id)
+            apn_data = database.GetObj(IMS_SUBSCRIBER, ims_subscriber_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -221,7 +221,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
     def delete(self, ims_subscriber_id):
         '''Delete all data for specified ims_subscriber_id'''
         try:
-            data = database_new2.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id)
+            data = database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -235,7 +235,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id)
+            data = database.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id)
             print("Updated object")
             print(data)
             return data, 200
@@ -253,7 +253,7 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database_new2.CreateObj(IMS_SUBSCRIBER, json_data)
+            data = database.CreateObj(IMS_SUBSCRIBER, json_data)
             return data, 200
         except Exception as E:
             print(E)

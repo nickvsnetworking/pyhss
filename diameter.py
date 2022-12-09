@@ -23,7 +23,7 @@ logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diame
 DiameterLogger = logging.getLogger('DiameterLogger')
 
 DiameterLogger.info("Initialised Diameter Logger, importing database")
-import database_new2
+import database
 DiameterLogger.info("Imported database")
 
 if yaml_config['redis']['enabled'] == True:
@@ -494,7 +494,7 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = database_new2.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -514,7 +514,7 @@ class Diameter:
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
         DiameterLogger.debug("Subscriber is served by MME " + str(OriginHost))
-        database_new2.Update_Serving_MME(imsi, OriginHost)
+        database.Update_Serving_MME(imsi, OriginHost)
 
 
         #Boilerplate AVPs
@@ -547,7 +547,7 @@ class Diameter:
         APN_context_identifer_count = 1
         for apn_id in apn_list:
             DiameterLogger.debug("Processing APN ID " + str(apn_id))
-            apn_data = database_new2.Get_APN(apn_id)
+            apn_data = database.Get_APN(apn_id)
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_data['apn'])))
 
             DiameterLogger.debug("Setting APN Configuration Profile")
@@ -661,7 +661,7 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = database_new2.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
@@ -710,7 +710,7 @@ class Diameter:
                         #rand = subscriber_details['RAND']
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
-                        database_new2.Get_Vectors_AuC(subscriber_details['auc_id'], "air_resync", auts=auts, rand=rand)
+                        database.Get_Vectors_AuC(subscriber_details['auc_id'], "air_resync", auts=auts, rand=rand)
 
                     #Get number of requested vectors
                     if sub_avp['avp_code'] == 1410:
@@ -722,7 +722,7 @@ class Diameter:
         while requested_vectors != 0:
             DiameterLogger.debug("Generating vector number " + str(requested_vectors))
             plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-            vector_dict = database_new2.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
+            vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
             eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
             eutranvector += self.generate_vendor_avp(1419, "c0", 10415, self.int_to_hex(requested_vectors, 4))
             eutranvector += self.generate_vendor_avp(1447, "c0", 10415, vector_dict['rand'])                                #And is made up of other AVPs joined together with RAND
@@ -781,7 +781,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777251_321_success_count')
         
 
-        database_new2.Update_Serving_MME(imsi, None)
+        database.Update_Serving_MME(imsi, None)
         DiameterLogger.debug("Successfully Generated PUA")
         return response
 
@@ -953,7 +953,7 @@ class Diameter:
             domain = username.split('@')[1] #Get Domain Part
             imsi = imsi[4:]                 #Strip SIP: from start of string
             DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
-            ims_subscriber_details = database_new2.Get_IMS_Subscriber(imsi=imsi)
+            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
@@ -1029,7 +1029,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = database_new2.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
@@ -1042,7 +1042,7 @@ class Diameter:
         
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
-        vector_dict = database_new2.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
+        vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
         
         DiameterLogger.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
@@ -1162,7 +1162,7 @@ class Diameter:
 
         if msisdn is not None:
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_details = database_new2.Get_IMS_Subscriber(msisdn=msisdn)
+                subscriber_details = database.Get_IMS_Subscriber(msisdn=msisdn)
                 DiameterLogger.debug("Got subscriber details: " + subscriber_details)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
@@ -1275,7 +1275,7 @@ class Diameter:
 
         if imsi is not None:
                 DiameterLogger.debug("Getting susbcriber location based on IMSI")
-                subscriber_location = database_new2.Get_Subscriber(imsi=imsi)['serving_mme']
+                subscriber_location = database.Get_Subscriber(imsi=imsi)['serving_mme']
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         elif msisdn is not None:
                 #ToDo - Impliment
@@ -1746,7 +1746,6 @@ class Diameter:
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session Session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        #494 AVP?
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
