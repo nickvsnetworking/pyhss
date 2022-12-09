@@ -4,12 +4,7 @@
     <PrivateID>{{ iFC_vars['imsi'] }}@mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</PrivateID>
     <ServiceProfile>
         <PublicIdentity>
-<<<<<<< HEAD
             <Identity>sip:{{ iFC_vars['msisdn'] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</Identity>
-=======
-            <BarringIndication>0</BarringIndication>
-            <Identity>sip:{{ iFC_vars['msisdn'] }}@{{ iFC_vars['domain'] }}</Identity>
->>>>>>> master
             <Extension>
                 <IdentityType>0</IdentityType>
                 <Extension>
@@ -18,10 +13,6 @@
             </Extension>
         </PublicIdentity>
         <PublicIdentity>
-<<<<<<< HEAD
-=======
-            <BarringIndication>0</BarringIndication>
->>>>>>> master
             <Identity>tel:{{ iFC_vars['msisdn'] }}</Identity>
             <Extension>
                 <IdentityType>0</IdentityType>
@@ -31,33 +22,11 @@
             </Extension>
         </PublicIdentity>
         <PublicIdentity>
-<<<<<<< HEAD
             <Identity>sip:{{ iFC_vars['imsi'] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</Identity>
             <Extension>
                 <IdentityType>0</IdentityType>
             </Extension>
         </PublicIdentity>        
-=======
-            <BarringIndication>0</BarringIndication>
-            <Identity>sip:{{ iFC_vars['imsi'] }}@{{ iFC_vars['domain'] }}</Identity>
-            <Extension>
-                <IdentityType>0</IdentityType>
-                <Extension>
-                    <AliasIdentityGroupID>1</AliasIdentityGroupID>
-                </Extension>
-            </Extension>
-        </PublicIdentity>
-        <PublicIdentity>
-            <BarringIndication>0</BarringIndication>
-            <Identity>tel:{{ iFC_vars['msisdn'] }}@{{ iFC_vars['domain'] }}</Identity>
-            <Extension>
-                <IdentityType>0</IdentityType>
-                <Extension>
-                    <AliasIdentityGroupID>1</AliasIdentityGroupID>
-                </Extension>
-            </Extension>
-        </PublicIdentity>                
->>>>>>> master
         <!-- SIP INVITE Traffic -->
         <InitialFilterCriteria>
             <Priority>30</Priority>

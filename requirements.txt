@@ -5,14 +5,11 @@ pycryptodomex==3.9.7
 pyyaml==5.3.1
 pysctp==0.6.1
 jinja2
-<<<<<<< HEAD
 sqlalchemy_utils
 sqlalchemy
 alchemyjsonschema
 flask
 flask_restx
-=======
 psycopg2
 psycopg
 prometheus_client
->>>>>>> master

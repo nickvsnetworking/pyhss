@@ -481,12 +481,8 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-<<<<<<< HEAD
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
-=======
             subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
             DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
->>>>>>> master
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -985,7 +981,6 @@ class Diameter:
             imsi = username.split('@')[0]   #Strip Domain
             domain = username.split('@')[1] #Get Domain Part
             imsi = imsi[4:]                 #Strip SIP: from start of string
-<<<<<<< HEAD
             DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
             ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
@@ -1001,12 +996,6 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 301, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
 
-=======
-        except:
-            DiameterLogger.error("Could not find Username in Cx Server Assignemnt Request.")
-            raise ValueError("Could not find Username")
-        
->>>>>>> master
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(str(imsi) + '@' + str(domain))),'ascii'))
         #Cx-User-Data (XML)
         
@@ -1017,26 +1006,10 @@ class Diameter:
         template = templateEnv.get_template(ims_subscriber_details['ifc_path'])
         
         #These variables are passed to the template for use
-<<<<<<< HEAD
         ims_subscriber_details['mnc'] = self.MNC.zfill(3)
         ims_subscriber_details['mcc'] = self.MCC.zfill(3)
 
         xmlbody = template.render(iFC_vars=ims_subscriber_details)  # this is where to put args to the template renderer
-=======
-        try:
-            subscriber_details = database.GetSubscriberInfo(imsi)   
-            DiameterLogger.debug("Subscriber Details: " + str(subscriber_details))  
-        except:
-            DiameterLogger.error("Could not retrive subscriber profile from Cx Server Assignemnt Request.")
-            raise ValueError("Could not find Username")
-
-        iFC_vars = {\
-            'imsi' : imsi, \
-            'msisdn' : str(subscriber_details['msisdn']),
-            'domain' : domain, \
-            'mnc':self.MNC.zfill(3), 'mcc': self.MCC.zfill(3)}
-        xmlbody = template.render(iFC_vars=iFC_vars)  # this is where to put args to the template renderer
->>>>>>> master
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
