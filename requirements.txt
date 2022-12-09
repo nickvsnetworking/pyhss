@@ -3,13 +3,16 @@ construct==2.10.68
 pycryptodome==3.14.1
 pycryptodomex==3.9.7
 pyyaml==5.3.1
-pymongo==3.10.1
-mongo==0.2.0
-pymssql==2.1.5
 pysctp==0.6.1
-pysnmp==4.4.12
-mysql-connector==2.2.9
 jinja2
+<<<<<<< HEAD
+sqlalchemy_utils
+sqlalchemy
+alchemyjsonschema
+flask
+flask_restx
+=======
 psycopg2
 psycopg
 prometheus_client
+>>>>>>> master

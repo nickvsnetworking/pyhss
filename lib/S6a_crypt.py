@@ -107,7 +107,10 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
 
     SIP_Authenticate = rand + autn
     #SIP_Authenticate = base64.b64encode(SIP_Authenticate.encode("utf-8"))
-
+    # print("SIP_Authenticate: " + str(SIP_Authenticate))
+    # print("xres: " + str(xres))
+    # print("ck: " + str(ck))
+    # print("ik: " + str(ik))
     return (SIP_Authenticate, xres, ck, ik)
 
 

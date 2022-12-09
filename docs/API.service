@@ -1,0 +1,13 @@
+[Unit]
+Description=HSS API Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/etc/pyhss/
+Environment=FLASK_APP=PyHSS_API.py
+ExecStart=flask run --host=0.0.0.0 --port=80
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
