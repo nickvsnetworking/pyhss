@@ -945,11 +945,14 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
 
         try:
+            DiameterLogger.info("Checking if username present")
             username = self.get_avp_data(avps, 601)[0]                                                     
             username = binascii.unhexlify(username).decode('utf-8')
+            DiameterLogger.info("Username AVP is present, value is " + str(username))
             imsi = username.split('@')[0]   #Strip Domain
             domain = username.split('@')[1] #Get Domain Part
-            imsi = imsi[4:]                 #Strip SIP: from start of string            
+            imsi = imsi[4:]                 #Strip SIP: from start of string
+            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
             ims_subscriber_details = database_new2.Get_IMS_Subscriber(imsi=imsi)
             DiameterLogger.debug("Got subscriber details: " + ims_subscriber_details)
         except:
