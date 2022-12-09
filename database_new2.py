@@ -207,6 +207,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
+        Update_AuC(auc_id, sqn=key_data['sqn']+100)
         return vector_dict
 
 def Get_APN(apn_id):
