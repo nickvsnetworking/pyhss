@@ -10,6 +10,4 @@ sqlalchemy
 alchemyjsonschema
 flask
 flask_restx
-psycopg2
-psycopg
 prometheus_client

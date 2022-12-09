@@ -4,7 +4,7 @@ import os
 import sys
 sys.path.append(os.path.realpath('../'))
 import yaml
-from datetime import datetime
+from datetime import datetime as log_dt
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
@@ -147,7 +147,7 @@ class LogTool:
         if yaml_config['redis']['enabled'] == True:
             try:
                 logging.debug("Managing Diameter peer to Redis with hostname" + str(peername) + " and IP " + str(ip))
-                now = datetime.now()
+                now = log_dt.now()
                 timestamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
 
                 #Try and get IP and Port seperately

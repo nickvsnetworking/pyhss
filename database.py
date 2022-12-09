@@ -6,6 +6,10 @@ from sqlalchemy.orm import sessionmaker
 import json
 import datetime
 
+import os
+import sys
+sys.path.append(os.path.realpath('lib'))
+
 import yaml
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
@@ -16,6 +20,8 @@ print(db_string)
 engine = create_engine(db_string, echo = True)
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
+
+import logging
 import logtool
 logtool = logtool.LogTool()
 logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
@@ -268,8 +274,7 @@ def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
 def Get_IMSI_from_MSISDN(msisdn):
     return
 
-if __name__ == "__main__":
-
+if __name__ == "__main__":  
 
     import binascii,os
     apn2 = {'apn':'fadsgdsags', \
@@ -324,6 +329,14 @@ if __name__ == "__main__":
         "default_apn" : apn_id,
         "apn_list" : apn_id
     }
+
+    #Delete IMSI if already exists
+    try:
+        existing_sub_data = Get_Subscriber(subscriber_json['imsi'])
+        DeleteObj(SUBSCRIBER, existing_sub_data['subscriber_id'])
+    except:
+        print("Did not find old sub to delete")
+
     print(subscriber_json)
     newObj = CreateObj(SUBSCRIBER, subscriber_json)
     print(newObj)
