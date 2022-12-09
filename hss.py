@@ -18,6 +18,7 @@ HSS_Logger = logging.getLogger('HSS_Logger')
 from logtool import *
 import time
 
+import systemd.daemon
 
 if yaml_config['logging']['log_to_terminal'] == True:
     logging.getLogger().addHandler(logging.StreamHandler())                 #Log to Stdout as well
@@ -403,6 +404,7 @@ if yaml_config['hss']['transport'] == "SCTP":
     print("server_addresses is: " + str(server_addresses))
     sock.bindx(server_addresses)
     HSS_Logger.info("PyHSS listening on SCTP port " + str(server_addresses))
+    systemd.daemon.notify('READY=1')
     # Listen for up to 5 incoming connection
     sock.listen(5)
 elif yaml_config['hss']['transport'] == "TCP":
@@ -414,6 +416,7 @@ elif yaml_config['hss']['transport'] == "TCP":
     server_address = (str(yaml_config['hss']['bind_ip'][0]), int(yaml_config['hss']['bind_port']))    
     sock.bind(server_address)
     HSS_Logger.debug('PyHSS listening on TCP port ' + str(yaml_config['hss']['bind_ip'][0]))
+    systemd.daemon.notify('READY=1')
     # Listen for up to 10 incoming connections
     sock.listen(10)
 else:
