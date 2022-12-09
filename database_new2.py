@@ -190,7 +190,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['kasme'] = kasme
 
         #Incriment SQN
-        Update_AuC(auc_id, sqn=key_data['sqn']+1)
+        Update_AuC(auc_id, sqn=key_data['sqn']+100)
 
         return vector_dict
 
