@@ -75,4 +75,4 @@ There are other settings to do with how often Monit checks the status (more freq
 ### A note on Crashing and Detecting problems
 Monit restarts services when they stop running (crash), but services *should not crash*. Monit is a safety net, but hopefully one you don't need.
 
-PyHSS should only stop if critcal database queries (``DB.GetSubscriberInfo``) fail. This is typically due to a loss of connection to the database used.
+PyHSS should only stop if critcal database queries (``DB.Get_Subscriber``) fail. This is typically due to a loss of connection to the database used.

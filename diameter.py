@@ -481,7 +481,7 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
             DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
@@ -830,7 +830,7 @@ class Diameter:
         DiameterLogger.info("\n\n\nSubscriptionID: " + str(self.get_avp_data(avps, 443)))
         try:
             DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")
-            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
             DiameterLogger.debug("Looping through APNs to find this APN")
             for apn_profile_obj in subscriber_details['pdn']:
                 if apn_profile_obj['apn'] == apn:
@@ -1562,7 +1562,7 @@ class Diameter:
         APN_Configuration = ''
 
         try:
-            subscriber_details = database.GetSubscriberInfo(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
