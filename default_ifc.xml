@@ -4,7 +4,7 @@
     <PrivateID>{{ iFC_vars['imsi'] }}@mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</PrivateID>
     <ServiceProfile>
         <PublicIdentity>
-            <Identity>sip:{{ iFC_vars['imsi'] }}@mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</Identity>
+            <Identity>sip:{{ iFC_vars['msisdn'] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</Identity>
             <Extension>
                 <IdentityType>0</IdentityType>
             </Extension>
@@ -15,6 +15,12 @@
                 <IdentityType>0</IdentityType>
             </Extension>
         </PublicIdentity>
+        <PublicIdentity>
+            <Identity>sip:{{ iFC_vars['imsi'] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</Identity>
+            <Extension>
+                <IdentityType>0</IdentityType>
+            </Extension>
+        </PublicIdentity>        
         <!-- SIP INVITE Traffic -->
         <InitialFilterCriteria>
             <Priority>30</Priority>
