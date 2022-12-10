@@ -515,7 +515,7 @@ class Diameter:
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, self.int_to_hex(int(subscriber_details['nam']), 4))                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -525,17 +525,37 @@ class Diameter:
         AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
         subscription_data += self.generate_vendor_avp(1435, "c0", 10415, AMBR)                           #Add AMBR AVP in two sub-AVPs
 
+
+        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(int(subscriber_details['subscribed_rau_tau_timer']), 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+
+
         #APN Configuration Profile is a sub AVP of Subscription Data
         APN_Configuration_Profile = ''
-        APN_Configuration_Profile += self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))     #Context Identifier
+        APN_Configuration_Profile += self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(1, 4))     #Context Identifier for default APN (First APN is default in our case)
         APN_Configuration_Profile += self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4))     #All-APN-Configurations-Included-Indicator
 
+        #Split the APN list into a list
         apn_list = subscriber_details['apn_list'].split(',')
+        DiameterLogger.debug("Current APN List: " + str(apn_list))
+        #Remove the default APN from the list
+        try:
+            apn_list.remove(str(subscriber_details['default_apn']))
+        except:
+            DiameterLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+            pass
+        #Add default APN in first position
+        apn_list.insert(0, str(subscriber_details['default_apn']))
+
         DiameterLogger.debug("APN list: " + str(apn_list))
         APN_context_identifer_count = 1
         for apn_id in apn_list:
+            #Per APN Setup
             DiameterLogger.debug("Processing APN ID " + str(apn_id))
-            apn_data = database.Get_APN(apn_id)
+            try:
+                apn_data = database.Get_APN(apn_id)
+            except:
+                DiameterLogger.error("Failed to get APN " + str(apn_id))
+                continue
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_data['apn'])))
 
             DiameterLogger.debug("Setting APN Configuration Profile")
@@ -603,9 +623,7 @@ class Diameter:
             APN_context_identifer_count = APN_context_identifer_count + 1  
             DiameterLogger.debug("Processed APN ID " + str(apn_id))
         
-        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
-        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
-            self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_Configuration_Profile + APN_Configuration)
 
         DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
         msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
