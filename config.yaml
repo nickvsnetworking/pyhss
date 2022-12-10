@@ -72,6 +72,9 @@ redis:
   host: localhost
   port: 6379
 
+prometheus:
+  enabled: False
+  port: 8081
 
 snmp:
   port: 1161
