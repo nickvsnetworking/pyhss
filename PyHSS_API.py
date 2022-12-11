@@ -7,10 +7,12 @@ app = Flask(__name__)
 
 import database
 APN = database.APN
-Serving_APN = database.Serving_APN
+Serving_APN = database.SERVING_APN
 AUC = database.AUC
 SUBSCRIBER = database.SUBSCRIBER
 IMS_SUBSCRIBER = database.IMS_SUBSCRIBER
+TFT = database.TFT
+CHARGING_RULE = database.CHARGING_RULE
 
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
@@ -23,6 +25,8 @@ ns_apn = api.namespace('apn', description='PyHSS APN Functions')
 ns_auc = api.namespace('auc', description='PyHSS AUC Functions')
 ns_subscriber = api.namespace('subscriber', description='PyHSS SUBSCRIBER Functions')
 ns_ims_subscriber = api.namespace('ims_subscriber', description='PyHSS IMS SUBSCRIBER Functions')
+ns_tft = api.namespace('tft', description='PyHSS TFT Functions')
+ns_charging_rule = api.namespace('charging_rule', description='PyHSS Charging Rule Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -41,6 +45,12 @@ SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON',
 )
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
     database.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
+)
+TFT_model = api.schema_model('TFT JSON', 
+    database.Generate_JSON_Model_for_Flask(TFT)
+)
+CHARGING_RULE_model = api.schema_model('CHARGING_RULE JSON', 
+    database.Generate_JSON_Model_for_Flask(CHARGING_RULE)
 )
 
 
@@ -261,5 +271,112 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
             return jsonify(response_json), 404
 
 
+@ns_tft.route('/<string:tft_id>')
+class PyHSS_TFT_Get(Resource):
+    def get(self, tft_id):
+        '''Get all TFT data for specified tft_id'''
+        try:
+            apn_data = database.GetObj(TFT, tft_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "tft_id ID not found " + str(tft_id)}
+            return jsonify(response_json), 404
+
+    def delete(self, tft_id):
+        '''Delete all data for specified tft_id'''
+        try:
+            data = database.DeleteObj(TFT, tft_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "tft_id not found " + str(tft_id)}
+            return jsonify(response_json), 404
+
+    @ns_ims_subscriber.doc('Update IMS tft_id Object')
+    @ns_ims_subscriber.expect(TFT_model)
+    def patch(self, tft_id):
+        '''Update tft_id data for specified tft_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.UpdateObj(TFT, json_data, tft_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
+            return jsonify(response_json), 404
+
+@ns_tft.route('/')
+class PyHSS_TFT(Resource):
+    @ns_ims_subscriber.doc('Create TFT Object')
+    @ns_ims_subscriber.expect(TFT_model)
+    def put(self):
+        '''Create new TFT'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.CreateObj(TFT, json_data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create TFT"}
+            return jsonify(response_json), 404
+
+@ns_charging_rule.route('/<string:charging_rule_id>')
+class PyHSS_Charging_Rule_Get(Resource):
+    def get(self, charging_rule_id):
+        '''Get all Charging Rule data for specified charging_rule_id'''
+        try:
+            apn_data = database.GetObj(CHARGING_RULE, charging_rule_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "charging_rule_id ID not found " + str(charging_rule_id)}
+            return jsonify(response_json), 404
+
+    def delete(self, charging_rule_id):
+        '''Delete all data for specified charging_rule_id'''
+        try:
+            data = database.DeleteObj(CHARGING_RULE, charging_rule_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "charging_rule_id not found " + str(charging_rule_id)}
+            return jsonify(response_json), 404
+
+    @ns_charging_rule.doc('Update charging_rule_id Object')
+    @ns_charging_rule.expect(CHARGING_RULE_model)
+    def patch(self, charging_rule_id):
+        '''Update charging_rule_id data for specified charging_rule_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.UpdateObj(CHARGING_RULE, json_data, charging_rule_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
+            return jsonify(response_json), 404
+
+@ns_tft.route('/')
+class PyHSS_TFT(Resource):
+    @ns_charging_rule.doc('Create ChargingRule Object')
+    @ns_charging_rule.expect(CHARGING_RULE_model)
+    def put(self):
+        '''Create new ChargingRule'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.CreateObj(CHARGING_RULE, json_data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : "Failed to create ChargingRule"}
+            return jsonify(response_json), 404
 if __name__ == '__main__':
     app.run(debug=True)

@@ -816,14 +816,12 @@ class Diameter:
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
         #Called Station ID
-        DiameterLogger.critical("Attempting to find APN in CCR")
-        DiameterLogger.critical(self.get_avp_data(avps, 30)[0])
+        DiameterLogger.debug("Attempting to find APN in CCR")
         apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
         DiameterLogger.debug("CCR for APN " + str(apn))
 
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
-
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -849,13 +847,8 @@ class Diameter:
 
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR")
-            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
-            experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
-            #Experimental Result (297)
-            avp += self.generate_avp(297, 40, experimental_result)
-            response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            return response
+            DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists")
+
 
         if int(CC_Request_Type) == 1:
             DiameterLogger.info("Request type for CCA is 1 - Initial")
@@ -866,14 +859,10 @@ class Diameter:
             except:
                 ue_ip = 'Failed to Decode'
 
-            DiameterLogger.debug(ChargingRules)
-            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
-            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(ChargingRules['qci']), 4))
-            #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI)
-            avp += self.generate_vendor_avp(1049, "c0", 10415, AVP_QoS + AVP_ARP)
+
+            #Default EPS QoS (From CCR-I)
+            default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
+            avp += self.generate_vendor_avp(1049, "c0", 10415, default_EPS_QoS)
 
                                                                                                     #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
@@ -886,64 +875,71 @@ class Diameter:
             avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
             DiameterLogger.info("Added to AVP List")
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
-
-            #Install Charging Rules
-            DiameterLogger.info("Naming Charging Rule")
-            Charging_Rule_Name = self.generate_vendor_avp(1005, "80", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
-            DiameterLogger.info("Named Charging Rule")
-
-            #Populate all Flow Information AVPs
-            Flow_Information = ''
-            for tft in ChargingRules['tft']:
-                DiameterLogger.info(tft)
-                #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
-                Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
-                Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
-                Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
-
-            Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
-
-            DiameterLogger.info("Defining QoS information")
-            QoS_Information = ''
-            #QCI 
-            QoS_Information += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
-            #ARP
-            DiameterLogger.info("Defining ARP information")
-            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
-            QoS_Information += self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-            DiameterLogger.info("Defining MBR information")
-            #Max Requested Bandwidth
-            QoS_Information += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
-            QoS_Information += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
-            DiameterLogger.info("Defining GBR information")
             
-            #GBR
-            if int(ChargingRules['gbr_ul']) != 0:
-                QoS_Information += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
-            if int(ChargingRules['gbr_dl']) != 0:                
-                QoS_Information += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+            #If database returned an existing ChargingRule defintion
+            try:
+                DiameterLogger.debug(ChargingRules)
 
-            #Precedence
-            DiameterLogger.info("Defining Precedence information")
-            Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
-            
-            #Complete Charging Rule Defintion
-            DiameterLogger.info("Collating ChargingRuleDef")
-            ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
-            ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+                #Install Charging Rules
+                DiameterLogger.info("Naming Charging Rule")
+                Charging_Rule_Name = self.generate_vendor_avp(1005, "80", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
+                DiameterLogger.info("Named Charging Rule")
 
-            #Charging Rule Install
-            DiameterLogger.info("Collating ChargingRuleDef")
-            avp += self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+                #Populate all Flow Information AVPs
+                Flow_Information = ''
+                for tft in ChargingRules['tft']:
+                    DiameterLogger.info(tft)
+                    #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+                    Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
+                    Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
+                    Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
 
-            #Store PGW location into Database
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id), serving_pgw=OriginHost, ue_ip=ue_ip)
+                Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
+
+                DiameterLogger.info("Defining QoS information")
+                QoS_Information = ''
+                #QCI 
+                QoS_Information += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
+                #ARP
+                DiameterLogger.info("Defining ARP information")
+                AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
+                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
+                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
+                QoS_Information += self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                DiameterLogger.info("Defining MBR information")
+                #Max Requested Bandwidth
+                QoS_Information += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
+                QoS_Information += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
+                DiameterLogger.info("Defining GBR information")
+                
+                #GBR
+                if int(ChargingRules['gbr_ul']) != 0:
+                    QoS_Information += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
+                if int(ChargingRules['gbr_dl']) != 0:                
+                    QoS_Information += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+
+                #Precedence
+                DiameterLogger.info("Defining Precedence information")
+                Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+                
+                #Complete Charging Rule Defintion
+                DiameterLogger.info("Collating ChargingRuleDef")
+                ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
+                ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+
+                #Charging Rule Install
+                DiameterLogger.info("Collating ChargingRuleDef")
+                avp += self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+
+                #Store PGW location into Database
+                database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)
+            except Exception as E:
+                DiameterLogger.debug("Error in populating dynamic charging rules: " + str(E))
 
         elif int(CC_Request_Type) == 3:
             DiameterLogger.info("Request type for CCA is 3 - Termination")
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id), serving_pgw=None, ue_ip=None)
+            if ChargingRules:
+                database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id), serving_pgw=None, ue_ip=None)
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm

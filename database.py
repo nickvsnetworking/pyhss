@@ -131,7 +131,7 @@ Session = sessionmaker(bind = engine)
 session = Session()
 
 def GetObj(obj_type, obj_id):
-    print("Called GetObj for type " + str(obj_type) + " with id " + str(obj_id))
+    DBLogger.debug("Called GetObj for type " + str(obj_type) + " with id " + str(obj_id))
     result = session.query(obj_type).get(obj_id)
     result = result.__dict__
     result.pop('_sa_instance_state')
@@ -141,18 +141,18 @@ def GetObj(obj_type, obj_id):
     return result
 
 def UpdateObj(obj_type, json_data, obj_id):
-    print("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
+    DBLogger.debug("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
     obj_type_str = str(obj_type.__table__.name).upper()
-    print("obj_type_str is " + str(obj_type_str))
+    DBLogger.debug("obj_type_str is " + str(obj_type_str))
     filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
     sessionquery = session.query(obj_type).filter(filter_input)
-    print("got result: " + str(sessionquery.__dict__))
+    DBLogger.debug("got result: " + str(sessionquery.__dict__))
     sessionquery.update(json_data, synchronize_session = False)
     session.commit()
     return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id):
-    print("Called DeleteObj for type " + str(obj_type) + " with id " + str(obj_id))
+    DBLogger.debug("Called DeleteObj for type " + str(obj_type) + " with id " + str(obj_id))
     res = session.query(obj_type).get(obj_id)
     session.delete(res)
     session.commit()
@@ -184,28 +184,28 @@ def Generate_JSON_Model_for_Flask(obj_type):
 def Get_IMS_Subscriber(**kwargs):
     #Get subscriber by IMSI or MSISDN
     if 'msisdn' in kwargs:
-        print("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
+        DBLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
             result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except:
             raise ValueError("IMS Subscriber not Found")
     elif 'imsi' in kwargs:
-        print("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
+        DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except:
             raise ValueError("IMS Subscriber not Found")
-    print("Converting result to dict")
+    DBLogger.debug("Converting result to dict")
     result = result.__dict__
     try:
         result.pop('_sa_instance_state')
     except:
         pass
-    print("Returning IMS Subscriber Data: " + str(result))
+    DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     return result
 
 def Get_Subscriber(imsi):
-    print("Get_Subscriber for IMSI " + str(imsi))
+    DBLogger.debug("Get_Subscriber for IMSI " + str(imsi))
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
     except:
@@ -215,7 +215,7 @@ def Get_Subscriber(imsi):
     return result
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
-    print("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
+    DBLogger.debug("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
     key_data = GetObj(AUC, auc_id)
     vector_dict = {}
     
@@ -232,9 +232,9 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         return vector_dict
 
     elif action == "air_resync":
-        print("Resync SQN")
+        DBLogger.debug("Resync SQN")
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
-        print("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
+        DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
         Update_AuC(auc_id, sqn=sqn+100)
         return
     
@@ -248,7 +248,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         return vector_dict
 
 def Get_APN(apn_id):
-    print("Getting APN " + str(apn_id))
+    DBLogger.debug("Getting APN " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn_id=apn_id).one()
     except:
@@ -258,7 +258,7 @@ def Get_APN(apn_id):
     return result    
 
 def Get_APN_by_Name(apn):
-    print("Getting APN named " + str(apn_id))
+    DBLogger.debug("Getting APN named " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn=str(apn)).one()
     except:
@@ -268,35 +268,35 @@ def Get_APN_by_Name(apn):
     return result 
 
 def Update_AuC(auc_id, sqn=1):
-    print("Incrimenting SQN for sub " + str(auc_id))
-    print(UpdateObj(AUC, {'sqn': sqn}, auc_id))
+    DBLogger.debug("Incrimenting SQN for sub " + str(auc_id))
+    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id))
     return
 
 def Update_Serving_MME(imsi, serving_mme):
-    print("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
+    DBLogger.debug("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
     result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
     if type(serving_mme) == str:
-        print("Updating serving MME")
+        DBLogger.debug("Updating serving MME")
         result.serving_mme = serving_mme
         result.serving_mme_timestamp = datetime.datetime.now()
     else:
         #Clear values
-        print("Clearing serving MME")
+        DBLogger.debug("Clearing serving MME")
         result.serving_mme = None
         result.serving_mme_timestamp = None
     session.commit()
     return
 
 def Update_Serving_CSCF(imsi, serving_cscf):
-    print("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
+    DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
     result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
     if type(serving_cscf) == str:
-        print("Updating serving CSCF")
+        DBLogger.debug("Updating serving CSCF")
         result.scscf = serving_cscf
         result.scscf_timestamp = datetime.datetime.now()
     else:
         #Clear values
-        print("Clearing serving CSCF")
+        DBLogger.debug("Clearing serving CSCF")
         result.scscf = None
         result.scscf_timestamp = None
     session.commit()
@@ -309,12 +309,12 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
 
     #Split the APN list into a list
     apn_list = subscriber_details['apn_list'].split(',')
-    print("Current APN List: " + str(apn_list))
+    DBLogger.debug("Current APN List: " + str(apn_list))
     #Remove the default APN from the list
     try:
         apn_list.remove(str(subscriber_details['default_apn']))
     except:
-        print("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+        DBLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
         pass
     #Add default APN in first position
     apn_list.insert(0, str(subscriber_details['default_apn']))
@@ -323,9 +323,9 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
     for apn_id in apn_list:
         #Get each APN in List
         apn_data = Get_APN(apn_id)
-        print(apn_data)
+        DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            print("Matched!")
+            DBLogger.debug("Matched!")
             json_data = {
                 'apn' : apn_id,
                 'subscriber_id' : subscriber_id,
@@ -338,22 +338,24 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
             try:
             #Check if already a serving APN on record
                 ServingAPN = Get_Serving_APN(pcrf_session_id=pcrf_session_id, apn_id=apn_id)
-                print("Existing Serving APN ID on record, updating")
+                DBLogger.debug("Existing Serving APN ID on record, updating")
                 if type(serving_pgw) == str:
                     UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'])
                 else:
-                    print("Clearing PCRF session ID")
+                    DBLogger.debug("Clearing PCRF session ID")
                     DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            except:
+            except Exception as E:
+                DBLogger.info("Failed to update existing APN " + str(E))
                 #Update if does not exist
                 CreateObj(SERVING_APN, json_data)
             return
 
 def Get_Serving_APN(pcrf_session_id, apn_id):
-    print("Getting Serving APN " + str(apn_id) + " with pcrf_session_id " + str(pcrf_session_id))
+    DBLogger.debug("Getting Serving APN " + str(apn_id) + " with pcrf_session_id " + str(pcrf_session_id))
     try:
         result = session.query(SERVING_APN).filter_by(pcrf_session_id=pcrf_session_id, apn=apn_id).one()
     except:
+        DBLogger.debug("Get_Serving_APN not found")
         raise ValueError("APN not Found")
     result = result.__dict__
     result.pop('_sa_instance_state')
@@ -376,19 +378,19 @@ def Get_Charging_Rule(charging_rule_id):
     return ChargingRule
 
 def Get_Charging_Rules(imsi, apn):
-    print("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
+    DBLogger.debug("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(str(imsi))
     subscriber_id = subscriber_details['subscriber_id']
 
     #Split the APN list into a list
     apn_list = subscriber_details['apn_list'].split(',')
-    print("Current APN List: " + str(apn_list))
+    DBLogger.debug("Current APN List: " + str(apn_list))
     #Remove the default APN from the list
     try:
         apn_list.remove(str(subscriber_details['default_apn']))
     except:
-        print("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+        DBLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
         pass
     #Add default APN in first position
     apn_list.insert(0, str(subscriber_details['default_apn']))
@@ -398,12 +400,12 @@ def Get_Charging_Rules(imsi, apn):
         DBLogger.debug("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
         #Get each APN in List
         apn_data = Get_APN(apn_id)
-        print(apn_data)
+        DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            print("Matched!")
+            DBLogger.debug("Matched!")
             #Get Charging Rules
             ChargingRule = Get_Charging_Rule(apn_data['charging_rule_id'])
-            print(ChargingRule)
+            DBLogger.debug(ChargingRule)
             return ChargingRule
 
 
@@ -538,7 +540,6 @@ if __name__ == "__main__":
     print("\n\n\n\n\n\n\n")
     ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn='UpdatedInUnitTest')
     pprint.pprint(ChargingRule)
-    sys.exit()
 
     #New IMS Subscriber
     ims_subscriber_json = {
