@@ -55,15 +55,17 @@ class APN(Base):
     arp_priority = Column(Integer, default=4)
     arp_preemption_capability = Column(Boolean, default=False)
     arp_preemption_vulnerability = Column(Boolean, default=True)
+    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
 
-class Serving_APN(Base):
+class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
     serving_apn_id = Column(Integer, primary_key=True)
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
     apn = Column(Integer, ForeignKey('apn.apn_id'))
+    pcrf_session_id = Column(String(100))
+    ue_ip = Column(String(100))
     serving_pgw = Column(String(50))
     serving_pgw_timestamp = Column(DateTime)
-
 
 class AUC(Base):
     __tablename__ = 'auc'
@@ -72,7 +74,6 @@ class AUC(Base):
     opc = Column(String(32))
     amf = Column(String(4))
     sqn = Column(Integer)
-
 
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
@@ -101,6 +102,29 @@ class IMS_SUBSCRIBER(Base):
     scscf = Column(String(50))
     scscf_timestamp = Column(DateTime)
 
+class CHARGING_RULE(Base):
+    __tablename__ = 'charging_rule'
+    charging_rule_id = Column(Integer, primary_key = True)
+    rule_name = Column(String(20))
+    
+    qci = Column(Integer, default=9)
+    arp_priority = Column(Integer, default=4)
+    arp_preemption_capability = Column(Boolean, default=False)
+    arp_preemption_vulnerability = Column(Boolean, default=True)    
+
+    mbr_dl = Column(Integer, nullable=False)
+    mbr_ul = Column(Integer, nullable=False)
+    gbr_dl = Column(Integer, nullable=False)
+    gbr_ul = Column(Integer, nullable=False)    
+    tft_group_id = Column(Integer)
+    precedence = Column(Integer)
+
+class TFT(Base):
+    __tablename__ = 'tft'
+    tft_id = Column(Integer, primary_key = True)
+    tft_group_id = Column(Integer, nullable=False)
+    tft_string = Column(String(100), nullable=False)
+    direction = Column(Integer, nullable=False) #0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
@@ -233,6 +257,16 @@ def Get_APN(apn_id):
     result.pop('_sa_instance_state')
     return result    
 
+def Get_APN_by_Name(apn):
+    print("Getting APN named " + str(apn_id))
+    try:
+        result = session.query(APN).filter_by(apn=str(apn)).one()
+    except:
+        raise ValueError("APN not Found")
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result 
+
 def Update_AuC(auc_id, sqn=1):
     print("Incrimenting SQN for sub " + str(auc_id))
     print(UpdateObj(AUC, {'sqn': sqn}, auc_id))
@@ -268,19 +302,162 @@ def Update_Serving_CSCF(imsi, serving_cscf):
     session.commit()
     return    
 
+def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
+    #Get Subscriber ID from IMSI
+    subscriber_details = Get_Subscriber(str(imsi))
+    subscriber_id = subscriber_details['subscriber_id']
+
+    #Split the APN list into a list
+    apn_list = subscriber_details['apn_list'].split(',')
+    print("Current APN List: " + str(apn_list))
+    #Remove the default APN from the list
+    try:
+        apn_list.remove(str(subscriber_details['default_apn']))
+    except:
+        print("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+        pass
+    #Add default APN in first position
+    apn_list.insert(0, str(subscriber_details['default_apn']))
+
+    #Get APN ID from APN
+    for apn_id in apn_list:
+        #Get each APN in List
+        apn_data = Get_APN(apn_id)
+        print(apn_data)
+        if str(apn_data['apn']).lower() == str(apn).lower():
+            print("Matched!")
+            json_data = {
+                'apn' : apn_id,
+                'subscriber_id' : subscriber_id,
+                'pcrf_session_id' : str(pcrf_session_id),
+                'serving_pgw' : str(serving_pgw),
+                'serving_pgw_timestamp' : datetime.datetime.now(),
+                'ue_ip' : str(ue_ip)
+            }
+
+            try:
+            #Check if already a serving APN on record
+                ServingAPN = Get_Serving_APN(pcrf_session_id=pcrf_session_id, apn_id=apn_id)
+                print("Existing Serving APN ID on record, updating")
+                if type(serving_pgw) == str:
+                    UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'])
+                else:
+                    print("Clearing PCRF session ID")
+                    DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'])
+            except:
+                #Update if does not exist
+                CreateObj(SERVING_APN, json_data)
+            return
+
+def Get_Serving_APN(pcrf_session_id, apn_id):
+    print("Getting Serving APN " + str(apn_id) + " with pcrf_session_id " + str(pcrf_session_id))
+    try:
+        result = session.query(SERVING_APN).filter_by(pcrf_session_id=pcrf_session_id, apn=apn_id).one()
+    except:
+        raise ValueError("APN not Found")
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result    
+
+def Get_Charging_Rule(charging_rule_id):
+    #Get base Rule
+    ChargingRule = GetObj(CHARGING_RULE, charging_rule_id)
+    ChargingRule['tft'] = []
+    #Get TFTs
+    try:
+        results = session.query(TFT).filter_by(tft_group_id=ChargingRule['tft_group_id'])
+        for result in results:
+            result = result.__dict__
+            result.pop('_sa_instance_state')
+            ChargingRule['tft'].append(result)
+    except:
+        raise ValueError("TFT not Found")
+
+    return ChargingRule
+
+def Get_Charging_Rules(imsi, apn):
+    print("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
+    #Get Subscriber ID from IMSI
+    subscriber_details = Get_Subscriber(str(imsi))
+    subscriber_id = subscriber_details['subscriber_id']
+
+    #Split the APN list into a list
+    apn_list = subscriber_details['apn_list'].split(',')
+    print("Current APN List: " + str(apn_list))
+    #Remove the default APN from the list
+    try:
+        apn_list.remove(str(subscriber_details['default_apn']))
+    except:
+        print("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+        pass
+    #Add default APN in first position
+    apn_list.insert(0, str(subscriber_details['default_apn']))
+
+    #Get APN ID from APN
+    for apn_id in apn_list:
+        DBLogger.debug("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
+        #Get each APN in List
+        apn_data = Get_APN(apn_id)
+        print(apn_data)
+        if str(apn_data['apn']).lower() == str(apn).lower():
+            print("Matched!")
+            #Get Charging Rules
+            ChargingRule = Get_Charging_Rule(apn_data['charging_rule_id'])
+            print(ChargingRule)
+            return ChargingRule
+
+
 def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
     return
 
 def Get_IMSI_from_MSISDN(msisdn):
     return
 
-if __name__ == "__main__":  
+if __name__ == "__main__":
 
-    import binascii,os
-    apn2 = {'apn':'fadsgdsags', \
-        'apn_ambr_dl' : 9999, 'apn_ambr_ul' : 9999, \
-        'arp_priority': 1, 'arp_preemption_capability' : False, \
-        'arp_preemption_vulnerability': True}
+    import binascii,os,pprint
+
+    #Define Charging Rule
+    charging_rule = {
+        'rule_name' : 'charging_rule_test2',
+        'qci' : 4,
+        'arp_priority' : 5,
+        'arp_preemption_capability' : True,
+        'arp_preemption_vulnerability' : False,
+        'mbr_dl' : 128000,
+        'mbr_ul' : 128000,
+        'gbr_dl' : 128000,
+        'gbr_ul' : 128000,
+        'tft_group_id' : 1,
+        'precedence' : 100
+        }
+    ChargingRule_newObj = CreateObj(CHARGING_RULE, charging_rule)
+
+    #Define TFTs
+    tft_template1 = {
+        'tft_group_id' : 1,
+        'tft_string' : 'permit in ip from any to any',
+        'direction' : 1
+    }
+    tft_template2 = {
+        'tft_group_id' : 1,
+        'tft_string' : 'permit out ip from any to any',
+        'direction' : 2
+    }    
+    CreateObj(TFT, tft_template1)
+    CreateObj(TFT, tft_template2)
+
+    print("ChargingRule_newObj: " + str(ChargingRule_newObj))
+
+    apn2 = {
+        'apn':'ims',
+        'apn_ambr_dl' : 9999, 
+        'apn_ambr_ul' : 9999,
+        'arp_priority': 1, 
+        'arp_preemption_capability' : False,
+        'arp_preemption_vulnerability': True,
+        'charging_rule_id' : ChargingRule_newObj['charging_rule_id']
+        }
     newObj = CreateObj(APN, apn2)
     print(newObj)
 
@@ -354,6 +531,14 @@ if __name__ == "__main__":
     Update_Serving_MME(newObj['imsi'], "Test123")
     #Clear MME Location for Subscriber    
     Update_Serving_MME(newObj['imsi'], None)
+
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', ue_ip='1.2.3.4')    
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw=None, ue_ip=None)
+
+    print("\n\n\n\n\n\n\n")
+    ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn='UpdatedInUnitTest')
+    pprint.pprint(ChargingRule)
+    sys.exit()
 
     #New IMS Subscriber
     ims_subscriber_json = {
