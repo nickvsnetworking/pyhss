@@ -64,6 +64,23 @@ class Diameter:
                     ip_hex += str(parts).zfill(4)
         #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
+    #Converts a hex formatted IPv4 address or IPV6 address to dotted-decimal 
+    def hex_to_ip(hex_ip):
+        if len(hex_ip) == 8:
+            octet_1 = int(str(hex_ip[0:2]), base=16)
+            octet_2 = int(str(hex_ip[2:4]), base=16)
+            octet_3 = int(str(hex_ip[4:6]), base=16)
+            octet_4 = int(str(hex_ip[6:8]), base=16)
+            return str(octet_1) + "." + str(octet_2) + "." + str(octet_3) + "." + str(octet_4)
+        elif len(hex_ip) == 32:
+            n=4
+            ipv6_split = [hex_ip[idx:idx + n] for idx in range(0, len(hex_ip), n)]
+            ipv6_str = ''
+            for octect in ipv6_split:
+                ipv6_str += str(octect).lstrip('0') + ":"
+            #Strip last Colon
+            ipv6_str = ipv6_str[:-1]
+            return ipv6_str
 
     #Converts string to hex
     def string_to_hex(self, string):
@@ -854,9 +871,10 @@ class Diameter:
 
             
             try:
-                ue_ip = str(self.get_avp_data(avps, 8))
+                ue_ip = str(self.get_avp_data(avps, 8)[0])
+                ue_ip = str(self.hex_to_ip(ue_ip))
             except:
-                ue_ip = 'Failed to Decode'
+                ue_ip = 'Failed to Decode / Get UE IP'
 
 
             #Default EPS QoS (From CCR-I)
