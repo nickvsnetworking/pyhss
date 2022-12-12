@@ -630,14 +630,14 @@ class Diameter:
         if 'RAT_freq_priorityID' in subscriber_details:
             DiameterLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
             rat_freq_priorityID = self.generate_vendor_avp(1440, "C0", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
-            DiameterLogger.debug(rat_freq_priorityID)
+            DiameterLogger.debug("Adding rat_freq_priorityID: " + str(rat_freq_priorityID))
             subscription_data += rat_freq_priorityID
 
         if 'charging_characteristics' in subscriber_details:
             DiameterLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['charging_characteristics']) + " - Adding in ULA")
-            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['charging_characteristics'])))
+            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, str(subscriber_details['charging_characteristics']))
             subscription_data += _3gpp_charging_characteristics
-            DiameterLogger.debug(_3gpp_charging_characteristics)
+            DiameterLogger.debug("Adding _3gpp_charging_characteristics: " + str(_3gpp_charging_characteristics))
 
         #ToDo - Fix this  
         # if 'APN_OI_replacement' in subscriber_details:
