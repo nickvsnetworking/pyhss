@@ -46,6 +46,7 @@ class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True)
     apn = Column(String(50), nullable=False)
+    ip_version = Column(Integer, default=4)
     pgw_address = Column(String(50))
     sgw_address = Column(String(50))
     charging_characteristics = Column( String(4), default='0800')
@@ -64,6 +65,7 @@ class SERVING_APN(Base):
     apn = Column(Integer, ForeignKey('apn.apn_id'))
     pcrf_session_id = Column(String(100))
     ue_ip = Column(String(100))
+    ip_version = Column(Integer, default=4)
     serving_pgw = Column(String(50))
     serving_pgw_timestamp = Column(DateTime)
 
@@ -445,7 +447,7 @@ if __name__ == "__main__":
         'tft_group_id' : 1,
         'tft_string' : 'permit out ip from any to any',
         'direction' : 2
-    }    
+    }
     CreateObj(TFT, tft_template1)
     CreateObj(TFT, tft_template2)
 
