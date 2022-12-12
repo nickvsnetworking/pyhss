@@ -363,8 +363,8 @@ class PyHSS_Charging_Rule_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Failed to update"}
             return jsonify(response_json), 404
 
-@ns_tft.route('/')
-class PyHSS_TFT(Resource):
+@ns_charging_rule.route('/')
+class PyHSS_Charging_Rule(Resource):
     @ns_charging_rule.doc('Create ChargingRule Object')
     @ns_charging_rule.expect(CHARGING_RULE_model)
     def put(self):
