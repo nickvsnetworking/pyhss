@@ -639,10 +639,13 @@ class Diameter:
         
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_Configuration_Profile + APN_Configuration)
 
-        DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-        msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
-        DiameterLogger.debug(msisdn_avp)
-        subscription_data += msisdn_avp
+        try:
+            DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(subscriber_details['msisdn'])))                     #MSISDN
+            DiameterLogger.debug(msisdn_avp)
+            subscription_data += msisdn_avp
+        except Exception as E:
+            DiameterLogger.error("Failed to populate MSISDN in ULA due to error " + str(E))
 
         if 'RAT_freq_priorityID' in subscriber_details:
             DiameterLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
