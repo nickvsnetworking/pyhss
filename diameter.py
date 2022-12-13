@@ -926,7 +926,7 @@ class Diameter:
                 #ARP
                 DiameterLogger.info("Defining ARP information")
                 AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
-                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
+                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "c0", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
                 AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
                 ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
 
@@ -945,7 +945,7 @@ class Diameter:
                 DiameterLogger.info("Defined Bandwith Info: " + str(Bandwidth_info))
 
                 #Populate QoS Information
-                QoS_Information = self.generate_vendor_avp(1016, "80", 10415, QCI + ARP + Bandwidth_info)
+                QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
                 DiameterLogger.info("Defined QoS_Information: " + str(QoS_Information))
                 
                 #Precedence
