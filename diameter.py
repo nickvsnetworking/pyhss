@@ -917,6 +917,7 @@ class Diameter:
                     Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
 
                 Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
+                DiameterLogger.info("Defined Flow_Status: " + str(Flow_Status))
 
                 DiameterLogger.info("Defining QoS information")
                 #QCI 
@@ -934,20 +935,23 @@ class Diameter:
                 Bandwidth_info = ''
                 Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
                 Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
+
                 DiameterLogger.info("Defining GBR information")
-                
                 #GBR
                 if int(ChargingRules['gbr_ul']) != 0:
                     Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
                 if int(ChargingRules['gbr_dl']) != 0:                
                     Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+                DiameterLogger.info("Defined Bandwith Info: " + str(Bandwidth_info))
 
                 #Populate QoS Information
-                avp += self.generate_vendor_avp(1016, "80", 10415, QCI + ARP + Bandwidth_info)
-
+                QoS_Information = self.generate_vendor_avp(1016, "80", 10415, QCI + ARP + Bandwidth_info)
+                DiameterLogger.info("Defined QoS_Information: " + str(QoS_Information))
+                
                 #Precedence
                 DiameterLogger.info("Defining Precedence information")
                 Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+                DiameterLogger.info("Defined Precedence " + str(Precedence))
                 
                 #Complete Charging Rule Defintion
                 DiameterLogger.info("Collating ChargingRuleDef")
