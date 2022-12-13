@@ -916,26 +916,31 @@ class Diameter:
                 Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
 
                 DiameterLogger.info("Defining QoS information")
-                QoS_Information = ''
                 #QCI 
-                QoS_Information += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
+                QCI += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
+
                 #ARP
                 DiameterLogger.info("Defining ARP information")
                 AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
                 AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
                 AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
-                QoS_Information += self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                ARP += self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+
                 DiameterLogger.info("Defining MBR information")
                 #Max Requested Bandwidth
-                QoS_Information += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
-                QoS_Information += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
+                Bandwidth_info = ''
+                Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
+                Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
                 DiameterLogger.info("Defining GBR information")
                 
                 #GBR
                 if int(ChargingRules['gbr_ul']) != 0:
-                    QoS_Information += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
+                    Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
                 if int(ChargingRules['gbr_dl']) != 0:                
-                    QoS_Information += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+                    Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+
+                #Populate QoS Information
+                avp += self.generate_vendor_avp(1016, "80", 10415, QCI + ARP + Bandwidth_info)
 
                 #Precedence
                 DiameterLogger.info("Defining Precedence information")
