@@ -871,9 +871,11 @@ class Diameter:
 
             
             try:
-                ue_ip = str(self.get_avp_data(avps, 8)[0])
+                ue_ip = self.get_avp_data(avps, 8)[0]
                 ue_ip = str(self.hex_to_ip(ue_ip))
-            except:
+            except Exception as E:
+                DiameterLogger.error("Failed to get UE IP")
+                DiameterLogger.error(E)
                 ue_ip = 'Failed to Decode / Get UE IP'
 
 
@@ -956,7 +958,7 @@ class Diameter:
         elif int(CC_Request_Type) == 3:
             DiameterLogger.info("Request type for CCA is 3 - Termination")
             if ChargingRules:
-                database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id), serving_pgw=None, ue_ip=None)
+                database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, ue_ip=None)
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
