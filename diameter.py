@@ -920,7 +920,7 @@ class Diameter:
 
                 DiameterLogger.info("Defining QoS information")
                 #QCI 
-                QCI += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
+                QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
 
                 #ARP
                 DiameterLogger.info("Defining ARP information")
