@@ -65,7 +65,7 @@ class Diameter:
         #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
     #Converts a hex formatted IPv4 address or IPV6 address to dotted-decimal 
-    def hex_to_ip(hex_ip):
+    def hex_to_ip(self, hex_ip):
         if len(hex_ip) == 8:
             octet_1 = int(str(hex_ip[0:2]), base=16)
             octet_2 = int(str(hex_ip[2:4]), base=16)
