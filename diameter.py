@@ -401,6 +401,75 @@ class Diameter:
                 origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
                 return origin_state_incriment_hex
 
+    def Charging_Rule_Generator(self, ChargingRules, ue_ip):
+        #Install Charging Rules
+        DiameterLogger.info("Naming Charging Rule")
+        Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
+        DiameterLogger.info("Named Charging Rule")
+
+        #Populate all Flow Information AVPs
+        Flow_Information = ''
+        for tft in ChargingRules['tft']:
+            DiameterLogger.info(tft)
+            #If {{ UE_IP }} in TFT splice in the real UE IP Value
+            try:
+                tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
+                tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
+                DiameterLogger.info("Spliced in UE IP into TFT: " + str(tft['tft_string']))
+            except Exception as E:
+                DiameterLogger.error("Failed to splice in UE IP into flow description")
+            
+            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
+            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
+            Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
+
+        Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
+        DiameterLogger.info("Defined Flow_Status: " + str(Flow_Status))
+
+        DiameterLogger.info("Defining QoS information")
+        #QCI 
+        QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
+
+        #ARP
+        DiameterLogger.info("Defining ARP information")
+        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
+        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
+        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
+        ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+
+        DiameterLogger.info("Defining MBR information")
+        #Max Requested Bandwidth
+        Bandwidth_info = ''
+        Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
+        Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
+
+        DiameterLogger.info("Defining GBR information")
+        #GBR
+        if int(ChargingRules['gbr_ul']) != 0:
+            Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
+        if int(ChargingRules['gbr_dl']) != 0:                
+            Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+        DiameterLogger.info("Defined Bandwith Info: " + str(Bandwidth_info))
+
+        #Populate QoS Information
+        QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
+        DiameterLogger.info("Defined QoS_Information: " + str(QoS_Information))
+        
+        #Precedence
+        DiameterLogger.info("Defining Precedence information")
+        Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+        DiameterLogger.info("Defined Precedence " + str(Precedence))
+        
+        #Complete Charging Rule Defintion
+        DiameterLogger.info("Collating ChargingRuleDef")
+        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
+        ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+
+        #Charging Rule Install
+        DiameterLogger.info("Collating ChargingRuleDef")
+        return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+
     #### Diameter Answers ####
 
     #Capabilities Exchange Answer
@@ -930,77 +999,11 @@ class Diameter:
             #If database returned an existing ChargingRule defintion
             try:
                 DiameterLogger.debug(ChargingRules)
-
-                #Install Charging Rules
-                DiameterLogger.info("Naming Charging Rule")
-                Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
-                DiameterLogger.info("Named Charging Rule")
-
-                #Populate all Flow Information AVPs
-                Flow_Information = ''
-                for tft in ChargingRules['tft']:
-                    DiameterLogger.info(tft)
-                    #If {{ UE_IP }} in TFT splice in the real UE IP Value
-                    try:
-                        tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
-                        tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
-                        DiameterLogger.info("Spliced in UE IP into TFT: " + str(tft['tft_string']))
-                    except Exception as E:
-                        DiameterLogger.error("Failed to splice in UE IP into flow description")
-                    
-                    #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
-                    Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
-                    Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
-                    Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
-
-                Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
-                DiameterLogger.info("Defined Flow_Status: " + str(Flow_Status))
-
-                DiameterLogger.info("Defining QoS information")
-                #QCI 
-                QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
-
-                #ARP
-                DiameterLogger.info("Defining ARP information")
-                AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
-                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
-                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
-                ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-
-                DiameterLogger.info("Defining MBR information")
-                #Max Requested Bandwidth
-                Bandwidth_info = ''
-                Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
-                Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
-
-                DiameterLogger.info("Defining GBR information")
-                #GBR
-                if int(ChargingRules['gbr_ul']) != 0:
-                    Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
-                if int(ChargingRules['gbr_dl']) != 0:                
-                    Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
-                DiameterLogger.info("Defined Bandwith Info: " + str(Bandwidth_info))
-
-                #Populate QoS Information
-                QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
-                DiameterLogger.info("Defined QoS_Information: " + str(QoS_Information))
-                
-                #Precedence
-                DiameterLogger.info("Defining Precedence information")
-                Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
-                DiameterLogger.info("Defined Precedence " + str(Precedence))
-                
-                #Complete Charging Rule Defintion
-                DiameterLogger.info("Collating ChargingRuleDef")
-                ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
-                ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
-
-                #Charging Rule Install
-                DiameterLogger.info("Collating ChargingRuleDef")
-                avp += self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+                avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
 
                 #Store PGW location into Database
                 database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)
+
             except Exception as E:
                 DiameterLogger.debug("Error in populating dynamic charging rules: " + str(E))
 
@@ -2074,4 +2077,26 @@ class Diameter:
         avp += self.generate_avp(30, 40, str(binascii.hexlify(str.encode(apn)),'ascii'))
 
         response = self.generate_diameter_packet("01", "c0", 272, 16777238, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+    #3GPP Gx - Re Auth Request
+    def Request_16777238_258(self, sessionid, ChargingRules, ue_ip, Serving_PGW, Serving_Realm):
+        avp = ''
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session-Id set AVP
+
+        #Setup Charging Rule
+        DiameterLogger.debug(ChargingRules)
+        avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
+
+
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(Serving_PGW))                                               #Destination Host
+        avp += self.generate_avp(283, 40, self.string_to_hex(Serving_Realm))                                               #Destination Realm
+       
+        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
+        
+        avp += self.generate_avp(285, 40, format(int(0),"x").zfill(8))   #Re-Auth Request TYpe
+
+        response = self.generate_diameter_packet("01", "c0", 258, 16777238, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
