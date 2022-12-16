@@ -863,11 +863,9 @@ class Diameter:
             DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")                                            #Get subscriber details
             ChargingRules = database.Get_Charging_Rules(imsi=imsi, apn=apn)
             DiameterLogger.info("Got Charging Rules: " + str(ChargingRules))
-
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists")
-
 
         if int(CC_Request_Type) == 1:
             DiameterLogger.info("Request type for CCA is 1 - Initial")
@@ -883,11 +881,32 @@ class Diameter:
 
 
             #Default EPS QoS (From CCR-I)
-            default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
-            avp += self.generate_vendor_avp(1049, "c0", 10415, default_EPS_QoS)
+            try:
+                apn_data = ChargingRules['apn_data']
+                DiameterLogger.debug("Setting APN AMBR")
+                #AMBR
+                AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+                apn_ambr_dl = int(apn_data['apn_ambr_dl'])
+                AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+                DiameterLogger.debug("Setting APN Allocation-Retention-Priority")
+                #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+                AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
+                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
+                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
+                AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
+                avp += self.generate_vendor_avp(1049, "c0", 10415, AVP_QoS + AVP_ARP)
+            except:
+                DiameterLogger.error("Failed to populate default_EPS_QoS from DB")
+                default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
+                avp += self.generate_vendor_avp(1049, "c0", 10415, default_EPS_QoS)
 
                                                                                                     #Supported-Features(628) (Gx feature list)
-            avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+            avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
             DiameterLogger.info("Creating QoS Information")
                                                                                                     #QoS-Information
             QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
@@ -915,6 +934,7 @@ class Diameter:
                     try:
                         tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
                         tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
+                        DiameterLogger.info("Spliced in UE IP into TFT: " + str(tft['tft_string']))
                     except Exception as E:
                         DiameterLogger.error("Failed to splice in UE IP into flow description")
                     

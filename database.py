@@ -383,7 +383,6 @@ def Get_Charging_Rules(imsi, apn):
     DBLogger.debug("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(str(imsi))
-    subscriber_id = subscriber_details['subscriber_id']
 
     #Split the APN list into a list
     apn_list = subscriber_details['apn_list'].split(',')
@@ -407,6 +406,7 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug("Matched!")
             #Get Charging Rules
             ChargingRule = Get_Charging_Rule(apn_data['charging_rule_id'])
+            ChargingRule['apn_data'] = apn_data
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
