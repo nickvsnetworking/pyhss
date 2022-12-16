@@ -911,6 +911,13 @@ class Diameter:
                 Flow_Information = ''
                 for tft in ChargingRules['tft']:
                     DiameterLogger.info(tft)
+                    #If {{ UE_IP }} in TFT splice in the real UE IP Value
+                    try:
+                        tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
+                        tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
+                    except Exception as E:
+                        DiameterLogger.error("Failed to splice in UE IP into flow description")
+                    
                     #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
                     Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
                     Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
