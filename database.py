@@ -132,6 +132,13 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
 session = Session()
 
+def Sanitise_Datetime(result):
+    for keys in result:
+        if "timestamp" in keys:
+            print("Key " + str(keys) + " is type DateTime - Formatting to String")
+            result[keys] = str(result[keys])
+    return result
+
 def GetObj(obj_type, obj_id):
     DBLogger.debug("Called GetObj for type " + str(obj_type) + " with id " + str(obj_id))
     result = session.query(obj_type).get(obj_id)
@@ -139,7 +146,9 @@ def GetObj(obj_type, obj_id):
     result.pop('_sa_instance_state')
     for keys in result:
         if type(result[keys]) == DateTime:
+            print("Key " + str(keys) + " is type DateTime - Formatting to String")
             result[keys] = str(result[keys])
+        result = Sanitise_Datetime(result) 
     return result
 
 def UpdateObj(obj_type, json_data, obj_id):
@@ -213,8 +222,71 @@ def Get_Subscriber(imsi):
     except:
         raise ValueError("Subscriber not Found")
     result = result.__dict__
+    result = Sanitise_Datetime(result)
     result.pop('_sa_instance_state')
     return result
+
+def Get_Served_Subscribers():
+    DBLogger.debug("Getting all subscribers served by this HSS")
+    Served_Subs = {}
+    try:
+        results = session.query(SUBSCRIBER).filter(SUBSCRIBER.serving_mme.isnot(None))
+        for result in results:
+            result = result.__dict__
+            print("Result: " + str(result) + " type: " + str(type(result)))
+            result = Sanitise_Datetime(result)
+            result.pop('_sa_instance_state')
+            Served_Subs[result['imsi']] = result
+            print("Processed result")
+    except Exception as E:
+        raise ValueError(E)
+    print("Final Served_Subs: " + str(Served_Subs))
+    return Served_Subs 
+
+def Get_Served_IMS_Subscribers():
+    DBLogger.debug("Getting all subscribers served by this IMS-HSS")
+    Served_Subs = {}
+    try:
+        results = session.query(IMS_SUBSCRIBER).filter(IMS_SUBSCRIBER.scscf.isnot(None))
+        for result in results:
+            result = result.__dict__
+            print("Result: " + str(result) + " type: " + str(type(result)))
+            result = Sanitise_Datetime(result)
+            result.pop('_sa_instance_state')
+            Served_Subs[result['imsi']] = result
+            print("Processed result")
+    except Exception as E:
+        raise ValueError(E)
+    print("Final Served_Subs: " + str(Served_Subs))
+    return Served_Subs 
+
+def Get_Served_PCRF_Subscribers():
+    DBLogger.debug("Getting all subscribers served by this PCRF")
+    Served_Subs = {}
+    try:
+        results = session.query(SERVING_APN).all()
+        for result in results:
+            result = result.__dict__
+            print("Result: " + str(result) + " type: " + str(type(result)))
+            result = Sanitise_Datetime(result)
+            result.pop('_sa_instance_state')
+            #Get APN Info
+            apn_info = GetObj(APN, result['apn'])
+            print("Got APN Info: " + str(apn_info))
+            result['apn_info'] = apn_info
+            
+            #Get Subscriber Info
+            subscriber_info = GetObj(SUBSCRIBER, result['subscriber_id'])
+            result['subscriber_info'] = subscriber_info
+            
+            print("Got Subscriber Info: " + str(subscriber_info))
+            
+            Served_Subs[subscriber_info['imsi']] = result
+            print("Processed result")
+    except Exception as E:
+        raise ValueError(E)
+    print("Final SERVING_APN: " + str(Served_Subs))
+    return Served_Subs 
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
     DBLogger.debug("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
@@ -418,7 +490,9 @@ def Get_IMSI_from_MSISDN(msisdn):
     return
 
 if __name__ == "__main__":
-
+    print("\n\n\n")
+    print(Get_Served_IMS_Subscribers())
+    sys.exit()
     import binascii,os,pprint
 
     #Define Charging Rule
@@ -575,7 +649,7 @@ if __name__ == "__main__":
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
-
+    input("Delete everything?")
     #Delete IMS Subscriber
     print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
     #Delete Subscriber
