@@ -70,7 +70,7 @@ CHARGING_RULE_model = api.schema_model('CHARGING_RULE JSON',
     database.Generate_JSON_Model_for_Flask(CHARGING_RULE)
 )
 
-CHARGING_RULE_model = api.model('PCRF_Rule', {
+PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
     'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
@@ -467,8 +467,8 @@ class PyHSS_OAM_Subscriber(Resource):
 
 @ns_pcrf.route('/')
 class PyHSS_PCRF(Resource):
-    @ns_pcrf.doc('Create ChargingRule Object')
-    @ns_pcrf.expect(CHARGING_RULE_model)
+    @ns_pcrf.doc('Push Charging Rule to a Subscriber')
+    @ns_pcrf.expect(PCRF_Push_model)
     def put(self):
         '''Push predefined Charging Rule to Subscriber'''
     
