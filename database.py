@@ -433,7 +433,18 @@ def Get_Serving_APN(pcrf_session_id, apn_id):
         raise ValueError("APN not Found")
     result = result.__dict__
     result.pop('_sa_instance_state')
-    return result    
+    return result
+
+def Get_Serving_APN_Subscriber(subscriber_id, apn_id):
+    DBLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
+    try:
+        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).one()
+    except Exception as E:
+        DBLogger.debug(E)
+        raise ValueError(E)
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result   
 
 def Get_Charging_Rule(charging_rule_id):
     #Get base Rule
