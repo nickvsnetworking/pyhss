@@ -880,7 +880,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
 
-            #Default EPS QoS (From CCR-I)
+            #Default EPS Beaerer QoS (From database with fallback source CCR-I)
             try:
                 apn_data = ChargingRules['apn_data']
                 DiameterLogger.debug("Setting APN AMBR")
@@ -896,21 +896,31 @@ class Diameter:
                 #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
                 AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
                 AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
-                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
+                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
                 AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
                 AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
-                avp += self.generate_vendor_avp(1049, "c0", 10415, AVP_QoS + AVP_ARP)
+                avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
             except:
                 DiameterLogger.error("Failed to populate default_EPS_QoS from DB")
                 default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
-                avp += self.generate_vendor_avp(1049, "c0", 10415, default_EPS_QoS)
+                avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
 
                                                                                                     #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
+
+
             DiameterLogger.info("Creating QoS Information")
-                                                                                                    #QoS-Information
-            QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
-            QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
+            #QoS-Information
+            try:
+                QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
+                QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
+            except:
+                QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
+                QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
+                DiameterLogger.debug("QoS information set statically")
+                #ToDO - This better
+                
+
             DiameterLogger.info("Created both QoS AVPs")
             DiameterLogger.info("Populated QoS_Infomration")
             avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
@@ -923,7 +933,7 @@ class Diameter:
 
                 #Install Charging Rules
                 DiameterLogger.info("Naming Charging Rule")
-                Charging_Rule_Name = self.generate_vendor_avp(1005, "80", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
+                Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
                 DiameterLogger.info("Named Charging Rule")
 
                 #Populate all Flow Information AVPs
