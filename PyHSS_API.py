@@ -43,6 +43,7 @@ ns_tft = api.namespace('tft', description='PyHSS TFT Functions')
 ns_charging_rule = api.namespace('charging_rule', description='PyHSS Charging Rule Functions')
 
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
+ns_pcrf = api.namespace('PCRF', description='PyHSS PCRF Dynamic Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -69,6 +70,11 @@ CHARGING_RULE_model = api.schema_model('CHARGING_RULE JSON',
     database.Generate_JSON_Model_for_Flask(CHARGING_RULE)
 )
 
+CHARGING_RULE_model = api.model('PCRF_Rule', {
+    'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
+    'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
+    'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
+})
 
 @ns_apn.route('/<string:apn_id>')
 class PyHSS_APN_Get(Resource):
@@ -459,6 +465,39 @@ class PyHSS_OAM_Subscriber(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return jsonify(response_json), 500
 
+@ns_pcrf.route('/')
+class PyHSS_PCRF(Resource):
+    @ns_pcrf.doc('Create ChargingRule Object')
+    @ns_pcrf.expect(CHARGING_RULE_model)
+    def put(self):
+        '''Push predefined Charging Rule to Subscriber'''
+    
+        json_data = request.get_json(force=True)
+        print("JSON Data sent: " + str(json_data))
+        #Get IMSI
+        subscriber_data = database.Get_Subscriber(imsi=str(json_data['imsi']))
+        print("subscriber_data: " + str(subscriber_data))
 
+        #Get PCRF Session
+        pcrf_session_data = database.Get_Serving_APN_Subscriber(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
+        print("pcrf_session_data: " + str(pcrf_session_data))
+
+        #Get Charging Rules
+        ChargingRule = database.Get_Charging_Rule(json_data['charging_rule_id'])
+        ChargingRule['apn_data'] = database.Get_APN(json_data['apn_id'])
+        print("Got ChargingRule: " + str(ChargingRule))
+
+        diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
+        OriginRealm = yaml_config['hss']['OriginRealm']
+        DestinationRealm = OriginRealm
+        mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
+        mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
+        import diameter
+        diameter = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
+        diam_hex = diameter.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['ue_ip'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
+        import time
+        logObj = logtool.LogTool()
+        logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
+        return diam_hex, 200
 if __name__ == '__main__':
     app.run(debug=True)
