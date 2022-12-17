@@ -499,5 +499,19 @@ class PyHSS_PCRF(Resource):
         logObj = logtool.LogTool()
         logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
         return diam_hex, 200
+
+@ns_pcrf.route('/<string:charging_rule_id>')
+class PyHSS_OAM_Subscriber(Resource):
+    def get(self, charging_rule_id):
+        '''Get full Charging Rule + TFTs'''
+        try:
+            data = database.Get_Charging_Rule(charging_rule_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return jsonify(response_json), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True)

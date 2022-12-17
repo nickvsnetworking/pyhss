@@ -132,11 +132,14 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
 session = Session()
 
-def Sanitise_Datetime(result):
+def Sanitize_Datetime(result):
     for keys in result:
         if "timestamp" in keys:
-            print("Key " + str(keys) + " is type DateTime - Formatting to String")
-            result[keys] = str(result[keys])
+            if result[keys] == None:
+                continue
+            else:
+                print("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
+                result[keys] = str(result[keys])
     return result
 
 def GetObj(obj_type, obj_id):
@@ -148,7 +151,7 @@ def GetObj(obj_type, obj_id):
         if type(result[keys]) == DateTime:
             print("Key " + str(keys) + " is type DateTime - Formatting to String")
             result[keys] = str(result[keys])
-        result = Sanitise_Datetime(result) 
+        result = Sanitize_Datetime(result) 
     return result
 
 def UpdateObj(obj_type, json_data, obj_id):
@@ -222,7 +225,7 @@ def Get_Subscriber(imsi):
     except:
         raise ValueError("Subscriber not Found")
     result = result.__dict__
-    result = Sanitise_Datetime(result)
+    result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
     return result
 
@@ -234,7 +237,7 @@ def Get_Served_Subscribers():
         for result in results:
             result = result.__dict__
             print("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitise_Datetime(result)
+            result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             Served_Subs[result['imsi']] = result
             print("Processed result")
@@ -251,7 +254,7 @@ def Get_Served_IMS_Subscribers():
         for result in results:
             result = result.__dict__
             print("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitise_Datetime(result)
+            result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             Served_Subs[result['imsi']] = result
             print("Processed result")
@@ -268,7 +271,7 @@ def Get_Served_PCRF_Subscribers():
         for result in results:
             result = result.__dict__
             print("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitise_Datetime(result)
+            result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             #Get APN Info
             apn_info = GetObj(APN, result['apn'])
@@ -411,7 +414,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
 
             try:
             #Check if already a serving APN on record
-                ServingAPN = Get_Serving_APN(pcrf_session_id=pcrf_session_id, apn_id=apn_id)
+                ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
                 DBLogger.debug("Existing Serving APN ID on record, updating")
                 if type(serving_pgw) == str:
                     UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'])
@@ -424,18 +427,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
                 CreateObj(SERVING_APN, json_data)
             return
 
-def Get_Serving_APN(pcrf_session_id, apn_id):
-    DBLogger.debug("Getting Serving APN " + str(apn_id) + " with pcrf_session_id " + str(pcrf_session_id))
-    try:
-        result = session.query(SERVING_APN).filter_by(pcrf_session_id=pcrf_session_id, apn=apn_id).one()
-    except:
-        DBLogger.debug("Get_Serving_APN not found")
-        raise ValueError("APN not Found")
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    return result
-
-def Get_Serving_APN_Subscriber(subscriber_id, apn_id):
+def Get_Serving_APN(subscriber_id, apn_id):
     DBLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
     try:
         result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).one()
@@ -447,6 +439,7 @@ def Get_Serving_APN_Subscriber(subscriber_id, apn_id):
     return result   
 
 def Get_Charging_Rule(charging_rule_id):
+    DBLogger.debug("Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id))
     #Get base Rule
     ChargingRule = GetObj(CHARGING_RULE, charging_rule_id)
     ChargingRule['tft'] = []
@@ -501,9 +494,6 @@ def Get_IMSI_from_MSISDN(msisdn):
     return
 
 if __name__ == "__main__":
-    print("\n\n\n")
-    print(Get_Served_IMS_Subscribers())
-    sys.exit()
     import binascii,os,pprint
 
     #Define Charging Rule
@@ -520,12 +510,13 @@ if __name__ == "__main__":
         'tft_group_id' : 1,
         'precedence' : 100
         }
+    print("Creating Charging Rule")
     ChargingRule_newObj = CreateObj(CHARGING_RULE, charging_rule)
 
     #Define TFTs
     tft_template1 = {
         'tft_group_id' : 1,
-        'tft_string' : 'permit in ip from any to any',
+        'tft_string' : 'permit out ip from any to any',
         'direction' : 1
     }
     tft_template2 = {
@@ -533,6 +524,7 @@ if __name__ == "__main__":
         'tft_string' : 'permit out ip from any to any',
         'direction' : 2
     }
+    print("Creating TFT")
     CreateObj(TFT, tft_template1)
     CreateObj(TFT, tft_template2)
 
@@ -547,14 +539,17 @@ if __name__ == "__main__":
         'arp_preemption_vulnerability': True,
         'charging_rule_id' : ChargingRule_newObj['charging_rule_id']
         }
+    print("Creating APN " + str(apn2['apn']))
     newObj = CreateObj(APN, apn2)
     print(newObj)
 
+    print("Getting APN " + str(apn2['apn']))
     print(GetObj(APN, newObj['apn_id']))
     apn_id = newObj['apn_id']
     UpdatedObj = newObj
     UpdatedObj['apn'] = 'UpdatedInUnitTest'
     
+    print("Updating APN " + str(apn2['apn']))
     newObj = UpdateObj(APN, UpdatedObj, newObj['apn_id'])
     print(newObj)
 
@@ -566,19 +561,23 @@ if __name__ == "__main__":
     "sqn": 0
     }
     print(auc_json)
+    print("Creating AuC entry")
     newObj = CreateObj(AUC, auc_json)
     print(newObj)
 
     #Get AuC
+    print("Getting AuC entry")
     newObj = GetObj(AUC, newObj['auc_id'])
     auc_id = newObj['auc_id']
     print(newObj)
 
     #Update AuC
+    print("Updating AuC entry")
     newObj['sqn'] = newObj['sqn'] + 10
     newObj = UpdateObj(AUC, newObj, auc_id)
 
     #Generate Vectors
+    print("Generating Vectors")
     Get_Vectors_AuC(auc_id, "air", plmn='12ff')
     print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
 
@@ -603,29 +602,32 @@ if __name__ == "__main__":
     except:
         print("Did not find old sub to delete")
 
+    print("Creating new Subscriber")
     print(subscriber_json)
     newObj = CreateObj(SUBSCRIBER, subscriber_json)
     print(newObj)
     subscriber_id = newObj['subscriber_id']
 
     #Get SUBSCRIBER
+    print("Getting Subscriber")
     newObj = GetObj(SUBSCRIBER, subscriber_id)
     print(newObj)
 
     #Update SUBSCRIBER
+    print("Updating Subscriber")
     newObj['ue_ambr_ul'] = 999995
     newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
 
     #Set MME Location for Subscriber
+    print("Updating Serving MME for Subscriber")
     Update_Serving_MME(newObj['imsi'], "Test123")
-    #Clear MME Location for Subscriber    
-    Update_Serving_MME(newObj['imsi'], None)
 
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', ue_ip='1.2.3.4')    
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw=None, ue_ip=None)
+    #Update Serving APN for Subscriber
+    print("Updating Serving APN for Subscriber")
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', ue_ip='1.2.3.4')
 
-    print("\n\n\n\n\n\n\n")
-    ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn='UpdatedInUnitTest')
+    print("Getting Charging Rule for Subscriber / APN Combo")
+    ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn=apn2['apn'])
     pprint.pprint(ChargingRule)
 
     #New IMS Subscriber
@@ -643,18 +645,27 @@ if __name__ == "__main__":
 
 
     #Test Get Subscriber
+    print("Test Getting Subscriber")
     GetSubscriber_Result = Get_Subscriber(subscriber_json['imsi'])
     print(GetSubscriber_Result)
 
     #Test IMS Get Subscriber
-    print("\n\n\n")
+    print("Getting IMS Subscribers")
     print(Get_IMS_Subscriber(imsi='001001000000006'))
     print(Get_IMS_Subscriber(msisdn='12345678'))
 
     #Set SCSCF for Subscriber
     Update_Serving_CSCF(newObj['imsi'], "NickTestCSCF")
+    #Get Served Subscriber List
+    print(Get_Served_IMS_Subscribers())
+
+    #Clear Serving PGW for PCRF Subscriber
+    print("Clear Serving PGW for PCRF Subscriber")
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw=None, ue_ip=None)
+
     #Clear MME Location for Subscriber    
-    Update_Serving_CSCF(newObj['imsi'], None)
+    print("Clear MME Location for Subscriber")
+    Update_Serving_MME(newObj['imsi'], None)
 
     #Test getting APNs
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
