@@ -1,5 +1,7 @@
 ## PyHSS Monitoring
 
+**Note** All the stats currently exposed via Redis are available via Prometheus as well, if you're building from scratch this would be the better way.
+
 PyHSS's statistics & monitoring rely on [Redis](https://redis.io/).
 
 ### Viewing Diameter Peers
