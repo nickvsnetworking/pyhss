@@ -998,12 +998,14 @@ class Diameter:
                 DiameterLogger.error(E)
 
                 #ToDo - Fix this so it sources from AVP
-                DiameterLogger.debug("Current QoS Information Value: " + str(self.get_avp_data(avps, 1016)[0]))
-                for recv_avp in avps:
-                    DiameterLogger.debug(recv_avp)
-
-                QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
-                QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
+                DiameterLogger.debug("Current QoS Information Value: " + str())
+                current_QoS_value = {'avp_code': 1041, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}, {'avp_code': 1040, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}
+                QoS_Information = ''
+                for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
+                    DiameterLogger.debug(AMBR_Part)
+                    AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'])
+                    QoS_Information += AMBR_AVP
+                    DiameterLogger.debug("QoS_Information added " + str(AMBR_AVP))
                 avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
                 DiameterLogger.debug("QoS information set statically")
                 
