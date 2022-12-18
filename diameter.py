@@ -1035,7 +1035,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777238_272_success_count')
         return response
 
-    #3GPP Cx User Authentication Answer
+    #3GPP Cx User Authorization Answer
     def Answer_16777216_300(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_300_attempt_count')
         
@@ -1050,15 +1050,44 @@ class Diameter:
         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
 
 
-        experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
+        try:
+            DiameterLogger.info("Checking if username present")
+            username = self.get_avp_data(avps, 1)[0]                                                     
+            username = binascii.unhexlify(username).decode('utf-8')
+            DiameterLogger.info("Username AVP is present, value is " + str(username))
+            imsi = username.split('@')[0]   #Strip Domain
+            domain = username.split('@')[1] #Get Domain Part
+            imsi = imsi[4:]                 #Strip SIP: from start of string
+            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
+            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("Threw Exception: " + str(E))
+            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
+            result_code = 5005
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 300, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
+        experimental_avp = ''
         experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
 
-        #The spec specifies the DIAMETER_FIRST_REGISTRATION to be used on the first registration, DIAMETER_SUBSEQUENT_REGISTRATION on subsequent and DIAMETER_UNREGISTERED_SERVICE when clearing registration.
-        #ToDo - Impliment this properly
-        experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
-        #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2004),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_SUBSEQUENT_REGISTRATION
-        #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
-        
+        #Determine SAR Type & Store
+        User_Authorization_Type = int(self.get_avp_data(avps, 623)[0])
+        DiameterLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
+        if (User_Authorization_Type == 1):
+            DiameterLogger.debug("This is Deregister")
+            database.Update_Serving_CSCF(imsi, serving_cscf=None)
+            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))            #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
+        else:
+            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+            #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2004),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_SUBSEQUENT_REGISTRATION
+            #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))                
+            
         
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
