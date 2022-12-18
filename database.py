@@ -200,15 +200,13 @@ def Get_IMS_Subscriber(**kwargs):
     if 'msisdn' in kwargs:
         DBLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
-            result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
-            result = Sanitize_Datetime(result)
+            result = session.query(IMS_SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except Exception as E:
             raise ValueError(E)
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
-            result = Sanitize_Datetime(result)
         except Exception as E:
             raise ValueError(E)
     DBLogger.debug("Converting result to dict")
@@ -217,6 +215,7 @@ def Get_IMS_Subscriber(**kwargs):
         result.pop('_sa_instance_state')
     except:
         pass
+    result = Sanitize_Datetime(result)
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     return result
 
