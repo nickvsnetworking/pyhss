@@ -40,7 +40,7 @@
                 </SPT>
                 <SPT>
                     <ConditionNegated>0</ConditionNegated>
-                    <Group>0</Group>
+                    <Group>1</Group>
                     <SIPHeader>
                       <Header>P-Access-Network-Info</Header>
                     </SIPHeader>
