@@ -1073,21 +1073,24 @@ class Diameter:
             return response
 
         experimental_avp = ''
-        experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
+        experimental_avp =+ experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
 
         #Determine SAR Type & Store
-        User_Authorization_Type = int(self.get_avp_data(avps, 623)[0])
-        DiameterLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
-        if (User_Authorization_Type == 1):
-            DiameterLogger.debug("This is Deregister")
-            database.Update_Serving_CSCF(imsi, serving_cscf=None)
-            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))            #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
-        else:
-            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
-            #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2004),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_SUBSEQUENT_REGISTRATION
-            #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))                
-            
-        
+        try:
+            User_Authorization_Type = int(self.get_avp_data(avps, 623)[0])
+            DiameterLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
+            if (User_Authorization_Type == 1):
+                DiameterLogger.debug("This is Deregister")
+                database.Update_Serving_CSCF(imsi, serving_cscf=None)
+                experimental_avp =+ experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))            #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
+            else:
+                experimental_avp =+ experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+                #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2004),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_SUBSEQUENT_REGISTRATION
+                #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))                
+        except Exception as E:
+            DiameterLogger.debug("Failed to get User_Authorization_Type AVP, error: " + str(E))
+        experimental_avp =+ experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
+
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
