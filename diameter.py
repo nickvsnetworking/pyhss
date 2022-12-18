@@ -1003,7 +1003,7 @@ class Diameter:
                 QoS_Information = ''
                 for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
                     DiameterLogger.debug(AMBR_Part)
-                    AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'])
+                    AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'][8:])
                     QoS_Information += AMBR_AVP
                     DiameterLogger.debug("QoS_Information added " + str(AMBR_AVP))
                 avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
