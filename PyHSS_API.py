@@ -400,7 +400,6 @@ class PyHSS_Charging_Rule(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return jsonify(response_json), 500
 
-
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
     def get(self):
@@ -471,6 +470,18 @@ class PyHSS_OAM_Subscriber(Resource):
         '''Get data for MSISDN'''
         try:
             data = database.Get_Subscriber(msisdn=msisdn)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return jsonify(response_json), 500
+
+@ns_oam.route('/ims_subscriber_msisdn/<string:msisdn>')
+class PyHSS_OAM_Subscriber(Resource):
+    def get(self, msisdn):
+        '''Get IMS data for MSISDN'''
+        try:
+            data = database.Get_IMS_Subscriber(msisdn=msisdn)
             return data, 200
         except Exception as E:
             print(E)
