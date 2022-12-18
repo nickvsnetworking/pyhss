@@ -1062,7 +1062,7 @@ class Diameter:
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
-            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
+            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_300() input")
             result_code = 5001          #IMS User Unknown
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -1073,7 +1073,7 @@ class Diameter:
             return response
 
         experimental_avp = ''
-        experimental_avp =+ experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
+        experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
 
         #Determine SAR Type & Store
         try:
@@ -1182,8 +1182,32 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
-        username = self.get_avp_data(avps, 601)[0]
-        username = binascii.unhexlify(username).decode('utf-8')
+        
+
+
+        try:
+            DiameterLogger.info("Checking if username present")
+            username = self.get_avp_data(avps, 601)[0]                                                     
+            username = binascii.unhexlify(username).decode('utf-8')
+            DiameterLogger.info("Username AVP is present, value is " + str(username))
+            imsi = username.split('@')[0]   #Strip Domain
+            domain = username.split('@')[1] #Get Domain Part
+            imsi = imsi[4:]                 #Strip SIP: from start of string
+            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
+            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("Threw Exception: " + str(E))
+            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
+            result_code = 5005
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 301, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
         DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:5060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
