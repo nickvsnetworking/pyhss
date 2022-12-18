@@ -1047,7 +1047,7 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
 
 
         experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
@@ -1122,6 +1122,20 @@ class Diameter:
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+
+        #Determine SAR Type & Store
+        Server_Assignment_Type = int(self.get_avp_data(avps, 614)[0])
+        DiameterLogger.debug("Server-Assignment-Type is: " + str(Server_Assignment_Type))
+        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+        DiameterLogger.debug("Subscriber is served by S-CSCF " + str(OriginHost))
+        if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
+            DiameterLogger.debug("SAR is Register / Re-Restister")
+            database.Update_Serving_CSCF(imsi, serving_cscf=OriginHost)
+        else:
+            DiameterLogger.debug("SAR is not Register")
+            database.Update_Serving_CSCF(imsi, serving_cscf=None)
+
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
@@ -1140,7 +1154,7 @@ class Diameter:
         username = self.get_avp_data(avps, 601)[0]
         username = binascii.unhexlify(username).decode('utf-8')
         DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:5060")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:5060")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_302_success_count')
@@ -1877,7 +1891,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
-        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:5060'))                 #Public-Identity
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.ims.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:5060'))                 #Public-Identity
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
         avp += self.generate_vendor_avp(614, "c0", 10415, format(int(1),"x").zfill(8))              #Server Assignment Type
         avp += self.generate_vendor_avp(624, "c0", 10415, "00000000")                               #User Data Already Available (Not Available)

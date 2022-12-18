@@ -377,7 +377,7 @@ def Update_Serving_CSCF(imsi, serving_cscf):
     DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
     result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
     if type(serving_cscf) == str:
-        DBLogger.debug("Updating serving CSCF")
+        DBLogger.debug("Setting serving CSCF")
         result.scscf = serving_cscf
         result.scscf_timestamp = datetime.datetime.now()
     else:
