@@ -147,11 +147,11 @@ def GetObj(obj_type, obj_id):
     result = session.query(obj_type).get(obj_id)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    for keys in result:
-        if type(result[keys]) == DateTime:
-            DBLogger.debug("Key " + str(keys) + " is type DateTime - Formatting to String")
-            result[keys] = str(result[keys])
-        result = Sanitize_Datetime(result) 
+    # for keys in result:
+    #     if type(result[keys]) == DateTime:
+    #         DBLogger.debug("Key " + str(keys) + " is type DateTime - Formatting to String")
+    #         result[keys] = str(result[keys])
+    result = Sanitize_Datetime(result) 
     return result
 
 def UpdateObj(obj_type, json_data, obj_id):
@@ -201,12 +201,14 @@ def Get_IMS_Subscriber(**kwargs):
         DBLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
             result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
-        except:
-            raise ValueError("IMS Subscriber not Found")
+            result = Sanitize_Datetime(result)
+        except Exception as E:
+            raise ValueError(E)
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
+            result = Sanitize_Datetime(result)
         except Exception as E:
             raise ValueError(E)
     DBLogger.debug("Converting result to dict")
@@ -236,6 +238,7 @@ def Get_Subscriber(**kwargs):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
+    DBLogger.debug("Got back result: " + str(result))
     return result
 
 def Get_Served_Subscribers():
@@ -337,8 +340,8 @@ def Get_APN(apn_id):
     DBLogger.debug("Getting APN " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn_id=apn_id).one()
-    except:
-        raise ValueError("APN not Found")
+    except Exception as E:
+        raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
     return result    
@@ -347,8 +350,8 @@ def Get_APN_by_Name(apn):
     DBLogger.debug("Getting APN named " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn=str(apn)).one()
-    except:
-        raise ValueError("APN not Found")
+    except Exception as E:
+        raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
     return result 
@@ -459,8 +462,8 @@ def Get_Charging_Rule(charging_rule_id):
             result = result.__dict__
             result.pop('_sa_instance_state')
             ChargingRule['tft'].append(result)
-    except:
-        raise ValueError("TFT not Found")
+    except Exception as E:
+        raise ValueError(E)
 
     return ChargingRule
 

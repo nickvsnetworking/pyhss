@@ -86,7 +86,7 @@ class PyHSS_APN_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     def delete(self, apn_id):
         '''Delete all APN data for specified APN ID'''
@@ -96,7 +96,7 @@ class PyHSS_APN_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     @ns_apn.doc('Update APN Object')
     @ns_apn.expect(APN_model)
@@ -112,7 +112,7 @@ class PyHSS_APN_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500   
+            return response_json, 500   
 
 @ns_apn.route('/')
 class PyHSS_APN(Resource):
@@ -128,7 +128,7 @@ class PyHSS_APN(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_auc.route('/<string:auc_id>')
 class PyHSS_AUC_Get(Resource):
@@ -140,7 +140,7 @@ class PyHSS_AUC_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     def delete(self, auc_id):
         '''Delete all AUC data for specified AUC ID'''
@@ -150,7 +150,7 @@ class PyHSS_AUC_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     @ns_auc.doc('Update AUC Object')
     @ns_auc.expect(AUC_model)
@@ -166,7 +166,7 @@ class PyHSS_AUC_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_auc.route('/')
 class PyHSS_AUC(Resource):
@@ -182,7 +182,7 @@ class PyHSS_AUC(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_SUBSCRIBER_Get(Resource):
@@ -194,7 +194,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     def delete(self, subscriber_id):
         '''Delete all data for specified subscriber_id'''
@@ -204,7 +204,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     @ns_subscriber.doc('Update SUBSCRIBER Object')
     @ns_subscriber.expect(SUBSCRIBER_model)
@@ -220,7 +220,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_subscriber.route('/')
 class PyHSS_SUBSCRIBER(Resource):
@@ -236,7 +236,7 @@ class PyHSS_SUBSCRIBER(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_ims_subscriber.route('/<string:ims_subscriber_id>')
 class PyHSS_IMS_SUBSCRIBER_Get(Resource):
@@ -248,7 +248,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     def delete(self, ims_subscriber_id):
         '''Delete all data for specified ims_subscriber_id'''
@@ -258,7 +258,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     @ns_ims_subscriber.doc('Update IMS SUBSCRIBER Object')
     @ns_ims_subscriber.expect(IMS_SUBSCRIBER_model)
@@ -274,7 +274,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_ims_subscriber.route('/')
 class PyHSS_IMS_SUBSCRIBER(Resource):
@@ -290,7 +290,7 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_tft.route('/<string:tft_id>')
 class PyHSS_TFT_Get(Resource):
@@ -302,7 +302,7 @@ class PyHSS_TFT_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     def delete(self, tft_id):
         '''Delete all data for specified tft_id'''
@@ -312,7 +312,7 @@ class PyHSS_TFT_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     @ns_ims_subscriber.doc('Update IMS tft_id Object')
     @ns_ims_subscriber.expect(TFT_model)
@@ -328,7 +328,7 @@ class PyHSS_TFT_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_tft.route('/')
 class PyHSS_TFT(Resource):
@@ -344,7 +344,7 @@ class PyHSS_TFT(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_charging_rule.route('/<string:charging_rule_id>')
 class PyHSS_Charging_Rule_Get(Resource):
@@ -356,7 +356,7 @@ class PyHSS_Charging_Rule_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     def delete(self, charging_rule_id):
         '''Delete all data for specified charging_rule_id'''
@@ -366,7 +366,7 @@ class PyHSS_Charging_Rule_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
     @ns_charging_rule.doc('Update charging_rule_id Object')
     @ns_charging_rule.expect(CHARGING_RULE_model)
@@ -382,7 +382,7 @@ class PyHSS_Charging_Rule_Get(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_charging_rule.route('/')
 class PyHSS_Charging_Rule(Resource):
@@ -398,7 +398,7 @@ class PyHSS_Charging_Rule(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
@@ -411,7 +411,7 @@ class PyHSS_OAM_Peers(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/serving_subs')
 class PyHSS_OAM_Serving_Subs(Resource):
@@ -424,7 +424,7 @@ class PyHSS_OAM_Serving_Subs(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/serving_subs_pcrf')
 class PyHSS_OAM_Serving_Subs_PCRF(Resource):
@@ -437,7 +437,7 @@ class PyHSS_OAM_Serving_Subs_PCRF(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/serving_subs_ims')
 class PyHSS_OAM_Serving_Subs_IMS(Resource):
@@ -450,7 +450,7 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/subscriber/<string:imsi>')
 class PyHSS_OAM_Subscriber(Resource):
@@ -462,7 +462,7 @@ class PyHSS_OAM_Subscriber(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/subscriber_msisdn/<string:msisdn>')
 class PyHSS_OAM_Subscriber(Resource):
@@ -474,19 +474,20 @@ class PyHSS_OAM_Subscriber(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_oam.route('/ims_subscriber_msisdn/<string:msisdn>')
-class PyHSS_OAM_Subscriber(Resource):
+class PyHSS_OAM_Get_IMS_Subscriber(Resource):
     def get(self, msisdn):
         '''Get IMS data for MSISDN'''
         try:
             data = database.Get_IMS_Subscriber(msisdn=msisdn)
+            print("Got back: " + str(data))
             return data, 200
         except Exception as E:
-            print(E)
+            print("Flask Exception: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 @ns_pcrf.route('/')
 class PyHSS_PCRF(Resource):
@@ -533,7 +534,7 @@ class PyHSS_OAM_Subscriber(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return jsonify(response_json), 500
+            return response_json, 500
 
 
 if __name__ == '__main__':
