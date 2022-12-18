@@ -985,6 +985,9 @@ class Diameter:
             DiameterLogger.info("Creating QoS Information")
             #QoS-Information
             try:
+                apn_data = ChargingRules['apn_data']
+                apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+                apn_ambr_dl = int(apn_data['apn_ambr_dl'])
                 QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
                 QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
                 DiameterLogger.info("Created both QoS AVPs from data from Database")
@@ -995,7 +998,9 @@ class Diameter:
                 DiameterLogger.error(E)
 
                 #ToDo - Fix this so it sources from AVP
-                DiameterLogger.debug("Current QoS Information Value: " + str(self.get_avp_data(avps, 1016)[0][8:]))
+                DiameterLogger.debug("Current QoS Information Value: " + str(self.get_avp_data(avps, 1016)[0]))
+                for recv_avp in avps:
+                    DiameterLogger.debug(recv_avp)
 
                 QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
                 QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
