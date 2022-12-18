@@ -229,7 +229,7 @@ def Get_Subscriber(**kwargs):
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_Subscriber for imsi " + str(kwargs['imsi']))
         try:
-            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
+            result = session.query(SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
             raise ValueError(E)
        
