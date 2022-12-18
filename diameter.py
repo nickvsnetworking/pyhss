@@ -402,6 +402,7 @@ class Diameter:
                 return origin_state_incriment_hex
 
     def Charging_Rule_Generator(self, ChargingRules, ue_ip):
+        DiameterLogger.debug("Called Charging_Rule_Generator")
         #Install Charging Rules
         DiameterLogger.info("Naming Charging Rule")
         Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
@@ -932,14 +933,16 @@ class Diameter:
             DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")                                            #Get subscriber details
             ChargingRules = database.Get_Charging_Rules(imsi=imsi, apn=apn)
             DiameterLogger.info("Got Charging Rules: " + str(ChargingRules))
-        except:
+        except Exception as E:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+            DiameterLogger.debug(E)
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists")
+
 
         if int(CC_Request_Type) == 1:
             DiameterLogger.info("Request type for CCA is 1 - Initial")
 
-            
+            #Get UE IP            
             try:
                 ue_ip = self.get_avp_data(avps, 8)[0]
                 ue_ip = str(self.hex_to_ip(ue_ip))
@@ -948,6 +951,9 @@ class Diameter:
                 DiameterLogger.error(E)
                 ue_ip = 'Failed to Decode / Get UE IP'
 
+
+            #Supported-Features(628) (Gx feature list)
+            avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
 
             #Default EPS Beaerer QoS (From database with fallback source CCR-I)
             try:
@@ -969,15 +975,13 @@ class Diameter:
                 AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
                 AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
                 avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
-            except:
-                DiameterLogger.error("Failed to populate default_EPS_QoS from DB")
+            except Exception as E:
+                DiameterLogger.error(E)
+                DiameterLogger.error("Failed to populate default_EPS_QoS from DB for sub " + str(imsi))
                 default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
                 avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
 
-                                                                                                    #Supported-Features(628) (Gx feature list)
-            avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
-
-
+    
             DiameterLogger.info("Creating QoS Information")
             #QoS-Information
             try:
@@ -986,18 +990,22 @@ class Diameter:
                 DiameterLogger.info("Created both QoS AVPs from data from Database")
                 DiameterLogger.info("Populated QoS_Information")
                 avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
-            except:
+            except Exception as E:
+                DiameterLogger.error("Failed to get QoS information dynamically for sub " + str(imsi))
+                DiameterLogger.error(E)
+
+                #ToDo - Fix this so it sources from AVP
+                DiameterLogger.debug("Current QoS Information Value: " + str(self.get_avp_data(avps, 1016)[0][8:]))
+
                 QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
                 QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
-                avp += self.generate_vendor_avp(1016, "80", 10415, self.get_avp_data(avps, 1016)[0][8:])
+                avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
                 DiameterLogger.debug("QoS information set statically")
                 
-
-
             DiameterLogger.info("Added to AVP List")
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
             
-            #If database returned an existing ChargingRule defintion
+            #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
             try:
                 DiameterLogger.debug(ChargingRules)
                 avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
