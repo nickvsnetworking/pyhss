@@ -1209,7 +1209,12 @@ class Diameter:
             return response
 
         DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:5060")),'ascii'))
+
+        if ims_subscriber_details['scscf'] != None:
+            DiameterLogger.debug("Got SCSCF on record for Sub")
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
+        else:
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:applicationserver.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_302_success_count')
