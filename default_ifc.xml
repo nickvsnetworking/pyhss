@@ -27,7 +27,7 @@
                 <IdentityType>0</IdentityType>
             </Extension>
         </PublicIdentity>        
-        <!-- SIP INVITE Traffic -->
+        <!-- SIP INVITE Traffic to Registered Sub-->
         <InitialFilterCriteria>
             <Priority>30</Priority>
             <TriggerPoint>
@@ -51,6 +51,30 @@
                 <DefaultHandling>0</DefaultHandling>
             </ApplicationServer>
         </InitialFilterCriteria>
+
+
+        <!-- SIP INVITE Traffic for Unregistered Sub-->
+        <InitialFilterCriteria>
+            <Priority>40</Priority>
+            <TriggerPoint>
+                <ConditionTypeCNF>0</ConditionTypeCNF>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>0</Group>
+                    <Method>INVITE</Method>
+                    <Extension></Extension>
+                </SPT>
+                <SPT>
+                    <Group>0</Group>
+                    <SessionCase>2</SessionCase><!-- TERMINATING_UNREGISTERED -->
+                </SPT>           
+            </TriggerPoint>
+            <ApplicationServer>
+                <ServerName>sip:voicemail.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <DefaultHandling>0</DefaultHandling>
+            </ApplicationServer>
+        </InitialFilterCriteria>
+
         <!-- SIP MESSAGE Traffic -->
         <InitialFilterCriteria>
             <Priority>20</Priority>
@@ -85,6 +109,29 @@
         <!-- Copy SIP REGISTER towards Application Server -->
         <InitialFilterCriteria>
             <Priority>10</Priority>
+            <TriggerPoint>
+                <ConditionTypeCNF>0</ConditionTypeCNF>
+                <SPT>
+                    <ConditionNegated>0</ConditionNegated>
+                    <Group>0</Group>
+                    <Method>REGISTER</Method>
+                    <Extension></Extension>
+                </SPT>
+            </TriggerPoint>
+            <ApplicationServer>
+                <ServerName>sip:applicationserver.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
+                <DefaultHandling>0</DefaultHandling>
+                <Extension>
+                    <IncludeRegisterRequest/>
+                    <IncludeRegisterResponse/>
+                </Extension>
+            </ApplicationServer>
+        </InitialFilterCriteria>
+
+
+        <!-- Copy SIP REGISTER towards SMSc -->
+        <InitialFilterCriteria>
+            <Priority>11</Priority>
             <TriggerPoint>
                 <ConditionTypeCNF>0</ConditionTypeCNF>
                 <SPT>
