@@ -64,6 +64,23 @@ class Diameter:
                     ip_hex += str(parts).zfill(4)
         #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
+    #Converts a hex formatted IPv4 address or IPV6 address to dotted-decimal 
+    def hex_to_ip(self, hex_ip):
+        if len(hex_ip) == 8:
+            octet_1 = int(str(hex_ip[0:2]), base=16)
+            octet_2 = int(str(hex_ip[2:4]), base=16)
+            octet_3 = int(str(hex_ip[4:6]), base=16)
+            octet_4 = int(str(hex_ip[6:8]), base=16)
+            return str(octet_1) + "." + str(octet_2) + "." + str(octet_3) + "." + str(octet_4)
+        elif len(hex_ip) == 32:
+            n=4
+            ipv6_split = [hex_ip[idx:idx + n] for idx in range(0, len(hex_ip), n)]
+            ipv6_str = ''
+            for octect in ipv6_split:
+                ipv6_str += str(octect).lstrip('0') + ":"
+            #Strip last Colon
+            ipv6_str = ipv6_str[:-1]
+            return ipv6_str
 
     #Converts string to hex
     def string_to_hex(self, string):
@@ -384,6 +401,76 @@ class Diameter:
                 origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
                 return origin_state_incriment_hex
 
+    def Charging_Rule_Generator(self, ChargingRules, ue_ip):
+        DiameterLogger.debug("Called Charging_Rule_Generator")
+        #Install Charging Rules
+        DiameterLogger.info("Naming Charging Rule")
+        Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
+        DiameterLogger.info("Named Charging Rule")
+
+        #Populate all Flow Information AVPs
+        Flow_Information = ''
+        for tft in ChargingRules['tft']:
+            DiameterLogger.info(tft)
+            #If {{ UE_IP }} in TFT splice in the real UE IP Value
+            try:
+                tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
+                tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
+                DiameterLogger.info("Spliced in UE IP into TFT: " + str(tft['tft_string']))
+            except Exception as E:
+                DiameterLogger.error("Failed to splice in UE IP into flow description")
+            
+            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
+            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
+            Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
+
+        Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
+        DiameterLogger.info("Defined Flow_Status: " + str(Flow_Status))
+
+        DiameterLogger.info("Defining QoS information")
+        #QCI 
+        QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
+
+        #ARP
+        DiameterLogger.info("Defining ARP information")
+        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
+        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
+        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
+        ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+
+        DiameterLogger.info("Defining MBR information")
+        #Max Requested Bandwidth
+        Bandwidth_info = ''
+        Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
+        Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
+
+        DiameterLogger.info("Defining GBR information")
+        #GBR
+        if int(ChargingRules['gbr_ul']) != 0:
+            Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
+        if int(ChargingRules['gbr_dl']) != 0:                
+            Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+        DiameterLogger.info("Defined Bandwith Info: " + str(Bandwidth_info))
+
+        #Populate QoS Information
+        QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
+        DiameterLogger.info("Defined QoS_Information: " + str(QoS_Information))
+        
+        #Precedence
+        DiameterLogger.info("Defining Precedence information")
+        Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+        DiameterLogger.info("Defined Precedence " + str(Precedence))
+        
+        #Complete Charging Rule Defintion
+        DiameterLogger.info("Collating ChargingRuleDef")
+        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
+        ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+
+        #Charging Rule Install
+        DiameterLogger.info("Collating ChargingRuleDef")
+        return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+
     #### Diameter Answers ####
 
     #Capabilities Exchange Answer
@@ -411,7 +498,6 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777236),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Rx)
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(258, 40, format(int(10),"x").zfill(8))                                  #Auth-Application-ID - Diameter CER
-        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))                            #Auth-Application-ID - Diameter Gx
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                                #Supported-Vendor-ID (3GGP v2)
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
@@ -450,7 +536,6 @@ class Diameter:
         DiameterLogger.debug("Successfully Generated DPA")
         return response
 
-
     #3GPP S6a/S6d Update Location Answer
     def Answer_16777251_316(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777251_316_attempt_count')
@@ -480,7 +565,7 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
             DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
@@ -624,22 +709,25 @@ class Diameter:
         
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_Configuration_Profile + APN_Configuration)
 
-        DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
-        msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
-        DiameterLogger.debug(msisdn_avp)
-        subscription_data += msisdn_avp
+        try:
+            DiameterLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(subscriber_details['msisdn'])))                     #MSISDN
+            DiameterLogger.debug(msisdn_avp)
+            subscription_data += msisdn_avp
+        except Exception as E:
+            DiameterLogger.error("Failed to populate MSISDN in ULA due to error " + str(E))
 
         if 'RAT_freq_priorityID' in subscriber_details:
             DiameterLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
             rat_freq_priorityID = self.generate_vendor_avp(1440, "C0", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
-            DiameterLogger.debug(rat_freq_priorityID)
+            DiameterLogger.debug("Adding rat_freq_priorityID: " + str(rat_freq_priorityID))
             subscription_data += rat_freq_priorityID
 
         if 'charging_characteristics' in subscriber_details:
             DiameterLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['charging_characteristics']) + " - Adding in ULA")
-            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['charging_characteristics'])))
+            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, str(subscriber_details['charging_characteristics']))
             subscription_data += _3gpp_charging_characteristics
-            DiameterLogger.debug(_3gpp_charging_characteristics)
+            DiameterLogger.debug("Adding _3gpp_charging_characteristics: " + str(_3gpp_charging_characteristics))
 
         #ToDo - Fix this  
         # if 'APN_OI_replacement' in subscriber_details:
@@ -655,8 +743,6 @@ class Diameter:
         DiameterLogger.debug("Successfully Generated ULA")
         return response
 
-
-
     #3GPP S6a/S6d Authentication Information Answer
     def Answer_16777251_318(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777251_318_attempt_count')
@@ -666,7 +752,7 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
@@ -819,21 +905,19 @@ class Diameter:
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
         #Called Station ID
-        DiameterLogger.critical("Attempting to find APN in CCR")
-        DiameterLogger.critical(self.get_avp_data(avps, 30)[0])
+        DiameterLogger.debug("Attempting to find APN in CCR")
         apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
         DiameterLogger.debug("CCR for APN " + str(apn))
 
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
 
-
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
-        avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type (ToDo - Check dyanmically generating)
-        avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number (ToDo - Check dyanmically generating)
+        avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
+        avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
         
 
         #Get Subscriber info from Subscription ID
@@ -844,98 +928,105 @@ class Diameter:
                     imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
                     DiameterLogger.debug("Found IMSI " + str(imsi))
 
-        DiameterLogger.info("\n\n\nSubscriptionID: " + str(self.get_avp_data(avps, 443)))
+        DiameterLogger.info("SubscriptionID: " + str(self.get_avp_data(avps, 443)))
         try:
-            DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
-            DiameterLogger.debug("Looping through APNs to find this APN")
-            for apn_profile_obj in subscriber_details['pdn']:
-                if apn_profile_obj['apn'] == apn:
-                    DiameterLogger.debug("Found matching APN")
-                    apn_profile = apn_profile_obj
-
-        except:
+            DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")                                            #Get subscriber details
+            ChargingRules = database.Get_Charging_Rules(imsi=imsi, apn=apn)
+            DiameterLogger.info("Got Charging Rules: " + str(ChargingRules))
+        except Exception as E:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR")
-            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
-            experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
-            #Experimental Result (297)
-            avp += self.generate_avp(297, 40, experimental_result)
-            response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            return response
+            DiameterLogger.debug(E)
+            DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists")
+
 
         if int(CC_Request_Type) == 1:
             DiameterLogger.info("Request type for CCA is 1 - Initial")
 
-            DiameterLogger.debug(apn_profile)
-            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_vulnerability']), 4))
-            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['qci']), 4))
-            #Default-EPS-Bearer-QoS(1049) (Sets ARP & QCI)
-            avp += self.generate_vendor_avp(1049, "c0", 10415, AVP_QoS + AVP_ARP)
+            #Get UE IP            
+            try:
+                ue_ip = self.get_avp_data(avps, 8)[0]
+                ue_ip = str(self.hex_to_ip(ue_ip))
+            except Exception as E:
+                DiameterLogger.error("Failed to get UE IP")
+                DiameterLogger.error(E)
+                ue_ip = 'Failed to Decode / Get UE IP'
 
-                                                                                                    #Supported-Features(628) (Gx feature list)
-            avp += self.generate_vendor_avp(628, "80", 10415, "0000027580000010000028af000000010000027680000010000028af0000000b")
+
+            #Supported-Features(628) (Gx feature list)
+            avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
+
+            #Default EPS Beaerer QoS (From database with fallback source CCR-I)
+            try:
+                apn_data = ChargingRules['apn_data']
+                DiameterLogger.debug("Setting APN AMBR")
+                #AMBR
+                AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+                apn_ambr_dl = int(apn_data['apn_ambr_dl'])
+                AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+                DiameterLogger.debug("Setting APN Allocation-Retention-Priority")
+                #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+                AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
+                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
+                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
+                AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
+                avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+            except Exception as E:
+                DiameterLogger.error(E)
+                DiameterLogger.error("Failed to populate default_EPS_QoS from DB for sub " + str(imsi))
+                default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
+                avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
+
+    
             DiameterLogger.info("Creating QoS Information")
-                                                                                                    #QoS-Information
-            QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
-            QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
-            DiameterLogger.info("Created both QoS AVPs")
-            DiameterLogger.info("Populated QoS_Infomration")
-            avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+            #QoS-Information
+            try:
+                apn_data = ChargingRules['apn_data']
+                apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+                apn_ambr_dl = int(apn_data['apn_ambr_dl'])
+                QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
+                QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
+                DiameterLogger.info("Created both QoS AVPs from data from Database")
+                DiameterLogger.info("Populated QoS_Information")
+                avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+            except Exception as E:
+                DiameterLogger.error("Failed to get QoS information dynamically for sub " + str(imsi))
+                DiameterLogger.error(E)
+
+                #ToDo - Fix this so it sources from AVP
+                DiameterLogger.debug("Current QoS Information Value: " + str())
+                current_QoS_value = {'avp_code': 1041, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}, {'avp_code': 1040, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}
+                QoS_Information = ''
+                for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
+                    DiameterLogger.debug(AMBR_Part)
+                    AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'][8:])
+                    QoS_Information += AMBR_AVP
+                    DiameterLogger.debug("QoS_Information added " + str(AMBR_AVP))
+                avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+                DiameterLogger.debug("QoS information set statically")
+                
             DiameterLogger.info("Added to AVP List")
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
-
-            #Install Charging Rules
-            Charging_Rule_Name = self.generate_vendor_avp(1005, "80", 10415, str(binascii.hexlify(str.encode("testrule")),'ascii'))
-
-            #Flow Information 1
-            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
-            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(2, 4))
-            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode("permit in ip from any to any")),'ascii'))
-            Flow_Information = self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
-
-            #Flow Information 2
-            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
-            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(1, 4))
-            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode("permit out ip from any to any")),'ascii'))
-            Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
-
-            Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
-
-            QoS_Information = ''
-            #QCI 
-            QoS_Information += self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(1, 4))
-            #ARP
-            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(2, 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(0, 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(0, 4))
-            QoS_Information += self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-            #Max Requested Bandwidth
-            QoS_Information += self.generate_vendor_avp(516, "c0", 10415, "00019000")
-            QoS_Information += self.generate_vendor_avp(515, "c0", 10415, "00019000")
-            #GBR
-            QoS_Information += self.generate_vendor_avp(1026, "c0", 10415, "00010000")
-            QoS_Information += self.generate_vendor_avp(1025, "c0", 10415, "00010000")
-
-            #Precedence
-            Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(1, 4))
             
-            #Complete Charging Rule Defintion
-            ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
-            ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+            #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+            try:
+                DiameterLogger.debug(ChargingRules)
+                avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
 
-            #Charging Rule Install
-            avp += self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+                #Store PGW location into Database
+                database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)
 
-            #Store PGW location into Database
-            database.UpdateSubscriber(imsi, 1, 1, serving_pgw=OriginHost)
+            except Exception as E:
+                DiameterLogger.debug("Error in populating dynamic charging rules: " + str(E))
 
         elif int(CC_Request_Type) == 3:
             DiameterLogger.info("Request type for CCA is 3 - Termination")
-            database.UpdateSubscriber(imsi, 1, 1, clearloc='pgw')
+            if ChargingRules:
+                database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, ue_ip=None)
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -950,7 +1041,7 @@ class Diameter:
         
         avp = ''                                                                                         #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
@@ -983,11 +1074,11 @@ class Diameter:
 
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
-        #ToDo - Make this Dynamic
+
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
 
         try:
@@ -1041,7 +1132,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777216_302_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
@@ -1068,14 +1159,14 @@ class Diameter:
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
@@ -1140,7 +1231,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         try:
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         except:
             DiameterLogger.info("Failed to add SessionID into error")
         for avps_to_check in avps:                                                                  #Only include AVP 260 (Vendor-Specific-Application-ID) if inital request included it
@@ -1168,7 +1259,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777216_304_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         vendor_id = self.generate_avp(266, 40, str(binascii.hexlify('10415'),'ascii'))
         DiameterLogger.debug("vendor_id avp: " + str(vendor_id))
         auth_application_id = self.generate_avp(248, 40, self.int_to_hex(16777252, 8))
@@ -1190,7 +1281,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777216_304_success_count')
         return response
 
-#3GPP Sh User-Data Answer
+    #3GPP Sh User-Data Answer
     def Answer_16777217_306(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777217_306_attempt_count')
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
@@ -1222,7 +1313,7 @@ class Diameter:
             return response
         
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
@@ -1249,13 +1340,12 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777217_306_success_count')
         return response
 
-
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777252_324_attempt_count')
         avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to received session ID
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
         avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
         avp += self.generate_avp(277, 40, "00000001")                                                   #Auth Session State        
@@ -1274,7 +1364,7 @@ class Diameter:
     def Answer_16777291_8388622(self, packet_vars, avps):
         avp = '' 
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                   #Set session    ID to recieved session ID
+        avp += self.generate_avp(263, 40, session_id)                                                   #Set session    ID to received session ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
@@ -1324,9 +1414,8 @@ class Diameter:
                 subscriber_location = database.Get_Subscriber(imsi=imsi)['serving_mme']
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         elif msisdn is not None:
-                #ToDo - Impliment
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+                subscriber_location = database.Get_Subscriber(msisdn=msisdn)
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
@@ -1373,8 +1462,6 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
-
-
         
     #### Diameter Requests ####
 
@@ -1406,7 +1493,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "80", 280, 0, self.generate_id(4), self.generate_id(4), avp)#Generate Diameter packet
         return response
 
-        
     #Disconnect Peer Request
     def Request_282(self):                                                                      
         avp = ''                                                                                    #Initiate empty var AVP 
@@ -1415,7 +1501,6 @@ class Diameter:
         avp += self.generate_avp(273, 40, "00000000")                                                    #Disconnect-Cause (REBOOTING (0))
         response = self.generate_diameter_packet("01", "80", 282, 0, self.generate_id(4), self.generate_id(4), avp)#Generate Diameter packet
         return response
-
 
     #3GPP S6a/S6d Authentication Information Request
     def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm):                                                             
@@ -1470,7 +1555,6 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")                 #Vendor-Specific-Application-ID
         response = self.generate_diameter_packet("01", "c0", 321, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
-
 
     #3GPP S6a/S6d NOtify Request NOR
     def Request_16777251_323(self, imsi, DestinationRealm, DestinationHost):
@@ -1579,7 +1663,7 @@ class Diameter:
         APN_Configuration = ''
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -1740,15 +1824,14 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777251_319_success_count')
         return response
 
-
     #3GPP Cx Location Information Request (LIR)
+    #ToDo - Check the command code here...
     def Request_16777216_285(self, sipaor):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         #Auth Session state
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                            #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
@@ -1767,7 +1850,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 285, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
-
     #3GPP Cx User Authentication Request (UAR)
     def Request_16777216_300(self, imsi, domain):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
@@ -1783,7 +1865,6 @@ class Diameter:
         avp += self.generate_vendor_avp(600, "c0", 10415, self.string_to_hex(domain))               #Visited Network Identifier
         response = self.generate_diameter_packet("01", "c0", 300, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
-
 
     #3GPP Cx Server Assignment Request (SAR)
     def Request_16777216_301(self, imsi, domain):
@@ -1826,7 +1907,6 @@ class Diameter:
     def Request_16777216_304(self, imsi, domain):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
-        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         
@@ -1862,7 +1942,6 @@ class Diameter:
     def Request_16777217_306(self, **kwargs):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
-        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777217),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Sh)
         
@@ -1913,7 +1992,7 @@ class Diameter:
     def Request_16777255_8388620(self, imsi):
         avp = ''
         #ToDo - Update the Vendor Specific Application ID
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -1958,4 +2037,78 @@ class Diameter:
         avp += self.generate_vendor_avp(2405, 'c0', 10415, self.ip_to_hex('127.0.0.1'))                      #GMLC-Address
 
         response = self.generate_diameter_packet("01", "c0", 8388622, 16777291, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+    #3GPP Gx - Credit Control Request
+    def Request_16777238_272(self, imsi, apn, ccr_type):
+        avp = ''
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_gx'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
+        avp += self.generate_avp(264, 40, self.string_to_hex('ExamplePGW.com'))                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        
+        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
+
+        #CCR Type
+        avp += self.generate_avp(416, 40, format(int(ccr_type),"x").zfill(8))
+        avp += self.generate_avp(415, 40, format(int(0),"x").zfill(8))
+
+        #Subscription ID
+        Subscription_ID_Data = self.generate_avp(444, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))
+        Subscription_ID_Type = self.generate_avp(450, 40, format(int(1),"x").zfill(8))
+        avp += self.generate_avp(443, 40, Subscription_ID_Type + Subscription_ID_Data)
+
+
+        #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
+        SupportedFeatures = ''
+        SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
+        SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "0000000b")             #Feature-List Flags
+        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+
+        avp += self.generate_vendor_avp(1024, 80, 10415, self.int_to_hex(1, 4))                 #Network Requests Supported
+        
+        avp += self.generate_avp(8, 40, '2d2d0002')                                             #Framed IP Address (ToDo - Better)
+        avp += self.generate_vendor_avp(1027, 80, 10415, self.int_to_hex(5, 4))                 #IP CAN Type (EPS)
+        avp += self.generate_vendor_avp(1032, 80, 10415, self.int_to_hex(1004, 4))              #RAT-Type (EUTRAN)
+        #Default EPS Bearer QoS
+        avp += self.generate_vendor_avp(1049, 80, 10415, 
+            '0000041980000058000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001')
+        #3GPP-User-Location-Information
+        avp += self.generate_vendor_avp(22, 80, 10415, 
+            '8205f539007b05f53900000001')
+        avp += self.generate_vendor_avp(23, 80, 10415, '00000000')                              #MS Timezone
+
+        #Called Station ID (APN)
+        avp += self.generate_avp(30, 40, str(binascii.hexlify(str.encode(apn)),'ascii'))
+
+        response = self.generate_diameter_packet("01", "c0", 272, 16777238, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+    #3GPP Gx - Re Auth Request
+    def Request_16777238_258(self, sessionid, ChargingRules, ue_ip, Serving_PGW, Serving_Realm):
+        avp = ''
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session-Id set AVP
+
+        #Setup Charging Rule
+        DiameterLogger.debug(ChargingRules)
+        avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
+
+
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(Serving_PGW))                                               #Destination Host
+        avp += self.generate_avp(283, 40, self.string_to_hex(Serving_Realm))                                               #Destination Realm
+       
+        avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
+        
+        avp += self.generate_avp(285, 40, format(int(0),"x").zfill(8))   #Re-Auth Request TYpe
+
+        response = self.generate_diameter_packet("01", "c0", 258, 16777238, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response

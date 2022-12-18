@@ -55,10 +55,8 @@ logging:
   log_to_terminal: true
 
 ## Database Parameters
-#Multiple database types are supported, and additional database can be added easily.
-#See ``databases.md`` for information on connecting to your database of choice, with your preferred schema.
 database:
-  db_type: mysql
+  db_type: mysql    #Supported types are MySQL and Postgres
   server: 127.0.0.1
   username: dbeaver
   password: password

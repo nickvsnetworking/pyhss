@@ -26,3 +26,5 @@ scratchpad.py
 lib/__pycache__/lte.cpython-36.pyc
 lib/__pycache__/milenage.cpython-36.pyc
 .gitignore
+.vscode/settings.json
+.cspell/custom-dictionary-workspace.txt

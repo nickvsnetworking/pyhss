@@ -1,11 +1,13 @@
 ## PyHSS Monitoring
 
+**Note** All the stats currently exposed via Redis are available via Prometheus as well, if you're building from scratch this would be the better way.
+
 PyHSS's statistics & monitoring rely on [Redis](https://redis.io/).
 
 ### Viewing Diameter Peers
 You can view all the current Diameter peers by running the ``view_stats.py`` tool, which will list all active and inactive Diameter peers connected / connected then disconnected from the system.
 
-![Output of view_status showing connected Diameter Peers](https://github.com/nickvsnetworking/pyhss/blob/master/lib/PyHSS_Diameter_Peers.png?raw=true)
+![Output of view_status showing connected Diameter Peers](images/PyHSS_Diameter_Peers.png)
 
 
 Different parts of the software have a code snippet like this:

@@ -179,6 +179,11 @@ while True:
             msisdn = str(input("MSISDN:\t"))
             print("Sending LCS Routing Information Request with MSISDN to " + str(hostname))
             SendRequest(diameter.Request_16777291_8388622(msisdn=msisdn))
+    elif request == "CCR":
+        imsi = str(input("IMSI:\t"))
+        apn = str(input("APN:\t"))
+        ccr_type = int(input("ccr_type:\t"))
+        SendRequest(diameter.Request_16777238_272(imsi=imsi, apn=apn, ccr_type=ccr_type))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
