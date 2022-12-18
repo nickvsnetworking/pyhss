@@ -138,7 +138,7 @@ def Sanitize_Datetime(result):
             if result[keys] == None:
                 continue
             else:
-                print("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
+                DBLogger.debug("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
                 result[keys] = str(result[keys])
     return result
 
@@ -149,7 +149,7 @@ def GetObj(obj_type, obj_id):
     result.pop('_sa_instance_state')
     for keys in result:
         if type(result[keys]) == DateTime:
-            print("Key " + str(keys) + " is type DateTime - Formatting to String")
+            DBLogger.debug("Key " + str(keys) + " is type DateTime - Formatting to String")
             result[keys] = str(result[keys])
         result = Sanitize_Datetime(result) 
     return result
@@ -207,8 +207,8 @@ def Get_IMS_Subscriber(**kwargs):
         DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
-        except:
-            raise ValueError("IMS Subscriber not Found")
+        except Exception as E:
+            raise ValueError(E)
     DBLogger.debug("Converting result to dict")
     result = result.__dict__
     try:
@@ -245,14 +245,14 @@ def Get_Served_Subscribers():
         results = session.query(SUBSCRIBER).filter(SUBSCRIBER.serving_mme.isnot(None))
         for result in results:
             result = result.__dict__
-            print("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             Served_Subs[result['imsi']] = result
-            print("Processed result")
+            DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    print("Final Served_Subs: " + str(Served_Subs))
+    DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
 def Get_Served_IMS_Subscribers():
@@ -262,14 +262,14 @@ def Get_Served_IMS_Subscribers():
         results = session.query(IMS_SUBSCRIBER).filter(IMS_SUBSCRIBER.scscf.isnot(None))
         for result in results:
             result = result.__dict__
-            print("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             Served_Subs[result['imsi']] = result
-            print("Processed result")
+            DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    print("Final Served_Subs: " + str(Served_Subs))
+    DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
 def Get_Served_PCRF_Subscribers():
@@ -279,25 +279,25 @@ def Get_Served_PCRF_Subscribers():
         results = session.query(SERVING_APN).all()
         for result in results:
             result = result.__dict__
-            print("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             #Get APN Info
             apn_info = GetObj(APN, result['apn'])
-            print("Got APN Info: " + str(apn_info))
+            DBLogger.debug("Got APN Info: " + str(apn_info))
             result['apn_info'] = apn_info
             
             #Get Subscriber Info
             subscriber_info = GetObj(SUBSCRIBER, result['subscriber_id'])
             result['subscriber_info'] = subscriber_info
             
-            print("Got Subscriber Info: " + str(subscriber_info))
+            DBLogger.debug("Got Subscriber Info: " + str(subscriber_info))
             
             Served_Subs[subscriber_info['imsi']] = result
-            print("Processed result")
+            DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    print("Final SERVING_APN: " + str(Served_Subs))
+    DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     return Served_Subs 
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
