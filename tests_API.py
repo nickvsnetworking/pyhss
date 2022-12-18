@@ -162,7 +162,11 @@ class Subscriber_Tests(unittest.TestCase):
         r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
-    def test_F_Delete_Patched_Subscriber(self):
+    def test_F_Get_Patched_Subscriber_by_MSISDN(self):
+        r = requests.get(str(base_url) + '/oam/subscriber_msisdn/' + str(self.__class__.template_data['msisdn']))
+        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+
+    def test_Z_Delete_Patched_Subscriber(self):
         r = requests.delete(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
         xres = {"Result": "OK"}
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))

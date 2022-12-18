@@ -458,7 +458,19 @@ class PyHSS_OAM_Subscriber(Resource):
     def get(self, imsi):
         '''Get data for IMSI'''
         try:
-            data = database.Get_Subscriber(imsi)
+            data = database.Get_Subscriber(imsi=imsi)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return jsonify(response_json), 500
+
+@ns_oam.route('/subscriber_msisdn/<string:msisdn>')
+class PyHSS_OAM_Subscriber(Resource):
+    def get(self, msisdn):
+        '''Get data for MSISDN'''
+        try:
+            data = database.Get_Subscriber(msisdn=msisdn)
             return data, 200
         except Exception as E:
             print(E)

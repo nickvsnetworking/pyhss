@@ -218,12 +218,21 @@ def Get_IMS_Subscriber(**kwargs):
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     return result
 
-def Get_Subscriber(imsi):
-    DBLogger.debug("Get_Subscriber for IMSI " + str(imsi))
-    try:
-        result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-    except:
-        raise ValueError("Subscriber not Found")
+def Get_Subscriber(**kwargs):
+    #Get subscriber by IMSI or MSISDN
+    if 'msisdn' in kwargs:
+        DBLogger.debug("Get_Subscriber for msisdn " + str(kwargs['msisdn']))
+        try:
+            result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
+        except Exception as E:
+            raise ValueError(E)
+    elif 'imsi' in kwargs:
+        DBLogger.debug("Get_Subscriber for imsi " + str(kwargs['imsi']))
+        try:
+            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
+        except Exception as E:
+            raise ValueError(E)
+       
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
@@ -381,7 +390,7 @@ def Update_Serving_CSCF(imsi, serving_cscf):
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
     #Get Subscriber ID from IMSI
-    subscriber_details = Get_Subscriber(str(imsi))
+    subscriber_details = Get_Subscriber(imsi=str(imsi))
     subscriber_id = subscriber_details['subscriber_id']
 
     #Split the APN list into a list
@@ -458,7 +467,7 @@ def Get_Charging_Rule(charging_rule_id):
 def Get_Charging_Rules(imsi, apn):
     DBLogger.debug("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
     #Get Subscriber ID from IMSI
-    subscriber_details = Get_Subscriber(str(imsi))
+    subscriber_details = Get_Subscriber(imsi=str(imsi))
 
     #Split the APN list into a list
     apn_list = subscriber_details['apn_list'].split(',')
@@ -486,11 +495,7 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
-
 def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
-    return
-
-def Get_IMSI_from_MSISDN(msisdn):
     return
 
 if __name__ == "__main__":
@@ -597,7 +602,7 @@ if __name__ == "__main__":
 
     #Delete IMSI if already exists
     try:
-        existing_sub_data = Get_Subscriber(subscriber_json['imsi'])
+        existing_sub_data = Get_Subscriber(imsi=subscriber_json['imsi'])
         DeleteObj(SUBSCRIBER, existing_sub_data['subscriber_id'])
     except:
         print("Did not find old sub to delete")
@@ -646,7 +651,7 @@ if __name__ == "__main__":
 
     #Test Get Subscriber
     print("Test Getting Subscriber")
-    GetSubscriber_Result = Get_Subscriber(subscriber_json['imsi'])
+    GetSubscriber_Result = Get_Subscriber(imsi=subscriber_json['imsi'])
     print(GetSubscriber_Result)
 
     #Test IMS Get Subscriber

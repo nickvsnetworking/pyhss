@@ -564,7 +564,7 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
             DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
@@ -751,7 +751,7 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
@@ -915,8 +915,8 @@ class Diameter:
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
         avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
-        avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type (ToDo - Check dyanmically generating)
-        avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number (ToDo - Check dyanmically generating)
+        avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
+        avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
         
 
         #Get Subscriber info from Subscription ID
@@ -983,16 +983,17 @@ class Diameter:
             try:
                 QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
                 QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
+                DiameterLogger.info("Created both QoS AVPs from data from Database")
+                DiameterLogger.info("Populated QoS_Information")
+                avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
             except:
                 QoS_Information = self.generate_vendor_avp(1041, "80", 10415, "009c4000")                                                                  
                 QoS_Information += self.generate_vendor_avp(1040, "80", 10415, "009c4000")
+                avp += self.generate_vendor_avp(1016, "80", 10415, self.get_avp_data(avps, 1016)[0][8:])
                 DiameterLogger.debug("QoS information set statically")
-                #ToDO - This better
                 
 
-            DiameterLogger.info("Created both QoS AVPs")
-            DiameterLogger.info("Populated QoS_Infomration")
-            avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+
             DiameterLogger.info("Added to AVP List")
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
             
@@ -1062,7 +1063,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
-        #ToDo - Make this Dynamic
+
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
 
         try:
@@ -1150,7 +1151,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
@@ -1398,9 +1399,8 @@ class Diameter:
                 subscriber_location = database.Get_Subscriber(imsi=imsi)['serving_mme']
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         elif msisdn is not None:
-                #ToDo - Impliment
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
+                subscriber_location = database.Get_Subscriber(msisdn=msisdn)
                 DiameterLogger.debug("Got subscriber location: " + subscriber_location)
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
@@ -1648,7 +1648,7 @@ class Diameter:
         APN_Configuration = ''
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi)                                               #Get subscriber details
+            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -1817,7 +1817,6 @@ class Diameter:
         #Auth Session state
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                            #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
@@ -1893,7 +1892,6 @@ class Diameter:
     def Request_16777216_304(self, imsi, domain):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
-        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         
@@ -1929,7 +1927,6 @@ class Diameter:
     def Request_16777217_306(self, **kwargs):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
-        avp += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))                       #Auth-Application-ID Relay (#ToDo - Investigate this AVP more)
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777217),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Sh)
         
@@ -1980,7 +1977,7 @@ class Diameter:
     def Request_16777255_8388620(self, imsi):
         avp = ''
         #ToDo - Update the Vendor Specific Application ID
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
