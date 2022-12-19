@@ -1193,29 +1193,29 @@ class Diameter:
             imsi = username.split('@')[0]   #Strip Domain
             domain = username.split('@')[1] #Get Domain Part
             imsi = imsi[4:]                 #Strip SIP: from start of string
+            DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
             DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
             ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+
+            if ims_subscriber_details['scscf'] != None:
+                DiameterLogger.debug("Got SCSCF on record for Sub")
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
+            else:
+                DiameterLogger.debug("No SCSF assigned - Using SCSCF Pool")
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
-            result_code = 5005
+            result_code = 5001
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
             avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
-            response = self.generate_diameter_packet("01", "40", 301, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            response = self.generate_diameter_packet("01", "40", 302, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
-
-        DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
-
-        if ims_subscriber_details['scscf'] != None:
-            DiameterLogger.debug("Got SCSCF on record for Sub")
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
-        else:
-            DiameterLogger.debug("No SCSF assigned - Using SCSCF Pool")
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+        
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_302_success_count')
