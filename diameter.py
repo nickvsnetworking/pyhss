@@ -471,7 +471,7 @@ class Diameter:
         DiameterLogger.info("Collating ChargingRuleDef")
         return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
 
-    def Get_IMS_Subscriber_Details_from_AVP(username):
+    def Get_IMS_Subscriber_Details_from_AVP(self, username):
         #Feed the Username AVP with Tel URI, SIP URI and either MSISDN or IMSI and this returns user data
         username = binascii.unhexlify(username).decode('utf-8')
         DiameterLogger.info("Username AVP is present, value is " + str(username))
