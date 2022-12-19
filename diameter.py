@@ -1191,7 +1191,6 @@ class Diameter:
             DiameterLogger.info("Username AVP is present, value is " + str(username))
             username = username.split('@')[0]   #Strip Domain to get User part
             username = username[4:]             #Strip tel: or sip: prefix
-            domain = username.split('@')[1] #Get Domain Part
             #Determine if dealing with IMSI or MSISDN
             if (len(username) == 15) or (len(username) == 16):
                 DiameterLogger("We have an IMSI: " + str(username))
