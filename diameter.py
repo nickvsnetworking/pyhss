@@ -1082,14 +1082,13 @@ class Diameter:
             if (User_Authorization_Type == 1):
                 DiameterLogger.debug("This is Deregister")
                 database.Update_Serving_CSCF(imsi, serving_cscf=None)
-                experimental_avp += experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))            #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
+                experimental_avp += experimental_avp + self.generate_avp(298, 40, format(int(2003),"x").zfill(8))            #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
             else:
                 experimental_avp += experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
                 #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2004),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_SUBSEQUENT_REGISTRATION
                 #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))                
         except Exception as E:
             DiameterLogger.debug("Failed to get User_Authorization_Type AVP, error: " + str(E))
-        experimental_avp += experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
 
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
@@ -1190,12 +1189,16 @@ class Diameter:
             username = self.get_avp_data(avps, 601)[0]                                                     
             username = binascii.unhexlify(username).decode('utf-8')
             DiameterLogger.info("Username AVP is present, value is " + str(username))
-            imsi = username.split('@')[0]   #Strip Domain
+            username = username.split('@')[0]   #Strip Domain to get User part
+            username = username[4:]             #Strip tel: or sip: prefix
             domain = username.split('@')[1] #Get Domain Part
-            imsi = imsi[4:]                 #Strip SIP: from start of string
-            DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
-            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
-            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            #Determine if dealing with IMSI or MSISDN
+            if (len(username) == 15) or (len(username) == 16):
+                DiameterLogger("We have an IMSI: " + str(username))
+                ims_subscriber_details = database.Get_IMS_Subscriber(imsi=username)
+            else:
+                DiameterLogger("We have an msisdn: " + str(username))
+                ims_subscriber_details = database.Get_IMS_Subscriber(msisdn=username)
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
 
             if ims_subscriber_details['scscf'] != None:
