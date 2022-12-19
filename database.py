@@ -216,6 +216,7 @@ def Get_IMS_Subscriber(**kwargs):
     except:
         pass
     result = Sanitize_Datetime(result)
+    session.commit()
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     return result
 
@@ -237,6 +238,7 @@ def Get_Subscriber(**kwargs):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
+    session.commit()
     DBLogger.debug("Got back result: " + str(result))
     return result
 
@@ -254,6 +256,7 @@ def Get_Served_Subscribers():
             DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
+    session.commit()
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
@@ -271,6 +274,7 @@ def Get_Served_IMS_Subscribers():
             DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
+    session.commit()
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
@@ -299,6 +303,7 @@ def Get_Served_PCRF_Subscribers():
             DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
+    session.commit()        
     DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     return Served_Subs 
 
@@ -343,6 +348,7 @@ def Get_APN(apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    session.commit()
     return result    
 
 def Get_APN_by_Name(apn):
@@ -353,6 +359,7 @@ def Get_APN_by_Name(apn):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    session.commit()
     return result 
 
 def Update_AuC(auc_id, sqn=1):
@@ -447,6 +454,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    session.commit()
     return result   
 
 def Get_Charging_Rule(charging_rule_id):
@@ -463,7 +471,7 @@ def Get_Charging_Rule(charging_rule_id):
             ChargingRule['tft'].append(result)
     except Exception as E:
         raise ValueError(E)
-
+    session.commit()
     return ChargingRule
 
 def Get_Charging_Rules(imsi, apn):
@@ -497,8 +505,6 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
-def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
-    return
 
 if __name__ == "__main__":
     import binascii,os,pprint
