@@ -471,6 +471,22 @@ class Diameter:
         DiameterLogger.info("Collating ChargingRuleDef")
         return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
 
+    def Get_IMS_Subscriber_Details_from_AVP(username):
+        #Feed the Username AVP with Tel URI, SIP URI and either MSISDN or IMSI and this returns user data
+        username = binascii.unhexlify(username).decode('utf-8')
+        DiameterLogger.info("Username AVP is present, value is " + str(username))
+        username = username.split('@')[0]   #Strip Domain to get User part
+        username = username[4:]             #Strip tel: or sip: prefix
+        #Determine if dealing with IMSI or MSISDN
+        if (len(username) == 15) or (len(username) == 16):
+            DiameterLogger.debug("We have an IMSI: " + str(username))
+            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=username)
+        else:
+            DiameterLogger.debug("We have an msisdn: " + str(username))
+            ims_subscriber_details = database.Get_IMS_Subscriber(msisdn=username)
+        DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+        return ims_subscriber_details
+
     #### Diameter Answers ####
 
     #Capabilities Exchange Answer
@@ -1112,13 +1128,7 @@ class Diameter:
         try:
             DiameterLogger.info("Checking if username present")
             username = self.get_avp_data(avps, 601)[0]                                                     
-            username = binascii.unhexlify(username).decode('utf-8')
-            DiameterLogger.info("Username AVP is present, value is " + str(username))
-            imsi = username.split('@')[0]   #Strip Domain
-            domain = username.split('@')[1] #Get Domain Part
-            imsi = imsi[4:]                 #Strip SIP: from start of string
-            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
-            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username) 
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
@@ -1184,20 +1194,8 @@ class Diameter:
 
         try:
             DiameterLogger.info("Checking if username present")
-            username = self.get_avp_data(avps, 601)[0]                                                     
-            username = binascii.unhexlify(username).decode('utf-8')
-            DiameterLogger.info("Username AVP is present, value is " + str(username))
-            username = username.split('@')[0]   #Strip Domain to get User part
-            username = username[4:]             #Strip tel: or sip: prefix
-            #Determine if dealing with IMSI or MSISDN
-            if (len(username) == 15) or (len(username) == 16):
-                DiameterLogger.debug("We have an IMSI: " + str(username))
-                ims_subscriber_details = database.Get_IMS_Subscriber(imsi=username)
-            else:
-                DiameterLogger.debug("We have an msisdn: " + str(username))
-                ims_subscriber_details = database.Get_IMS_Subscriber(msisdn=username)
-            DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
-
+            username = self.get_avp_data(avps, 601)[0] 
+            ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username)                                                    
             if ims_subscriber_details['scscf'] != None:
                 DiameterLogger.debug("Got SCSCF on record for Sub")
                 avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
