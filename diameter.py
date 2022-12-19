@@ -1130,6 +1130,8 @@ class Diameter:
             username = self.get_avp_data(avps, 601)[0]                                                     
             ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username) 
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+            imsi = ims_subscriber_details['imsi']
+            domain = "ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org"
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
@@ -1157,6 +1159,7 @@ class Diameter:
 
         xmlbody = template.render(iFC_vars=ims_subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
+        
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
