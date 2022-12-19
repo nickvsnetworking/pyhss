@@ -53,7 +53,7 @@
         </InitialFilterCriteria>
 
 
-        <!-- SIP INVITE Traffic for Unregistered Sub-->
+        <!-- SIP INVITE Traffic for calls to Unregistered Sub (TERMINATING_UNREGISTERED) -->
         <!-- <InitialFilterCriteria>
             <Priority>40</Priority>
             <TriggerPoint>
@@ -66,7 +66,7 @@
                 </SPT>
                 <SPT>
                     <Group>0</Group>
-                    <SessionCase>2</SessionCase><!-- TERMINATING_UNREGISTERED -->
+                    <SessionCase>2</SessionCase>
                 </SPT>           
             </TriggerPoint>
             <ApplicationServer>
