@@ -54,7 +54,7 @@
 
 
         <!-- SIP INVITE Traffic for Unregistered Sub-->
-        <InitialFilterCriteria>
+        <!-- <InitialFilterCriteria>
             <Priority>40</Priority>
             <TriggerPoint>
                 <ConditionTypeCNF>0</ConditionTypeCNF>
@@ -73,7 +73,7 @@
                 <ServerName>sip:voicemail.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org:5060</ServerName>
                 <DefaultHandling>0</DefaultHandling>
             </ApplicationServer>
-        </InitialFilterCriteria>
+        </InitialFilterCriteria> -->
 
         <!-- SIP MESSAGE Traffic -->
         <InitialFilterCriteria>
