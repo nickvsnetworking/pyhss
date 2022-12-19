@@ -1193,10 +1193,10 @@ class Diameter:
             username = username[4:]             #Strip tel: or sip: prefix
             #Determine if dealing with IMSI or MSISDN
             if (len(username) == 15) or (len(username) == 16):
-                DiameterLogger("We have an IMSI: " + str(username))
+                DiameterLogger.debug("We have an IMSI: " + str(username))
                 ims_subscriber_details = database.Get_IMS_Subscriber(imsi=username)
             else:
-                DiameterLogger("We have an msisdn: " + str(username))
+                DiameterLogger.debug("We have an msisdn: " + str(username))
                 ims_subscriber_details = database.Get_IMS_Subscriber(msisdn=username)
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
 
