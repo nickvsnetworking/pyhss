@@ -15,7 +15,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 #engine = create_engine('sqlite:///sales.db', echo = True)
-db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'])
+db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
 print(db_string)
 engine = create_engine(db_string, echo = True)
 from sqlalchemy.ext.declarative import declarative_base
