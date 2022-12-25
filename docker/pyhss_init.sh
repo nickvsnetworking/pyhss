@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo "Updating config for PyHSS"
 [ ${#MNC} == 3 ] && EPC_DOMAIN="epc.mnc${MNC}.mcc${MCC}.3gppnetwork.org" || EPC_DOMAIN="epc.mnc0${MNC}.mcc${MCC}.3gppnetwork.org"
 sed -i 's|template_HSS_HOSTNAME|'$HSS_HOSTNAME'|g' config.yaml
@@ -16,5 +18,3 @@ sed -i 's|Test_Subscriber_IMSI|'$Test_Subscriber_IMSI'|g' config.yaml
 
 echo "PyHSS Config:"
 cat config.yaml
-
-python3 hss.py
