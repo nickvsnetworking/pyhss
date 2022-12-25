@@ -15,7 +15,7 @@ with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
 #engine = create_engine('sqlite:///sales.db', echo = True)
-db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'])
+db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
 print(db_string)
 engine = create_engine(db_string, echo = True)
 from sqlalchemy.ext.declarative import declarative_base
@@ -138,7 +138,7 @@ def Sanitize_Datetime(result):
             if result[keys] == None:
                 continue
             else:
-                print("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
+                DBLogger.debug("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
                 result[keys] = str(result[keys])
     return result
 
@@ -147,11 +147,11 @@ def GetObj(obj_type, obj_id):
     result = session.query(obj_type).get(obj_id)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    for keys in result:
-        if type(result[keys]) == DateTime:
-            print("Key " + str(keys) + " is type DateTime - Formatting to String")
-            result[keys] = str(result[keys])
-        result = Sanitize_Datetime(result) 
+    # for keys in result:
+    #     if type(result[keys]) == DateTime:
+    #         DBLogger.debug("Key " + str(keys) + " is type DateTime - Formatting to String")
+    #         result[keys] = str(result[keys])
+    result = Sanitize_Datetime(result) 
     return result
 
 def UpdateObj(obj_type, json_data, obj_id):
@@ -200,21 +200,23 @@ def Get_IMS_Subscriber(**kwargs):
     if 'msisdn' in kwargs:
         DBLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
-            result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
-        except:
-            raise ValueError("IMS Subscriber not Found")
+            result = session.query(IMS_SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
+        except Exception as E:
+            raise ValueError(E)
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
-        except:
-            raise ValueError("IMS Subscriber not Found")
+        except Exception as E:
+            raise ValueError(E)
     DBLogger.debug("Converting result to dict")
     result = result.__dict__
     try:
         result.pop('_sa_instance_state')
     except:
         pass
+    result = Sanitize_Datetime(result)
+    session.commit()
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     return result
 
@@ -236,6 +238,8 @@ def Get_Subscriber(**kwargs):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
+    session.commit()
+    DBLogger.debug("Got back result: " + str(result))
     return result
 
 def Get_Served_Subscribers():
@@ -245,14 +249,15 @@ def Get_Served_Subscribers():
         results = session.query(SUBSCRIBER).filter(SUBSCRIBER.serving_mme.isnot(None))
         for result in results:
             result = result.__dict__
-            print("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             Served_Subs[result['imsi']] = result
-            print("Processed result")
+            DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    print("Final Served_Subs: " + str(Served_Subs))
+    session.commit()
+    DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
 def Get_Served_IMS_Subscribers():
@@ -262,14 +267,15 @@ def Get_Served_IMS_Subscribers():
         results = session.query(IMS_SUBSCRIBER).filter(IMS_SUBSCRIBER.scscf.isnot(None))
         for result in results:
             result = result.__dict__
-            print("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             Served_Subs[result['imsi']] = result
-            print("Processed result")
+            DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    print("Final Served_Subs: " + str(Served_Subs))
+    session.commit()
+    DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
 def Get_Served_PCRF_Subscribers():
@@ -279,25 +285,26 @@ def Get_Served_PCRF_Subscribers():
         results = session.query(SERVING_APN).all()
         for result in results:
             result = result.__dict__
-            print("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             #Get APN Info
             apn_info = GetObj(APN, result['apn'])
-            print("Got APN Info: " + str(apn_info))
+            DBLogger.debug("Got APN Info: " + str(apn_info))
             result['apn_info'] = apn_info
             
             #Get Subscriber Info
             subscriber_info = GetObj(SUBSCRIBER, result['subscriber_id'])
             result['subscriber_info'] = subscriber_info
             
-            print("Got Subscriber Info: " + str(subscriber_info))
+            DBLogger.debug("Got Subscriber Info: " + str(subscriber_info))
             
             Served_Subs[subscriber_info['imsi']] = result
-            print("Processed result")
+            DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    print("Final SERVING_APN: " + str(Served_Subs))
+    session.commit()        
+    DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     return Served_Subs 
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
@@ -337,20 +344,22 @@ def Get_APN(apn_id):
     DBLogger.debug("Getting APN " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn_id=apn_id).one()
-    except:
-        raise ValueError("APN not Found")
+    except Exception as E:
+        raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    session.commit()
     return result    
 
 def Get_APN_by_Name(apn):
     DBLogger.debug("Getting APN named " + str(apn_id))
     try:
         result = session.query(APN).filter_by(apn=str(apn)).one()
-    except:
-        raise ValueError("APN not Found")
+    except Exception as E:
+        raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    session.commit()
     return result 
 
 def Update_AuC(auc_id, sqn=1):
@@ -377,7 +386,7 @@ def Update_Serving_CSCF(imsi, serving_cscf):
     DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
     result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
     if type(serving_cscf) == str:
-        DBLogger.debug("Updating serving CSCF")
+        DBLogger.debug("Setting serving CSCF")
         result.scscf = serving_cscf
         result.scscf_timestamp = datetime.datetime.now()
     else:
@@ -445,6 +454,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
+    session.commit()
     return result   
 
 def Get_Charging_Rule(charging_rule_id):
@@ -459,9 +469,9 @@ def Get_Charging_Rule(charging_rule_id):
             result = result.__dict__
             result.pop('_sa_instance_state')
             ChargingRule['tft'].append(result)
-    except:
-        raise ValueError("TFT not Found")
-
+    except Exception as E:
+        raise ValueError(E)
+    session.commit()
     return ChargingRule
 
 def Get_Charging_Rules(imsi, apn):
@@ -495,8 +505,6 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
-def Update_Location(imsi, apn, diameter_realm, diameter_peer, diameter_origin):
-    return
 
 if __name__ == "__main__":
     import binascii,os,pprint

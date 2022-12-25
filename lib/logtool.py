@@ -2,6 +2,7 @@ import logging
 import logging.handlers as handlers
 import os
 import sys
+import inspect
 sys.path.append(os.path.realpath('../'))
 import yaml
 from datetime import datetime as log_dt
@@ -16,7 +17,19 @@ from prometheus_client import Counter, Gauge, Histogram, Summary
 from prometheus_client import start_http_server
 
 if yaml_config['prometheus']['enabled'] == True:
-    start_http_server(yaml_config['prometheus']['port'])
+    #Check if this is the HSS service, and if it's not increment the port before starting
+    print(sys.argv[0])
+    if 'hss.py' in str(sys.argv[0]):
+        print("Starting Prometheus on port from config " + str(yaml_config['prometheus']['port']))
+    else:
+        print("This is not the HSS stack so offsetting Prometheus port")
+        yaml_config['prometheus']['port'] += 1
+    try:
+        start_http_server(yaml_config['prometheus']['port'])
+    except Exception as E:
+        print("Error loading Prometheus")
+        print(E)
+        
 
 tags = ['diameter_application_id', 'diameter_cmd_code', 'endpoint', 'type']
 prom_diam_request_count = Counter('prom_diam_request_count', 'Number of Diameter Requests', tags)

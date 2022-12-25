@@ -471,6 +471,22 @@ class Diameter:
         DiameterLogger.info("Collating ChargingRuleDef")
         return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
 
+    def Get_IMS_Subscriber_Details_from_AVP(self, username):
+        #Feed the Username AVP with Tel URI, SIP URI and either MSISDN or IMSI and this returns user data
+        username = binascii.unhexlify(username).decode('utf-8')
+        DiameterLogger.info("Username AVP is present, value is " + str(username))
+        username = username.split('@')[0]   #Strip Domain to get User part
+        username = username[4:]             #Strip tel: or sip: prefix
+        #Determine if dealing with IMSI or MSISDN
+        if (len(username) == 15) or (len(username) == 16):
+            DiameterLogger.debug("We have an IMSI: " + str(username))
+            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=username)
+        else:
+            DiameterLogger.debug("We have an msisdn: " + str(username))
+            ims_subscriber_details = database.Get_IMS_Subscriber(msisdn=username)
+        DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+        return ims_subscriber_details
+
     #### Diameter Answers ####
 
     #Capabilities Exchange Answer
@@ -1035,7 +1051,7 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777238_272_success_count')
         return response
 
-    #3GPP Cx User Authentication Answer
+    #3GPP Cx User Authorization Answer
     def Answer_16777216_300(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_300_attempt_count')
         
@@ -1047,19 +1063,47 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
 
 
-        experimental_avp = ''                                                                                           #New empty avp for storing avp 297 contents
-        experimental_avp = experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID
+        try:
+            DiameterLogger.info("Checking if username present")
+            username = self.get_avp_data(avps, 1)[0]                                                     
+            username = binascii.unhexlify(username).decode('utf-8')
+            DiameterLogger.info("Username AVP is present, value is " + str(username))
+            imsi = username.split('@')[0]   #Strip Domain
+            domain = username.split('@')[1] #Get Domain Part
+            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
+            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("Threw Exception: " + str(E))
+            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_300() input")
+            result_code = 5001          #IMS User Unknown
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 300, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
 
-        #The spec specifies the DIAMETER_FIRST_REGISTRATION to be used on the first registration, DIAMETER_SUBSEQUENT_REGISTRATION on subsequent and DIAMETER_UNREGISTERED_SERVICE when clearing registration.
-        #ToDo - Impliment this properly
-        experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
-        #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2004),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_SUBSEQUENT_REGISTRATION
-        #experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2005),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_UNREGISTERED_SERVICE
-        
-        
+    
+        #Determine SAR Type & Store
+        try:
+            User_Authorization_Type = int(self.get_avp_data(avps, 623)[0])
+            DiameterLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
+            if (User_Authorization_Type == 1):
+                DiameterLogger.debug("This is Deregister")
+                database.Update_Serving_CSCF(imsi, serving_cscf=None)
+                
+        except Exception as E:
+            DiameterLogger.debug("Failed to get User_Authorization_Type AVP & Update_Serving_CSCF error: " + str(E))
+
+
+        experimental_avp = ''
+        experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))               #3GPP Vendor ID            
+        experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -1084,14 +1128,10 @@ class Diameter:
         try:
             DiameterLogger.info("Checking if username present")
             username = self.get_avp_data(avps, 601)[0]                                                     
-            username = binascii.unhexlify(username).decode('utf-8')
-            DiameterLogger.info("Username AVP is present, value is " + str(username))
-            imsi = username.split('@')[0]   #Strip Domain
-            domain = username.split('@')[1] #Get Domain Part
-            imsi = imsi[4:]                 #Strip SIP: from start of string
-            DiameterLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
-            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username) 
             DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+            imsi = ims_subscriber_details['imsi']
+            domain = "ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org"
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
@@ -1119,9 +1159,24 @@ class Diameter:
 
         xmlbody = template.render(iFC_vars=ims_subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
+        
         #Charging Information
         avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+
+        #Determine SAR Type & Store
+        Server_Assignment_Type = int(self.get_avp_data(avps, 614)[0])
+        DiameterLogger.debug("Server-Assignment-Type is: " + str(Server_Assignment_Type))
+        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+        DiameterLogger.debug("Subscriber is served by S-CSCF " + str(OriginHost))
+        if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
+            DiameterLogger.debug("SAR is Register / Re-Restister")
+            database.Update_Serving_CSCF(imsi, serving_cscf=OriginHost)
+        else:
+            DiameterLogger.debug("SAR is not Register")
+            database.Update_Serving_CSCF(imsi, serving_cscf=None)
+
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
@@ -1137,10 +1192,31 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
-        username = self.get_avp_data(avps, 601)[0]
-        username = binascii.unhexlify(username).decode('utf-8')
-        DiameterLogger.debug("Public-Identity for Location Information Request is: " + str(username))
-        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org:5060")),'ascii'))
+        
+
+
+        try:
+            DiameterLogger.info("Checking if username present")
+            username = self.get_avp_data(avps, 601)[0] 
+            ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username)                                                    
+            if ims_subscriber_details['scscf'] != None:
+                DiameterLogger.debug("Got SCSCF on record for Sub")
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
+            else:
+                DiameterLogger.debug("No SCSF assigned - Using SCSCF Pool")
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+        except Exception as E:
+            DiameterLogger.error("Threw Exception: " + str(E))
+            DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
+            result_code = 5001
+            #Experimental Result AVP
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+            response = self.generate_diameter_packet("01", "40", 302, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_302_success_count')
@@ -1877,7 +1953,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
-        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:5060'))                 #Public-Identity
+        avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.ims.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:5060'))                 #Public-Identity
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
         avp += self.generate_vendor_avp(614, "c0", 10415, format(int(1),"x").zfill(8))              #Server Assignment Type
         avp += self.generate_vendor_avp(624, "c0", 10415, "00000000")                               #User Data Already Available (Not Available)
