@@ -2188,3 +2188,37 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "c0", 258, 16777238, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
+
+    #3GPP Gy - Credit Control Request
+    def Request_4_272(self, sessionid, imsi, CC_Request_Type):
+        avp = ''
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session-Id set AVP
+
+        avp += self.generate_avp(264, 40, self.OriginHost)                                                  #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                                 #Origin Realm
+        avp += self.generate_avp(283, 40, self.OriginRealm)                                                 #Destination Realm
+       
+        avp += self.generate_avp(258, 40, format(int(4),"x").zfill(8))                                      #Auth-Application-ID Gx
+        avp += self.generate_avp(461, 40, self.string_to_hex("open5gs-smfd@open5gs.org"))                   #Service Context ID
+        avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                                      #CC Request Type
+        avp += self.generate_avp(415, 40, format(int(0),"x").zfill(8))                                      #CC Request Number
+        avp += self.generate_avp(55, 40, '00000000')                                                        #Event Timestamp
+
+        #Subscription ID
+        Subscription_ID_Data = self.generate_avp(444, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))
+        Subscription_ID_Type = self.generate_avp(450, 40, format(int(1),"x").zfill(8))
+        avp += self.generate_avp(443, 40, Subscription_ID_Type + Subscription_ID_Data)
+
+        avp += self.generate_avp(436, 40, format(int(4),"x").zfill(8))                                      #Requested Action (Direct Debiting)
+
+        avp += self.generate_vendor_avp(2055, 80, 10415, "00000001")                                        #AoC_FULL (1)
+
+        avp += self.generate_avp(455, 40, format(int(0),"x").zfill(8))                                      #Multiple Services Indicator (Not Supported)
+                                                                                                            #Multiple Services Credit Control
+        avp += self.generate_avp(456, 40,  
+        "000001c8400000cc000001b540000008000001be40000034000001a44000000c000000000000019c4000001000000000000000000000019e400000100000000000000000000003f8c0000078000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000090000041780000010000028af000000000000041880000010000028af000000000000041180000010000028af061a80000000041080000010000028af061a800000000015c000000d000028af06000000")
+                                                                                                            #Service Information
+        avp += self.generate_vendor_avp(873, 80, 10415, 
+        "0000036ac00000d8000028af00000002c0000010000028af0000010400000003c0000010000028af00000000000004cbc0000012000028af00010a2d01050000000004ccc0000012000028af0001ac1212ca00000000034fc0000012000028af0001ac12120400000000001e40000010696e7465726e65740000000cc000000d000028af300000000000000dc0000010000028af3030303000000012c0000011000028af30303130310000000000000ac000000d000028af0100000000000016c0000019000028af8200f110000100f11000000017000000")
+        response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
