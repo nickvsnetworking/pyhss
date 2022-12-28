@@ -22,8 +22,9 @@ mnc = yaml_config['hss']['MNC']                                                 
 transport = yaml_config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
+sessionid = str(diameter_host) + ';' + diameter.generate_id(5) + ';1;app_gy'
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR", "OCS-CCR", "PCRF-CCR"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
@@ -179,11 +180,15 @@ while True:
             msisdn = str(input("MSISDN:\t"))
             print("Sending LCS Routing Information Request with MSISDN to " + str(hostname))
             SendRequest(diameter.Request_16777291_8388622(msisdn=msisdn))
-    elif request == "CCR":
+    elif request == "PCRF-CCR":
         imsi = str(input("IMSI:\t"))
         apn = str(input("APN:\t"))
         ccr_type = int(input("ccr_type:\t"))
         SendRequest(diameter.Request_16777238_272(imsi=imsi, apn=apn, ccr_type=ccr_type))
+    elif request == "OCS-CCR":
+        imsi = str(input("IMSI:\t"))
+        ccr_type = int(input("ccr_type:\t"))
+        SendRequest(diameter.Request_4_272(sessionid=sessionid, imsi=imsi, CC_Request_Type=ccr_type, input_octets=512, output_octets=512))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
