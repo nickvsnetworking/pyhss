@@ -2190,7 +2190,7 @@ class Diameter:
         return response
 
     #3GPP Gy - Credit Control Request
-    def Request_4_272(self, sessionid, imsi, CC_Request_Type):
+    def Request_4_272(self, sessionid, imsi, CC_Request_Type, input_octets, output_octets):
         avp = ''
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session-Id set AVP
 
@@ -2209,16 +2209,44 @@ class Diameter:
         Subscription_ID_Type = self.generate_avp(450, 40, format(int(1),"x").zfill(8))
         avp += self.generate_avp(443, 40, Subscription_ID_Type + Subscription_ID_Data)
 
-        avp += self.generate_avp(436, 40, format(int(4),"x").zfill(8))                                      #Requested Action (Direct Debiting)
+        avp += self.generate_avp(436, 40, format(int(0),"x").zfill(8))                                      #Requested Action (Direct Debiting)
 
-        avp += self.generate_vendor_avp(2055, 80, 10415, "00000001")                                        #AoC_FULL (1)
+        avp += self.generate_vendor_avp(2055, 'c0', 10415, "00000001")                                        #AoC_FULL (1)
 
         avp += self.generate_avp(455, 40, format(int(0),"x").zfill(8))                                      #Multiple Services Indicator (Not Supported)
-                                                                                                            #Multiple Services Credit Control
-        avp += self.generate_avp(456, 40,  
-        "000001c8400000cc000001b540000008000001be40000034000001a44000000c000000000000019c4000001000000000000000000000019e400000100000000000000000000003f8c0000078000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000090000041780000010000028af000000000000041880000010000028af000000000000041180000010000028af061a80000000041080000010000028af061a800000000015c000000d000028af06000000")
+        if int(CC_Request_Type) == 1:
+            mscc = ''                                                                                       #Multiple Services Credit Control
+            mscc += self.generate_avp(437, 40, '')                                                          #Requested Service Unit
+            used_service_unit = ''
+            used_service_unit += self.generate_avp(420, 40, format(int(0),"x").zfill(8))                    #Time
+            used_service_unit += self.generate_avp(412, 40, format(int(0),"x").zfill(16))                    #Input Octets
+            used_service_unit += self.generate_avp(414, 40, format(int(0),"x").zfill(16))                    #Output Octets
+            mscc += self.generate_avp(446, 40, used_service_unit)                                           #Used Service Unit
+            mscc += self.generate_vendor_avp(1016, 'c0', 10415,                                             #QoS Information
+                "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000090000041780000010000028af000000000000041880000010000028af000000000000041180000010000028af061a80000000041080000010000028af061a8000")
+            mscc += self.generate_vendor_avp(21, 'c0', 10415, '000028af')                                   #3GPP RAT Type (WB-EUTRAN)
+            avp += self.generate_avp(456, 40, mscc)
+
+        elif int(CC_Request_Type) == 2:
+            mscc = ''                                                                                       #Multiple Services Credit Control
+            mscc += self.generate_avp(437, 40, '')                                                          #Requested Service Unit
+            used_service_unit = ''
+            used_service_unit += self.generate_avp(420, 40, format(int(0),"x").zfill(8))                    #Time
+            used_service_unit += self.generate_avp(412, 40, format(int(input_octets),"x").zfill(16))        #Input Octets
+            used_service_unit += self.generate_avp(414, 40, format(int(output_octets),"x").zfill(16))       #Output Octets
+            mscc += self.generate_avp(446, 40, used_service_unit)                                           #Used Service Unit
+            mscc += self.generate_vendor_avp(872, 'c0', 10415, format(int(4),"x").zfill(8))                 #3GPP Reporting Reason (Validity Time (4))
+            mscc += self.generate_vendor_avp(1016, 'c0', 10415,                                             #QoS Information
+                "00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000090000041780000010000028af000000000000041880000010000028af000000000000041180000010000028af061a80000000041080000010000028af061a8000")
+            mscc += self.generate_vendor_avp(21, 'c0', 10415, '000028af')                                   #3GPP RAT Type (WB-EUTRAN)
+            avp += self.generate_avp(456, 40, mscc)
+        elif int(CC_Request_Type) == 3:
+            #Multiple Services Credit Control
+            avp += self.generate_avp(456, 40,  
+            "000001be40000034000001a44000000c000000000000019c4000001000000000000000000000019e40000010000000000000000000000368c0000010000028af00000002000003f8c0000078000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000020000041780000010000028af000000010000041880000010000028af000000000000041180000010000028af020000000000041080000010000028af0320000000000015c000000d000028af06000000")
+
                                                                                                             #Service Information
-        avp += self.generate_vendor_avp(873, 80, 10415, 
+        avp += self.generate_vendor_avp(873, 'c0', 10415, 
         "0000036ac00000d8000028af00000002c0000010000028af0000010400000003c0000010000028af00000000000004cbc0000012000028af00010a2d01050000000004ccc0000012000028af0001ac1212ca00000000034fc0000012000028af0001ac12120400000000001e40000010696e7465726e65740000000cc000000d000028af300000000000000dc0000010000028af3030303000000012c0000011000028af30303130310000000000000ac000000d000028af0100000000000016c0000019000028af8200f110000100f11000000017000000")
         response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
