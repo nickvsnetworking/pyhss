@@ -26,6 +26,7 @@ if yaml_config['prometheus']['enabled'] == True:
         yaml_config['prometheus']['port'] += 1
     try:
         start_http_server(yaml_config['prometheus']['port'])
+        print("Started Prometheus on port " + str(yaml_config['prometheus']['port']))
     except Exception as E:
         print("Error loading Prometheus")
         print(E)
