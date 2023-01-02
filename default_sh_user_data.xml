@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--This is the default iFC template used by PyHSS, variables come from the Jinja2 template passed inside diameter.py where you can additional variables if required -->
-<!-- Vars Dump: {{ Sh_template_vars }} -->
 <Sh-Data>
     <!-- This provides the Public Identifiers to the Application Server -->
     <PublicIdentifiers>
