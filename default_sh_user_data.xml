@@ -22,12 +22,8 @@
     </Extension>
 
     <!-- This container for the XCAP Data for the Subscriber -->
-    <!-- This is the actual XCAP Data for the Subscriber -->
-    {% if sh_profile in Sh_template_vars %}
+
     <!-- XCAP data from Database -->
-    {{ sh_profile }}
-    {% else %}
-    <!-- No XCAP data defined for Sub -->
-    {% endif %}
+    {{ Sh_template_vars['sh_profile'] }}
 
 </Sh-Data>
