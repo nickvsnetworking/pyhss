@@ -1388,7 +1388,7 @@ class Diameter:
                 DiameterLogger.debug("Getting susbcriber info based on MSISDN")
                 subscriber_details = database.Get_Subscriber(msisdn=msisdn)
                 DiameterLogger.debug("Got subscriber details: " + str(subscriber_details))
-                subscriber_details = subscriber_details.update(subscriber_ims_details)
+                subscriber_details = {**subscriber_details, **subscriber_ims_details}
                 DiameterLogger.debug("Merged subscriber details: " + str(subscriber_details))
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
