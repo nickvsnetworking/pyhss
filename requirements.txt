@@ -11,4 +11,3 @@ alchemyjsonschema
 flask
 flask_restx
 prometheus_client
-mysqlclient
