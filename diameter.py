@@ -1384,7 +1384,7 @@ class Diameter:
         if msisdn is not None:
                 DiameterLogger.debug("Getting susbcriber location based on MSISDN")
                 subscriber_details = database.Get_IMS_Subscriber(msisdn=msisdn)
-                DiameterLogger.debug("Got subscriber details: " + subscriber_details)
+                DiameterLogger.debug("Got subscriber details: " + str(subscriber_details))
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
             result_code = 5005
