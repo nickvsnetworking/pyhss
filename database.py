@@ -521,18 +521,23 @@ def Get_Charging_Rules(imsi, apn):
             return ChargingRule
 
 def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
+    DBLogger.debug("Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code))
+    if yaml_config['eir']['imsi_imei_logging'] != True:
+        DBLogger.debug("Skipping storing binding")
+        return
     #Concat IMEI + IMSI
     imsi_imei = str(imsi) + str(imei)
     #Check if exist already & update
     try:
-        result = session.query(IMSI_IMEI_History).filter_by(imsi_imei=imsi_imei).one()
-        DBLogger.debug("Entry already present for IMSI/IMEI Combo")
-        session.commit()            
+        session.query(IMSI_IMEI_History).filter_by(imsi_imei=imsi_imei).one()
+        DBLogger.debug("Entry already present for IMSI/IMEI Combo")           
+        return 
     except Exception as E:
         newObj = IMSI_IMEI_History(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
         session.add(newObj)
-        DBLogger.debug("Added new IMSI_IMEI_History binding")
         session.commit()
+        DBLogger.debug("Added new IMSI_IMEI_History binding")
+        return
 
     
 
@@ -547,22 +552,24 @@ def Check_EIR(imsi, imei):
         results = session.query(EIR).filter_by(imei=str(imei), regex_mode=0)
         for result in results:
             result = result.__dict__
-            result.pop('_sa_instance_state')
+            match_response_code = result['match_response_code']
             if result['imsi'] == '':
                 DBLogger.debug("No IMSI specified in DB, so matching only on IMEI")
-                return result['match_response_code']
+                Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                return match_response_code
             elif result['imsi'] == str(imsi):
                 DBLogger.debug("Matched on IMEI and IMSI")
-                return result['match_response_code']
+                Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                return match_response_code
     except Exception as E:
         raise ValueError(E)
     
-
     DBLogger.debug("Did not match any Exact Matches - Checking Regex")   
     try:
         results = session.query(EIR).filter_by(regex_mode=1)    #Get all Regex records from DB
         for result in results:
             result = result.__dict__
+            match_response_code = result['match_response_code']
             if re.match(result['imei'], imei):
                 DBLogger.debug("IMEI matched " + str(result['imei']))
                 #Check if IMSI also specified
@@ -570,15 +577,18 @@ def Check_EIR(imsi, imei):
                     DBLogger.debug("With IMEI matched, now checking if IMSI matches regex")
                     if re.match(result['imsi'], imsi):
                         DBLogger.debug("IMSI also matched, so match OK!")
-                        return result['match_response_code']
+                        Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                        return match_response_code
                 else:
                     DBLogger.debug("No IMSI specified, so match OK!")
-                    return result['match_response_code']
+                    Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                    return match_response_code
     except Exception as E:
         raise ValueError(E)
 
     session.commit()
     DBLogger.debug("No matches at all - Returning default response")
+    Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=yaml_config['eir']['no_match_response'])
     return yaml_config['eir']['no_match_response']
 
 
