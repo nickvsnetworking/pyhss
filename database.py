@@ -5,7 +5,7 @@ from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker
 import json
 import datetime
-
+import re
 import os
 import sys
 sys.path.append(os.path.realpath('lib'))
@@ -127,6 +127,20 @@ class TFT(Base):
     tft_group_id = Column(Integer, nullable=False)
     tft_string = Column(String(100), nullable=False)
     direction = Column(Integer, nullable=False) #0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+
+class EIR(Base):
+    __tablename__ = 'eir'
+    eir_id = Column(Integer, primary_key = True)
+    imei = Column(String(60))
+    imsi = Column(String(60))
+    regex_mode = Column(Integer, default=1)
+    match_response_code = Column(Integer)
+
+class IMSI_IMEI_History(Base):
+    __tablename__ = 'eir_history'
+    imsi_imei_id = Column(Integer, primary_key = True)
+    imei_imei = Column(String(60), unique=True)  #Combined IMSI + IMEI
+    timestamp = Column(DateTime)
 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
@@ -505,6 +519,57 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
+def Check_EIR(imsi, imei):
+    eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
+    DBLogger.debug("Called Check_EIR() for  imsi " + str(imsi) + " and imei: " + str(imei))
+    
+    #Check for Exact Matches
+    DBLogger.debug("Looking for exact matches")
+    #Check for exact Matches
+    try:
+        results = session.query(EIR).filter_by(imei=str(imei), regex_mode=0)
+        for result in results:
+            result = result.__dict__
+            result.pop('_sa_instance_state')
+            if result['imsi'] == '':
+                DBLogger.debug("No IMSI specified in DB, so matching only on IMEI")
+                return result['match_response_code']
+            elif result['imsi'] == str(imsi):
+                DBLogger.debug("Matched on IMEI and IMSI")
+                return result['match_response_code']
+    except Exception as E:
+        raise ValueError(E)
+    
+
+    DBLogger.debug("Did not match any Exact Matches - Checking Regex")   
+    try:
+        results = session.query(EIR).filter_by(regex_mode=1)    #Get all Regex records from DB
+        for result in results:
+            print("Matched a result")
+            result = result.__dict__
+            print(result)
+            if re.match(result['imei'], imei):
+                DBLogger.debug("IMEI matched " + str(result['imei']))
+                
+                #Check if IMSI also specified
+                if len(result['imsi']) != 0:
+                    DBLogger.debug("With IMEI matched, now checking if IMSI matches regex")
+                    if re.match(result['imsi'], imsi):
+                        DBLogger.debug("IMSI also matched, so match OK!")
+                        return result['match_response_code']
+
+                else:
+                    DBLogger.debug("No IMSI specified, so match OK!")
+                    return result['match_response_code']
+            else:
+                print("Did not match " + str(result['imei']))
+    except Exception as E:
+        raise ValueError(E)
+
+    session.commit()
+    DBLogger.debug("No matches at all - Returning default response")
+    return yaml_config['eir']['no_match_response']
+
 
 if __name__ == "__main__":
     import binascii,os,pprint
@@ -684,7 +749,7 @@ if __name__ == "__main__":
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
-    input("Delete everything?")
+    #input("Delete everything?")
     #Delete IMS Subscriber
     print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
     #Delete Subscriber
@@ -693,3 +758,35 @@ if __name__ == "__main__":
     print(DeleteObj(AUC, auc_id))
     #Delete APN
     print(DeleteObj(APN, apn_id))
+
+    #Whitelist IMEI / IMSI Binding
+    eir_template = {'imei': '1234', 'imsi': '567', 'regex_mode': 0, 'match_response_code': 0}
+    CreateObj(EIR, eir_template)
+
+    #Blacklist Example
+    eir_template = {'imei': '99881232', 'imsi': '', 'regex_mode': 0, 'match_response_code': 1}
+    CreateObj(EIR, eir_template)
+
+    #IMEI Prefix Regex Example (Blacklist all IMEIs starting with 666)
+    eir_template = {'imei': '^666.*', 'imsi': '', 'regex_mode': 1, 'match_response_code': 1}
+    CreateObj(EIR, eir_template)
+
+    #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
+    eir_template = {'imei': '^777.*', 'imsi': '^1234123412341234$', 'regex_mode': 1, 'match_response_code': 2}
+    CreateObj(EIR, eir_template)
+
+    print("\n\n\n\n")
+    #Check Whitelist (No Match)
+    assert Check_EIR(imei='1234', imsi='') == 2
+
+    print("\n\n\n\n")
+    #Check Whitelist (Matched)
+    assert Check_EIR(imei='1234', imsi='567') == 0
+
+    print("\n\n\n\n")
+    #Check Blacklist (Match)
+    assert Check_EIR(imei='99881232', imsi='567') == 1
+
+    print("\n\n\n\n")
+    #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
+    assert Check_EIR(imei='7771234', imsi='1234123412341234') == 2

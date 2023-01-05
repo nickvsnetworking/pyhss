@@ -45,7 +45,12 @@ hss:
 
   #Default Sh User Data
   Default_Sh_UserData: 'default_sh_user_data.xml'
-  
+
+eir:
+  imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
+  sim_swap_notify_webhook:  http://localhost/
+  no_match_response: 2       #Greylist
+
 logging:
   level: DEBUG
   logfiles:
