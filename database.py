@@ -522,12 +522,15 @@ def Get_Charging_Rules(imsi, apn):
             return ChargingRule
 
 def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
+    #IMSI           14-15 Digits
+    #IMEI           15 Digits
+    #IMEI-SV        2 Digits
     DBLogger.debug("Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code))
     if yaml_config['eir']['imsi_imei_logging'] != True:
         DBLogger.debug("Skipping storing binding")
         return
     #Concat IMEI + IMSI
-    imsi_imei = str(imsi) + str(imei)
+    imsi_imei = str(imsi) + "," + str(imei)
     #Check if exist already & update
     try:
         session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
@@ -538,7 +541,37 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
         session.add(newObj)
         session.commit()
         DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
+        try:
+            import grequests
+            dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
+            grequests.post(str(yaml_config['eir']['sim_swap_notify_webhook']), json=dictToSend)
+        except Exception as E:
+            DBLogger.debug("Failed to post to Webhook")
+            DBLogger.debug(str(E))
+        
         return
+
+def Get_IMEI_IMSI_History(attribute):
+    DBLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
+    result_array = []
+    try:
+        results = session.query(IMSI_IMEI_HISTORY).filter(IMSI_IMEI_HISTORY.imsi_imei.ilike("%" + str(attribute) + "%")).all()
+        for result in results:
+            result = result.__dict__
+            result.pop('_sa_instance_state')
+            result = Sanitize_Datetime(result)
+            try:
+                result['imsi'] = result['imsi_imei'].split(",")[0]
+            except:
+                continue
+            try:
+                result['imei'] = result['imsi_imei'].split(",")[1]
+            except:
+                continue                
+            result_array.append(result)
+        return result_array
+    except Exception as E:
+        raise ValueError(E)
 
 def Check_EIR(imsi, imei):
     eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
@@ -826,4 +859,4 @@ if __name__ == "__main__":
     #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
     assert Check_EIR(imei='7771234', imsi='1234123412341234') == 2
     
-    Store_IMSI_IMEI_Binding(imsi='1234123412341234', imei='7771234', match_response_code=2)
+    print(Get_IMEI_IMSI_History('1234123412'))

@@ -48,7 +48,7 @@ hss:
 
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
-  sim_swap_notify_webhook:  http://localhost/
+  sim_swap_notify_webhook:  http://localhost:5000/webhooks/sim_swap_notify/
   no_match_response: 2       #Greylist
 
 logging:

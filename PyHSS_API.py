@@ -529,6 +529,19 @@ class PyHSS_EIR_Rules(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_oam.route('/eir_rules/<string:attribute>')
+class PyHSS_OAM_Subscriber(Resource):
+    def get(self, attribute):
+        '''Get history for IMSI or IMEI'''
+        try:
+            data = database. Get_IMEI_IMSI_History(attribute=attribute)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
 @ns_oam.route('/subscriber/<string:imsi>')
 class PyHSS_OAM_Subscriber(Resource):
     def get(self, imsi):
