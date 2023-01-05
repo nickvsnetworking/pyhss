@@ -136,9 +136,9 @@ class EIR(Base):
     regex_mode = Column(Integer, default=1)
     match_response_code = Column(Integer)
 
-class IMSI_IMEI_History(Base):
+class IMSI_IMEI_HISTORY(Base):
     __tablename__ = 'eir_history'
-    imsi_imei_id = Column(Integer, primary_key = True)
+    imsi_imei_history_id = Column(Integer, primary_key = True)
     imsi_imei = Column(String(60), unique=True)  #Combined IMSI + IMEI
     match_response_code = Column(Integer)
     imsi_imei_timestamp = Column(DateTime)
@@ -197,6 +197,7 @@ def CreateObj(obj_type, json_data):
     return result
 
 def Generate_JSON_Model_for_Flask(obj_type):
+    DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
     from alchemyjsonschema import SchemaFactory
     from alchemyjsonschema import NoForeignKeyWalker
     import pprint as pp
@@ -207,7 +208,7 @@ def Generate_JSON_Model_for_Flask(obj_type):
     #Set the ID Object to not required
     obj_type_str = str(dictty['title']).lower()
     dictty['required'].remove(obj_type_str + '_id')
-   
+
     return dictty
 
 def Get_IMS_Subscriber(**kwargs):
@@ -529,17 +530,15 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
     imsi_imei = str(imsi) + str(imei)
     #Check if exist already & update
     try:
-        session.query(IMSI_IMEI_History).filter_by(imsi_imei=imsi_imei).one()
+        session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
         DBLogger.debug("Entry already present for IMSI/IMEI Combo")           
         return 
     except Exception as E:
-        newObj = IMSI_IMEI_History(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
+        newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
         session.add(newObj)
         session.commit()
-        DBLogger.debug("Added new IMSI_IMEI_History binding")
+        DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
         return
-
-    
 
 def Check_EIR(imsi, imei):
     eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
@@ -590,6 +589,21 @@ def Check_EIR(imsi, imei):
     DBLogger.debug("No matches at all - Returning default response")
     Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=yaml_config['eir']['no_match_response'])
     return yaml_config['eir']['no_match_response']
+
+def Get_EIR_Rules():
+    DBLogger.debug("Getting all EIR Rules")
+    EIR_Rules = []
+    try:
+        results = session.query(EIR)
+        for result in results:
+            result = result.__dict__
+            result.pop('_sa_instance_state')
+            EIR_Rules.append(result)
+    except Exception as E:
+        raise ValueError(E)
+    session.commit()
+    DBLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
+    return EIR_Rules 
 
 
 if __name__ == "__main__":

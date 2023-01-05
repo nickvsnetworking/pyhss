@@ -27,7 +27,8 @@ SUBSCRIBER = database.SUBSCRIBER
 IMS_SUBSCRIBER = database.IMS_SUBSCRIBER
 TFT = database.TFT
 CHARGING_RULE = database.CHARGING_RULE
-
+EIR = database.EIR
+IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 api = Api(app, version='1.0', title='PyHSS OAM API',
@@ -41,6 +42,8 @@ ns_subscriber = api.namespace('subscriber', description='PyHSS SUBSCRIBER Functi
 ns_ims_subscriber = api.namespace('ims_subscriber', description='PyHSS IMS SUBSCRIBER Functions')
 ns_tft = api.namespace('tft', description='PyHSS TFT Functions')
 ns_charging_rule = api.namespace('charging_rule', description='PyHSS Charging Rule Functions')
+ns_eir = api.namespace('eir', description='PyHSS PyHSS Equipment Identity Register')
+ns_imsi_imei = api.namespace('imsi_imei', description='PyHSS IMSI / IMEI Mapping')
 
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
 ns_pcrf = api.namespace('PCRF', description='PyHSS PCRF Dynamic Functions')
@@ -69,6 +72,13 @@ TFT_model = api.schema_model('TFT JSON',
 CHARGING_RULE_model = api.schema_model('CHARGING_RULE JSON', 
     database.Generate_JSON_Model_for_Flask(CHARGING_RULE)
 )
+EIR_model = api.schema_model('EIR JSON', 
+    database.Generate_JSON_Model_for_Flask(EIR)
+)
+IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON', 
+    database.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
+)
+
 
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
@@ -400,6 +410,60 @@ class PyHSS_Charging_Rule(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_eir.route('/<string:eir_id>')
+class PyHSS_EIR_Get(Resource):
+    def get(self, eir_id):
+        '''Get all EIR data for specified eir_id'''
+        try:
+            eir_data = database.GetObj(EIR, eir_id)
+            return eir_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    def delete(self, eir_id):
+        '''Delete all data for specified eir_data'''
+        try:
+            data = database.DeleteObj(EIR, eir_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    @ns_eir.doc('Update eir Object')
+    @ns_eir.expect(EIR_model)
+    def patch(self, eir_id):
+        '''Update eir_id data for specified eir_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.UpdateObj(EIR, json_data, eir_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_eir.route('/')
+class PyHSS_EIR(Resource):
+    @ns_eir.doc('Create EIR Object')
+    @ns_eir.expect(EIR_model)
+    def put(self):
+        '''Create new EIR Rule'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.CreateObj(EIR, json_data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
     def get(self):
@@ -446,6 +510,19 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
         try:
             data = database.Get_Served_IMS_Subscribers()
             print("Got back served Subs: " + str(data))
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_oam.route('/eir_rules')
+class PyHSS_EIR_Rules(Resource):
+    def get(self):
+        '''Get all EIR Rules'''
+        try:
+            data = database.Get_EIR_Rules()
+            print("Got back EIR Rules: " + str(data))
             return data, 200
         except Exception as E:
             print(E)
