@@ -595,7 +595,7 @@ class Diameter:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
             DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
-            avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
@@ -1419,7 +1419,8 @@ class Diameter:
         #These variables are passed to the template for use
         subscriber_details['mnc'] = self.MNC.zfill(3)
         subscriber_details['mcc'] = self.MCC.zfill(3)
-        DiameterLogger.info("Rendering template with values: " + str(subscriber_details))
+
+        DiameterLogger.debug("Rendering template with values: " + str(subscriber_details))
         xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
@@ -1498,29 +1499,30 @@ class Diameter:
         else:
             DiameterLogger.error("No MSISDN or IMSI")
 
-        if imsi is not None:
-                DiameterLogger.debug("Getting susbcriber location based on IMSI")
-                subscriber_location = database.Get_Subscriber(imsi=imsi)['serving_mme']
-                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
-        elif msisdn is not None:
-                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_location = database.Get_Subscriber(msisdn=msisdn)
-                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
-        else:
-            DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
-            result_code = 5005
-            #Experimental Result AVP
-            avp_experimental_result = ''
-            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
-            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+        try:
+            if imsi is not None:
+                    DiameterLogger.debug("Getting susbcriber location based on IMSI")
+                    subscriber_details = database.Get_Subscriber(imsi=imsi)
+                    DiameterLogger.debug("Got subscriber_details from IMSI: " + str(subscriber_details))
+            elif msisdn is not None:
+                    DiameterLogger.debug("Getting susbcriber location based on MSISDN")
+                    subscriber_details = database.Get_Subscriber(msisdn=msisdn)
+                    DiameterLogger.debug("Got subscriber_details from MSISDN: " + str(subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("No MSISDN or IMSI returned in Answer_16777291_8388622 input")
+            DiameterLogger.error("Error is " + str(E))
+            DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
-        
-        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
+
 
         
-        if subscriber_location == None:
+        DiameterLogger.info("Got subscriber_details for subscriber: " + str(subscriber_details))
+
+        
+        if subscriber_details['serving_mme'] == None:
             #DB has no location on record for subscriber
             DiameterLogger.info("No location on record for Subscriber")
             result_code = 4201
@@ -1540,9 +1542,9 @@ class Diameter:
 
         #Serving Node AVP
         avp_serving_node = ''
-        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location))            #MME-Name
+        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_details['serving_mme']))            #MME-Name
         avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)                                   #MME-Realm
-        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                        #GMLC-Address
+        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex(yaml_config['hss']['bind_ip'][0]))                        #GMLC-Address
         avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                                #Serving-Node  AVP
 
         #Set Result-Code
