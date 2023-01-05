@@ -24,7 +24,7 @@ transport = yaml_config['hss']['transport']                                     
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 sessionid = str(diameter_host) + ';' + diameter.generate_id(5) + ';1;app_gy'
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR", "OCS-CCR", "PCRF-CCR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR", "OCS-CCR", "PCRF-CCR", "SH-PUR"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
@@ -189,6 +189,9 @@ while True:
         imsi = str(input("IMSI:\t"))
         ccr_type = int(input("ccr_type:\t"))
         SendRequest(diameter.Request_4_272(sessionid=sessionid, imsi=imsi, CC_Request_Type=ccr_type, input_octets=512, output_octets=512))
+    elif request == "SH-PUR":
+        msisdn = str(input("MSISDN:\t"))
+        SendRequest(diameter.Request_16777252_307(msisdn=msisdn))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
