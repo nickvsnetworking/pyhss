@@ -139,8 +139,9 @@ class EIR(Base):
 class IMSI_IMEI_History(Base):
     __tablename__ = 'eir_history'
     imsi_imei_id = Column(Integer, primary_key = True)
-    imei_imei = Column(String(60), unique=True)  #Combined IMSI + IMEI
-    timestamp = Column(DateTime)
+    imsi_imei = Column(String(60), unique=True)  #Combined IMSI + IMEI
+    match_response_code = Column(Integer)
+    imsi_imei_timestamp = Column(DateTime)
 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
@@ -519,6 +520,22 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
+def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
+    #Concat IMEI + IMSI
+    imsi_imei = str(imsi) + str(imei)
+    #Check if exist already & update
+    try:
+        result = session.query(IMSI_IMEI_History).filter_by(imsi_imei=imsi_imei).one()
+        DBLogger.debug("Entry already present for IMSI/IMEI Combo")
+        session.commit()            
+    except Exception as E:
+        newObj = IMSI_IMEI_History(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
+        session.add(newObj)
+        DBLogger.debug("Added new IMSI_IMEI_History binding")
+        session.commit()
+
+    
+
 def Check_EIR(imsi, imei):
     eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
     DBLogger.debug("Called Check_EIR() for  imsi " + str(imsi) + " and imei: " + str(imei))
@@ -545,24 +562,18 @@ def Check_EIR(imsi, imei):
     try:
         results = session.query(EIR).filter_by(regex_mode=1)    #Get all Regex records from DB
         for result in results:
-            print("Matched a result")
             result = result.__dict__
-            print(result)
             if re.match(result['imei'], imei):
                 DBLogger.debug("IMEI matched " + str(result['imei']))
-                
                 #Check if IMSI also specified
                 if len(result['imsi']) != 0:
                     DBLogger.debug("With IMEI matched, now checking if IMSI matches regex")
                     if re.match(result['imsi'], imsi):
                         DBLogger.debug("IMSI also matched, so match OK!")
                         return result['match_response_code']
-
                 else:
                     DBLogger.debug("No IMSI specified, so match OK!")
                     return result['match_response_code']
-            else:
-                print("Did not match " + str(result['imei']))
     except Exception as E:
         raise ValueError(E)
 
@@ -790,3 +801,5 @@ if __name__ == "__main__":
     print("\n\n\n\n")
     #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
     assert Check_EIR(imei='7771234', imsi='1234123412341234') == 2
+    
+    Store_IMSI_IMEI_Binding(imsi='1234123412341234', imei='7771234', match_response_code=2)
