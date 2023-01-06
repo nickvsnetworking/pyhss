@@ -1119,7 +1119,6 @@ class Diameter:
         
         return response
 
-
     #3GPP Cx Server Assignment Answer
     def Answer_16777216_301(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_301_attempt_count')
@@ -1188,7 +1187,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
-
 
     #3GPP Cx Location Information Answer
     def Answer_16777216_302(self, packet_vars, avps):
@@ -1336,8 +1334,6 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_Respond_Command_success_count')
         return response
 
-
-
     #3GPP Cx Registration Termination Answer
     def Answer_16777216_304(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_304_attempt_count')
@@ -1429,6 +1425,43 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777217_306_success_count')
         return response
+
+    #3GPP Sh Profile-Update Answer
+    def Answer_16777217_307(self, packet_vars, avps):
+        logtool.RedisIncrimenter('Answer_16777217_307')
+
+        #Get IMSI
+        imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')
+
+        #Get Sh User Data
+        sh_user_data = self.get_avp_data(avps, 702)[0]                                                        #Get IMSI from User-Name AVP in request
+        sh_user_data = binascii.unhexlify(sh_user_data).decode('utf-8')
+
+        DiameterLogger.debug("Got Sh User data: " + str(sh_user_data))
+
+        #Push updated User Data into IMS Backend
+        #Start with the Current User Data
+        subscriber_ims_details = database.Get_IMS_Subscriber(imsi=imsi)
+        database.UpdateObj(database.IMS_SUBSCRIBER, {'sh_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
+
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777217),"x").zfill(8))   #Auth-Application-ID Sh
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId) 
+
+        
+        response = self.generate_diameter_packet("01", "40", 307, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        logtool.RedisIncrimenter('Answer_16777217_307_success_count')
+        return response
+
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
@@ -2329,14 +2362,14 @@ class Diameter:
         return response
 
     #3GPP Sh - Profile Update Request
-    def Request_16777252_307(self, msisdn):
+    def Request_16777217_307(self, msisdn):
         avp = ''                                         
         sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
-        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777217),"x").zfill(8))   #Auth-Application-ID Gx
         avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
         avp += self.generate_avp(264, 40, self.string_to_hex('ExamplePGW.com'))                          #Origin Host
@@ -2370,5 +2403,5 @@ class Diameter:
         xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
-        response = self.generate_diameter_packet("01", "c0", 307, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        response = self.generate_diameter_packet("01", "c0", 307, 16777217, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
