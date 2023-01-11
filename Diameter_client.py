@@ -170,7 +170,7 @@ while True:
     elif request == "UDR":
         msisdn = str(input("MSISDN:\t"))
         print("Sending User-Data Request to " + str(hostname))
-        SendRequest(diameter.Request_16777217_306(msisdn))        
+        SendRequest(diameter.Request_16777217_306(msisdn=msisdn))
     elif request == "RIR":
         imsi = str(input("IMSI:\t"))
         if len(imsi) != 0:
@@ -191,7 +191,7 @@ while True:
         SendRequest(diameter.Request_4_272(sessionid=sessionid, imsi=imsi, CC_Request_Type=ccr_type, input_octets=512, output_octets=512))
     elif request == "SH-PUR":
         msisdn = str(input("MSISDN:\t"))
-        SendRequest(diameter.Request_16777252_307(msisdn=msisdn))
+        SendRequest(diameter.Request_16777217_307(msisdn=msisdn))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
