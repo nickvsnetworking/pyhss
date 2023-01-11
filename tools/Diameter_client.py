@@ -15,8 +15,10 @@ recv_ip = yaml_config['hss']['bind_ip']                                         
 diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
 realm = yaml_config['hss']['OriginRealm']                                          #Diameter Realm of this machine
 DestinationHost = ""                                             #Diameter Host of Destination
-DestinationRealm = input("Enter Diameter Realm: ")                                                #Diameter Realm of Destination
-hostname = input("Enter IP of Diameter Peer to connect to: ")                                                         #IP of Remote Diameter Host
+#DestinationRealm = input("Enter Diameter Realm: ")                                                #Diameter Realm of Destination
+DestinationRealm = "nicktest.com"
+#hostname = input("Enter IP of Diameter Peer to connect to: ")                                                         #IP of Remote Diameter Host
+hostname = '127.0.0.1'
 mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
 mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
 transport = yaml_config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
@@ -24,7 +26,7 @@ transport = yaml_config['hss']['transport']                                     
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 sessionid = str(diameter_host) + ';' + diameter.generate_id(5) + ';1;app_gy'
 
-supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR", "OCS-CCR", "PCRF-CCR"]
+supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR", "OCS-CCR", "PCRF-CCR", "SH-PUR"]
 
 if transport == "TCP":
     clientsocket = socket.socket()
@@ -170,7 +172,7 @@ while True:
     elif request == "UDR":
         msisdn = str(input("MSISDN:\t"))
         print("Sending User-Data Request to " + str(hostname))
-        SendRequest(diameter.Request_16777217_306(msisdn))        
+        SendRequest(diameter.Request_16777217_306(msisdn=msisdn))
     elif request == "RIR":
         imsi = str(input("IMSI:\t"))
         if len(imsi) != 0:
@@ -189,6 +191,9 @@ while True:
         imsi = str(input("IMSI:\t"))
         ccr_type = int(input("ccr_type:\t"))
         SendRequest(diameter.Request_4_272(sessionid=sessionid, imsi=imsi, CC_Request_Type=ccr_type, input_octets=512, output_octets=512))
+    elif request == "SH-PUR":
+        msisdn = str(input("MSISDN:\t"))
+        SendRequest(diameter.Request_16777217_307(msisdn=msisdn))
     else:
         print("Invalid input, valid entries are:")
         for keys in supported_calls:
