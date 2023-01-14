@@ -31,3 +31,19 @@ More info on the design descision to use Redis and PySNMP to expose this informa
 OIDs are a bit of a problem, as SNMP's OIDs are numerical and our Redis keys are strings. To get around this a very rudimentary solution has been put together in the form of ``MIB_generator.py`` which loops through the keys defined in the code and assigns an OID to each.
 
 If you wanted to do away with SNMP alltogether (and I woudln't blame you) and instead use Grafana or something similar, the data can easily be scraped from Redis as required.
+
+### Prometheus
+
+Add the following part to the config.yaml
+
+```
+prometheus:
+  enabled: True 
+  port: 8081
+```
+
+Add the endpoint to Prometheus
+
+A grafana dashboard template is provided [Grafana_PyHSS.json](https://github.com/zarya/pyhss/blob/master/tools/Grafana_PyHSS.json)
+
+
