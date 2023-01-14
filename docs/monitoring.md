@@ -44,6 +44,6 @@ prometheus:
 
 Add the endpoint to Prometheus
 
-A grafana dashboard template is provided [Grafana_PyHSS.json](https://github.com/zarya/pyhss/blob/master/tools/Grafana_PyHSS.json)
+A grafana dashboard template is provided [Grafana_PyHSS.json](../tools/Grafana_PyHSS.json)
 
 
