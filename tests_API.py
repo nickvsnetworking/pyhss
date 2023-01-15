@@ -332,6 +332,75 @@ class ChargingRule_Tests(unittest.TestCase):
         xres = {"Result": "OK"}
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
+class EIR_Tests(unittest.TestCase):
+    eir_id = 0
+    #Define EIR Template
+    eir_template1 =  {
+        "match_response_code": 1,
+        "imei": "1234",
+        "imsi": "567",
+        "regex_mode": 0
+    }
+
+    eir_template2 =  {
+        "match_response_code": 2,
+        "imei": "^777.*",
+        "imsi": "^1234123412341234$",
+        "regex_mode": 1
+    }
+
+    def test_A_create_EIR_1(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/eir', data=json.dumps(self.__class__.eir_template1), headers=headers)
+        self.__class__.eir_template1 = r.json()
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_A_create_EIR_2(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/eir', data=json.dumps(self.__class__.eir_template2), headers=headers)
+        self.__class__.eir_template2 = r.json()
+        self.__class__.eir_id = r.json()['eir_id']
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_C_Get_EIR(self):
+        r = requests.get(str(base_url) + '/eir/' + str(self.__class__.eir_id))
+        self.assertEqual(self.__class__.eir_template2, r.json(), "JSON body should match input")
+
+    def test_D_Patch_EIR(self):
+        headers = {"Content-Type": "application/json"}
+        patch_eir_template2 = self.__class__.eir_template2
+        patch_eir_template2['match_response_code'] = 3
+        patch_eir_template2['eir_id'] = self.__class__.eir_id
+        r = requests.patch(str(base_url) + '/eir/' + str(self.__class__.eir_id), data=json.dumps(patch_eir_template2), headers=headers)
+        self.assertEqual(patch_eir_template2, r.json(), "JSON body should match input")
+
+    def test_E_Get_Patched_EIR(self):
+        r = requests.get(str(base_url) + '/eir/' + str(self.__class__.eir_id))
+        #Add EIR into Template for Validating
+        patch_eir_template2 = self.__class__.eir_template2
+        patch_eir_template2['match_response_code'] = 3
+        patch_eir_template2['eir_id'] = self.__class__.eir_id
+        self.assertEqual(patch_eir_template2, r.json(), "JSON body should match input")
+
+    def test_I_Get_All_EIR_Rules(self):
+        r = requests.get(str(base_url) + '/oam/eir_rules')
+        self.assertIsNotNone(len(r.json()), "JSON body should return multiple objects")
+
+    def test_X_Delete_EIR1(self):
+        r = requests.delete(str(base_url) + '/eir/' + str(self.__class__.eir_id))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
+
+    def test_X_Delete_EIR2(self):
+        r = requests.delete(str(base_url) + '/eir/' + str(self.__class__.eir_id-1))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
+
+    def test_Z_Get_All_EIR_Rules(self):
+        r = requests.get(str(base_url) + '/oam/eir_rules')
+        self.assertEqual(len(r.json()), 0, "JSON body should return 0")
+
+
 if __name__ == '__main__':
     logging.basicConfig( stream=sys.stderr )
     logging.getLogger("UnitTestLogger").setLevel( logging.DEBUG )

@@ -1267,8 +1267,6 @@ class Diameter:
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                             #Username
         
-
-
         #diameter.3GPP-SIP-Auth-Data-Items
         ##AVP Code: 613 3GPP-SIP-Item-Number
         avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
@@ -1286,7 +1284,6 @@ class Diameter:
         ##AVP Code: 626 Integrity-Key
         avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(vector_dict['ik']),'ascii'))          #IK
 
-        
         auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
         avp += self.generate_vendor_avp(612, "c0", 10415, auth_data_item)    #3GPP-SIP-Auth-Data-Item
         
@@ -1297,7 +1294,6 @@ class Diameter:
         experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))                #Expiremental Result Code 298 val DIAMETER_FIRST_REGISTRATION
         avp += self.generate_avp(297, 40, experimental_avp)                                                             #Expermental-Result
         
-
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
         
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -1466,6 +1462,24 @@ class Diameter:
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777252_324_attempt_count')
+
+        #Get IMSI
+        try:
+            imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+            imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
+            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
+            DiameterLogger.info("Got IMSI with value " + str(imsi))
+        except Exception as e:
+            DiameterLogger.debug("Failed to get IMSI from LCS-Routing-Info-Request")
+            DiameterLogger.debug("Error was: " + str(e))
+
+        #Get IMEI
+        for sub_avp in self.get_avp_data(avps, 1401)[0]:
+            DiameterLogger.debug("Evaluating sub_avp AVP " + str(sub_avp) + " to find IMSI")
+            if sub_avp['avp_code'] == 1402:
+                imei = binascii.unhexlify(sub_avp['misc_data']).decode('utf-8')
+                DiameterLogger.debug("Found IMEI " + str(imei))
+
         avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to received session ID
@@ -1478,8 +1492,12 @@ class Diameter:
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 'c0', 10415, '')                         #AVP Vendor ID
         avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
-        avp += self.generate_avp(297, '40', avp_experimental_result)                                      #AVP Experimental-Result(297)
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+
+        #Equipment-Status
+        EquipmentStatus = database.Check_EIR(imsi=imsi, imei=imei)
+        avp += self.generate_vendor_avp(1445, 'c0', 10415, self.int_to_hex(EquipmentStatus, 4))
+
         response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
@@ -2141,11 +2159,12 @@ class Diameter:
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
-        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777291),"x").zfill(8))   #Auth-Application-ID SLh
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777252),"x").zfill(8))   #Auth-Application-ID S13
         avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+
         sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_slh'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         
@@ -2299,6 +2318,7 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
+
     #3GPP Sh - Profile Update Request
     def Request_16777217_307(self, msisdn):
         avp = ''                                         
@@ -2343,6 +2363,7 @@ class Diameter:
         
         response = self.generate_diameter_packet("01", "c0", 307, 16777217, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
+
     #3GPP S13 - ME-Identity-Check Request
     def Request_16777252_324(self, imei, imsi):
         avp = ''                                         
