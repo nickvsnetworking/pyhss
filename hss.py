@@ -252,6 +252,21 @@ def process_Diameter_request(clientsocket,client_address,diameter,data):
             return
         HSS_Logger.info("Generated Sh User-Data Answer")                   
     
+    #Sh Profile-Update-Answer
+    elif packet_vars['command_code'] == 307 and packet_vars['ApplicationId'] == 16777217:
+        HSS_Logger.info("Received Request with command code 307 (3GPP Sh Profile-Update Request) from " + orignHost)
+        try:
+            response = diameter.Answer_16777217_307(packet_vars, avps)      #Generate Diameter packet
+        except Exception as e:
+            HSS_Logger.info("Failed to generate Diameter Response for Sh User-Data Answer")
+            HSS_Logger.info(e)
+            traceback.print_exc()
+            response = diameter.Respond_ResultCode(packet_vars, avps, 5001) #DIAMETER_ERROR_USER_UNKNOWN
+            clientsocket.sendall(bytes.fromhex(response))
+            HSS_Logger.info("Sent negative response")
+            return
+        HSS_Logger.info("Generated Sh Profile-Update Answer")                   
+    
     #S13 ME-Identity-Check Answer
     elif packet_vars['command_code'] == 324 and packet_vars['ApplicationId'] == 16777252:
         HSS_Logger.info("Received Request with command code 324 (3GPP S13 ME-Identity-Check Request) from " + orignHost + "\n\tGenerating (MICA)")

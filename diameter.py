@@ -595,7 +595,7 @@ class Diameter:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
             DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
-            avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
@@ -1119,7 +1119,6 @@ class Diameter:
         
         return response
 
-
     #3GPP Cx Server Assignment Answer
     def Answer_16777216_301(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_301_attempt_count')
@@ -1188,7 +1187,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
-
 
     #3GPP Cx Location Information Answer
     def Answer_16777216_302(self, packet_vars, avps):
@@ -1376,9 +1374,14 @@ class Diameter:
             DiameterLogger.error("No MSISDN")
 
         if msisdn is not None:
-                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_details = database.Get_IMS_Subscriber(msisdn=msisdn)
+                DiameterLogger.debug("Getting susbcriber IMS info based on MSISDN")
+                subscriber_ims_details = database.Get_IMS_Subscriber(msisdn=msisdn)
+                DiameterLogger.debug("Got subscriber IMS details: " + str(subscriber_ims_details))
+                DiameterLogger.debug("Getting susbcriber info based on MSISDN")
+                subscriber_details = database.Get_Subscriber(msisdn=msisdn)
                 DiameterLogger.debug("Got subscriber details: " + str(subscriber_details))
+                subscriber_details = {**subscriber_details, **subscriber_ims_details}
+                DiameterLogger.debug("Merged subscriber details: " + str(subscriber_details))
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
             result_code = 5005
@@ -1408,7 +1411,8 @@ class Diameter:
         #These variables are passed to the template for use
         subscriber_details['mnc'] = self.MNC.zfill(3)
         subscriber_details['mcc'] = self.MCC.zfill(3)
-        DiameterLogger.info("Rendering template with values: " + str(subscriber_details))
+
+        DiameterLogger.debug("Rendering template with values: " + str(subscriber_details))
         xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
@@ -1417,6 +1421,43 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777217_306_success_count')
         return response
+
+    #3GPP Sh Profile-Update Answer
+    def Answer_16777217_307(self, packet_vars, avps):
+        logtool.RedisIncrimenter('Answer_16777217_307')
+
+        #Get IMSI
+        imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
+        imsi = binascii.unhexlify(imsi).decode('utf-8')
+
+        #Get Sh User Data
+        sh_user_data = self.get_avp_data(avps, 702)[0]                                                        #Get IMSI from User-Name AVP in request
+        sh_user_data = binascii.unhexlify(sh_user_data).decode('utf-8')
+
+        DiameterLogger.debug("Got Sh User data: " + str(sh_user_data))
+
+        #Push updated User Data into IMS Backend
+        #Start with the Current User Data
+        subscriber_ims_details = database.Get_IMS_Subscriber(imsi=imsi)
+        database.UpdateObj(database.IMS_SUBSCRIBER, {'sh_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
+
+        avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777217),"x").zfill(8))   #Auth-Application-ID Sh
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId) 
+
+        
+        response = self.generate_diameter_packet("01", "40", 307, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        logtool.RedisIncrimenter('Answer_16777217_307_success_count')
+        return response
+
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
@@ -1509,29 +1550,30 @@ class Diameter:
         else:
             DiameterLogger.error("No MSISDN or IMSI")
 
-        if imsi is not None:
-                DiameterLogger.debug("Getting susbcriber location based on IMSI")
-                subscriber_location = database.Get_Subscriber(imsi=imsi)['serving_mme']
-                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
-        elif msisdn is not None:
-                DiameterLogger.debug("Getting susbcriber location based on MSISDN")
-                subscriber_location = database.Get_Subscriber(msisdn=msisdn)
-                DiameterLogger.debug("Got subscriber location: " + subscriber_location)
-        else:
-            DiameterLogger.error("No MSISDN or IMSI in Answer_16777291_8388622 input")
-            result_code = 5005
-            #Experimental Result AVP
-            avp_experimental_result = ''
-            avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code: SUCCESS (2001)
-            avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+        try:
+            if imsi is not None:
+                    DiameterLogger.debug("Getting susbcriber location based on IMSI")
+                    subscriber_details = database.Get_Subscriber(imsi=imsi)
+                    DiameterLogger.debug("Got subscriber_details from IMSI: " + str(subscriber_details))
+            elif msisdn is not None:
+                    DiameterLogger.debug("Getting susbcriber location based on MSISDN")
+                    subscriber_details = database.Get_Subscriber(msisdn=msisdn)
+                    DiameterLogger.debug("Got subscriber_details from MSISDN: " + str(subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("No MSISDN or IMSI returned in Answer_16777291_8388622 input")
+            DiameterLogger.error("Error is " + str(E))
+            DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
-        
-        DiameterLogger.info("Got location for subscriber: " + str(subscriber_location))
+
 
         
-        if subscriber_location == None:
+        DiameterLogger.info("Got subscriber_details for subscriber: " + str(subscriber_details))
+
+        
+        if subscriber_details['serving_mme'] == None:
             #DB has no location on record for subscriber
             DiameterLogger.info("No location on record for Subscriber")
             result_code = 4201
@@ -1551,9 +1593,9 @@ class Diameter:
 
         #Serving Node AVP
         avp_serving_node = ''
-        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_location))            #MME-Name
+        avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_details['serving_mme']))            #MME-Name
         avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)                                   #MME-Realm
-        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex('127.0.0.1'))                        #GMLC-Address
+        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex(yaml_config['hss']['bind_ip'][0]))                        #GMLC-Address
         avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                                #Serving-Node  AVP
 
         #Set Result-Code
@@ -2274,6 +2316,52 @@ class Diameter:
         avp += self.generate_vendor_avp(873, 'c0', 10415, 
         "0000036ac00000d8000028af00000002c0000010000028af0000010400000003c0000010000028af00000000000004cbc0000012000028af00010a2d01050000000004ccc0000012000028af0001ac1212ca00000000034fc0000012000028af0001ac12120400000000001e40000010696e7465726e65740000000cc000000d000028af300000000000000dc0000010000028af3030303000000012c0000011000028af30303130310000000000000ac000000d000028af0100000000000016c0000019000028af8200f110000100f11000000017000000")
         response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+
+    #3GPP Sh - Profile Update Request
+    def Request_16777217_307(self, msisdn):
+        avp = ''                                         
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777217),"x").zfill(8))   #Auth-Application-ID Gx
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
+        avp += self.generate_avp(264, 40, self.string_to_hex('ExamplePGW.com'))                          #Origin Host
+        avp += self.generate_avp(283, 40, self.OriginRealm)                                              #Destination Realm
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+
+        DiameterLogger.debug("Getting susbcriber IMS info based on MSISDN")
+        subscriber_ims_details = database.Get_IMS_Subscriber(msisdn=msisdn)
+        DiameterLogger.debug("Got subscriber IMS details: " + str(subscriber_ims_details))
+        DiameterLogger.debug("Getting susbcriber info based on MSISDN")
+        subscriber_details = database.Get_Subscriber(msisdn=msisdn)
+        DiameterLogger.debug("Got subscriber details: " + str(subscriber_details))
+        subscriber_details = {**subscriber_details, **subscriber_ims_details}
+        DiameterLogger.debug("Merged subscriber details: " + str(subscriber_details))
+
+        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(subscriber_details['imsi'])),'ascii'))                 #Username AVP
+
+
+        #Sh-User-Data (XML)
+        #This loads a Jinja XML template containing the Sh-User-Data
+        templateLoader = jinja2.FileSystemLoader(searchpath="./")
+        templateEnv = jinja2.Environment(loader=templateLoader)
+        sh_userdata_template = yaml_config['hss']['Default_Sh_UserData']
+        DiameterLogger.info("Using template " + str(sh_userdata_template) + " for SH user data")
+        template = templateEnv.get_template(sh_userdata_template)
+        #These variables are passed to the template for use
+        subscriber_details['mnc'] = self.MNC.zfill(3)
+        subscriber_details['mcc'] = self.MCC.zfill(3)
+
+        DiameterLogger.debug("Rendering template with values: " + str(subscriber_details))
+        xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
+        avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
+        
+        response = self.generate_diameter_packet("01", "c0", 307, 16777217, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
     #3GPP S13 - ME-Identity-Check Request
