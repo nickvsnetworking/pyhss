@@ -2343,3 +2343,27 @@ class Diameter:
         
         response = self.generate_diameter_packet("01", "c0", 307, 16777217, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
+    #3GPP S13 - ME-Identity-Check Request
+    def Request_16777252_324(self, imei, imsi):
+        avp = ''                                         
+        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_s13'                           #Session state generate
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
+        #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
+        VendorSpecificApplicationId = ''
+        VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
+        VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
+        avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
+        avp += self.generate_avp(264, 40, self.string_to_hex('ExamplePGW.com'))                          #Origin Host
+        avp += self.generate_avp(283, 40, self.OriginRealm)                                              #Destination Realm
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        
+        avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi)),'ascii'))                 #Username AVP
+        TerminalInformation = ''
+        TerminalInformation += self.generate_vendor_avp(1402, 'c0', 10415, str(binascii.hexlify(str.encode(imei)),'ascii'))
+        TerminalInformation += self.generate_vendor_avp(1403, 'c0', 10415, str(binascii.hexlify(str.encode('00')),'ascii'))
+        avp += self.generate_vendor_avp(1401, 'c0', 10415, TerminalInformation)
+
+
+        response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
