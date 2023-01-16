@@ -12,3 +12,4 @@ flask
 flask_restx
 prometheus_client
 grequests
+mysqlclient
