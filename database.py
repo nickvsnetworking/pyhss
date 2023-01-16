@@ -177,20 +177,34 @@ def UpdateObj(obj_type, json_data, obj_id):
     sessionquery = session.query(obj_type).filter(filter_input)
     DBLogger.debug("got result: " + str(sessionquery.__dict__))
     sessionquery.update(json_data, synchronize_session = False)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id):
     DBLogger.debug("Called DeleteObj for type " + str(obj_type) + " with id " + str(obj_id))
     res = session.query(obj_type).get(obj_id)
     session.delete(res)
-    session.commit()
-    return {"Result":"OK"}
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
 
 def CreateObj(obj_type, json_data):
     newObj = obj_type(**json_data)
     session.add(newObj)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     session.refresh(newObj)
     result = newObj.__dict__
     result.pop('_sa_instance_state')
@@ -232,7 +246,12 @@ def Get_IMS_Subscriber(**kwargs):
     except:
         pass
     result = Sanitize_Datetime(result)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     return result
 
@@ -254,7 +273,12 @@ def Get_Subscriber(**kwargs):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     DBLogger.debug("Got back result: " + str(result))
     return result
 
@@ -272,7 +296,12 @@ def Get_Served_Subscribers():
             DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
@@ -290,7 +319,12 @@ def Get_Served_IMS_Subscribers():
             DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     return Served_Subs 
 
@@ -319,7 +353,12 @@ def Get_Served_PCRF_Subscribers():
             DBLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    session.commit()        
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)     
     DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     return Served_Subs 
 
@@ -364,7 +403,12 @@ def Get_APN(apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return result    
 
 def Get_APN_by_Name(apn):
@@ -375,7 +419,12 @@ def Get_APN_by_Name(apn):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return result 
 
 def Update_AuC(auc_id, sqn=1):
@@ -395,7 +444,12 @@ def Update_Serving_MME(imsi, serving_mme):
         DBLogger.debug("Clearing serving MME")
         result.serving_mme = None
         result.serving_mme_timestamp = None
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return
 
 def Update_Serving_CSCF(imsi, serving_cscf):
@@ -410,7 +464,12 @@ def Update_Serving_CSCF(imsi, serving_cscf):
         DBLogger.debug("Clearing serving CSCF")
         result.scscf = None
         result.scscf_timestamp = None
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return    
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
@@ -470,7 +529,12 @@ def Get_Serving_APN(subscriber_id, apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return result   
 
 def Get_Charging_Rule(charging_rule_id):
@@ -487,7 +551,12 @@ def Get_Charging_Rule(charging_rule_id):
             ChargingRule['tft'].append(result)
     except Exception as E:
         raise ValueError(E)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     return ChargingRule
 
 def Get_Charging_Rules(imsi, apn):
@@ -539,7 +608,12 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
     except Exception as E:
         newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
         session.add(newObj)
-        session.commit()
+        try:
+            session.commit()
+        except Exception as E:
+            DBLogger.error("Failed to commit session, error: " + str(E))
+            session.rollback()
+            raise ValueError(E)
         DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
         try:
             import grequests
@@ -618,7 +692,12 @@ def Check_EIR(imsi, imei):
     except Exception as E:
         raise ValueError(E)
 
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     DBLogger.debug("No matches at all - Returning default response")
     Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=yaml_config['eir']['no_match_response'])
     return yaml_config['eir']['no_match_response']
@@ -634,7 +713,12 @@ def Get_EIR_Rules():
             EIR_Rules.append(result)
     except Exception as E:
         raise ValueError(E)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        raise ValueError(E)
     DBLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
     return EIR_Rules 
 
