@@ -31,6 +31,8 @@ RUN apt-get update && \
         libidn11-dev \
         libtalloc-dev \
         libpq-dev \
+        libmysqlclient-dev \
+        libsystemd-dev \
         python3-psycopg2 \
         vim \
         tcpdump \
