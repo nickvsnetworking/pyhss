@@ -46,7 +46,7 @@ class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True)
     apn = Column(String(50), nullable=False)
-    ip_version = Column(Integer, default=4)
+    ip_version = Column(Integer, default=0)
     pgw_address = Column(String(50))
     sgw_address = Column(String(50))
     charging_characteristics = Column( String(4), default='0800')
