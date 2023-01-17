@@ -44,104 +44,104 @@ else:
 
 class APN(Base):
     __tablename__ = 'apn'
-    apn_id = Column(Integer, primary_key=True)
-    apn = Column(String(50), nullable=False)
-    ip_version = Column(Integer, default=4)
-    pgw_address = Column(String(50))
-    sgw_address = Column(String(50))
-    charging_characteristics = Column( String(4), default='0800')
-    apn_ambr_dl = Column(Integer, nullable=False)
-    apn_ambr_ul = Column(Integer, nullable=False)
-    qci = Column(Integer, default=9)
-    arp_priority = Column(Integer, default=4)
-    arp_preemption_capability = Column(Boolean, default=False)
-    arp_preemption_vulnerability = Column(Boolean, default=True)
-    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
+    apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
+    apn = Column(String(50), nullable=False, doc='Short name of the APN')
+    ip_version = Column(Integer, default=4, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    pgw_address = Column(String(50), doc='IP of the PGW')
+    sgw_address = Column(String(50), doc='IP of the SGW')
+    charging_characteristics = Column(String(4), default='0800', doc='For the encoding of this information element see 3GPP TS 32.298 [9]')
+    apn_ambr_dl = Column(Integer, nullable=False, doc='Downlink Maximum Bit Rate for this APN')
+    apn_ambr_ul = Column(Integer, nullable=False, doc='Uplink Maximum Bit Rate for this APN')
+    qci = Column(Integer, default=9, doc='QoS Class Identifier')
+    arp_priority = Column(Integer, default=4, doc='Allocation and Retention Policy - Bearer priority level (1-15)')
+    arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
+    arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
+    charging_rule_list = Column(String(18), doc='Comma separated list of predefined Charging Rules')
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
-    serving_apn_id = Column(Integer, primary_key=True)
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
-    apn = Column(Integer, ForeignKey('apn.apn_id'))
-    pcrf_session_id = Column(String(100))
-    ue_ip = Column(String(100))
-    ip_version = Column(Integer, default=4)
-    serving_pgw = Column(String(50))
-    serving_pgw_timestamp = Column(DateTime)
+    serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
+    apn = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the APN served')
+    pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
+    ue_ip = Column(String(100), doc='IP Address allocated to the UE')
+    ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
+    serving_pgw = Column(String(50), doc='PGW serving this subscriber')
+    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
 
 class AUC(Base):
     __tablename__ = 'auc'
-    auc_id = Column(Integer, primary_key = True)
-    ki = Column(String(32))
-    opc = Column(String(32))
-    amf = Column(String(4))
-    sqn = Column(Integer)
+    auc_id = Column(Integer, primary_key = True, doc='Unique ID of AuC entry')
+    ki = Column(String(32), doc='SIM Key - Authentication Key - Ki')
+    opc = Column(String(32), doc='SIM Key - Network Operators key OPc')
+    amf = Column(String(4), doc='Authentication Management Field')
+    sqn = Column(Integer, doc='Authentication sequence number')
 
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
-    subscriber_id = Column(Integer, primary_key = True)
-    imsi = Column(String(18), unique=True)
-    enabled = Column(Boolean, default=1)
-    auc_id = Column(Integer, ForeignKey('auc.auc_id'))
-    default_apn = Column(Integer, ForeignKey('apn.apn_id'))
-    apn_list = Column(String(18))
-    msisdn = Column(String(18))
-    ue_ambr_dl = Column(Integer, default=999999)
-    ue_ambr_ul = Column(Integer, default=999999)
-    nam = Column(Integer, default=0)
-    subscribed_rau_tau_timer = Column(Integer, default=300)
-    serving_mme = Column(String(50))
-    serving_mme_timestamp = Column(DateTime)
+    subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of Subscriber entry')
+    imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
+    enabled = Column(Boolean, default=1, doc='Subscriber enabled/disabled')
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data')
+    default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN')
+    apn_list = Column(String(18), doc='Comma seperated list of allowed APNs')
+    msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
+    ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
+    ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
+    nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2]')
+    subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
+    serving_mme = Column(String(50), doc='MME serving this subscriber')
+    serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
 
 class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
-    ims_subscriber_id = Column(Integer, primary_key = True)
-    msisdn = Column(String(18), unique=True)
-    msisdn_list = Column(String(1200))
-    imsi = Column(String(18), unique=False)
-    ifc_path = Column(String(18))
-    sh_profile = Column(String(12000))
-    scscf = Column(String(50))
-    scscf_timestamp = Column(DateTime)
+    ims_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of IMS_Subscriber entry')
+    msisdn = Column(String(18), unique=True, doc=SUBSCRIBER.msisdn.doc)
+    msisdn_list = Column(String(1200), doc='Coma Separated list of additional MSISDNs for Subscriber')
+    imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
+    ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
+    sh_profile = Column(String(12000), doc='Sh Subscriber Profile')
+    scscf = Column(String(50), doc='Serving-CSCF serving this subscriber')
+    scscf_timestamp = Column(DateTime, doc='Timestamp of attach to S-CSCF')
 
 class CHARGING_RULE(Base):
     __tablename__ = 'charging_rule'
-    charging_rule_id = Column(Integer, primary_key = True)
-    rule_name = Column(String(20))
+    charging_rule_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
+    rule_name = Column(String(20), doc='Name of rule pushed to PGW (Short, no special chars)')
     
-    qci = Column(Integer, default=9)
-    arp_priority = Column(Integer, default=4)
-    arp_preemption_capability = Column(Boolean, default=False)
-    arp_preemption_vulnerability = Column(Boolean, default=True)    
+    qci = Column(Integer, default=9, doc=APN.qci.doc)
+    arp_priority = Column(Integer, default=4, doc=APN.arp_priority.doc)
+    arp_preemption_capability = Column(Boolean, default=False, doc=APN.arp_preemption_capability.doc)
+    arp_preemption_vulnerability = Column(Boolean, default=True, doc=APN.arp_preemption_vulnerability.doc)    
 
-    mbr_dl = Column(Integer, nullable=False)
-    mbr_ul = Column(Integer, nullable=False)
-    gbr_dl = Column(Integer, nullable=False)
-    gbr_ul = Column(Integer, nullable=False)    
-    tft_group_id = Column(Integer)
-    precedence = Column(Integer)
+    mbr_dl = Column(Integer, nullable=False, doc='Maximum Downlink Bitrate for traffic matching this rule')
+    mbr_ul = Column(Integer, nullable=False, doc='Maximum Uplink Bitrate for traffic matching this rule')
+    gbr_dl = Column(Integer, nullable=False, doc='Guaranteed Downlink Bitrate for traffic matching this rule')
+    gbr_ul = Column(Integer, nullable=False, doc='Guaranteed Uplink Bitrate for traffic matching this rule')    
+    tft_group_id = Column(Integer, doc='Will match any TFTs using this TFT Group to form the TFT list used in the Charging Rule')
+    precedence = Column(Integer, doc='Precedence of this rule, allows rule to override or be overridden by a higher priority rule')
 
 class TFT(Base):
     __tablename__ = 'tft'
-    tft_id = Column(Integer, primary_key = True)
-    tft_group_id = Column(Integer, nullable=False)
-    tft_string = Column(String(100), nullable=False)
-    direction = Column(Integer, nullable=False) #0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+    tft_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
+    tft_group_id = Column(Integer, nullable=False, doc=CHARGING_RULE.tft_group_id.doc)
+    tft_string = Column(String(100), nullable=False, doc='IPFilterRules as defined in [RFC 6733] taking the format: action dir proto from src to dst')
+    direction = Column(Integer, nullable=False, doc='Traffic Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional')
 
 class EIR(Base):
     __tablename__ = 'eir'
-    eir_id = Column(Integer, primary_key = True)
-    imei = Column(String(60))
-    imsi = Column(String(60))
-    regex_mode = Column(Integer, default=1)
-    match_response_code = Column(Integer)
+    eir_id = Column(Integer, primary_key = True, doc='Unique ID of EIR entry')
+    imei = Column(String(60), doc='Exact IMEI or Regex to match IMEI (Depending on regex_mode value)')
+    imsi = Column(String(60), doc='Exact IMSI or Regex to match IMSI (Depending on regex_mode value)')
+    regex_mode = Column(Integer, default=1, doc='0 - Exact Match mode, 1 - Regex Mode')
+    match_response_code = Column(Integer, doc='0 - Whitelist, 1 - Blacklist, 2 - Greylist')
 
 class IMSI_IMEI_HISTORY(Base):
     __tablename__ = 'eir_history'
-    imsi_imei_history_id = Column(Integer, primary_key = True)
-    imsi_imei = Column(String(60), unique=True)  #Combined IMSI + IMEI
-    match_response_code = Column(Integer)
-    imsi_imei_timestamp = Column(DateTime)
+    imsi_imei_history_id = Column(Integer, primary_key = True, doc='Unique ID of IMSI_IMEI_HISTORY entry')
+    imsi_imei = Column(String(60), unique=True, doc='Combined IMSI + IMEI value')
+    match_response_code = Column(Integer, doc='Response code that was returned')
+    imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
@@ -217,11 +217,14 @@ def Generate_JSON_Model_for_Flask(obj_type):
     import pprint as pp
     factory = SchemaFactory(NoForeignKeyWalker)
     dictty = dict(factory(obj_type))
+
     dictty['properties'] = dict(dictty['properties'])
 
     #Set the ID Object to not required
     obj_type_str = str(dictty['title']).lower()
     dictty['required'].remove(obj_type_str + '_id')
+
+
 
     return dictty
 
@@ -767,7 +770,7 @@ if __name__ == "__main__":
         'arp_priority': 1, 
         'arp_preemption_capability' : False,
         'arp_preemption_vulnerability': True,
-        'charging_rule_id' : ChargingRule_newObj['charging_rule_id']
+        'charging_rule_list' : ChargingRule_newObj['charging_rule_id']
         }
     print("Creating APN " + str(apn2['apn']))
     newObj = CreateObj(APN, apn2)

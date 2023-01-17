@@ -14,7 +14,7 @@ mysql> select * from tft;
 
 mysql> select * from apn;
 +--------+----------+------------+-------------+-------------+--------------------------+-------------+-------------+------+--------------+---------------------------+------------------------------+------------------+
-| apn_id | apn      | ip_version | pgw_address | sgw_address | charging_characteristics | apn_ambr_dl | apn_ambr_ul | qci  | arp_priority | arp_preemption_capability | arp_preemption_vulnerability | charging_rule_id |
+| apn_id | apn      | ip_version | pgw_address | sgw_address | charging_characteristics | apn_ambr_dl | apn_ambr_ul | qci  | arp_priority | arp_preemption_capability | arp_preemption_vulnerability | charging_rule_list |
 +--------+----------+------------+-------------+-------------+--------------------------+-------------+-------------+------+--------------+---------------------------+------------------------------+------------------+
 |      1 | internet |          4 | NULL        | NULL        | 0800                     |     1566720 |     1566720 |    9 |            8 |                         0 |                            0 |                0 |
 |      2 | ims      |          4 | NULL        | NULL        | 0800                     |     1566720 |     1566720 |    5 |            1 |                         0 |                            0 |                1 |

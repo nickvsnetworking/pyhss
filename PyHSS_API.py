@@ -83,7 +83,7 @@ IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON',
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
-    'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
+    'charging_rule_list' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
 
 @ns_apn.route('/<string:apn_id>')
