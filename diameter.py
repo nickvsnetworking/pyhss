@@ -1796,10 +1796,10 @@ class Diameter:
 
             destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
             destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
-            DiameterLogger.debug("Recieved originHost to use as destinationHost is " + str(destinationHost))
+            DiameterLogger.debug("Received originHost to use as destinationHost is " + str(destinationHost))
             destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
             destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
-            DiameterLogger.debug("Recieved originRealm to use as destinationRealm is " + str(destinationRealm))
+            DiameterLogger.debug("Received originRealm to use as destinationRealm is " + str(destinationRealm))
             avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
             avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))
 

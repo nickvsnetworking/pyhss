@@ -53,7 +53,7 @@ def ReadBuffer():
                 data_sum = data + clientsocket.recv(packet_length - 32)                 #Recieve remainder of packet from buffer
                 packet_vars, avps = diameter.decode_diameter_packet(data_sum)
                 if  int(packet_vars['command_code']) == 280 and diameter.hex_to_bin(packet_vars['flags'])[0] == "1":  # Recieve DWR ,send DWA
-                    print("Recieved DWR - Sending DWA to " +str(hostname) )
+                    print("Received DWR - Sending DWA to " +str(hostname) )
                     SendRequest(diameter.Answer_280(packet_vars, avps))
                     continue
                 print("Got response from " + str(hostname))
@@ -64,14 +64,14 @@ def ReadBuffer():
                 if int(packet_vars['command_code']) == 280:
                     flags_bin = diameter.hex_to_bin(packet_vars['flags'])
                     print("Flags are " + str(flags_bin)) 
-                    print("Recieved DWA")
+                    print("Received DWA")
                 if int(packet_vars['command_code']) == 257:
                     #Check if Request or Response
                     flags_bin = diameter.hex_to_bin(packet_vars['flags'])
                     print("Flags are " + str(flags_bin)) 
                     #ToDo - check first byte only
                     if flags_bin[0] == '1':
-                        print("Recieved CER - Sending CEA")
+                        print("Received CER - Sending CEA")
                         SendRequest(diameter.Answer_257(packet_vars, avps, recv_ip))
                     else:
                         print("Is CEA")
