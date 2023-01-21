@@ -22,11 +22,11 @@ class APN_Tests(unittest.TestCase):
         "apn_ambr_dl": 99999,
         "apn_ambr_ul": 99999,
         "qci": 7,
-        "charging_rule_id": None,
         "ip_version": 4,
         "arp_priority": 1,
         "arp_preemption_capability": True,
-        "arp_preemption_vulnerability": True
+        "arp_preemption_vulnerability": True,
+        "charging_rule_list" : None,
         }
 
     def test_B_create_APN(self):
