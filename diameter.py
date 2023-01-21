@@ -954,7 +954,7 @@ class Diameter:
 
         DiameterLogger.info("SubscriptionID: " + str(self.get_avp_data(avps, 443)))
         try:
-            DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")                                            #Get subscriber details
+            DiameterLogger.info("Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database")                                            #Get subscriber details
             ChargingRules = database.Get_Charging_Rules(imsi=imsi, apn=apn)
             DiameterLogger.info("Got Charging Rules: " + str(ChargingRules))
         except Exception as E:
@@ -1039,7 +1039,9 @@ class Diameter:
             #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
             try:
                 DiameterLogger.debug(ChargingRules)
-                avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
+                for individual_charging_rule in ChargingRules['charging_rules']:
+                    DiameterLogger.debug("Processing Charging Rule: " + str(individual_charging_rule))
+                    avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
 
                 #Store PGW location into Database
                 database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)

@@ -498,7 +498,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
         apn_data = Get_APN(apn_id)
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            DBLogger.debug("Matched!")
+            DBLogger.debug("Matched named APN with APN ID")
             json_data = {
                 'apn' : apn_id,
                 'subscriber_id' : subscriber_id,
@@ -586,10 +586,22 @@ def Get_Charging_Rules(imsi, apn):
         apn_data = Get_APN(apn_id)
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            DBLogger.debug("Matched!")
-            #Get Charging Rules
-            ChargingRule = Get_Charging_Rule(apn_data['charging_rule_id'])
+            DBLogger.debug("Matched named APN with APN ID")
+            #Get Charging Rules list
+            DBLogger.debug("Getting charging rule list from " + str(apn_data['charging_rule_list']))
+            ChargingRule = {}
+            ChargingRule['charging_rule_list'] = str(apn_data['charging_rule_list']).split(',')
             ChargingRule['apn_data'] = apn_data
+            DBLogger.debug("ChargingRule['charging_rule_list'] is: " + str(ChargingRule['charging_rule_list']))
+            #Empty dict for the Charging Rules to go into
+            ChargingRule['charging_rules'] = []
+            #Add each of the Charging Rules for the APN
+            for individual_charging_rule in ChargingRule['charging_rule_list']:
+                DBLogger.debug("Getting Charging rule " + str(individual_charging_rule))
+                individual_charging_rule_complete = Get_Charging_Rule(individual_charging_rule)
+                DBLogger.debug("Got individual_charging_rule_complete: " + str(individual_charging_rule_complete))
+                ChargingRule['charging_rules'].append(individual_charging_rule_complete)
+            DBLogger.debug("Completed Get_Charging_Rules()")
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
@@ -728,10 +740,12 @@ def Get_EIR_Rules():
 
 if __name__ == "__main__":
     import binascii,os,pprint
+    DeleteAfter = False
+
 
     #Define Charging Rule
     charging_rule = {
-        'rule_name' : 'charging_rule_test2',
+        'rule_name' : 'charging_rule_A',
         'qci' : 4,
         'arp_priority' : 5,
         'arp_preemption_capability' : True,
@@ -743,8 +757,14 @@ if __name__ == "__main__":
         'tft_group_id' : 1,
         'precedence' : 100
         }
-    print("Creating Charging Rule")
-    ChargingRule_newObj = CreateObj(CHARGING_RULE, charging_rule)
+    print("Creating Charging Rule A")
+    ChargingRule_newObj_A = CreateObj(CHARGING_RULE, charging_rule)
+    print("ChargingRule_newObj A: " + str(ChargingRule_newObj_A))
+    charging_rule['gbr_ul'], charging_rule['gbr_dl'], charging_rule['mbr_ul'], charging_rule['mbr_dl'] = 256000, 256000, 256000, 256000
+    print("Creating Charging Rule B")
+    charging_rule['rule_name'], charging_rule['precedence'], charging_rule['tft_group_id'] = 'charging_rule_B', 80, 2
+    ChargingRule_newObj_B = CreateObj(CHARGING_RULE, charging_rule)
+    print("ChargingRule_newObj B: " + str(ChargingRule_newObj_B))
 
     #Define TFTs
     tft_template1 = {
@@ -761,7 +781,20 @@ if __name__ == "__main__":
     CreateObj(TFT, tft_template1)
     CreateObj(TFT, tft_template2)
 
-    print("ChargingRule_newObj: " + str(ChargingRule_newObj))
+    tft_template3 = {
+        'tft_group_id' : 2,
+        'tft_string' : 'permit out ip from 10.98.0.0 255.255.255.0 to any',
+        'direction' : 1
+    }
+    tft_template4 = {
+        'tft_group_id' : 2,
+        'tft_string' : 'permit out ip from any to 10.98.0.0 255.255.255.0',
+        'direction' : 2
+    }
+    print("Creating TFT")
+    CreateObj(TFT, tft_template3)
+    CreateObj(TFT, tft_template4)
+
 
     apn2 = {
         'apn':'ims',
@@ -770,7 +803,7 @@ if __name__ == "__main__":
         'arp_priority': 1, 
         'arp_preemption_capability' : False,
         'arp_preemption_vulnerability': True,
-        'charging_rule_list' : ChargingRule_newObj['charging_rule_id']
+        'charging_rule_list' : str(ChargingRule_newObj_A['charging_rule_id']) + "," + str(ChargingRule_newObj_B['charging_rule_id'])
         }
     print("Creating APN " + str(apn2['apn']))
     newObj = CreateObj(APN, apn2)
@@ -904,15 +937,15 @@ if __name__ == "__main__":
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
-    #input("Delete everything?")
-    #Delete IMS Subscriber
-    print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
-    #Delete Subscriber
-    print(DeleteObj(SUBSCRIBER, subscriber_id))
-    #Delete AuC
-    print(DeleteObj(AUC, auc_id))
-    #Delete APN
-    print(DeleteObj(APN, apn_id))
+    if DeleteAfter == True:
+        #Delete IMS Subscriber
+        print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
+        #Delete Subscriber
+        print(DeleteObj(SUBSCRIBER, subscriber_id))
+        #Delete AuC
+        print(DeleteObj(AUC, auc_id))
+        #Delete APN
+        print(DeleteObj(APN, apn_id))
 
     #Whitelist IMEI / IMSI Binding
     eir_template = {'imei': '1234', 'imsi': '567', 'regex_mode': 0, 'match_response_code': 0}
