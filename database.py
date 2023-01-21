@@ -56,7 +56,7 @@ class APN(Base):
     arp_priority = Column(Integer, default=4, doc='Allocation and Retention Policy - Bearer priority level (1-15)')
     arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
-    charging_rule_list = Column(String(18), doc='Comma separated list of predefined Charging Rules')
+    charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
