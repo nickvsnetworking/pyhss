@@ -4,7 +4,7 @@ A Flask-Restx based API service is available for all CRUD operations on the data
 
 You can start this by running:
 
-```
+```shell
 export FLASK_APP=PyHSS_API.py
 flask run --host=0.0.0.0 --port=8080
 ```
