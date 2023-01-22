@@ -19,7 +19,7 @@ The **match_response_code** maps to the Equipment-Status AVP output, so specifie
 Some end to end examples of this provisioned into the API:
 
 ### IMSI / IMEI Binding
-```
+```json
 {
       'imei': '1234', 
       'imsi': '567',
@@ -30,7 +30,7 @@ Some end to end examples of this provisioned into the API:
 If IMSI is equal to *567* and is in use in IMEI *1234*, then the response code returned is 0 (Whitelist).
 
 ### IMEI Matching (Blacklist lost / stolen devices)
-```
+```json
 {
       'imei': '99881232',
       'imsi': '', 
@@ -41,7 +41,7 @@ If IMSI is equal to *567* and is in use in IMEI *1234*, then the response code r
 If the IMEI is equal to 99881232 used with any IMSI, then the response code returned is 1 (Blacklist). This would be used for devices reported stolen.
 
 ### IMEI Prefix Match (Blacklist / Whitelist all devices of type)
-```
+```json
 {
       'imei': '^666.*',
       'imsi': '', 
@@ -52,7 +52,7 @@ If the IMEI is equal to 99881232 used with any IMSI, then the response code retu
 If the IMEI starts with 666, then the response code returned is 1 (Blacklist).
 
 ### IMEI & IMSI Regex Match
-```
+```json
 {
       'imei': '^777.*',
       'imsi': '^1234123412341234$', 
@@ -83,7 +83,7 @@ If ``imsi_imei_logging`` is set, then every unique IMSI / IMEI mapping is visibl
 This also allows us to detect SIM Swap events.
 
 ## Config Example
-```
+```yaml
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
   sim_swap_notify_webhook:  http://localhost/webhook/
