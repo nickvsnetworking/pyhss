@@ -38,7 +38,7 @@ class Diameter_Tests(unittest.TestCase):
         
     def test_B_Recv_CER_CmdCode(self):
         packet_vars, avps = self.__class__.diameter_inst.decode_diameter_packet(self.__class__.Diameter_CER)
-        log.debug("Recieved request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
+        log.debug("Received request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
         self.assertEqual(packet_vars['command_code'], 257, "Command Code Mismatch")
 
     def test_B_Recv_CER_ApplicationID(self):
@@ -47,7 +47,7 @@ class Diameter_Tests(unittest.TestCase):
 
     def test_B_Recv_AIR(self):
         packet_vars, avps = self.__class__.diameter_inst.decode_diameter_packet(self.__class__.Diameter_AIR)
-        log.debug("Recieved request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
+        log.debug("Received request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
         if packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
                 log.info("Received Request with command code 318 (3GPP Authentication-Information-Request) - Generating (AIA)")
                 try:

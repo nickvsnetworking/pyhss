@@ -83,7 +83,7 @@ IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON',
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
-    'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
+    'charging_rule_list' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
 
 @ns_apn.route('/<string:apn_id>')
@@ -102,7 +102,7 @@ class PyHSS_APN_Get(Resource):
         '''Delete all APN data for specified APN ID'''
         try:
             apn_data = database.DeleteObj(APN, apn_id)
-            return apn_data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -156,7 +156,7 @@ class PyHSS_AUC_Get(Resource):
         '''Delete all AUC data for specified AUC ID'''
         try:
             data = database.DeleteObj(AUC, auc_id)
-            return data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -210,7 +210,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         '''Delete all data for specified subscriber_id'''
         try:
             data = database.DeleteObj(SUBSCRIBER, subscriber_id)
-            return data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -264,7 +264,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         '''Delete all data for specified ims_subscriber_id'''
         try:
             data = database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id)
-            return data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -318,7 +318,7 @@ class PyHSS_TFT_Get(Resource):
         '''Delete all data for specified tft_id'''
         try:
             data = database.DeleteObj(TFT, tft_id)
-            return data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -372,7 +372,7 @@ class PyHSS_Charging_Rule_Get(Resource):
         '''Delete all data for specified charging_rule_id'''
         try:
             data = database.DeleteObj(CHARGING_RULE, charging_rule_id)
-            return data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -426,7 +426,7 @@ class PyHSS_EIR_Get(Resource):
         '''Delete all data for specified eir_data'''
         try:
             data = database.DeleteObj(EIR, eir_id)
-            return data, 200
+            return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}

@@ -221,7 +221,7 @@ class LogTool:
 
     def setup_logger(self, logger_name, log_file, level=logging.DEBUG):
         l = logging.getLogger(logger_name)
-        formatter = logging.Formatter('%(asctime)s \t %(levelname)s \t %(message)s')
+        formatter = logging.Formatter('%(asctime)s \t %(levelname)s \t {%(pathname)s:%(lineno)d} \t %(message)s')
         fileHandler = logging.FileHandler(log_file, mode='a+')
         fileHandler.setFormatter(formatter)
         streamHandler = logging.StreamHandler()

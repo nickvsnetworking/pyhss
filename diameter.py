@@ -461,10 +461,19 @@ class Diameter:
         DiameterLogger.info("Defining Precedence information")
         Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
         DiameterLogger.info("Defined Precedence " + str(Precedence))
+
+        #Rating Group
+        DiameterLogger.info("Defining Rating Group information")
+        if ChargingRules['rating_group'] != None:
+            RatingGroup = self.generate_avp(432, 40, format(int(ChargingRules['rating_group']),"x").zfill(8))                   #Rating-Group-ID
+        else:
+            RatingGroup = ''
+        DiameterLogger.info("Defined Rating Group " + str(ChargingRules['rating_group']))
         
+
         #Complete Charging Rule Defintion
         DiameterLogger.info("Collating ChargingRuleDef")
-        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
+        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence + RatingGroup
         ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
 
         #Charging Rule Install
@@ -954,7 +963,7 @@ class Diameter:
 
         DiameterLogger.info("SubscriptionID: " + str(self.get_avp_data(avps, 443)))
         try:
-            DiameterLogger.info("Getting subscriber info for IMSI " + str(imsi) + " from database")                                            #Get subscriber details
+            DiameterLogger.info("Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database")                                            #Get subscriber details
             ChargingRules = database.Get_Charging_Rules(imsi=imsi, apn=apn)
             DiameterLogger.info("Got Charging Rules: " + str(ChargingRules))
         except Exception as E:
@@ -1021,9 +1030,6 @@ class Diameter:
                 DiameterLogger.error("Failed to get QoS information dynamically for sub " + str(imsi))
                 DiameterLogger.error(E)
 
-                #ToDo - Fix this so it sources from AVP
-                DiameterLogger.debug("Current QoS Information Value: " + str())
-                current_QoS_value = {'avp_code': 1041, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}, {'avp_code': 1040, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}
                 QoS_Information = ''
                 for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
                     DiameterLogger.debug(AMBR_Part)
@@ -1039,7 +1045,9 @@ class Diameter:
             #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
             try:
                 DiameterLogger.debug(ChargingRules)
-                avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
+                for individual_charging_rule in ChargingRules['charging_rules']:
+                    DiameterLogger.debug("Processing Charging Rule: " + str(individual_charging_rule))
+                    avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
 
                 #Store PGW location into Database
                 database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)
@@ -1794,10 +1802,10 @@ class Diameter:
 
             destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
             destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
-            DiameterLogger.debug("Recieved originHost to use as destinationHost is " + str(destinationHost))
+            DiameterLogger.debug("Received originHost to use as destinationHost is " + str(destinationHost))
             destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
             destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
-            DiameterLogger.debug("Recieved originRealm to use as destinationRealm is " + str(destinationRealm))
+            DiameterLogger.debug("Received originRealm to use as destinationRealm is " + str(destinationRealm))
             avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
             avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))
 
