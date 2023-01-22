@@ -120,7 +120,7 @@ TFTs will match based on the TFT-Group ID, this means we can have multiple TFTs 
 
 To begin with we'll define the two TFTs we used earlier, via the API, and group them together with `tft_group_id` 1:
 
-```
+```python
     import requests
     base_url = "http://your_hss_ip:5000"
     headers = {"Content-Type": "application/json"}
@@ -147,7 +147,7 @@ We'll call the rule "free_nvn" and set the QCI to 4, the ARP Vulnerability / Cap
 
 We'll also need to specify the `tft_group_id` as this will reference 
 
-```
+```python
     charging_rule = {
         'rule_name' : 'free_NVN',
         'qci' : 4,
@@ -169,7 +169,7 @@ We'll also need to specify the `tft_group_id` as this will reference
 
 Now we've created the Charging Rule, we can just add it to the charging_rule_list object on the APNs we wish to apply it to. Let's assume that the Charging Rule ID is 10 and it's the only charging rule we want to apply onto the APN "Internet":
 
-```
+```python
     template_data = {
         "apn": "UnitTest",
         "pgw_address": "10.98.0.20",
