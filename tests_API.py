@@ -22,7 +22,7 @@ class APN_Tests(unittest.TestCase):
         "apn_ambr_dl": 99999,
         "apn_ambr_ul": 99999,
         "qci": 7,
-        "ip_version": 4,
+        "ip_version": 0,
         "arp_priority": 1,
         "arp_preemption_capability": True,
         "arp_preemption_vulnerability": True,
@@ -237,7 +237,8 @@ class ChargingRule_Tests(unittest.TestCase):
         'gbr_dl' : 128000,
         'gbr_ul' : 128000,
         'tft_group_id' : 1,
-        'precedence' : 100
+        'precedence' : 100,
+        'rating-group' : 4000
         }
 
 

@@ -461,10 +461,19 @@ class Diameter:
         DiameterLogger.info("Defining Precedence information")
         Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
         DiameterLogger.info("Defined Precedence " + str(Precedence))
+
+        #Rating Group
+        DiameterLogger.info("Defining Rating Group information")
+        if ChargingRules['rating_group'] != None:
+            RatingGroup = self.generate_avp(432, 40, format(int(ChargingRules['rating_group']),"x").zfill(8))                   #Rating-Group-ID
+        else:
+            RatingGroup = ''
+        DiameterLogger.info("Defined Rating Group " + str(ChargingRules['rating_group']))
         
+
         #Complete Charging Rule Defintion
         DiameterLogger.info("Collating ChargingRuleDef")
-        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence
+        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence + RatingGroup
         ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
 
         #Charging Rule Install

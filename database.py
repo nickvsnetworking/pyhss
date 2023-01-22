@@ -120,6 +120,7 @@ class CHARGING_RULE(Base):
     gbr_ul = Column(Integer, nullable=False, doc='Guaranteed Uplink Bitrate for traffic matching this rule')    
     tft_group_id = Column(Integer, doc='Will match any TFTs using this TFT Group to form the TFT list used in the Charging Rule')
     precedence = Column(Integer, doc='Precedence of this rule, allows rule to override or be overridden by a higher priority rule')
+    rating_group = Column(Integer, doc='Rating Group in OCS / OFCS that traffic matching this rule will be charged under')
 
 class TFT(Base):
     __tablename__ = 'tft'
@@ -755,7 +756,8 @@ if __name__ == "__main__":
         'gbr_dl' : 128000,
         'gbr_ul' : 128000,
         'tft_group_id' : 1,
-        'precedence' : 100
+        'precedence' : 100,
+        'rating_group' : 20000
         }
     print("Creating Charging Rule A")
     ChargingRule_newObj_A = CreateObj(CHARGING_RULE, charging_rule)
