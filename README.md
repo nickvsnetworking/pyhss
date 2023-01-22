@@ -1,6 +1,6 @@
 # PyHSS
 
-Python Home Subscriber Server implementing Diameter / 3GPP S6a Interfaces.
+Python Home Subscriber Server implementing Diameter / 3GPP Interfaces.
 ![Shelly the PyHSS Snake](docs/images/shelly.png)
 
 ## Introduction
