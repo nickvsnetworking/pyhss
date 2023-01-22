@@ -84,7 +84,7 @@ class SUBSCRIBER(Base):
     enabled = Column(Boolean, default=1, doc='Subscriber enabled/disabled')
     auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data')
     default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN')
-    apn_list = Column(String(18), doc='Comma seperated list of allowed APNs')
+    apn_list = Column(String(18), doc='Comma separated list of allowed APNs')
     msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
     ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
@@ -214,9 +214,9 @@ def CreateObj(obj_type, json_data):
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
     from alchemyjsonschema import SchemaFactory
-    from alchemyjsonschema import NoForeignKeyWalker
+    from alchemyjsonschema import ForeignKeyWalker
     import pprint as pp
-    factory = SchemaFactory(NoForeignKeyWalker)
+    factory = SchemaFactory(ForeignKeyWalker)
     dictty = dict(factory(obj_type))
 
     dictty['properties'] = dict(dictty['properties'])
@@ -225,7 +225,15 @@ def Generate_JSON_Model_for_Flask(obj_type):
     obj_type_str = str(dictty['title']).lower()
     dictty['required'].remove(obj_type_str + '_id')
 
-
+    # #Add linked key references manually because the SchemaFactory doesn't see them
+    # if str(obj_type) == "<class 'database.SUBSCRIBER'>":
+    #     DBLogger.info("Matched type SUBSCRIBER so adding related keys")
+    #     dictty['properties']['auc_id'] = {'type': 'integer', 'description': str(SUBSCRIBER.auc_id.doc)}
+    #     dictty['required'].append('auc_id')
+    #     dictty['properties']['default_apn'] = {'type': 'integer', 'description': 'APN ID to use for the default APN'}
+    #     dictty['required'].append('default_apn')
+    # else:
+    #     DBLogger.info("Type: " + str(obj_type) + " is not listed type, not adding additional related keys")
 
     return dictty
 
@@ -748,7 +756,7 @@ def Get_EIR_Rules():
 
 if __name__ == "__main__":
     import binascii,os,pprint
-    DeleteAfter = False
+    DeleteAfter = True
 
 
     #Define Charging Rule
@@ -989,3 +997,7 @@ if __name__ == "__main__":
     assert Check_EIR(imei='7771234', imsi='1234123412341234') == 2
     
     print(Get_IMEI_IMSI_History('1234123412'))
+
+
+    print("\n\n\n")
+    print(Generate_JSON_Model_for_Flask(SUBSCRIBER))
