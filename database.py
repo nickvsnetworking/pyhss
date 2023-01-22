@@ -82,9 +82,9 @@ class SUBSCRIBER(Base):
     subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of Subscriber entry')
     imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
     enabled = Column(Boolean, default=1, doc='Subscriber enabled/disabled')
-    auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data')
-    default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN')
-    apn_list = Column(String(18), doc='Comma separated list of allowed APNs')
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data', nullable=False)
+    default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN', nullable=False)
+    apn_list = Column(String(18), doc='Comma separated list of allowed APNs', nullable=False)
     msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
     ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
@@ -225,15 +225,6 @@ def Generate_JSON_Model_for_Flask(obj_type):
     obj_type_str = str(dictty['title']).lower()
     dictty['required'].remove(obj_type_str + '_id')
 
-    # #Add linked key references manually because the SchemaFactory doesn't see them
-    # if str(obj_type) == "<class 'database.SUBSCRIBER'>":
-    #     DBLogger.info("Matched type SUBSCRIBER so adding related keys")
-    #     dictty['properties']['auc_id'] = {'type': 'integer', 'description': str(SUBSCRIBER.auc_id.doc)}
-    #     dictty['required'].append('auc_id')
-    #     dictty['properties']['default_apn'] = {'type': 'integer', 'description': 'APN ID to use for the default APN'}
-    #     dictty['required'].append('default_apn')
-    # else:
-    #     DBLogger.info("Type: " + str(obj_type) + " is not listed type, not adding additional related keys")
 
     return dictty
 
