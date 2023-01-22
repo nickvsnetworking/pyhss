@@ -1030,9 +1030,6 @@ class Diameter:
                 DiameterLogger.error("Failed to get QoS information dynamically for sub " + str(imsi))
                 DiameterLogger.error(E)
 
-                #ToDo - Fix this so it sources from AVP
-                DiameterLogger.debug("Current QoS Information Value: " + str())
-                current_QoS_value = {'avp_code': 1041, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}, {'avp_code': 1040, 'avp_flags': '80', 'avp_length': 16, 'misc_data': '000028af009c4000', 'padding': 0, 'padded_data': ''}
                 QoS_Information = ''
                 for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
                     DiameterLogger.debug(AMBR_Part)

@@ -588,11 +588,18 @@ def Get_Charging_Rules(imsi, apn):
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
             DBLogger.debug("Matched named APN with APN ID")
-            #Get Charging Rules list
+
             DBLogger.debug("Getting charging rule list from " + str(apn_data['charging_rule_list']))
             ChargingRule = {}
             ChargingRule['charging_rule_list'] = str(apn_data['charging_rule_list']).split(',')
             ChargingRule['apn_data'] = apn_data
+
+            #Get Charging Rules list
+            if apn_data['charging_rule_list'] == None:
+                DBLogger.debug("No Charging Rule associated with this APN")
+                ChargingRule['charging_rules'] = None
+                return ChargingRule
+
             DBLogger.debug("ChargingRule['charging_rule_list'] is: " + str(ChargingRule['charging_rule_list']))
             #Empty dict for the Charging Rules to go into
             ChargingRule['charging_rules'] = []
