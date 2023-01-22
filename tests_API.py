@@ -238,7 +238,7 @@ class ChargingRule_Tests(unittest.TestCase):
         'gbr_ul' : 128000,
         'tft_group_id' : 1,
         'precedence' : 100,
-        'rating-group' : 4000
+        'rating_group' : 4000
         }
 
 
