@@ -60,7 +60,7 @@ And that’s it!
 
 So let’s create a rule that matches all traffic to our website hosted on 1.2.3.4 TCP port 443,
 
-```
+```shell
 permit out 6 from 1.2.3.4 443 to any 1-65535
 permit out 6 from any 1-65535 to 1.2.3.4 443
 ```
