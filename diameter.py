@@ -7,6 +7,7 @@ import binascii
 import math
 import uuid
 import os
+import ipaddress
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 
@@ -57,11 +58,7 @@ class Diameter:
             ip_hex = ip_hex + str(format(int(ip[3]), 'x').zfill(2))
         else:
             ip_hex = "0002"         #IPv6
-            for parts in ip.split(":"):
-                if parts == '':
-                    ip_hex += "00000000"    #If :: represent as full
-                else:
-                    ip_hex += str(parts).zfill(4)
+            ip_hex += format(ipaddress.IPv6Address(ip), 'X')
         #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
     #Converts a hex formatted IPv4 address or IPV6 address to dotted-decimal 
