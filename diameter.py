@@ -675,7 +675,7 @@ class Diameter:
             DiameterLogger.debug("Setting APN Configuration Profile")
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
-            APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
+            APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(int(apn_data['ip_version']), 4))
             
             DiameterLogger.debug("Setting APN AMBR")
             #AMBR
