@@ -46,7 +46,7 @@ class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
     apn = Column(String(50), nullable=False, doc='Short name of the APN')
-    ip_version = Column(Integer, default=4, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
     pgw_address = Column(String(50), doc='IP of the PGW')
     sgw_address = Column(String(50), doc='IP of the SGW')
     charging_characteristics = Column(String(4), default='0800', doc='For the encoding of this information element see 3GPP TS 32.298 [9]')
