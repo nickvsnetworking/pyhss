@@ -34,6 +34,9 @@ import os
 from construct import Default
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
+import requests
+import threading
+
 
 # Create database if it does not exist.
 if not database_exists(engine.url):
@@ -147,6 +150,22 @@ class IMSI_IMEI_HISTORY(Base):
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind = engine)
 session = Session()
+
+def GeoRed_Push_Request(remote_hss, json_data):
+    headers = {"Content-Type": "application/json"}
+    DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
+    try:
+        r = requests.patch(str(remote_hss) + '/geored', data=json.dumps(json_data), headers=headers)
+        DBLogger.debug("Updated on " + str(remote_hss))
+    except requests.exceptions.RequestException as E:  # This is the correct syntax
+        DBLogger.error("Failed to push data to remote PyHSS instance at " + str(remote_hss))
+        DBLogger.error(E)
+
+def GeoRed_Push_Async(json_data):
+    if yaml_config['geored']['enabled'] == True:
+        for remote_hss in yaml_config['geored']['sync_endpoints']:
+            GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
+            GeoRed_Push_thread.start()
 
 def Sanitize_Datetime(result):
     for keys in result:
@@ -435,7 +454,7 @@ def Update_AuC(auc_id, sqn=1):
     DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id))
     return
 
-def Update_Serving_MME(imsi, serving_mme):
+def Update_Serving_MME(imsi, serving_mme, propagate=True):
     DBLogger.debug("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
     result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
     if type(serving_mme) == str:
@@ -453,9 +472,23 @@ def Update_Serving_MME(imsi, serving_mme):
         DBLogger.error("Failed to commit session, error: " + str(E))
         session.rollback()
         raise ValueError(E)
+
+    #Sync state change with geored
+    if propagate == True:
+        try:
+            if 'HSS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+                DBLogger.debug("Propagate MME changes to Geographic PyHSS instances")
+                GeoRed_Push_Async({"imsi": str(imsi), "serving_mme": result.serving_mme})
+            else:
+                DBLogger.debug("Config does not allow sync of HSS events")
+        except Exception as E:
+            DBLogger.debug("Nothing synced to Geographic PyHSS instances for HSS event")
+            DBLogger.debug(E)
+
+
     return
 
-def Update_Serving_CSCF(imsi, serving_cscf):
+def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
     DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
     result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
     if type(serving_cscf) == str:
@@ -473,9 +506,22 @@ def Update_Serving_CSCF(imsi, serving_cscf):
         DBLogger.error("Failed to commit session, error: " + str(E))
         session.rollback()
         raise ValueError(E)
+
+
+    #Sync state change with geored
+    if propagate == True:
+        try:
+            if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+                DBLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
+                GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf})
+            else:
+                DBLogger.debug("Config does not allow sync of IMS events")
+        except Exception as E:
+            DBLogger.debug("Nothing synced to Geographic PyHSS instances for IMS event")
+
     return    
 
-def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
+def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate=True):
     DBLogger.debug("Called Update_Serving_APN()")
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
@@ -522,6 +568,23 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip):
                 DBLogger.info("Failed to update existing APN " + str(E))
                 #Update if does not exist
                 CreateObj(SERVING_APN, json_data)
+
+            #Sync state change with geored
+            if propagate == True:
+                try:
+                    if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+                        DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
+                        GeoRed_Push_Async({"imsi": str(imsi),
+                                        'pcrf_session_id': str(pcrf_session_id),
+                                        'serving_pgw': str(serving_pgw),
+                                        'ue_ip': str(ue_ip)
+                                        })
+                    else:
+                        DBLogger.debug("Config does not allow sync of PCRF events")
+                except Exception as E:
+                    DBLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
+
+
             return
 
 def Get_Serving_APN(subscriber_id, apn_id):
@@ -946,6 +1009,9 @@ if __name__ == "__main__":
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
+    #GeoRed_Push_Async({"imsi": "001001000000006", "serving_mme": "abc123"})
+    
+
     if DeleteAfter == True:
         #Delete IMS Subscriber
         print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
@@ -993,3 +1059,5 @@ if __name__ == "__main__":
 
     print("\n\n\n")
     print(Generate_JSON_Model_for_Flask(SUBSCRIBER))
+
+

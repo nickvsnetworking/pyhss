@@ -24,9 +24,9 @@ This uses the same RESTful API described in the API docs.
 The configuration is fairly simple;
 ```
 ## Geographic Redundancy Parameters
-geo:
-  enabled: True
-  sync_actions: ['HSS', 'IMS', 'PCRF']    #What actions should be synced
+geored:
+  enabled: False
+  sync_actions: ['HSS', 'IMS', 'PCRF']    #What event actions should be synced
   sync_endpoints:                         #List of PyHSS API Endpoints to update
     - 'http://hss01:8080'
     - 'http://hss02:8080'

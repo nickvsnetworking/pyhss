@@ -723,15 +723,13 @@ class PyHSS_Geored(Resource):
             response_data = []
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
-                response_data.append(database.Update_Serving_MME(str(json_data['imsi']), json_data['serving_mme']))
+                response_data.append(database.Update_Serving_MME(str(json_data['imsi']), json_data['serving_mme'], propagate=False))
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
-                db_response = database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['ue_ip'])
-                print(db_response)
-                response_data.append(db_response)
+                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['ue_ip'], propagate=False))
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
-                response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf']))
+                response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
