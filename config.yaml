@@ -67,6 +67,13 @@ database:
   password: password
   database: hss2
 
+## Geographic Redundancy Parameters
+geo:
+  enabled: False
+  sync_actions: ['HSS', 'IMS', 'PCRF']
+  sync_endpoints:
+    - ['http://hss01:8080']
+    - ['http://hss02:8080']
 
 ## Stats Parameters
 redis:
