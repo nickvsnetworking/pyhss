@@ -15,7 +15,7 @@ class API_Tests(unittest.TestCase):
 class APN_Tests(unittest.TestCase):
     apn_id = 0
     template_data = {
-        "apn": "UnitTest",
+        "apn": "UnitTest1",
         "pgw_address": "10.98.0.20",
         "sgw_address": "10.98.0.10",
         "charging_characteristics": "0800",
@@ -64,7 +64,7 @@ class AUC_Tests(unittest.TestCase):
     auc_id = 0
     template_data = {
     "ki": "fad51018f65affc04e6d56d699df3a76",
-    "opc": "fad51018f65affc04e6d56d699df3a76",
+    "opc": "44d51018f65affc04e6d56d699df3a76",
     "amf": "8000",
     "sqn": 99
     }
@@ -113,14 +113,14 @@ class Subscriber_Tests(unittest.TestCase):
 
     def test_A_create_AUC_for_Sub(self):
         headers = {"Content-Type": "application/json"}
-        r = requests.put(str(base_url) + '/auc', data=json.dumps({"ki": "fad51018f65affc04e6d56d699df3a76","opc": "fad51018f65affc04e6d56d699df3a76","amf": "8000","sqn": 99}), headers=headers)
+        r = requests.put(str(base_url) + '/auc', data=json.dumps({"ki": "23d51018f65affc04e6d56d699df3a76","opc": "fad51018f65affc04e6d56d699df3a76","amf": "8000","sqn": 99}), headers=headers)
         log.debug("Created AUC ID " + str(r.json()['auc_id']))
         self.__class__.template_data['auc_id'] = r.json()['auc_id']
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
     def test_A_create_APN_for_Sub(self):
         headers = {"Content-Type": "application/json"}
-        r = requests.put(str(base_url) + '/apn', data=json.dumps({"apn": "UnitTest", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
+        r = requests.put(str(base_url) + '/apn', data=json.dumps({"apn": "UnitTestSub1", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
         log.debug("Created APN ID " + str(r.json()['apn_id']))
         self.__class__.template_data['default_apn'] = r.json()['apn_id']
         self.__class__.template_data['apn_list'] = '1,2,' + str(r.json()['apn_id'])
@@ -128,12 +128,10 @@ class Subscriber_Tests(unittest.TestCase):
 
     def test_A_create_another_APN_for_Sub(self):
         headers = {"Content-Type": "application/json"}
-        r = requests.put(str(base_url) + '/apn', data=json.dumps({"apn": "UnitTest", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
+        r = requests.put(str(base_url) + '/apn', data=json.dumps({"apn": "UnitTestSub2", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
         log.debug("Created APN ID " + str(r.json()['apn_id']))
         self.__class__.apn_secondary = r.json()['apn_id']
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
-
-
 
     def test_B_create_Subscriber(self):
         log.debug(self.__class__.template_data)
@@ -168,6 +166,9 @@ class Subscriber_Tests(unittest.TestCase):
 
     def test_Z_Delete_Patched_Subscriber(self):
         r = requests.delete(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
+        r2 = requests.delete(str(base_url) + '/auc/' + str(self.__class__.template_data['auc_id']))
+        r3 = requests.delete(str(base_url) + '/apn/' + str(self.__class__.template_data['default_apn']))
+        r3 = requests.delete(str(base_url) + '/apn/' + str(int(self.__class__.template_data['default_apn'])+1))
         xres = {"Result": "OK"}
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
@@ -317,7 +318,6 @@ class ChargingRule_Tests(unittest.TestCase):
         patch_charging_rule_template['tft'].append(self.__class__.tft_template2)
         self.assertEqual(patch_charging_rule_template, r.json(), "JSON body should match input")
 
-
     def test_X_Delete_TFT2(self):
         r = requests.delete(str(base_url) + '/tft/' + str(self.__class__.tft_id))
         xres = {"Result": "OK"}
@@ -400,6 +400,226 @@ class EIR_Tests(unittest.TestCase):
     def test_Z_Get_All_EIR_Rules(self):
         r = requests.get(str(base_url) + '/oam/eir_rules')
         self.assertEqual(len(r.json()), 0, "JSON body should return 0")
+
+class GeoRed_MME(unittest.TestCase):
+    subscriber_id = 0
+    apn_secondary = 0
+    subscriber_template_data = {
+    "imsi": "001001000000020",
+    "enabled": True,
+    "msisdn": "123456789",
+    "ue_ambr_dl": 999999,
+    "ue_ambr_ul": 999999,
+    "nam": 0,
+    "subscribed_rau_tau_timer": 600,
+    }
+
+
+    def test_A_GeoRed_MME_create_AUC_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/auc', data=json.dumps({"ki": "1ad51018f65affc04e6d56d699df3a76","opc": "2ad51018f65affc04e6d56d699df3a76","amf": "8000","sqn": 99}), headers=headers)
+        log.debug("Created AUC ID " + str(r.json()['auc_id']))
+        self.__class__.subscriber_template_data['auc_id'] = r.json()['auc_id']
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_B_GeoRed_MME_create_APN_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/apn', data=json.dumps({"apn": "GeoRedTest", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
+        log.debug("Created APN ID " + str(r.json()['apn_id']))
+        self.__class__.apn_id = r.json()['apn_id']
+        self.__class__.subscriber_template_data['default_apn'] = r.json()['apn_id']
+        self.__class__.subscriber_template_data['apn_list'] = str(r.json()['apn_id'])
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_C_GeoRed_MME_create_Subscriber(self):
+        log.debug(self.__class__.subscriber_template_data)
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/subscriber', data=json.dumps(self.__class__.subscriber_template_data), headers=headers)
+        self.__class__.subscriber_id = r.json()['subscriber_id']
+        log.debug("Created Subscriber ID " + str(self.__class__.subscriber_id))
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_D_GeoRed_MME_Get_Subscriber(self):
+        r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
+        #Add Subscriber ID into Template for Validating
+        self.__class__.subscriber_template_data['subscriber_id'] = self.__class__.subscriber_id
+        self.__class__.subscriber_template_data['serving_mme'] = None
+        self.__class__.subscriber_template_data['serving_mme_timestamp'] = None
+        self.assertEqual(self.__class__.subscriber_template_data, r.json(), "JSON body should match input")
+
+    def test_G_1_GeoRed_MME_Update_MME_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.patch(str(base_url) + '/geored', data=json.dumps({
+            "imsi": str(self.__class__.subscriber_template_data['imsi']),
+            "serving_mme": "test1234"
+        }), headers=headers)
+        log.debug("Updated Subscriber with GeoRed")
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_G_2_GeoRed_MME_Get_Subscriber(self):
+        r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
+        #Add Subscriber ID into Template for Validating
+        self.__class__.subscriber_template_data['subscriber_id'] = self.__class__.subscriber_id
+        self.__class__.subscriber_template_data['serving_mme'] = "test1234"
+        response_json = r.json()
+        response_json['serving_mme_timestamp'] = self.__class__.subscriber_template_data['serving_mme_timestamp']
+        self.assertEqual(self.__class__.subscriber_template_data, response_json, "JSON body should match input")
+
+    def test_G_3_GeoRed_MME_Clear_MME_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.patch(str(base_url) + '/geored', data=json.dumps({
+            "imsi": str(self.__class__.subscriber_template_data['imsi']),
+            "serving_mme": None
+        }), headers=headers)
+        log.debug("Updated Subscriber with GeoRed")
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_G_4_GeoRed_MME_Get_Subscriber_Cleared_MME(self):
+        r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
+        #Add Subscriber ID into Template for Validating
+        self.__class__.subscriber_template_data['serving_mme'] = None
+        self.__class__.subscriber_template_data['serving_mme_timestamp'] = None
+        self.assertEqual(self.__class__.subscriber_template_data, r.json(), "JSON body should match input")
+
+    def test_Z_GeoRed_MME_Delete_Patched_Subscriber(self):
+        r = requests.delete(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
+        r2 = requests.delete(str(base_url) + '/auc/' + str(self.__class__.subscriber_template_data['auc_id']))
+        r3 = requests.delete(str(base_url) + '/apn/' + str(self.__class__.subscriber_template_data['default_apn']))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
+
+class GeoRed_PCRF(unittest.TestCase):
+    subscriber_id = 0
+    apn_secondary = 0
+    subscriber_template_data = {
+    "imsi": "001001000000020",
+    "enabled": True,
+    "msisdn": "123456789",
+    "ue_ambr_dl": 999999,
+    "ue_ambr_ul": 999999,
+    "nam": 0,
+    "subscribed_rau_tau_timer": 600,
+    }
+
+    def test_A_GeoRed_PCRF_create_AUC_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/auc', data=json.dumps({"ki": "55d51018f65affc04e6d56d699df3a76","opc": "2ad51018f65affc04e6d56d699df3a76","amf": "8000","sqn": 99}), headers=headers)
+        log.debug("Created AUC ID " + str(r.json()['auc_id']))
+        self.__class__.subscriber_template_data['auc_id'] = r.json()['auc_id']
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_B_GeoRed_PCRF_create_APN_for_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/apn', data=json.dumps({"apn": "GeoRedTestPCRF", "pgw_address": "10.98.0.20", "sgw_address": "10.98.0.10", "charging_characteristics": "0800", "apn_ambr_dl": 99999, "apn_ambr_ul": 99999, "qci": 7, "arp_priority": 1, "arp_preemption_capability": True, "arp_preemption_vulnerability": True}), headers=headers)
+        log.debug("Created APN ID " + str(r.json()['apn_id']))
+        self.__class__.apn_id = r.json()['apn_id']
+        self.__class__.subscriber_template_data['default_apn'] = r.json()['apn_id']
+        self.__class__.subscriber_template_data['apn_list'] = str(r.json()['apn_id'])
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_C_GeoRed_PCRF_create_Subscriber(self):
+        log.debug(self.__class__.subscriber_template_data)
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/subscriber', data=json.dumps(self.__class__.subscriber_template_data), headers=headers)
+        self.__class__.subscriber_id = r.json()['subscriber_id']
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_G_1_GeoRed_Update_PCRF_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.patch(str(base_url) + '/geored', data=json.dumps({
+            "imsi": str(self.__class__.subscriber_template_data['imsi']),
+            "serving_apn": "GeoRedTestPCRF",
+            "pcrf_session_id": "sdfjkakjs",
+            "ue_ip": "1.2.3.4",
+            "serving_pgw": "pgwtestGeored",
+        }), headers=headers)
+        log.debug("Updated PCRF with GeoRed")
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_G_4_GeoRed_Clear_PCRF_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.patch(str(base_url) + '/geored', data=json.dumps({
+            "imsi": str(self.__class__.subscriber_template_data['imsi']),
+            "serving_apn": "GeoRedTestPCRF",
+            "pcrf_session_id": "sdfjkakjs",
+            "ue_ip": "1.2.3.4",
+            "serving_pgw": None,
+        }), headers=headers)
+        log.debug("Cleared PCRF with GeoRed")
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_Z_GeoRed_PCRF_Delete_Patched_Subscriber(self):
+        r = requests.delete(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
+        r2 = requests.delete(str(base_url) + '/auc/' + str(self.__class__.subscriber_template_data['auc_id']))
+        r3 = requests.delete(str(base_url) + '/apn/' + str(self.__class__.subscriber_template_data['default_apn']))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
+
+
+class GeoRed_IMS(unittest.TestCase):
+    ims_subscriber_id = 0
+    ims_template_data = {
+        "msisdn": "5231231",
+        "msisdn_list": "5231231",
+        "imsi": "5231231",
+        "ifc_path": "fdasfd.xml",
+        "sh_profile": "fdasfd.xml",
+    }
+
+    def test_A_GeoRed_IMS_create_IMS_Subscriber(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(str(base_url) + '/ims_subscriber', data=json.dumps(self.__class__.ims_template_data), headers=headers)
+        self.__class__.ims_subscriber_id = r.json()['ims_subscriber_id']
+        log.debug("Created ims_subscriber_id " + str(self.__class__.ims_subscriber_id))
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_B_GeoRed_IMS_Get_IMS_Subscriber(self):
+        r = requests.get(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        #Add IMS_Subscriber ID into Template for Validating
+        self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
+        self.__class__.ims_template_data['scscf'] = None
+        self.__class__.ims_template_data['scscf_timestamp'] = None
+        self.assertEqual(self.__class__.ims_template_data, r.json(), "JSON body should match input")
+
+    def test_C_GeoRed_IMS_Update_SCSCF_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.patch(str(base_url) + '/geored', data=json.dumps({
+            "imsi": str(self.__class__.ims_template_data['imsi']),
+            "scscf": "test1234"
+        }), headers=headers)
+        log.debug("Updated Subscriber with GeoRed")
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_G_2_GeoRed_IMS_Get_Subscriber(self):
+        r = requests.get(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        #Add Subscriber ID into Template for Validating
+        self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
+        self.__class__.ims_template_data['scscf'] = "test1234"
+        response_json = r.json()
+        response_json['scscf_timestamp'] = self.__class__.ims_template_data['scscf_timestamp']
+        self.assertEqual(self.__class__.ims_template_data, response_json, "JSON body should match input")
+
+    def test_G_3_GeoRed_IMS_Clear_SCCSF_Sub(self):
+        headers = {"Content-Type": "application/json"}
+        r = requests.patch(str(base_url) + '/geored', data=json.dumps({
+            "imsi": str(self.__class__.ims_template_data['imsi']),
+            "scscf": None
+        }), headers=headers)
+        log.debug("Updated Subscriber with GeoRed")
+        self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
+
+    def test_G_4_GeoRed_IMS_Get_Subscriber_Cleared_SCSF(self):
+        r = requests.get(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        #Add Subscriber ID into Template for Validating
+        self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
+        self.__class__.ims_template_data['scscf'] = None
+        self.__class__.ims_template_data['scscf_timestamp'] = None
+        self.assertEqual(self.__class__.ims_template_data, r.json(), "JSON body should match input")
+
+    def test_W_GeoRed_IMS_Delete_IMS_Subscriber(self):
+        r = requests.delete(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
+        xres = {"Result": "OK"}
+        self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
 
 if __name__ == '__main__':

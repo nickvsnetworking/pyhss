@@ -67,6 +67,13 @@ database:
   password: password
   database: hss2
 
+## Geographic Redundancy Parameters
+geored:
+  enabled: False
+  sync_actions: ['HSS', 'IMS', 'PCRF']    #What event actions should be synced
+  sync_endpoints:                         #List of PyHSS API Endpoints to update
+    - 'http://hss01:8080'
+    - 'http://hss02:8080'
 
 ## Stats Parameters
 redis:

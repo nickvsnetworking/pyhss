@@ -47,6 +47,7 @@ ns_imsi_imei = api.namespace('imsi_imei', description='PyHSS IMSI / IMEI Mapping
 
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
 ns_pcrf = api.namespace('PCRF', description='PyHSS PCRF Dynamic Functions')
+ns_geored = api.namespace('geored', description='PyHSS GeoRedundancy Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -79,12 +80,26 @@ IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON',
     database.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
 )
 
-
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
     'charging_rule_list' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
+
+print(database.Generate_JSON_Model_for_Flask(SUBSCRIBER)['properties']['serving_mme_timestamp'])
+
+GeoRed_model = api.model('GeoRed', {
+    'imsi': fields.String(required=True, description='IMSI of Subscriber to Update'),
+    'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.description),
+    'serving_apn' : fields.String(description='Access Point Name of APN'),
+    'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.description),
+    'ue_ip' : fields.String(description=Serving_APN.ue_ip.description),
+    'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.description),
+    'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.description),
+    'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.description),
+})
+
+
 
 @ns_apn.route('/<string:apn_id>')
 class PyHSS_APN_Get(Resource):
@@ -342,8 +357,8 @@ class PyHSS_TFT_Get(Resource):
 
 @ns_tft.route('/')
 class PyHSS_TFT(Resource):
-    @ns_ims_subscriber.doc('Create TFT Object')
-    @ns_ims_subscriber.expect(TFT_model)
+    @ns_tft.doc('Create TFT Object')
+    @ns_tft.expect(TFT_model)
     def put(self):
         '''Create new TFT'''
         try:
@@ -529,18 +544,29 @@ class PyHSS_EIR_Rules(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_oam.route('/eir_rules/<string:attribute>')
+@ns_oam.route('/eir_history/<string:attribute>')
 class PyHSS_OAM_Subscriber(Resource):
     def get(self, attribute):
         '''Get history for IMSI or IMEI'''
         try:
-            data = database. Get_IMEI_IMSI_History(attribute=attribute)
+            data = database.Get_IMEI_IMSI_History(attribute=attribute)
             return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+    def delete(self, attribute):
+        '''Get Delete for IMSI or IMEI'''
+        try:
+            data = database.Get_IMEI_IMSI_History(attribute=attribute)
+            for record in data:
+                database.DeleteObj(IMSI_IMEI_HISTORY, record['imsi_imei_history_id'])
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
 
 @ns_oam.route('/subscriber/<string:imsi>')
 class PyHSS_OAM_Subscriber(Resource):
@@ -578,6 +604,63 @@ class PyHSS_OAM_Get_IMS_Subscriber(Resource):
             print("Flask Exception: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
+
+@ns_oam.route('/ims_subscriber_imsi/<string:imsi>')
+class PyHSS_OAM_Get_IMS_Subscriber(Resource):
+    def get(self, imsi):
+        '''Get IMS data for imsi'''
+        try:
+            data = database.Get_IMS_Subscriber(imsi=imsi)
+            print("Got back: " + str(data))
+            return data, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
+@ns_oam.route('/pcrf_subscriber_msisdn/<string:imsi>/<string:apn>')
+class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
+    def get(self, imsi, apn):
+        '''Get IMS data for MSISDN'''
+        try:
+            #ToDo - Move the mapping an APN name to an APN ID for a sub into the Database functions
+
+            #Resolve Subscriber ID
+            subscriber_data = database.Get_Subscriber(imsi=str(imsi))
+            print("subscriber_data: " + str(subscriber_data))
+
+            #Split the APN list into a list
+            apn_list = subscriber_data['apn_list'].split(',')
+            print("Current APN List: " + str(apn_list))
+            #Remove the default APN from the list
+            try:
+                apn_list.remove(str(subscriber_data['default_apn']))
+            except:
+                print("Failed to remove default APN (" + str(subscriber_data['default_apn']) + " from APN List")
+                pass
+            #Add default APN in first position
+            apn_list.insert(0, str(subscriber_data['default_apn']))
+
+            #Get APN ID from APN
+            for apn_id in apn_list:
+                print("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
+                #Get each APN in List
+                apn_data = database.Get_APN(apn_id)
+                print(apn_data)
+                if str(apn_data['apn']).lower() == str(apn).lower():
+                    print("Matched named APN with APN ID")
+                    apn_id_final = apn_data['apn_id']
+
+            data = database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=apn_id_final)
+            data = database.Sanitize_Datetime(data)
+            print("Got back: " + str(data))
+            return data, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 
 @ns_pcrf.route('/')
 class PyHSS_PCRF(Resource):
@@ -624,6 +707,33 @@ class PyHSS_OAM_Subscriber(Resource):
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
+@ns_geored.route('/')
+class PyHSS_Geored(Resource):
+    @ns_geored.doc('Create ChargingRule Object')
+    @ns_geored.expect(GeoRed_model)
+    def patch(self):
+        '''Get Geored data Pushed'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            #Determine what actions to take / update based on keys returned
+            response_data = []
+            if 'serving_mme' in json_data:
+                print("Updating serving MME")
+                response_data.append(database.Update_Serving_MME(str(json_data['imsi']), json_data['serving_mme'], propagate=False))
+            if 'serving_apn' in json_data:
+                print("Updating serving APN")
+                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['ue_ip'], propagate=False))
+            if 'scscf' in json_data:
+                print("Updating serving SCSCF")
+                response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))
+            return response_data, 200
+        except Exception as E:
+            print("Exception when updating: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : str(E), 'Partial Response Data' : str(response_data)}
             return response_json, 500
 
 
