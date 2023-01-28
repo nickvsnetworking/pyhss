@@ -99,7 +99,10 @@ GeoRed_model = api.model('GeoRed', {
     'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.description),
 })
 
-
+@app.after_request
+def apply_caching(response):
+    response.headers["HSS"] = str(yaml_config['hss']['OriginHost'])
+    return response
 
 @ns_apn.route('/<string:apn_id>')
 class PyHSS_APN_Get(Resource):
