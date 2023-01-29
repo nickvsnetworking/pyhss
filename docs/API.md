@@ -1,4 +1,4 @@
-# PyHSS - API Service
+# API Service
 
 A Flask-Restx based API service is available for all CRUD operations on the database.
 
