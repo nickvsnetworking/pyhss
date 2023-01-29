@@ -1258,7 +1258,7 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000MAA000c01000000")            #Vendor-Specific-Application-ID for Cx
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
