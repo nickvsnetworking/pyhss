@@ -17,7 +17,7 @@ with open("config.yaml", 'r') as stream:
 #engine = create_engine('sqlite:///sales.db', echo = True)
 db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
 print(db_string)
-engine = create_engine(db_string, echo = True)
+engine = create_engine(db_string, echo = True, pool_recycle=5)
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
@@ -40,10 +40,10 @@ import threading
 
 # Create database if it does not exist.
 if not database_exists(engine.url):
+    DBLogger.debug("Creating database")
     create_database(engine.url)
 else:
-    # Connect the database if exists.
-    engine.connect()
+    DBLogger.debug("Database already created")
 
 class APN(Base):
     __tablename__ = 'apn'
