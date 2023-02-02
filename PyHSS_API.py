@@ -721,7 +721,7 @@ class PyHSS_Geored(Resource):
         '''Get Geored data Pushed'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
+            print("JSON Data sent in Geored request: " + str(json_data))
             #Determine what actions to take / update based on keys returned
             response_data = []
             if 'serving_mme' in json_data:
