@@ -136,8 +136,8 @@ To begin with we'll define the two TFTs we used earlier, via the API, and group 
         'direction' : 2
     }
     print("Creating TFTs")
-    r = requests.put(str(base_url) + '/tft', data=json.dumps(tft_template1), headers=headers)
-    r = requests.put(str(base_url) + '/tft', data=json.dumps(tft_template2), headers=headers)    
+    r = requests.put(str(base_url) + '/tft/', data=json.dumps(tft_template1), headers=headers)
+    r = requests.put(str(base_url) + '/tft/', data=json.dumps(tft_template2), headers=headers)    
 ```
 
 ### Define Charging Rule
@@ -163,7 +163,7 @@ We'll also need to specify the `tft_group_id` as this will reference
         'rating_group' : 20000
         }
     print("Creating Charging Rule A")
-    r = requests.put(str(base_url) + '/charging_rule', data=json.dumps(charging_rule_template), headers=headers)
+    r = requests.put(str(base_url) + '/charging_rule/', data=json.dumps(charging_rule_template), headers=headers)
     print("Created Charging Rule ID: " + str(r.json()['charging_rule_id']))
 ```
 
@@ -185,7 +185,7 @@ Now we've created the Charging Rule, we can just add it to the charging_rule_lis
         "charging_rule_list" : '10',
         }
 
-    r = requests.put(str(base_url) + '/apn', data=json.dumps(template_data), headers=headers)
+    r = requests.put(str(base_url) + '/apn/', data=json.dumps(template_data), headers=headers)
 ```
 
 In the `charging_rule_list` object wen can add additional comma separated Charging Rule IDs for other defined Charging Rules. (Setting the value to None will result in no Charging Rules being installed in the Credit Control Answer)
