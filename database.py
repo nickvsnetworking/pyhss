@@ -37,14 +37,6 @@ import S6a_crypt
 import requests
 import threading
 
-
-# Create database if it does not exist.
-if not database_exists(engine.url):
-    DBLogger.debug("Creating database")
-    create_database(engine.url)
-else:
-    DBLogger.debug("Database already created")
-
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -147,6 +139,15 @@ class IMSI_IMEI_HISTORY(Base):
     match_response_code = Column(Integer, doc='Response code that was returned')
     imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
 
+# Create database if it does not exist.
+if not database_exists(engine.url):
+    DBLogger.debug("Creating database")
+    create_database(engine.url)
+    Base.metadata.create_all(engine)
+else:
+    DBLogger.debug("Database already created")
+    
+    
 def GeoRed_Push_Request(remote_hss, json_data):
     headers = {"Content-Type": "application/json"}
     DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
