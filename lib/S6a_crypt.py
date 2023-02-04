@@ -111,7 +111,7 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
     # print("xres: " + str(xres))
     # print("ck: " + str(ck))
     # print("ik: " + str(ik))
-    return (SIP_Authenticate, xres, ck, ik)
+    return (rand, autn, xres, ck, ik)
 
 
 def generate_resync_s6a(key, op_c, amf, auts, rand):

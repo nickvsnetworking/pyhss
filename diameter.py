@@ -831,7 +831,7 @@ class Diameter:
                         #rand = subscriber_details['RAND']
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
-                        database.Get_Vectors_AuC(subscriber_details['auc_id'], "air_resync", auts=auts, rand=rand)
+                        database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
 
                     #Get number of requested vectors
                     if sub_avp['avp_code'] == 1410:
@@ -1279,27 +1279,43 @@ class Diameter:
         
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
+
+        #Determine if SQN Resync is required
+        DiameterLogger.critical("Number of items in AVP 612: " + str(len(self.get_avp_data(avps, 612)[0])))
+        DiameterLogger.critical(str(self.get_avp_data(avps, 612)[0]))
+        for sub_avp_612 in self.get_avp_data(avps, 612)[0]:
+            DiameterLogger.debug(sub_avp_612)
+            if sub_avp_612['avp_code'] == 610:
+                DiameterLogger.info("SQN in HSS is out of sync - Performing resync")
+                auts = sub_avp_612['misc_data']
+                rand = bytearray(b'Y\x03{\xaf4\x91t\x9a\xe2\xb8\xa9\xcaL\xb2Pi')
+                database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                DiameterLogger.debug("Resynced SQN in DB")
+
+
         vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
         
         DiameterLogger.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi + "@" + domain)),'ascii'))                                    #Username
         
-        #diameter.3GPP-SIP-Auth-Data-Items
-        ##AVP Code: 613 3GPP-SIP-Item-Number
+        #diameter.3GPP-SIP-Auth-Data-Items:
+
+        #AVP Code: 613 3GPP-SIP-Item-Number
         avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
-        ##AVP Code: 608 3GPP-SIP-Authentication-Scheme
+        #AVP Code: 608 3GPP-SIP-Authentication-Scheme
         avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
-        ##AVP Code: 609 3GPP-SIP-Authenticate
+
+        #AVP Code: 609 3GPP-SIP-Authenticate
         avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(vector_dict['SIP_Authenticate']),'ascii'))   #RAND + AUTN
         
-        ##AVP Code: 610 3GPP-SIP-Authorization
+        #AVP Code: 610 3GPP-SIP-Authorization
         avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(vector_dict['xres']),'ascii'))  #XRES
         
-        ##AVP Code: 625 Confidentiality-Key
+        #AVP Code: 625 Confidentiality-Key
         avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(vector_dict['ck']),'ascii'))  #CK
         
-        ##AVP Code: 626 Integrity-Key
+        #AVP Code: 626 Integrity-Key
         avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(vector_dict['ik']),'ascii'))          #IK
 
         auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
@@ -2053,7 +2069,8 @@ class Diameter:
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + str(imsi) + "@" + domain))                      #Public-Identity
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
                                                                                                          #3GPP-SIP-Number-Auth-Data-Item
-        avp += self.generate_vendor_avp(612, "c0", 10415, "00000260c000001c000028af4469676573742d414b4176312d4d4435")
+        
+        avp += self.generate_vendor_avp(612, "c0", 10415, "00000260c0000013000028af756e6b6e6f776e0000000262c000002a000028af02e3fe1064bea4dd52602bef1c80a34ededbeb4ccabfa0430f4ffd5f1d8c0000")
         avp += self.generate_vendor_avp(602, "c0", 10415, self.ProductName)                         #Server-Name
         response = self.generate_diameter_packet("01", "c0", 303, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response

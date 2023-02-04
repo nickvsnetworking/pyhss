@@ -37,14 +37,6 @@ import S6a_crypt
 import requests
 import threading
 
-
-# Create database if it does not exist.
-if not database_exists(engine.url):
-    DBLogger.debug("Creating database")
-    create_database(engine.url)
-else:
-    DBLogger.debug("Database already created")
-
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -146,6 +138,16 @@ class IMSI_IMEI_HISTORY(Base):
     imsi_imei = Column(String(60), unique=True, doc='Combined IMSI + IMEI value')
     match_response_code = Column(Integer, doc='Response code that was returned')
     imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
+
+
+# Create database if it does not exist.
+if not database_exists(engine.url):
+    DBLogger.debug("Creating database")
+    create_database(engine.url)
+    Base.metadata.create_all(engine)
+else:
+    DBLogger.debug("Database already created")
+
 
 def GeoRed_Push_Request(remote_hss, json_data):
     headers = {"Content-Type": "application/json"}
@@ -464,7 +466,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
 
         return vector_dict
 
-    elif action == "air_resync":
+    elif action == "sqn_resync":
         DBLogger.debug("Resync SQN")
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
         DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
@@ -472,8 +474,10 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         return
     
     elif action == "sip_auth":
-        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
-        vector_dict['SIP_Authenticate'] = SIP_Authenticate
+        rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+        DBLogger.debug("RAND is: " + str(rand))
+        DBLogger.debug("AUTN is: " + str(autn))
+        vector_dict['SIP_Authenticate'] = str(rand + autn)
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
