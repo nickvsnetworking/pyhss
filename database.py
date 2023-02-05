@@ -140,7 +140,6 @@ class IMSI_IMEI_HISTORY(Base):
     match_response_code = Column(Integer, doc='Response code that was returned')
     imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
 
-
 # Create database if it does not exist.
 if not database_exists(engine.url):
     DBLogger.debug("Creating database")
