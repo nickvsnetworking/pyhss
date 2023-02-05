@@ -72,7 +72,6 @@ class AUC(Base):
     opc = Column(String(32), doc='SIM Key - Network Operators key OPc')
     amf = Column(String(4), doc='Authentication Management Field')
     sqn = Column(BigInteger, doc='Authentication sequence number')
-    rand = Column(String(32), doc='Last allocated RAND')
 
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
@@ -470,18 +469,13 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
 
     elif action == "sqn_resync":
         DBLogger.debug("Resync SQN")
-        if 'rand' in kwargs:
-            DBLogger.debug("RAND provided as argument - Not sourcing from DB")
-            rand = kwargs['rand']
-        else:
-            DBLogger.debug("Using RAND from Database")
-            rand = key_data['rand'].encode("utf-8")
+        rand = kwargs['rand']
         DBLogger.debug("Resync called with inputs: ")
-        DBLogger.debug("\t Ki: " + str(key_data['ki']))
-        DBLogger.debug("\t opc: " + str(key_data['opc']))
-        DBLogger.debug("\t auts: " + str(kwargs['auts']))
-        DBLogger.debug("\t rand: " + str(rand))
-        DBLogger.debug("\t amf: " + str(key_data['amf']))
+        DBLogger.debug("\t Ki: " + str(key_data['ki']) + " type " + str(type(key_data['ki'])))
+        DBLogger.debug("\t opc: " + str(key_data['opc']) + " type " + str(type(key_data['opc'])))
+        DBLogger.debug("\t auts: " + str(kwargs['auts']) + " type " + str(type(kwargs['auts'])))
+        DBLogger.debug("\t rand: " + str(rand) + " type " + str(type(rand)))
+        DBLogger.debug("\t amf: " + str(key_data['amf']) + " type " + str(type(key_data['amf'])))
         
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
         DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
@@ -962,7 +956,6 @@ if __name__ == "__main__":
     import binascii,os,pprint
     DeleteAfter = True
 
-
     #Define Charging Rule
     charging_rule = {
         'rule_name' : 'charging_rule_A',
@@ -1067,6 +1060,10 @@ if __name__ == "__main__":
     print("Generating Vectors")
     Get_Vectors_AuC(auc_id, "air", plmn='12ff')
     print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
+
+
+    #Update AuC
+    Update_AuC(auc_id, rand='59037baf3491749ae2b8a9ca4cb25069', sqn=100)
 
     #New Subscriber
     subscriber_json = {
