@@ -479,8 +479,8 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         DBLogger.debug("Resync called with inputs: ")
         DBLogger.debug("\t Ki: " + str(key_data['ki']))
         DBLogger.debug("\t opc: " + str(key_data['opc']))
-        DBLogger.debug("\t auts: " + str(key_data['auts']))
-        DBLogger.debug("\t rand: " + str(key_data['rand']))
+        DBLogger.debug("\t auts: " + str(kwargs['auts']))
+        DBLogger.debug("\t rand: " + str(rand))
         DBLogger.debug("\t amf: " + str(key_data['amf']))
         
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
