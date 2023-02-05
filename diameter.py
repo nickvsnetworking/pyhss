@@ -828,7 +828,6 @@ class Diameter:
                         logtool.RedisIncrimenter('S6a_resync_count')
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
-                        #rand = subscriber_details['RAND']
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
                         database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
@@ -1287,8 +1286,9 @@ class Diameter:
             DiameterLogger.debug(sub_avp_612)
             if sub_avp_612['avp_code'] == 610:
                 DiameterLogger.info("SQN in HSS is out of sync - Performing resync")
-                auts = sub_avp_612['misc_data']
-                database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts)
+                auts = str(sub_avp_612['misc_data'])[32:]
+                rand = str(sub_avp_612['misc_data'])[:32]
+                database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
                 DiameterLogger.debug("Resynced SQN in DB")
 
 
