@@ -117,23 +117,24 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
 def generate_resync_s6a(key, op_c, amf, auts, rand):
     CryptoLogger.debug("Generating correct SQN value from AUTS")
 
+    CryptoLogger.debug("\tInput RAND: " + str(rand))
+
     key = key.encode('utf-8')
-    CryptoLogger.debug("Input K:  " + str(key))
+    CryptoLogger.debug("\tInput K:  " + str(key))
     key = binascii.unhexlify(key)
     
     op_c = op_c.encode('utf-8')
+    CryptoLogger.debug("\tInput OPc:  " + str(op_c))
     op_c = binascii.unhexlify(op_c)
 
     auts = auts.encode('utf-8')
-    CryptoLogger.debug("Input AUTS: " + str(auts))
+    CryptoLogger.debug("\tInput AUTS: " + str(auts))
     auts = binascii.unhexlify(auts)
 
     amf = str(amf)
     amf = amf.encode('utf-8')
     amf = binascii.unhexlify(amf)
-    CryptoLogger.debug("Input AMF: " + str(amf))
-
-    #print("Output OPc: " + str(binascii.hexlify(op_c).decode('utf-8')))
+    CryptoLogger.debug("\tInput AMF: " + str(amf))
 
     #Generate Resync
     crypto_obj = Milenage(amf)
