@@ -1288,8 +1288,7 @@ class Diameter:
             if sub_avp_612['avp_code'] == 610:
                 DiameterLogger.info("SQN in HSS is out of sync - Performing resync")
                 auts = sub_avp_612['misc_data']
-                rand = bytearray(b'Y\x03{\xaf4\x91t\x9a\xe2\xb8\xa9\xcaL\xb2Pi')
-                database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts)
                 DiameterLogger.debug("Resynced SQN in DB")
 
 

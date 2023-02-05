@@ -1,5 +1,5 @@
 import sys
-from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime
+from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger
 from sqlalchemy import create_engine
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +8,7 @@ import datetime
 import re
 import os
 import sys
+import binascii
 sys.path.append(os.path.realpath('lib'))
 
 import yaml
@@ -70,7 +71,8 @@ class AUC(Base):
     ki = Column(String(32), doc='SIM Key - Authentication Key - Ki')
     opc = Column(String(32), doc='SIM Key - Network Operators key OPc')
     amf = Column(String(4), doc='Authentication Management Field')
-    sqn = Column(Integer, doc='Authentication sequence number')
+    sqn = Column(BigInteger, doc='Authentication sequence number')
+    rand = Column(String(32), doc='Last allocated RAND')
 
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
@@ -462,15 +464,21 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['kasme'] = kasme
 
         #Incriment SQN
-        Update_AuC(auc_id, sqn=key_data['sqn']+100)
+        Update_AuC(auc_id, rand=rand, sqn=key_data['sqn']+100)
 
         return vector_dict
 
     elif action == "sqn_resync":
         DBLogger.debug("Resync SQN")
-        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
+        if 'rand' in kwargs:
+            DBLogger.debug("RAND provided as argument - Not sourcing from DB")
+            rand = kwargs['rand']
+        else:
+            DBLogger.debug("Using RAND from Database")
+            rand = key_data['rand'].encode("utf-8")
+        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
         DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
-        Update_AuC(auc_id, sqn=sqn+100)
+        Update_AuC(auc_id, rand=rand, sqn=sqn+100)
         return
     
     elif action == "sip_auth":
@@ -481,7 +489,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
-        Update_AuC(auc_id, sqn=key_data['sqn']+100)
+        Update_AuC(auc_id, rand=rand, sqn=key_data['sqn']+100)
         return vector_dict
 
 def Get_APN(apn_id):
@@ -527,9 +535,14 @@ def Get_APN_by_Name(apn):
     session.close()
     return result 
 
-def Update_AuC(auc_id, sqn=1):
-    DBLogger.debug("Incrementing SQN for sub " + str(auc_id))
-    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id))
+def Update_AuC(auc_id, rand, sqn=1):
+    DBLogger.debug("Updating AuC record for sub " + str(auc_id))
+    DBLogger.debug("Updating RAND to: " + str(rand) + " with type " + str(type(rand)))
+    DBLogger.debug("Updating SQN to: " + str(sqn))
+    if type(rand) == bytearray:
+        DBLogger.debug("Converting RAND to Byte Array")
+        rand = binascii.hexlify(bytearray(rand)).decode("utf-8")
+    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn, 'rand' : rand}, auc_id))
     return
 
 def Update_Serving_MME(imsi, serving_mme, propagate=True):
@@ -1130,6 +1143,15 @@ if __name__ == "__main__":
     #Clear MME Location for Subscriber    
     print("Clear MME Location for Subscriber")
     Update_Serving_MME(newObj['imsi'], None)
+
+    #Generate Vectors for IMS Subscriber
+    print("Generating Vectors for IMS Subscriber")
+    print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
+
+    print("Generating Resync for IMS Subscriber")
+    print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='59037baf3491749ae2b8a9ca4cb25069d1ada16d062308371dd3d4838426'))
+    
+
 
     #Test getting APNs
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
