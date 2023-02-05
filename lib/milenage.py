@@ -82,7 +82,6 @@ class Milenage(BaseLTEAuthAlgo):
         CryptoLogger.debug("Successfully ran milenage.generate_eutran_vector")
         return rand, xres, autn, kasme
 
-
     def generate_maa_vector(self, key, opc, sqn, plmn):
         """
         Generate the E-EUTRAN key vector.
@@ -134,7 +133,6 @@ class Milenage(BaseLTEAuthAlgo):
         autn = Milenage.generate_autn(sqn_bytes, ak, mac_a, self.amf)
 
         return rand, xres, autn, ck, ik
-
 
     def generate_auts(self, key, opc, rand, sqn):
         """

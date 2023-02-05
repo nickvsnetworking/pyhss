@@ -1,5 +1,5 @@
 import sys
-from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime
+from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger
 from sqlalchemy import create_engine
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +8,7 @@ import datetime
 import re
 import os
 import sys
+import binascii
 sys.path.append(os.path.realpath('lib'))
 
 import yaml
@@ -70,7 +71,7 @@ class AUC(Base):
     ki = Column(String(32), doc='SIM Key - Authentication Key - Ki')
     opc = Column(String(32), doc='SIM Key - Network Operators key OPc')
     amf = Column(String(4), doc='Authentication Management Field')
-    sqn = Column(Integer, doc='Authentication sequence number')
+    sqn = Column(BigInteger, doc='Authentication sequence number')
 
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
@@ -146,8 +147,8 @@ if not database_exists(engine.url):
     Base.metadata.create_all(engine)
 else:
     DBLogger.debug("Database already created")
-    
-    
+
+
 def GeoRed_Push_Request(remote_hss, json_data):
     headers = {"Content-Type": "application/json"}
     DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
@@ -465,16 +466,19 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
 
         return vector_dict
 
-    elif action == "air_resync":
+    elif action == "sqn_resync":
         DBLogger.debug("Resync SQN")
-        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], kwargs['rand'])
+        rand = kwargs['rand']       
+        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
         DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
         Update_AuC(auc_id, sqn=sqn+100)
         return
     
     elif action == "sip_auth":
-        SIP_Authenticate, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
-        vector_dict['SIP_Authenticate'] = SIP_Authenticate
+        rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+        DBLogger.debug("RAND is: " + str(rand))
+        DBLogger.debug("AUTN is: " + str(autn))
+        vector_dict['SIP_Authenticate'] = rand + autn
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
@@ -525,7 +529,7 @@ def Get_APN_by_Name(apn):
     return result 
 
 def Update_AuC(auc_id, sqn=1):
-    DBLogger.debug("Incrementing SQN for sub " + str(auc_id))
+    DBLogger.debug("Updating AuC record for sub " + str(auc_id))
     DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id))
     return
 
@@ -936,7 +940,6 @@ if __name__ == "__main__":
     import binascii,os,pprint
     DeleteAfter = True
 
-
     #Define Charging Rule
     charging_rule = {
         'rule_name' : 'charging_rule_A',
@@ -1042,6 +1045,10 @@ if __name__ == "__main__":
     Get_Vectors_AuC(auc_id, "air", plmn='12ff')
     print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
 
+
+    #Update AuC
+    Update_AuC(auc_id, sqn=100)
+
     #New Subscriber
     subscriber_json = {
         "imsi": "001001000000006",
@@ -1127,6 +1134,15 @@ if __name__ == "__main__":
     #Clear MME Location for Subscriber    
     print("Clear MME Location for Subscriber")
     Update_Serving_MME(newObj['imsi'], None)
+
+    #Generate Vectors for IMS Subscriber
+    print("Generating Vectors for IMS Subscriber")
+    print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
+
+    print("Generating Resync for IMS Subscriber")
+    print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='7964347dfdfe432289522183fcfb', rand='1bc9f096002d3716c65e4e1f4c1c0d17'))
+    
+
 
     #Test getting APNs
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
