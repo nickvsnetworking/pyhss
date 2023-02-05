@@ -463,7 +463,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['kasme'] = kasme
 
         #Incriment SQN
-        Update_AuC(auc_id, rand=rand, sqn=key_data['sqn']+100)
+        Update_AuC(auc_id, sqn=key_data['sqn']+100)
 
         return vector_dict
 
@@ -479,7 +479,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
         DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
-        Update_AuC(auc_id, rand=rand, sqn=sqn+100)
+        Update_AuC(auc_id, sqn=sqn+100)
         return
     
     elif action == "sip_auth":
@@ -490,7 +490,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
-        Update_AuC(auc_id, rand=rand, sqn=key_data['sqn']+100)
+        Update_AuC(auc_id, sqn=key_data['sqn']+100)
         return vector_dict
 
 def Get_APN(apn_id):
@@ -536,17 +536,9 @@ def Get_APN_by_Name(apn):
     session.close()
     return result 
 
-def Update_AuC(auc_id, rand, sqn=1):
+def Update_AuC(auc_id, sqn=1):
     DBLogger.debug("Updating AuC record for sub " + str(auc_id))
-    DBLogger.debug("Updating RAND to: " + str(rand) + " with type " + str(type(rand)))
-    DBLogger.debug("Updating SQN to: " + str(sqn))
-    if type(rand) == bytearray:
-        DBLogger.debug("Converting RAND from Byte Array to Hex")
-        rand = binascii.hexlify(bytearray(rand)).decode("utf-8")
-    if type(rand) == bytes:
-        DBLogger.debug("Converting RAND from Byte Array to Hex")
-        rand = rand.hex()
-    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn, 'rand' : rand}, auc_id))
+    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id))
     return
 
 def Update_Serving_MME(imsi, serving_mme, propagate=True):
@@ -1063,7 +1055,7 @@ if __name__ == "__main__":
 
 
     #Update AuC
-    Update_AuC(auc_id, rand='59037baf3491749ae2b8a9ca4cb25069', sqn=100)
+    Update_AuC(auc_id, sqn=100)
 
     #New Subscriber
     subscriber_json = {
@@ -1156,7 +1148,7 @@ if __name__ == "__main__":
     print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
 
     print("Generating Resync for IMS Subscriber")
-    print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='59037baf3491749ae2b8a9ca4cb25069d1ada16d062308371dd3d4838426'))
+    print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='7964347dfdfe432289522183fcfb', rand='1bc9f096002d3716c65e4e1f4c1c0d17'))
     
 
 
