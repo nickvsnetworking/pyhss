@@ -110,11 +110,9 @@ class Milenage(BaseLTEAuthAlgo):
         CryptoLogger.debug("Generated SQN bytes")
         CryptoLogger.debug("SQN bytes is " + str(sqn_bytes))
 
-        #CryptoLogger.debug("Generating rand")
-        #rand = Milenage.generate_rand()
-        CryptoLogger.debug("Using static rand")
-        rand = bytearray(b'Y\x03{\xaf4\x91t\x9a\xe2\xb8\xa9\xcaL\xb2Pi')
-        #CryptoLogger.debug("Generated rand")
+        CryptoLogger.debug("Generating rand")
+        rand = Milenage.generate_rand()
+        CryptoLogger.debug("Generated rand")
 
         CryptoLogger.debug("Generating f1")
         mac_a, _ = Milenage.f1(key, sqn_bytes, rand, opc, self.amf)

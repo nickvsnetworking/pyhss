@@ -469,14 +469,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
 
     elif action == "sqn_resync":
         DBLogger.debug("Resync SQN")
-        rand = kwargs['rand']
-        DBLogger.debug("Resync called with inputs: ")
-        DBLogger.debug("\t Ki: " + str(key_data['ki']) + " type " + str(type(key_data['ki'])))
-        DBLogger.debug("\t opc: " + str(key_data['opc']) + " type " + str(type(key_data['opc'])))
-        DBLogger.debug("\t auts: " + str(kwargs['auts']) + " type " + str(type(kwargs['auts'])))
-        DBLogger.debug("\t rand: " + str(rand) + " type " + str(type(rand)))
-        DBLogger.debug("\t amf: " + str(key_data['amf']) + " type " + str(type(key_data['amf'])))
-        
+        rand = kwargs['rand']       
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
         DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
         Update_AuC(auc_id, sqn=sqn+100)

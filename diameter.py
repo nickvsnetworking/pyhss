@@ -1280,10 +1280,7 @@ class Diameter:
         plmn = self.EncodePLMN(mcc, mnc)
 
         #Determine if SQN Resync is required
-        DiameterLogger.critical("Number of items in AVP 612: " + str(len(self.get_avp_data(avps, 612)[0])))
-        DiameterLogger.critical(str(self.get_avp_data(avps, 612)[0]))
         for sub_avp_612 in self.get_avp_data(avps, 612)[0]:
-            DiameterLogger.debug(sub_avp_612)
             if sub_avp_612['avp_code'] == 610:
                 DiameterLogger.info("SQN in HSS is out of sync - Performing resync")
                 auts = str(sub_avp_612['misc_data'])[32:]
