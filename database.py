@@ -477,7 +477,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
         DBLogger.debug("RAND is: " + str(rand))
         DBLogger.debug("AUTN is: " + str(autn))
-        vector_dict['SIP_Authenticate'] = str(rand + autn)
+        vector_dict['SIP_Authenticate'] = rand + autn
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
