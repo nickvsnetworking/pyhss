@@ -352,6 +352,37 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
+def Get_All_Subscribers():
+    DBLogger.debug("Getting all subscriber IMSIs")
+
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    All_Subs = {}
+    try:
+        results = session.query(SUBSCRIBER).filter(SUBSCRIBER.imsi.isnot(None))
+        for result in results:
+            result = result.__dict__
+            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
+            result = Sanitize_Datetime(result)
+            result.pop('_sa_instance_state')
+            All_Subs[result['imsi']] = result
+            DBLogger.debug("Processed result")
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+    DBLogger.debug("Final All_Subs: " + str(All_Subs))
+    session.close()
+    return All_Subs 
+
+
 def Get_Served_Subscribers():
     DBLogger.debug("Getting all subscribers served by this HSS")
 
