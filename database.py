@@ -80,7 +80,7 @@ class SUBSCRIBER(Base):
     enabled = Column(Boolean, default=1, doc='Subscriber enabled/disabled')
     auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data', nullable=False)
     default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN', nullable=False)
-    apn_list = Column(String(18), doc='Comma separated list of allowed APNs', nullable=False)
+    apn_list = Column(String(64), doc='Comma separated list of allowed APNs', nullable=False)
     msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
     ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
