@@ -376,36 +376,6 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
-def Get_All_Subscribers():
-    DBLogger.debug("Getting all subscriber IMSIs")
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    All_Subs = {}
-    try:
-        results = session.query(SUBSCRIBER).filter(SUBSCRIBER.imsi.isnot(None))
-        for result in results:
-            result = result.__dict__
-            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitize_Datetime(result)
-            result.pop('_sa_instance_state')
-            All_Subs[result['imsi']] = result
-            DBLogger.debug("Processed result")
-    except Exception as E:
-        session.close()
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
-    DBLogger.debug("Final All_Subs: " + str(All_Subs))
-    session.close()
-    return All_Subs 
-
 def Get_Served_Subscribers():
     DBLogger.debug("Getting all subscribers served by this HSS")
 
@@ -538,37 +508,6 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['ik'] = ik
         Update_AuC(auc_id, sqn=key_data['sqn']+100)
         return vector_dict
-
-def Get_All_APNs():
-    DBLogger.debug("Getting all APNs")
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    All_APNs = []
-    try:
-        results = session.query(APN)
-        for result in results:
-            result = result.__dict__
-            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitize_Datetime(result)
-            result.pop('_sa_instance_state')
-            All_APNs.append(result)
-            DBLogger.debug("Processed result")
-    except Exception as E:
-        session.close()
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
-    DBLogger.debug("Final All_APNs: " + str(All_APNs))
-    session.close()
-    return All_APNs 
-
 
 def Get_APN(apn_id):
     DBLogger.debug("Getting APN " + str(apn_id))
