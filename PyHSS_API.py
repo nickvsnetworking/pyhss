@@ -79,24 +79,22 @@ EIR_model = api.schema_model('EIR JSON',
 IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON', 
     database.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
 )
-
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
     'charging_rule_list' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
-
-print(database.Generate_JSON_Model_for_Flask(SUBSCRIBER)['properties']['serving_mme_timestamp'])
-
 GeoRed_model = api.model('GeoRed', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to Update'),
-    'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.description),
+    'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
-    'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.description),
-    'ue_ip' : fields.String(description=Serving_APN.ue_ip.description),
-    'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.description),
-    'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.description),
-    'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.description),
+    'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
+    'ue_ip' : fields.String(description=Serving_APN.ue_ip.doc),
+    'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
+    'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.doc),
+    'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.doc),
+    'imei' : fields.String(description=EIR.imei.doc),
+    'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
 
 @app.after_request
@@ -789,6 +787,9 @@ class PyHSS_Geored(Resource):
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
                 response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))
+            if 'imei' in json_data:
+                print("Updating EIR")
+                response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
