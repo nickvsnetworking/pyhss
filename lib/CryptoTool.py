@@ -7,15 +7,19 @@ import argparse
 parser = argparse.ArgumentParser(description='LTE Authentication Vector Generator Tool')
 
 #Incoming RTP Parameters
+parser.add_argument('--action', type=str, required=True, help='Supported actions are "vector", "ims" and "resync"')
 parser.add_argument('--k', type=str, required=True, help='K Key')
 parser.add_argument('--op', type=str, required=False, help='OP Key')
 parser.add_argument('--opc', type=str, required=False, help='OPc Key')
+parser.add_argument('--plmn', type=str, required=True, help='PLMN in hex')
 args = parser.parse_args()
 key = str(args.k)
 amf = 8000
 sqn = 1
 plmn = '37f800'
 print(args)
+
+
 if args.op is not None:
     op = str(args.op)
     print("Generating OPc key from OP & K")
@@ -32,49 +36,51 @@ else:
     print("Using OPc Provided")
     op_c = str(args.opc)
 
-print("Generating Multimedia Authentication Vector")
 
-#Convert to Bytes
-key = key.encode('utf-8')
+if str(args.action) == "IMS":
+    print("Generating Multimedia Authentication Vector")
 
-#Print Bytes
-print("Input K:    " + str(key))
-key = binascii.unhexlify(key)
+    #Convert to Bytes
+    key = key.encode('utf-8')
 
-op_c = op_c.encode('utf-8')
+    #Print Bytes
+    print("Input K:    " + str(key))
+    key = binascii.unhexlify(key)
 
-print("Input OPc:  " + str(op_c))
-op_c = binascii.unhexlify(op_c)
+    op_c = op_c.encode('utf-8')
 
-amf = str(amf)
-amf = amf.encode('utf-8')
-amf = binascii.unhexlify(amf)
-print("Input AMF:  " + str(amf))
+    print("Input OPc:  " + str(op_c))
+    op_c = binascii.unhexlify(op_c)
 
-sqn = int(sqn)
-print("Input SQN:  " + str(sqn))
+    amf = str(amf)
+    amf = amf.encode('utf-8')
+    amf = binascii.unhexlify(amf)
+    print("Input AMF:  " + str(amf))
 
-plmn = plmn.encode('utf-8')
-plmn = binascii.unhexlify(plmn)
-print("Input PLMN: " + str(plmn))
+    sqn = int(sqn)
+    print("Input SQN:  " + str(sqn))
+
+    plmn = plmn.encode('utf-8')
+    plmn = binascii.unhexlify(plmn)
+    print("Input PLMN: " + str(plmn))
 
 
-crypto_obj = Milenage(amf)
+    crypto_obj = Milenage(amf)
 
-(rand, xres, autn, ck, ik) = crypto_obj.generate_maa_vector(key, op_c, sqn, plmn)
+    (rand, xres, autn, ck, ik) = crypto_obj.generate_maa_vector(key, op_c, sqn, plmn)
 
-rand = binascii.hexlify(rand).decode('utf-8')
-print("output rand: " + str(rand))
-xres = binascii.hexlify(xres).decode('utf-8')
-print("output xres: " + str(xres))
-autn = binascii.hexlify(autn).decode('utf-8')
-print("output autn: " + str(autn))
-ck = binascii.hexlify(ck).decode('utf-8')
-ik = binascii.hexlify(ik).decode('utf-8')
+    rand = binascii.hexlify(rand).decode('utf-8')
+    print("output rand: " + str(rand))
+    xres = binascii.hexlify(xres).decode('utf-8')
+    print("output xres: " + str(xres))
+    autn = binascii.hexlify(autn).decode('utf-8')
+    print("output autn: " + str(autn))
+    ck = binascii.hexlify(ck).decode('utf-8')
+    ik = binascii.hexlify(ik).decode('utf-8')
 
-SIP_Authenticate = rand + autn
-#SIP_Authenticate = base64.b64encode(SIP_Authenticate.encode("utf-8"))
+    SIP_Authenticate = rand + autn
+    #SIP_Authenticate = base64.b64encode(SIP_Authenticate.encode("utf-8"))
 
-print("SIP_Authenticate: " + str(SIP_Authenticate))
-print("xres: " + xres)
-print("CK: " + str(ck) + " ik: " + str(ik))
+    print("SIP_Authenticate: " + str(SIP_Authenticate))
+    print("xres: " + xres)
+    print("CK: " + str(ck) + " ik: " + str(ik))
