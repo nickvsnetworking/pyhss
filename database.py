@@ -196,6 +196,31 @@ def GetObj(obj_type, obj_id):
     session.close()
     return result
 
+def GetAll(obj_type):
+    DBLogger.debug("Called GetAll for type " + str(obj_type))
+
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    final_result_list = []
+
+    try:
+        result = session.query(obj_type)
+    except Exception as E:
+        DBLogger.error("Failed to query, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)    
+    
+    for record in result:
+        record = record.__dict__
+        record.pop('_sa_instance_state')
+        record = Sanitize_Datetime(record)
+        final_result_list.append(record)
+
+    session.close()
+    return final_result_list
+
 def UpdateObj(obj_type, json_data, obj_id):
     DBLogger.debug("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
     Session = sessionmaker(bind = engine)
@@ -262,7 +287,6 @@ def CreateObj(obj_type, json_data):
         session.rollback()
         session.close()
         raise ValueError(E)
-
 
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
@@ -351,37 +375,6 @@ def Get_Subscriber(**kwargs):
     DBLogger.debug("Got back result: " + str(result))
     session.close()
     return result
-
-def Get_All_Subscribers():
-    DBLogger.debug("Getting all subscriber IMSIs")
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    All_Subs = {}
-    try:
-        results = session.query(SUBSCRIBER).filter(SUBSCRIBER.imsi.isnot(None))
-        for result in results:
-            result = result.__dict__
-            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitize_Datetime(result)
-            result.pop('_sa_instance_state')
-            All_Subs[result['imsi']] = result
-            DBLogger.debug("Processed result")
-    except Exception as E:
-        session.close()
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
-    DBLogger.debug("Final All_Subs: " + str(All_Subs))
-    session.close()
-    return All_Subs 
-
 
 def Get_Served_Subscribers():
     DBLogger.debug("Getting all subscribers served by this HSS")

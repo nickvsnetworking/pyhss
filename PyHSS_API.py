@@ -158,6 +158,18 @@ class PyHSS_APN(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_apn.route('/list')
+class PyHSS_OAM_All_APNs(Resource):
+    def get(self):
+        '''Get all APNs'''
+        try:
+            data = database.GetAll(APN)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_auc.route('/<string:auc_id>')
 class PyHSS_AUC_Get(Resource):
     def get(self, auc_id):
@@ -266,6 +278,18 @@ class PyHSS_SUBSCRIBER(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_subscriber.route('/list')
+class PyHSS_Subscriber_All(Resource):
+    def get(self):
+        '''Get all Subscribers'''
+        try:
+            data = database.GetAll(SUBSCRIBER)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_ims_subscriber.route('/<string:ims_subscriber_id>')
 class PyHSS_IMS_SUBSCRIBER_Get(Resource):
     def get(self, ims_subscriber_id):
@@ -315,6 +339,18 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
             print("JSON Data sent: " + str(json_data))
             data = database.CreateObj(IMS_SUBSCRIBER, json_data)
             return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_ims_subscriber.route('/list')
+class PyHSS_IMS_Subscriber_All(Resource):
+    def get(self):
+        '''Get all IMS Subscribers'''
+        try:
+            data = database.GetAll(IMS_SUBSCRIBER)
+            return (data), 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -374,6 +410,18 @@ class PyHSS_TFT(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_tft.route('/list')
+class PyHSS_TFT_All(Resource):
+    def get(self):
+        '''Get all TFTs'''
+        try:
+            data = database.GetAll(TFT)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_charging_rule.route('/<string:charging_rule_id>')
 class PyHSS_Charging_Rule_Get(Resource):
     def get(self, charging_rule_id):
@@ -423,6 +471,18 @@ class PyHSS_Charging_Rule(Resource):
             print("JSON Data sent: " + str(json_data))
             data = database.CreateObj(CHARGING_RULE, json_data)
             return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_charging_rule.route('/list')
+class PyHSS_Charging_Rule_All(Resource):
+    def get(self):
+        '''Get all Charging Rules'''
+        try:
+            data = database.GetAll(CHARGING_RULE)
+            return (data), 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -482,6 +542,18 @@ class PyHSS_EIR(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_eir.route('/list')
+class PyHSS_EIR_All(Resource):
+    def get(self):
+        '''Get all EIR Rules'''
+        try:
+            data = database.GetAll(EIR)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
     def get(self):
@@ -534,19 +606,6 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_oam.route('/eir_rules')
-class PyHSS_EIR_Rules(Resource):
-    def get(self):
-        '''Get all EIR Rules'''
-        try:
-            data = database.Get_EIR_Rules()
-            print("Got back EIR Rules: " + str(data))
-            return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
 @ns_oam.route('/eir_history/<string:attribute>')
 class PyHSS_OAM_Subscriber(Resource):
     def get(self, attribute):
@@ -566,18 +625,6 @@ class PyHSS_OAM_Subscriber(Resource):
             for record in data:
                 database.DeleteObj(IMSI_IMEI_HISTORY, record['imsi_imei_history_id'])
             return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_oam.route('/subscribers')
-class PyHSS_OAM_All_Subscribers(Resource):
-    def get(self):
-        '''Get all subscriber IMSIs'''
-        try:
-            data = database.Get_All_Subscribers()
-            return ({"subscribers": list(k for k,v in data.items())}), 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -633,7 +680,6 @@ class PyHSS_OAM_Get_IMS_Subscriber(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-
 @ns_oam.route('/pcrf_subscriber_msisdn/<string:imsi>/<string:apn>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
     def get(self, imsi, apn):
@@ -675,7 +721,6 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
             print("Flask Exception: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
-
 
 @ns_pcrf.route('/')
 class PyHSS_PCRF(Resource):
@@ -723,7 +768,6 @@ class PyHSS_OAM_Subscriber(Resource):
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
-
 
 @ns_geored.route('/')
 class PyHSS_Geored(Resource):
