@@ -805,7 +805,7 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
-def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
+def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #IMSI           14-15 Digits
     #IMEI           15 Digits
     #IMEI-SV        2 Digits
@@ -843,7 +843,25 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code):
             DBLogger.debug("Failed to post to Webhook")
             DBLogger.debug(str(E))
         session.close()
+
+        #Sync state change with geored
+        if propagate == True:
+            try:
+                if 'EIR' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+                    DBLogger.debug("Propagate EIR changes to Geographic PyHSS instances")
+                    GeoRed_Push_Async(
+                        {"imsi": str(imsi), 
+                        "imei": str(imei), 
+                        "match_response_code": str(match_response_code)}
+                        )
+                else:
+                    DBLogger.debug("Config does not allow sync of EIR events")
+            except Exception as E:
+                DBLogger.debug("Nothing synced to Geographic PyHSS instances for EIR event")
+                DBLogger.debug(E)
+
         return
+
 
 def Get_IMEI_IMSI_History(attribute):
     DBLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
