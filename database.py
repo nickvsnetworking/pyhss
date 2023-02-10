@@ -196,6 +196,31 @@ def GetObj(obj_type, obj_id):
     session.close()
     return result
 
+def GetAll(obj_type):
+    DBLogger.debug("Called GetAll for type " + str(obj_type))
+
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    final_result_list = []
+
+    try:
+        result = session.query(obj_type)
+    except Exception as E:
+        DBLogger.error("Failed to query, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)    
+    
+    for record in result:
+        record = record.__dict__
+        record.pop('_sa_instance_state')
+        record = Sanitize_Datetime(record)
+        final_result_list.append(record)
+
+    session.close()
+    return final_result_list
+
 def UpdateObj(obj_type, json_data, obj_id):
     DBLogger.debug("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
     Session = sessionmaker(bind = engine)
