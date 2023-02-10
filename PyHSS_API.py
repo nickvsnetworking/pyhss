@@ -571,6 +571,19 @@ class PyHSS_OAM_Subscriber(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_oam.route('/apns')
+class PyHSS_OAM_All_APNs(Resource):
+    def get(self):
+        '''Get all APNs'''
+        try:
+            data = database.Get_All_APNs()
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
 @ns_oam.route('/subscribers')
 class PyHSS_OAM_All_Subscribers(Resource):
     def get(self):
