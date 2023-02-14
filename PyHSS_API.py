@@ -605,7 +605,7 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             return response_json, 500
 
 @ns_oam.route('/eir_history/<string:attribute>')
-class PyHSS_OAM_Subscriber(Resource):
+class PyHSS_OAM_Subscriber_EIR_History(Resource):
     def get(self, attribute):
         '''Get history for IMSI or IMEI'''
         try:
@@ -629,7 +629,7 @@ class PyHSS_OAM_Subscriber(Resource):
             return response_json, 500
 
 @ns_oam.route('/subscriber/<string:imsi>')
-class PyHSS_OAM_Subscriber(Resource):
+class PyHSS_OAM_Subscriber_IMSI(Resource):
     def get(self, imsi):
         '''Get data for IMSI'''
         try:
@@ -641,7 +641,7 @@ class PyHSS_OAM_Subscriber(Resource):
             return response_json, 500
 
 @ns_oam.route('/subscriber_msisdn/<string:msisdn>')
-class PyHSS_OAM_Subscriber(Resource):
+class PyHSS_OAM_Subscriber_MSISDN(Resource):
     def get(self, msisdn):
         '''Get data for MSISDN'''
         try:
@@ -653,7 +653,7 @@ class PyHSS_OAM_Subscriber(Resource):
             return response_json, 500
 
 @ns_oam.route('/ims_subscriber_msisdn/<string:msisdn>')
-class PyHSS_OAM_Get_IMS_Subscriber(Resource):
+class PyHSS_OAM_Get_IMS_Subscriber_MSISDN(Resource):
     def get(self, msisdn):
         '''Get IMS data for MSISDN'''
         try:
@@ -666,7 +666,7 @@ class PyHSS_OAM_Get_IMS_Subscriber(Resource):
             return response_json, 500
 
 @ns_oam.route('/ims_subscriber_imsi/<string:imsi>')
-class PyHSS_OAM_Get_IMS_Subscriber(Resource):
+class PyHSS_OAM_Get_IMS_Subscriber_IMSI(Resource):
     def get(self, imsi):
         '''Get IMS data for imsi'''
         try:

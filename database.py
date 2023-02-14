@@ -148,7 +148,6 @@ if not database_exists(engine.url):
 else:
     DBLogger.debug("Database already created")
 
-
 def GeoRed_Push_Request(remote_hss, json_data):
     headers = {"Content-Type": "application/json"}
     DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
@@ -805,6 +804,29 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
+def Get_Serving_APN_Subscriber(subscriber_id, apn_id):
+    DBLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
+    try:
+        Session = sessionmaker(bind = engine)
+        session = Session()
+        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).one()
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+    session.close()
+
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    return result
+
 def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #IMSI           14-15 Digits
     #IMEI           15 Digits
@@ -861,7 +883,6 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 DBLogger.debug(E)
 
         return
-
 
 def Get_IMEI_IMSI_History(attribute):
     DBLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
