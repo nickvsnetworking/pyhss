@@ -269,6 +269,7 @@ def DeleteObj(obj_type, obj_id):
     session.close()
 
 def CreateObj(obj_type, json_data):
+    DBLogger.debug("Called CreateObj() to create type " + str(obj_type) + " with input: " + str(json_data))
     newObj = obj_type(**json_data)
     Session = sessionmaker(bind = engine)
     session = Session()
