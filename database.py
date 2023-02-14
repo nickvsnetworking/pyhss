@@ -638,7 +638,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
     return    
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate=True):
-    DBLogger.debug("Called Update_Serving_APN()")
+    DBLogger.debug("Called Update_Serving_APN() for sub " + str(imsi) + " and APN " + str(apn))
 
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
