@@ -684,8 +684,8 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate
             except Exception as E:
                 DBLogger.info("Failed to update existing APN " + str(E) + " so creating new one")
                 #Update if does not exist
-                CreateObj(SERVING_APN, json_data)
-                DBLogger.info("Created new Serving APN Entry")
+                ServingAPN_resp = CreateObj(SERVING_APN, json_data)
+                DBLogger.info("Created new Serving APN Entry: " + str(ServingAPN_resp))
 
             #Sync state change with geored
             if propagate == True:
