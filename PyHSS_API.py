@@ -5,7 +5,6 @@ from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 app = Flask(__name__)
 
-
 import logging
 import yaml
 
@@ -101,6 +100,10 @@ GeoRed_model = api.model('GeoRed', {
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return  {"Result": "Not Found"}, 404
 
 @app.after_request
 def apply_caching(response):
