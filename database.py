@@ -77,6 +77,7 @@ class AUC(Base):
     batch_name = Column(String(20), doc='Name of SIM Batch')
     sim_vendor = Column(String(20), doc='SIM Vendor')
     esim = Column(Boolean, default=0, doc='Card is eSIM')
+    lpa = Column(String(128), doc='LPA URL for activating eSIM')
     pin1 = Column(String(20), doc='PIN1')
     pin2 = Column(String(20), doc='PIN2')
     puk1 = Column(String(20), doc='PUK1')
