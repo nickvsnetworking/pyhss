@@ -308,7 +308,7 @@ class PyHSS_SUBSCRIBER(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_subscriber.route('/subscriber/<string:imsi>')
+@ns_subscriber.route('/imsi/<string:imsi>')
 class PyHSS_SUBSCRIBER_IMSI(Resource):
     def get(self, imsi):
         '''Get data for IMSI'''
@@ -320,7 +320,7 @@ class PyHSS_SUBSCRIBER_IMSI(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_subscriber.route('/subscriber_msisdn/<string:msisdn>')
+@ns_subscriber.route('/msisdn/<string:msisdn>')
 class PyHSS_SUBSCRIBER_MSISDN(Resource):
     def get(self, msisdn):
         '''Get data for MSISDN'''

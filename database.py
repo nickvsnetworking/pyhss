@@ -101,7 +101,7 @@ class SUBSCRIBER(Base):
     msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
     ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
-    nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2]')
+    nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2] - 0 (PACKET_AND_CIRCUIT) or 2 (ONLY_PACKET)')
     subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
     serving_mme = Column(String(50), doc='MME serving this subscriber')
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
