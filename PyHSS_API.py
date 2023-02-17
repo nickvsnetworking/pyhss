@@ -29,6 +29,7 @@ TFT = database.TFT
 CHARGING_RULE = database.CHARGING_RULE
 EIR = database.EIR
 IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
+SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 api = Api(app, version='1.0', title='PyHSS OAM API',
@@ -44,9 +45,10 @@ ns_tft = api.namespace('tft', description='PyHSS TFT Functions')
 ns_charging_rule = api.namespace('charging_rule', description='PyHSS Charging Rule Functions')
 ns_eir = api.namespace('eir', description='PyHSS PyHSS Equipment Identity Register')
 ns_imsi_imei = api.namespace('imsi_imei', description='PyHSS IMSI / IMEI Mapping')
+ns_subscriber_attributes = api.namespace('subscriber_attributes', description='PyHSS Subscriber Attributes')
 
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
-ns_pcrf = api.namespace('PCRF', description='PyHSS PCRF Dynamic Functions')
+ns_pcrf = api.namespace('pcrf', description='PyHSS PCRF Dynamic Functions')
 ns_geored = api.namespace('geored', description='PyHSS GeoRedundancy Functions')
 
 parser = reqparse.RequestParser()
@@ -78,6 +80,9 @@ EIR_model = api.schema_model('EIR JSON',
 )
 IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON', 
     database.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
+)
+SUBSCRIBER_ATTRIBUTES_model = api.schema_model('SUBSCRIBER_ATTRIBUTES JSON', 
+    database.Generate_JSON_Model_for_Flask(SUBSCRIBER_ATTRIBUTES)
 )
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
@@ -276,6 +281,30 @@ class PyHSS_SUBSCRIBER(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_subscriber.route('/subscriber/<string:imsi>')
+class PyHSS_SUBSCRIBER_IMSI(Resource):
+    def get(self, imsi):
+        '''Get data for IMSI'''
+        try:
+            data = database.Get_Subscriber(imsi=imsi, get_attributes=True)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_subscriber.route('/subscriber_msisdn/<string:msisdn>')
+class PyHSS_SUBSCRIBER_MSISDN(Resource):
+    def get(self, msisdn):
+        '''Get data for MSISDN'''
+        try:
+            data = database.Get_Subscriber(msisdn=msisdn, get_attributes=True)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_subscriber.route('/list')
 class PyHSS_Subscriber_All(Resource):
     def get(self):
@@ -339,6 +368,32 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
             return data, 200
         except Exception as E:
             print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_ims_subscriber.route('/ims_subscriber_msisdn/<string:msisdn>')
+class PyHSS_IMS_SUBSCRIBER_MSISDN(Resource):
+    def get(self, msisdn):
+        '''Get IMS data for MSISDN'''
+        try:
+            data = database.Get_IMS_Subscriber(msisdn=msisdn)
+            print("Got back: " + str(data))
+            return data, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_ims_subscriber.route('/ims_subscriber_imsi/<string:imsi>')
+class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
+    def get(self, imsi):
+        '''Get IMS data for imsi'''
+        try:
+            data = database.Get_IMS_Subscriber(imsi=imsi)
+            print("Got back: " + str(data))
+            return data, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
@@ -540,6 +595,30 @@ class PyHSS_EIR(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_eir.route('/eir_history/<string:attribute>')
+class PyHSS_EIR_HISTORY(Resource):
+    def get(self, attribute):
+        '''Get history for IMSI or IMEI'''
+        try:
+            data = database.Get_IMEI_IMSI_History(attribute=attribute)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    def delete(self, attribute):
+        '''Get Delete for IMSI or IMEI'''
+        try:
+            data = database.Get_IMEI_IMSI_History(attribute=attribute)
+            for record in data:
+                database.DeleteObj(IMSI_IMEI_HISTORY, record['imsi_imei_history_id'])
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_eir.route('/list')
 class PyHSS_EIR_All(Resource):
     def get(self):
@@ -547,6 +626,62 @@ class PyHSS_EIR_All(Resource):
         try:
             data = database.GetAll(EIR)
             return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_subscriber_attributes.route('/<string:subscriber_id>')
+class PyHSS_Attributes_Get(Resource):
+    def get(self, subscriber_id):
+        '''Get all attributes / values for specified Subscriber ID'''
+        try:
+            apn_data = database.Get_Subscriber_Attributes(subscriber_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_subscriber_attributes.route('/<string:subscriber_attributes_id>')
+class PyHSS_Attributes_Get(Resource):
+    def delete(self, subscriber_attributes_id):
+        '''Delete specified attribute ID'''
+        try:
+            data = database.DeleteObj(SUBSCRIBER_ATTRIBUTES, subscriber_attributes_id)
+            return {"Result": "OK"}, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    @ns_subscriber_attributes.doc('Update Attribute Object')
+    @ns_subscriber_attributes.expect(SUBSCRIBER_ATTRIBUTES_model)
+    def patch(self, subscriber_attributes_id):
+        '''Update data for specified attribute ID'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.UpdateObj(SUBSCRIBER_ATTRIBUTES, json_data, subscriber_attributes_id)
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_subscriber_attributes.route('/')
+class PyHSS_Attributes(Resource):
+    @ns_subscriber_attributes.doc('Create Attribute Object')
+    @ns_subscriber_attributes.expect(SUBSCRIBER_ATTRIBUTES_model)
+    def put(self):
+        '''Create new Attribute for Subscriber'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            data = database.CreateObj(SUBSCRIBER_ATTRIBUTES, json_data)
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -604,84 +739,10 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_oam.route('/eir_history/<string:attribute>')
-class PyHSS_OAM_Subscriber(Resource):
-    def get(self, attribute):
-        '''Get history for IMSI or IMEI'''
-        try:
-            data = database.Get_IMEI_IMSI_History(attribute=attribute)
-            return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-    def delete(self, attribute):
-        '''Get Delete for IMSI or IMEI'''
-        try:
-            data = database.Get_IMEI_IMSI_History(attribute=attribute)
-            for record in data:
-                database.DeleteObj(IMSI_IMEI_HISTORY, record['imsi_imei_history_id'])
-            return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_oam.route('/subscriber/<string:imsi>')
-class PyHSS_OAM_Subscriber(Resource):
-    def get(self, imsi):
-        '''Get data for IMSI'''
-        try:
-            data = database.Get_Subscriber(imsi=imsi)
-            return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_oam.route('/subscriber_msisdn/<string:msisdn>')
-class PyHSS_OAM_Subscriber(Resource):
-    def get(self, msisdn):
-        '''Get data for MSISDN'''
-        try:
-            data = database.Get_Subscriber(msisdn=msisdn)
-            return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_oam.route('/ims_subscriber_msisdn/<string:msisdn>')
-class PyHSS_OAM_Get_IMS_Subscriber(Resource):
-    def get(self, msisdn):
-        '''Get IMS data for MSISDN'''
-        try:
-            data = database.Get_IMS_Subscriber(msisdn=msisdn)
-            print("Got back: " + str(data))
-            return data, 200
-        except Exception as E:
-            print("Flask Exception: " + str(E))
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_oam.route('/ims_subscriber_imsi/<string:imsi>')
-class PyHSS_OAM_Get_IMS_Subscriber(Resource):
-    def get(self, imsi):
-        '''Get IMS data for imsi'''
-        try:
-            data = database.Get_IMS_Subscriber(imsi=imsi)
-            print("Got back: " + str(data))
-            return data, 200
-        except Exception as E:
-            print("Flask Exception: " + str(E))
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_oam.route('/pcrf_subscriber_msisdn/<string:imsi>/<string:apn>')
+@ns_pcrf.route('/pcrf_subscriber_msisdn/<string:imsi>/<string:apn>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
     def get(self, imsi, apn):
-        '''Get IMS data for MSISDN'''
+        '''Get PCRF data'''
         try:
             #ToDo - Move the mapping an APN name to an APN ID for a sub into the Database functions
 
@@ -756,7 +817,7 @@ class PyHSS_PCRF(Resource):
         return diam_hex, 200
 
 @ns_pcrf.route('/<string:charging_rule_id>')
-class PyHSS_OAM_Subscriber(Resource):
+class PyHSS_PCRF_Complete(Resource):
     def get(self, charging_rule_id):
         '''Get full Charging Rule + TFTs'''
         try:

@@ -140,6 +140,13 @@ class IMSI_IMEI_HISTORY(Base):
     match_response_code = Column(Integer, doc='Response code that was returned')
     imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
 
+class SUBSCRIBER_ATTRIBUTES(Base):
+    __tablename__ = 'subscriber_attributes'
+    subscriber_attributes_id = Column(Integer, primary_key = True, doc='Unique ID of Attribute')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
+    key = Column(String(60), doc='Arbitrary key')
+    value = Column(String(12000), doc='Arbitrary value')
+
 # Create database if it does not exist.
 if not database_exists(engine.url):
     DBLogger.debug("Creating database")
@@ -361,7 +368,7 @@ def Get_Subscriber(**kwargs):
         except Exception as E:
             session.close()
             raise ValueError(E)
-       
+
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
@@ -372,9 +379,45 @@ def Get_Subscriber(**kwargs):
         session.rollback()
         session.close()
         raise ValueError(E)
+    
+    if 'get_attributes' in kwargs:
+        if kwargs['get_attributes'] == True:
+            attributes = Get_Subscriber_Attributes(result['subscriber_id'])
+            result['attributes'] = attributes
+
     DBLogger.debug("Got back result: " + str(result))
     session.close()
     return result
+
+def Get_Subscriber_Attributes(subscriber_id):
+    #Get subscriber attributes
+
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    DBLogger.debug("Get_Subscriber_Attributes for subscriber_id " + str(subscriber_id))
+    try:
+        result = session.query(SUBSCRIBER_ATTRIBUTES).filter_by(subscriber_id=subscriber_id)
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+    final_res = []
+    for record in result:
+        result = record.__dict__
+        result = Sanitize_Datetime(result)
+        result.pop('_sa_instance_state')
+        final_res.append(result)
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+    DBLogger.debug("Got back result: " + str(final_res))
+    session.close()
+    return final_res
+
 
 def Get_Served_Subscribers():
     DBLogger.debug("Getting all subscribers served by this HSS")
