@@ -211,6 +211,30 @@ class PyHSS_AUC_Get(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_auc.route('/iccid/<string:iccid>')
+class PyHSS_AUC_Get_ICCID(Resource):
+    def get(self, iccid):
+        '''Get all AuC data for specified ICCID'''
+        try:
+            apn_data = database.Get_AuC(iccid=iccid)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_auc.route('/imsi/<string:imsi>')
+class PyHSS_AUC_Get_IMSI(Resource):
+    def get(self, imsi):
+        '''Get all AuC data for specified IMSI'''
+        try:
+            apn_data = database.Get_AuC(imsi=imsi)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_auc.route('/')
 class PyHSS_AUC(Resource):
     @ns_auc.doc('Create AUC Object')
@@ -306,7 +330,7 @@ class PyHSS_SUBSCRIBER_MSISDN(Resource):
             return response_json, 500
 
 @ns_subscriber.route('/list')
-class PyHSS_Subscriber_All(Resource):
+class PyHSS_SUBSCRIBER_All(Resource):
     def get(self):
         '''Get all Subscribers'''
         try:

@@ -68,11 +68,28 @@ class SERVING_APN(Base):
 class AUC(Base):
     __tablename__ = 'auc'
     auc_id = Column(Integer, primary_key = True, doc='Unique ID of AuC entry')
-    ki = Column(String(32), doc='SIM Key - Authentication Key - Ki')
-    opc = Column(String(32), doc='SIM Key - Network Operators key OPc')
-    amf = Column(String(4), doc='Authentication Management Field')
+    ki = Column(String(32), doc='SIM Key - Authentication Key - Ki', nullable=False)
+    opc = Column(String(32), doc='SIM Key - Network Operators key OPc', nullable=False)
+    amf = Column(String(4), doc='Authentication Management Field', nullable=False)
     sqn = Column(BigInteger, doc='Authentication sequence number')
-
+    iccid = Column(String(20), unique=True, doc='Integrated Circuit Card Identification Number')
+    imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
+    batch_name = Column(String(20), doc='Name of SIM Batch')
+    sim_vendor = Column(String(20), doc='SIM Vendor')
+    esim = Column(Boolean, default=0, doc='Card is eSIM')
+    pin1 = Column(String(20), doc='PIN1')
+    pin2 = Column(String(20), doc='PIN2')
+    puk1 = Column(String(20), doc='PUK1')
+    puk2 = Column(String(20), doc='PUK2')
+    kid = Column(String(20), doc='KID')
+    psk = Column(String(128), doc='PSK')
+    des = Column(String(128), doc='DES')
+    adm1 = Column(String(20), doc='ADM1')
+    misc1 = Column(String(128), doc='For misc data storage 1')
+    misc2 = Column(String(128), doc='For misc data storage 2')
+    misc3 = Column(String(128), doc='For misc data storage 3')
+    misc4 = Column(String(128), doc='For misc data storage 4')
+    
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
     subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of Subscriber entry')
@@ -311,6 +328,42 @@ def Generate_JSON_Model_for_Flask(obj_type):
 
 
     return dictty
+
+def Get_AuC(**kwargs):
+    #Get AuC data by IMSI or ICCID
+
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    if 'iccid' in kwargs:
+        DBLogger.debug("Get_AuC for iccid " + str(kwargs['iccid']))
+        try:
+            result = session.query(AUC).filter_by(iccid=str(kwargs['iccid'])).one()
+        except Exception as E:
+            session.close()
+            raise ValueError(E)
+    elif 'imsi' in kwargs:
+        DBLogger.debug("Get_AuC for imsi " + str(kwargs['imsi']))
+        try:
+            result = session.query(AUC).filter_by(imsi=str(kwargs['imsi'])).one()
+        except Exception as E:
+            session.close()
+            raise ValueError(E)
+
+    result = result.__dict__
+    result = Sanitize_Datetime(result)
+    result.pop('_sa_instance_state')
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+    DBLogger.debug("Got back result: " + str(result))
+    session.close()
+    return result
 
 def Get_IMS_Subscriber(**kwargs):
     #Get subscriber by IMSI or MSISDN
