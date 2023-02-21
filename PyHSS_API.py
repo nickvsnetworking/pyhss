@@ -254,6 +254,19 @@ class PyHSS_AUC(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_auc.route('/list')
+class PyHSS_AUC_All(Resource):
+    def get(self):
+        '''Get all AuC Data (except keys)'''
+        try:
+            data = database.GetAll(AUC)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
 @ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_SUBSCRIBER_Get(Resource):
     def get(self, subscriber_id):
