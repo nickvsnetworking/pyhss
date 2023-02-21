@@ -200,6 +200,15 @@ def Sanitize_Datetime(result):
                 result[keys] = str(result[keys])
     return result
 
+def Sanitize_Keys(result):
+    names_to_strip = ['opc', 'ki', 'des', 'kid', 'psk', 'adm1']
+    for name_to_strip in names_to_strip:
+        try:
+            result.pop(name_to_strip)
+        except:
+            print("failed to strip " + str(name_to_strip))
+    return result 
+
 def GetObj(obj_type, obj_id):
     DBLogger.debug("Called GetObj for type " + str(obj_type) + " with id " + str(obj_id))
 
@@ -241,6 +250,7 @@ def GetAll(obj_type):
         record = record.__dict__
         record.pop('_sa_instance_state')
         record = Sanitize_Datetime(record)
+        record = Sanitize_Keys(record)
         final_result_list.append(record)
 
     session.close()

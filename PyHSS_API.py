@@ -181,8 +181,9 @@ class PyHSS_AUC_Get(Resource):
     def get(self, auc_id):
         '''Get all AuC data for specified AuC ID'''
         try:
-            apn_data = database.GetObj(AUC, auc_id)
-            return apn_data, 200
+            auc_data = database.GetObj(AUC, auc_id)
+            auc_data = database.Sanitize_Keys(auc_data)
+            return auc_data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -219,8 +220,9 @@ class PyHSS_AUC_Get_ICCID(Resource):
     def get(self, iccid):
         '''Get all AuC data for specified ICCID'''
         try:
-            apn_data = database.Get_AuC(iccid=iccid)
-            return apn_data, 200
+            auc_data = database.Get_AuC(iccid=iccid)
+            auc_data = database.Sanitize_Keys(auc_data)
+            return auc_data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -231,8 +233,9 @@ class PyHSS_AUC_Get_IMSI(Resource):
     def get(self, imsi):
         '''Get all AuC data for specified IMSI'''
         try:
-            apn_data = database.Get_AuC(imsi=imsi)
-            return apn_data, 200
+            auc_data = database.Get_AuC(imsi=imsi)
+            auc_data = database.Sanitize_Keys(auc_data)
+            return auc_data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -265,7 +268,6 @@ class PyHSS_AUC_All(Resource):
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
-
 
 @ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_SUBSCRIBER_Get(Resource):
