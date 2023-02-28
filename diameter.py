@@ -1490,6 +1490,7 @@ class Diameter:
     def Answer_16777252_324(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777252_324_attempt_count')
 
+        avp = ''
         #Get IMSI
         try:
             imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
