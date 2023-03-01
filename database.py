@@ -1080,7 +1080,7 @@ def Get_EIR_Rules():
 
 if __name__ == "__main__":
     import binascii,os,pprint
-    DeleteAfter = False
+    DeleteAfter = True
 
     #Define Charging Rule
     charging_rule = {
