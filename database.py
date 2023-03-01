@@ -471,13 +471,6 @@ def Get_Subscriber_Attributes(subscriber_id):
         result = Sanitize_Datetime(result)
         result.pop('_sa_instance_state')
         final_res.append(result)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
     DBLogger.debug("Got back result: " + str(final_res))
     session.close()
     return final_res
@@ -1288,11 +1281,9 @@ if __name__ == "__main__":
     print("Generating Vectors for IMS Subscriber")
     print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
 
-    print("Generating Resync for IMS Subscriber")
-    print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='7964347dfdfe432289522183fcfb', rand='1bc9f096002d3716c65e4e1f4c1c0d17'))
+    #print("Generating Resync for IMS Subscriber")
+    #print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='7964347dfdfe432289522183fcfb', rand='1bc9f096002d3716c65e4e1f4c1c0d17'))
     
-
-
     #Test getting APNs
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
