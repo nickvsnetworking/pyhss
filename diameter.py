@@ -1494,7 +1494,7 @@ class Diameter:
         try:
             imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
             imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
-            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
+            #avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                      #Username (IMSI)
             DiameterLogger.info("Got IMSI with value " + str(imsi))
         except Exception as e:
             DiameterLogger.debug("Failed to get IMSI from LCS-Routing-Info-Request")
@@ -1507,7 +1507,7 @@ class Diameter:
                 imei = binascii.unhexlify(sub_avp['misc_data']).decode('utf-8')
                 DiameterLogger.debug("Found IMEI " + str(imei))
 
-        avp = ''                                                                                        #Initiate empty var AVP                                                                                           #Session-ID
+        avp = ''                                                                                        #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to received session ID
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
