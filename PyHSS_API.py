@@ -7,6 +7,7 @@ app = Flask(__name__)
 
 import logging
 import yaml
+import time
 
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
@@ -14,6 +15,7 @@ with open("config.yaml", 'r') as stream:
 import os
 import sys
 sys.path.append(os.path.realpath('lib'))
+import diameter
 
 #Setup Logging
 import logtool
@@ -742,6 +744,29 @@ class PyHSS_OAM_Peers(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_oam.route('/detach_subscriber/<string:imsi>')
+class PyHSS_OAM_Detach_Subscriber(Resource):
+    def get(self, imsi):
+        '''Detaches the subscriber from the network and then requests them to re-attach'''
+        try:
+            subscriber_data = database.Get_Subscriber(imsi=imsi, get_attributes=True)
+            if subscriber_data['serving_mme'] is None:
+                return {'result': 'Failed', 'Reason': 'Subscriber is not attached to the network'}
+            diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
+            OriginRealm = yaml_config['hss']['OriginRealm']
+            DestinationRealm = OriginRealm
+            mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
+            mnc = yaml_config['hss']['MNC'] 
+            diameter_instance = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
+            diam_hex = diameter_instance.Request_16777251_317(imsi, DestinationRealm, subscriber_data['serving_mme'])
+            logObj = logtool.LogTool()
+            logObj.Async_SendRequest(diam_hex, str(subscriber_data['serving_mme']))
+            return diam_hex, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_oam.route('/serving_subs')
 class PyHSS_OAM_Serving_Subs(Resource):
     def get(self):
@@ -850,10 +875,8 @@ class PyHSS_PCRF(Resource):
         DestinationRealm = OriginRealm
         mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
         mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
-        import diameter
-        diameter = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
-        diam_hex = diameter.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['ue_ip'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
-        import time
+        diameter_instance = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
+        diam_hex = diameter_instance.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['ue_ip'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
         logObj = logtool.LogTool()
         logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
         return diam_hex, 200
