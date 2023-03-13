@@ -661,6 +661,21 @@ class PyHSS_EIR_HISTORY(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_eir.route('/eir_history/list')
+class PyHSS_EIR_All(Resource):
+    def get(self):
+        '''Get EIR history for all subscribers'''
+        try:
+            data = database.GetAll(IMSI_IMEI_HISTORY)
+            for record in data:
+                record['imsi'] = record['imsi_imei'].split(',')[0]
+                record['imei'] = record['imsi_imei'].split(',')[1]
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_eir.route('/list')
 class PyHSS_EIR_All(Resource):
     def get(self):
