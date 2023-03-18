@@ -64,6 +64,8 @@ class PyHSS:
 
         # If Redis is enabled, start manage_client_async and manage_client_dwr threads.
         if self.yaml_config["redis"]["enabled"]:
+            if "async_check_interval" not in self.yaml_config["hss"] or self.yaml_config["hss"]["async_check_interval"] == 0:
+                self.yaml_config["hss"]["async_check_interval"] = 10
             manage_client_async_thread = threading.Thread(
                 target=self.manage_client_async,
                 args=(
