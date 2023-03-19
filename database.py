@@ -206,7 +206,7 @@ def Sanitize_Keys(result):
         try:
             result.pop(name_to_strip)
         except:
-            print("failed to strip " + str(name_to_strip))
+            DBLogger.debug("failed to strip " + str(name_to_strip))
     return result 
 
 def GetObj(obj_type, obj_id):
@@ -688,7 +688,7 @@ def Update_Serving_MME(imsi, serving_mme, propagate=True):
     #Sync state change with geored
     if propagate == True:
         try:
-            if 'HSS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+            if 'HSS' in yaml_config['geored'].get('sync_actions', []) and yaml_config['geored'].get('enabled', False) == True:
                 DBLogger.debug("Propagate MME changes to Geographic PyHSS instances")
                 GeoRed_Push_Async({"imsi": str(imsi), "serving_mme": result.serving_mme})
             else:

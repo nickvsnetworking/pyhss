@@ -796,12 +796,13 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_pcrf.route('/pcrf_subscriber_msisdn/<string:imsi>/<string:apn>')
+@ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>/<string:apn_id>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
-    def get(self, imsi, apn):
+    def get(self, imsi, apn_id):
         '''Get PCRF data'''
         try:
             #ToDo - Move the mapping an APN name to an APN ID for a sub into the Database functions
+            apn_id_final = None
 
             #Resolve Subscriber ID
             subscriber_data = database.Get_Subscriber(imsi=str(imsi))
@@ -820,12 +821,12 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
             apn_list.insert(0, str(subscriber_data['default_apn']))
 
             #Get APN ID from APN
-            for apn_id in apn_list:
-                print("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
+            for list_apn_id in apn_list:
+                print("Getting APN ID " + str(list_apn_id) + " to see if it matches APN " + str(apn_id))
                 #Get each APN in List
-                apn_data = database.Get_APN(apn_id)
+                apn_data = database.Get_APN(list_apn_id)
                 print(apn_data)
-                if str(apn_data['apn']).lower() == str(apn).lower():
+                if str(apn_data['apn_id']).lower() == str(apn_id).lower():
                     print("Matched named APN with APN ID")
                     apn_id_final = apn_data['apn_id']
 

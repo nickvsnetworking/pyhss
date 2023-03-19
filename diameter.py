@@ -1038,7 +1038,8 @@ class Diameter:
             DiameterLogger.info("Added to AVP List")
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
             
-            #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+        #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+        if ChargingRules and ChargingRules['charging_rules'] is not None:
             try:
                 DiameterLogger.debug(ChargingRules)
                 for individual_charging_rule in ChargingRules['charging_rules']:
@@ -1099,21 +1100,23 @@ class Diameter:
             return response
 
         #Determine SAR Type & Store
-        try:
-            User_Authorization_Type = int(self.get_avp_data(avps, 623)[0])
-            DiameterLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
-            if (User_Authorization_Type == 1):
-                DiameterLogger.debug("This is Deregister")
-                database.Update_Serving_CSCF(imsi, serving_cscf=None)
-                #Populate S-CSCF Address
-                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + ims_subscriber_details['scscf'] + ":5060")),'ascii'))
-                avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
-                response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-                logtool.RedisIncrimenter('Answer_16777216_300_success_count')
-                return response
-                
-        except Exception as E:
-            DiameterLogger.debug("Failed to get User_Authorization_Type AVP & Update_Serving_CSCF error: " + str(E))
+        user_authorization_type_avp_data = self.get_avp_data(avps, 623)
+        if user_authorization_type_avp_data:
+            try:
+                User_Authorization_Type = int(user_authorization_type_avp_data[0])
+                DiameterLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
+                if (User_Authorization_Type == 1):
+                    DiameterLogger.debug("This is Deregister")
+                    database.Update_Serving_CSCF(imsi, serving_cscf=None)
+                    #Populate S-CSCF Address
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + ims_subscriber_details['scscf'] + ":5060")),'ascii'))
+                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+                    response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                    logtool.RedisIncrimenter('Answer_16777216_300_success_count')
+                    return response
+                    
+            except Exception as E:
+                DiameterLogger.debug("Failed to get User_Authorization_Type AVP & Update_Serving_CSCF error: " + str(E))
         DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
         if ims_subscriber_details['scscf'] != None:
             DiameterLogger.debug("Already has SCSCF Assigned from DB: " + str(ims_subscriber_details['scscf']))
@@ -1129,11 +1132,10 @@ class Diameter:
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))            #DIAMETER_FIRST_REGISTRATION (2001) 
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
-            
 
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_300_success_count')
-        
+
         return response
 
     #3GPP Cx Server Assignment Answer

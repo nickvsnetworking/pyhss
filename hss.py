@@ -187,6 +187,9 @@ class PyHSS:
                 f"Received Request with command code 280 (DWR) from {origin_host}"
                 + "\n\tSending response (DWA)"
             )
+            self.logger.debug(
+            f"Total PyHSS Active Threads: {threading.active_count()}"
+        )
             try:
                 response = diameter.Answer_280(
                     packet_vars, avps
