@@ -33,6 +33,12 @@ hss:
   #Async Queue Check Interval (In Seconds - If set to 0 disabled)
   async_check_interval: 0
 
+  #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
+  client_socket_timeout: 120
+
+  #The maximum amount of times a failed diameter response/query should be resent before considering the peer offline and terminating their connection
+  diameter_max_retries: 1
+
   #If enabled sends CLRs to old MME when new MME attaches active sub
   CancelLocationRequest_Enabled: False
 

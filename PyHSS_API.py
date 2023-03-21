@@ -86,7 +86,7 @@ SUBSCRIBER_ATTRIBUTES_model = api.schema_model('SUBSCRIBER_ATTRIBUTES JSON',
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
-    'charging_rule_list' : fields.Integer(required=True, description='charging_rule_id to push'),
+    'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
 GeoRed_model = api.model('GeoRed', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to Update'),
@@ -853,7 +853,7 @@ class PyHSS_PCRF(Resource):
         print("subscriber_data: " + str(subscriber_data))
 
         #Get PCRF Session
-        pcrf_session_data = database.Get_Serving_APN_Subscriber(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
+        pcrf_session_data = database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
         print("pcrf_session_data: " + str(pcrf_session_data))
 
         #Get Charging Rules
