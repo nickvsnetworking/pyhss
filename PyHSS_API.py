@@ -3,6 +3,8 @@ import json
 from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
+from functools import wraps
+
 app = Flask(__name__)
 
 import logging
@@ -100,6 +102,48 @@ GeoRed_model = api.model('GeoRed', {
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
+
+
+lock_provisioning = yaml_config.get('hss', {}).get('lock_provisioning', False)
+provisioning_key = yaml_config.get('hss', {}).get('provisioning_key', '')
+
+def no_auth_required(f):
+    f.no_auth_required = True
+    return f
+
+def auth_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if getattr(f, 'no_auth_required', False) or (lock_provisioning == False):
+            return f(*args, **kwargs)
+        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
+            return {'Result': 'Unauthorized'}, 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def auth_before_request():
+    if request.path.startswith('/docs') or request.path.startswith('/swagger'):
+        return None
+    if request.endpoint and 'static' not in request.endpoint:
+        view_function = app.view_functions[request.endpoint]
+        if hasattr(view_function, 'view_class'):
+            view_class = view_function.view_class
+            view_method = getattr(view_class, request.method.lower(), None)
+            if view_method:
+                if request.method == 'GET' and not getattr(view_method, 'auth_required', False):
+                    return None
+                elif request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] and not getattr(view_method, 'no_auth_required', False):
+                    pass
+                else:
+                    return None
+
+        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
+            return {'Result': 'Unauthorized'}, 401
+    return None
+
+
+
+app.before_request(auth_before_request)
 
 @app.errorhandler(404)
 def page_not_found(e):
