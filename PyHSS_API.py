@@ -130,6 +130,8 @@ def auth_before_request():
             view_class = view_function.view_class
             view_method = getattr(view_class, request.method.lower(), None)
             if view_method:
+                if(lock_provisioning == False):
+                    return None
                 if request.method == 'GET' and not getattr(view_method, 'auth_required', False):
                     return None
                 elif request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] and not getattr(view_method, 'no_auth_required', False):
