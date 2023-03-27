@@ -801,6 +801,18 @@ class PyHSS_OAM_Peers(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_oam.route("/ping")
+class PyHSS_OAM_Ping(Resource):
+    def get(self):
+        """Ping the API to check if it's alive"""
+        try:
+            apiPingResponse = {"result": "OK"}
+            return apiPingResponse, 200
+        except Exception as E:
+            print(E)
+            response_json = {"result": "Failed", "Reason": str(E)}
+            return response_json, 500
+
 @ns_oam.route('/serving_subs')
 class PyHSS_OAM_Serving_Subs(Resource):
     def get(self):

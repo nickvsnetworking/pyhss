@@ -39,7 +39,7 @@ hss:
   #The maximum amount of times a failed diameter response/query should be resent before considering the peer offline and terminating their connection
   diameter_max_retries: 1
 
-  #Prevent updates from being performed without a valid 'PROVISIONING_KEY' in the header
+  #Prevent updates from being performed without a valid 'Provisioning-Key' in the header
   lock_provisioning: False
 
   #Provisioning Key for this HSS, alias for an API key. Required to be present in the header of requests to this HSS' api, if lock_provisioning is True.
