@@ -1,14 +1,20 @@
 import sys
-from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger
+from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event
 from sqlalchemy import create_engine
+from sqlalchemy.engine.reflection import Inspector
+from sqlalchemy.sql import func
 from sqlalchemy_utils import database_exists, create_database
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
+from sqlalchemy.orm.attributes import History, get_history
+from alchemyjsonschema import SchemaFactory, ForeignKeyWalker
 import json
-import datetime
+import datetime, time
 import re
 import os
 import sys
 import binascii
+import hashlib
+import uuid
 sys.path.append(os.path.realpath('lib'))
 
 import yaml
@@ -38,6 +44,69 @@ import S6a_crypt
 import requests
 import threading
 
+class OPERATION_LOG_BASE(Base):
+    __tablename__ = 'operation_log'
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, nullable=False)
+    operation_id = Column(String(36), nullable=False)
+    operation = Column(String(10))
+    column_name = Column(String(255))
+    old_value = Column(String(255))
+    new_value = Column(String(255))
+    timestamp = Column(DateTime, default=func.now())
+    table_name = Column('table_name', String(255))
+    __mapper_args__ = {'polymorphic_on': table_name}
+
+class APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'apn'}
+    apn = relationship("APN", back_populates="operation_logs")
+    apn_id = Column(Integer, ForeignKey('apn.apn_id'))
+
+class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
+    serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
+    serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
+
+class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'auc'}
+    auc = relationship("AUC", back_populates="operation_logs")
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'))
+
+class SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber'}
+    subscriber = relationship("SUBSCRIBER", back_populates="operation_logs")
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
+
+class IMS_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'ims_subscriber'}
+    ims_subscriber = relationship("IMS_SUBSCRIBER", back_populates="operation_logs")
+    ims_subscriber_id = Column(Integer, ForeignKey('ims_subscriber.ims_subscriber_id'))
+
+class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
+    charging_rule = relationship("CHARGING_RULE", back_populates="operation_logs")
+    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
+
+class TFT_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'tft'}
+    tft = relationship("TFT", back_populates="operation_logs")
+    tft_id = Column(Integer, ForeignKey('tft.tft_id'))
+
+class EIR_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir'}
+    eir = relationship("EIR", back_populates="operation_logs")
+    eir_id = Column(Integer, ForeignKey('eir.eir_id'))
+
+class IMSI_IMEI_HISTORY_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir_history'}
+    eir_history = relationship("IMSI_IMEI_HISTORY", back_populates="operation_logs")
+    imsi_imei_history_id = Column(Integer, ForeignKey('eir_history.imsi_imei_history_id'))
+
+class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_attributes'}
+    subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
+    subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
+
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -53,6 +122,8 @@ class APN(Base):
     arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
+    operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
+    
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
@@ -64,6 +135,7 @@ class SERVING_APN(Base):
     ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
     serving_pgw = Column(String(50), doc='PGW serving this subscriber')
     serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
+    operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
 
 class AUC(Base):
     __tablename__ = 'auc'
@@ -90,6 +162,7 @@ class AUC(Base):
     misc2 = Column(String(128), doc='For misc data storage 2')
     misc3 = Column(String(128), doc='For misc data storage 3')
     misc4 = Column(String(128), doc='For misc data storage 4')
+    operation_logs = relationship("AUC_OPERATION_LOG", back_populates="auc")
     
 class SUBSCRIBER(Base):
     __tablename__ = 'subscriber'
@@ -106,6 +179,7 @@ class SUBSCRIBER(Base):
     subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
     serving_mme = Column(String(50), doc='MME serving this subscriber')
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
+    operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
 
 class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
@@ -117,6 +191,7 @@ class IMS_SUBSCRIBER(Base):
     sh_profile = Column(String(12000), doc='Sh Subscriber Profile')
     scscf = Column(String(50), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of attach to S-CSCF')
+    operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
 class CHARGING_RULE(Base):
     __tablename__ = 'charging_rule'
@@ -135,13 +210,15 @@ class CHARGING_RULE(Base):
     tft_group_id = Column(Integer, doc='Will match any TFTs using this TFT Group to form the TFT list used in the Charging Rule')
     precedence = Column(Integer, doc='Precedence of this rule, allows rule to override or be overridden by a higher priority rule')
     rating_group = Column(Integer, doc='Rating Group in OCS / OFCS that traffic matching this rule will be charged under')
-
+    operation_logs = relationship("CHARGING_RULE_OPERATION_LOG", back_populates="charging_rule")
+    
 class TFT(Base):
     __tablename__ = 'tft'
     tft_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
     tft_group_id = Column(Integer, nullable=False, doc=CHARGING_RULE.tft_group_id.doc)
     tft_string = Column(String(100), nullable=False, doc='IPFilterRules as defined in [RFC 6733] taking the format: action dir proto from src to dst')
     direction = Column(Integer, nullable=False, doc='Traffic Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional')
+    operation_logs = relationship("TFT_OPERATION_LOG", back_populates="tft")
 
 class EIR(Base):
     __tablename__ = 'eir'
@@ -150,6 +227,7 @@ class EIR(Base):
     imsi = Column(String(60), doc='Exact IMSI or Regex to match IMSI (Depending on regex_mode value)')
     regex_mode = Column(Integer, default=1, doc='0 - Exact Match mode, 1 - Regex Mode')
     match_response_code = Column(Integer, doc='0 - Whitelist, 1 - Blacklist, 2 - Greylist')
+    operation_logs = relationship("EIR_OPERATION_LOG", back_populates="eir")
 
 class IMSI_IMEI_HISTORY(Base):
     __tablename__ = 'eir_history'
@@ -157,6 +235,7 @@ class IMSI_IMEI_HISTORY(Base):
     imsi_imei = Column(String(60), unique=True, doc='Combined IMSI + IMEI value')
     match_response_code = Column(Integer, doc='Response code that was returned')
     imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
+    operation_logs = relationship("IMSI_IMEI_HISTORY_OPERATION_LOG", back_populates="eir_history")
 
 class SUBSCRIBER_ATTRIBUTES(Base):
     __tablename__ = 'subscriber_attributes'
@@ -164,6 +243,7 @@ class SUBSCRIBER_ATTRIBUTES(Base):
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
     key = Column(String(60), doc='Arbitrary key')
     value = Column(String(12000), doc='Arbitrary value')
+    operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
 
 # Create database if it does not exist.
 if not database_exists(engine.url):
@@ -173,6 +253,352 @@ if not database_exists(engine.url):
 else:
     DBLogger.debug("Database already created")
 
+# Create individual tables if they do not exist.
+inspector = Inspector.from_engine(engine)
+for table_name in Base.metadata.tables.keys():
+    if table_name not in inspector.get_table_names():
+        DBLogger.debug(f"Creating table {table_name}")
+        Base.metadata.tables[table_name].create(bind=engine)
+    else:
+        DBLogger.debug(f"Table {table_name} already exists")
+
+def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id=None):
+    if operation_id is None:
+        operation_id = str(uuid.uuid4())
+
+    change = OPERATION_LOG_BASE(
+        item_id=item_id,
+        operation_id=operation_id,  # Assign the operation_id
+        operation=operation,
+        column_name=column_name,
+        old_value=old_value,
+        new_value=new_value,
+        table_name=table_name
+    )
+    try:
+        session.add(change)
+        session.flush()
+    except Exception as E:
+        DBLogger.error("Failed to commit changelog, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+    return operation_id
+
+def log_changes_before_commit(session):
+    changelog_pending = any(isinstance(obj, OPERATION_LOG_BASE) for obj in session.new)
+    if changelog_pending:
+        return  # Skip if there are pending OPERATION_LOG_BASE objects
+
+    for state, operation in [
+        (session.new, 'INSERT'),
+        (session.dirty, 'UPDATE'),
+        (session.deleted, 'DELETE')
+    ]:
+        for obj in state:
+            if isinstance(obj, OPERATION_LOG_BASE):
+                continue  # Skip change log entries
+
+            item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
+
+            if operation == 'UPDATE':
+                changes = []
+                for attr in class_mapper(obj.__class__).column_attrs:
+                    hist = get_history(obj, attr.key)
+                    DBLogger.info(f"History {hist}")
+                    if hist.has_changes() and hist.added and hist.deleted:
+                        old_value, new_value = hist.deleted[0], hist.added[0]
+                        DBLogger.info(f"Old Value {old_value}")
+                        DBLogger.info(f"New Value {new_value}")
+                        changes.append((attr.key, old_value, new_value))
+                        continue
+
+                if not changes:
+                    continue
+
+                operation_id = None  # Initialize operation_id for each UPDATE operation
+                for column_name, old_value, new_value in changes:
+                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id)
+
+            elif operation in ['INSERT', 'DELETE']:
+                operation_id = None  # Initialize operation_id for each INSERT/DELETE operation
+                for column in obj.__table__.columns:
+                    column_name = column.name
+                    value = getattr(obj, column_name)
+                    operation_id = log_change(session, item_id, operation, column_name, value, None if operation == 'DELETE' else value, obj.__table__.name, operation_id)
+
+def get_class_by_tablename(base, tablename):
+    """
+    Returns a class object based on the given tablename.
+
+    :param base: Base class of SQLAlchemy models
+    :param tablename: Name of the table to retrieve the class for
+    :return: Class object or None if not found
+    """
+    for mapper in base.registry.mappers:
+        cls = mapper.class_
+        if hasattr(cls, '__tablename__') and cls.__tablename__ == tablename:
+            return cls
+    return None
+
+def rollback_last_change():
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    last_change = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
+    rollback_messages = []
+
+    if last_change:
+        operation_id = last_change.operation_id
+        last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).all()
+
+        for last_change in last_changes:
+            target_class = get_class_by_tablename(Base, last_change.table_name)
+            if not target_class:
+                return f"Error: Could not find table {last_change.table_name}"
+
+            primary_key_col = target_class.__mapper__.primary_key[0].key
+            filter_by_kwargs = {primary_key_col: last_change.item_id}
+            target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
+
+            if not target_item:
+                return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
+
+            # Revert the change
+            setattr(target_item, last_change.column_name, last_change.old_value)
+            session.add(target_item)
+
+            # Log the rollback
+            rollback_entry = OPERATION_LOG_BASE(
+                table_name=last_change.table_name,
+                item_id=last_change.item_id,
+                operation_id=str(uuid.uuid4()),
+                column_name=last_change.column_name,
+                operation='ROLLBACK',
+                old_value=last_change.new_value,
+                new_value=last_change.old_value,
+                timestamp=datetime.datetime.now()
+            )
+            session.add(rollback_entry)
+
+            rollback_messages.append(
+                f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
+            )
+
+        try:
+            session.commit()
+            session.close()
+        except Exception as E:
+            DBLogger.error("Failed to commit rollback, error: " + str(E))
+            session.rollback()
+            session.close()
+            raise ValueError(E)
+
+        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
+    else:
+        return "No changes to roll back."
+
+
+
+def rollback_last_change_by_table(table_name):
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    last_change = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
+    rollback_messages = []
+    if last_change:
+        operation_id = last_change.operation_id
+        last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).all()
+        for last_change in last_changes:
+            target_class = get_class_by_tablename(Base, last_change.table_name)
+            if not target_class:
+                return f"Error: Could not find table {last_change.table_name}"
+
+            primary_key_col = target_class.__mapper__.primary_key[0].key
+            filter_by_kwargs = {primary_key_col: last_change.item_id}
+            target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
+
+            if not target_item:
+                return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
+
+            # Revert the change
+            setattr(target_item, last_change.column_name, last_change.old_value)
+            session.add(target_item)
+
+            rollback_messages.append(
+                f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
+            )
+
+            # Log the rollback
+            rollback_entry = OPERATION_LOG_BASE(
+                table_name=last_change.table_name,
+                item_id=last_change.item_id,
+                operation_id = str(uuid.uuid4()),
+                column_name=last_change.column_name,
+                operation='ROLLBACK',
+                old_value=last_change.new_value,
+                new_value=last_change.old_value,
+                timestamp=datetime.datetime.now()
+            )
+        try:
+            session.add(rollback_entry)
+            session.commit()
+            session.close()
+        except Exception as E:
+            DBLogger.error("Failed to commit rollback, error: " + str(E))
+            session.rollback()
+            session.close()
+            raise ValueError(E)
+
+        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
+    else:
+        return "No changes to roll back."
+
+event.listen(Session, 'before_commit', log_changes_before_commit)
+
+def get_all_operation_hashes():
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    try:
+        change_list = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc())
+        all_hashes = []
+
+        if change_list:
+            for unfiltered_change in change_list:
+                operation_id = unfiltered_change.operation_id
+                print(unfiltered_change)
+                related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+
+                operation_details = ""
+                for change in related_changes:
+                    operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
+                    operation_dict = {}
+
+                operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
+                operation_dict = {"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash}
+                if all(operation_dict != d for d in all_hashes):
+                    all_hashes.append({"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash})
+
+            session.close()
+            return all_hashes
+        else:
+            return None
+    except Exception as E:
+        DBLogger.error(f"get_all_operation_hashes error: {E}")
+        DBLogger.error(E)
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+def get_all_operation_hashes_by_table(table_name):
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    try:
+        change_list = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(OPERATION_LOG_BASE.timestamp.desc())
+        all_hashes = []
+
+        if change_list:
+            for unfiltered_change in change_list:
+                operation_id = unfiltered_change.operation_id
+                print(unfiltered_change)
+                related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+
+                operation_details = ""
+                for change in related_changes:
+                    operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
+                    operation_dict = {}
+
+                operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
+                operation_dict = {"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash}
+                if all(operation_dict != d for d in all_hashes):
+                    all_hashes.append({"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash})
+
+            session.close()
+            return all_hashes
+        else:
+            return None
+    except Exception as E:
+        DBLogger.error(f"get_all_operation_hashes_by_table error: {E}")
+        DBLogger.error(E)
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+def get_last_operation_hash_by_table(table_name):
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    try:
+        last_change = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
+
+        if last_change:
+            operation_id = last_change.operation_id
+            related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+
+            operation_details = ""
+            for change in related_changes:
+                operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
+            
+            operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
+            session.close()
+            return (last_change.table_name, last_change.timestamp, operation_hash)
+        else:
+            return None
+    except Exception as E:
+        DBLogger.error(f"get_last_operation_hash_by_table error: {E}")
+        DBLogger.error(E)
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+def get_last_operation_hash():
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    try:
+        last_change = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
+
+        if last_change:
+            operation_id = last_change.operation_id
+            related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+
+            operation_details = ""
+            for change in related_changes:
+                operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
+            
+            operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
+            session.close()
+            return (last_change.table_name, last_change.timestamp, operation_hash)
+        else:
+            return None
+    except Exception as E:
+        DBLogger.error(f"get_last_operation_hash error: {E}")
+        DBLogger.error(E)
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+    
+def get_last_operation_log():
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    try:
+        result = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        result = Sanitize_Datetime(result)
+        session.close()
+        return result
+    except Exception as E:
+        DBLogger.error(f"get_last_operation_log error: {E}")
+        DBLogger.error(E)
+        session.rollback()
+        session.close()
+        raise ValueError(E)
 
 def GeoRed_Push_Request(remote_hss, json_data):
     headers = {"Content-Type": "application/json"}
@@ -256,25 +682,50 @@ def GetAll(obj_type):
     session.close()
     return final_result_list
 
+def GetAllByTable(obj_type, table):
+    DBLogger.debug(f"Called GetAll for type {str(obj_type)} and table {table}")
+
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind = engine)
+    session = Session()
+    final_result_list = []
+
+    try:
+        result = session.query(obj_type).filter_by(table_name=str(table))
+    except Exception as E:
+        DBLogger.error("Failed to query, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)    
+    
+    for record in result:
+        record = record.__dict__
+        record.pop('_sa_instance_state')
+        record = Sanitize_Datetime(record)
+        record = Sanitize_Keys(record)
+        final_result_list.append(record)
+
+    session.close()
+    return final_result_list
+
 def UpdateObj(obj_type, json_data, obj_id):
     DBLogger.debug("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
     obj_type_str = str(obj_type.__table__.name).upper()
     DBLogger.debug("obj_type_str is " + str(obj_type_str))
     filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
 
     try:
-        sessionquery = session.query(obj_type).filter(filter_input)
-        DBLogger.debug("got result: " + str(sessionquery.__dict__))
-        sessionquery.update(json_data, synchronize_session = False)
+        obj = session.query(obj_type).filter(filter_input).one()
+        for key, value in json_data.items():
+            if hasattr(obj, key):
+                setattr(obj, key, value)
     except Exception as E:
-        DBLogger.error("Failed to query, error: " + str(E))
+        DBLogger.error("Failed to query or update object, error: " + str(E))
         session.rollback()
         session.close()
         raise ValueError(E)
-
-    
 
     try:
         session.commit()
@@ -283,7 +734,7 @@ def UpdateObj(obj_type, json_data, obj_id):
         session.rollback()
         session.close()
         raise ValueError(E)
-    
+
     session.close()
     return GetObj(obj_type, obj_id)
 
@@ -293,9 +744,12 @@ def DeleteObj(obj_type, obj_id):
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    res = session.query(obj_type).get(obj_id)
-    session.delete(res)
     try:
+        res = session.query(obj_type).get(obj_id)
+        if res is None:
+            session.close()
+            raise ValueError("The specified row does not exist")
+        session.delete(res)
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
@@ -325,18 +779,18 @@ def CreateObj(obj_type, json_data):
 
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
-    from alchemyjsonschema import SchemaFactory
-    from alchemyjsonschema import ForeignKeyWalker
-    import pprint as pp
     factory = SchemaFactory(ForeignKeyWalker)
     dictty = dict(factory(obj_type))
 
     dictty['properties'] = dict(dictty['properties'])
 
-    #Set the ID Object to not required
+    # Exclude 'table_name' column from the properties
+    if 'properties' in dictty:
+        dictty['properties'].pop('discriminator', None)
+
+    # Set the ID Object to not required
     obj_type_str = str(dictty['title']).lower()
     dictty['required'].remove(obj_type_str + '_id')
-
 
     return dictty
 

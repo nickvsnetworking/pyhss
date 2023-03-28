@@ -73,6 +73,10 @@ database:
   password: password
   database: hss2
 
+#Webhooks to send provisioning responses to
+webhooks:
+  - http://localhost:5000/webhook
+
 ## Geographic Redundancy Parameters
 geored:
   enabled: False

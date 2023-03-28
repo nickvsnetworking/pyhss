@@ -3,6 +3,9 @@ import json
 from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
+from functools import wraps
+import datetime
+
 app = Flask(__name__)
 
 import logging
@@ -29,6 +32,9 @@ CHARGING_RULE = database.CHARGING_RULE
 EIR = database.EIR
 IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
 SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
+OPERATION_LOG = database.OPERATION_LOG_BASE
+
+
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 api = Api(app, version='1.0', title='PyHSS OAM API',
@@ -45,7 +51,7 @@ ns_charging_rule = api.namespace('charging_rule', description='PyHSS Charging Ru
 ns_eir = api.namespace('eir', description='PyHSS PyHSS Equipment Identity Register')
 ns_imsi_imei = api.namespace('imsi_imei', description='PyHSS IMSI / IMEI Mapping')
 ns_subscriber_attributes = api.namespace('subscriber_attributes', description='PyHSS Subscriber Attributes')
-
+ns_operation_log = api.namespace('operation_logs', description='PyHSS Operation Logs')
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
 ns_pcrf = api.namespace('pcrf', description='PyHSS PCRF Dynamic Functions')
 ns_geored = api.namespace('geored', description='PyHSS GeoRedundancy Functions')
@@ -83,6 +89,11 @@ IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON',
 SUBSCRIBER_ATTRIBUTES_model = api.schema_model('SUBSCRIBER_ATTRIBUTES JSON', 
     database.Generate_JSON_Model_for_Flask(SUBSCRIBER_ATTRIBUTES)
 )
+
+# OPERATION_LOG_model = api.schema_model('OPERATION_LOG JSON', 
+#     database.Generate_JSON_Model_for_Flask(OPERATION_LOG)
+# )
+
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
@@ -100,6 +111,50 @@ GeoRed_model = api.model('GeoRed', {
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
+
+
+lock_provisioning = yaml_config.get('hss', {}).get('lock_provisioning', False)
+provisioning_key = yaml_config.get('hss', {}).get('provisioning_key', '')
+
+def no_auth_required(f):
+    f.no_auth_required = True
+    return f
+
+def auth_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if getattr(f, 'no_auth_required', False) or (lock_provisioning == False):
+            return f(*args, **kwargs)
+        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
+            return {'Result': 'Unauthorized'}, 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def auth_before_request():
+    if request.path.startswith('/docs') or request.path.startswith('/swagger'):
+        return None
+    if request.endpoint and 'static' not in request.endpoint:
+        view_function = app.view_functions[request.endpoint]
+        if hasattr(view_function, 'view_class'):
+            view_class = view_function.view_class
+            view_method = getattr(view_class, request.method.lower(), None)
+            if view_method:
+                if(lock_provisioning == False):
+                    return None
+                if request.method == 'GET' and not getattr(view_method, 'auth_required', False):
+                    return None
+                elif request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] and not getattr(view_method, 'no_auth_required', False):
+                    pass
+                else:
+                    return None
+
+        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
+            return {'Result': 'Unauthorized'}, 401
+    return None
+
+
+
+app.before_request(auth_before_request)
 
 @app.errorhandler(404)
 def page_not_found(e):
@@ -744,6 +799,92 @@ class PyHSS_Attributes(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_operation_log.route('/list')
+class PyHSS_Operation_Log_List(Resource):
+    def get(self):
+        '''Get all Operation Logs'''
+        try:
+            OperationLogs = database.GetAll(OPERATION_LOG)
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/last')
+class PyHSS_Operation_Log_Last(Resource):
+    def get(self):
+        '''Get the most recent Operation Log'''
+        try:
+            OperationLogs = database.get_last_operation_log()
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/list/table/<string:table_name>')
+class PyHSS_Operation_Log_List_Table(Resource):
+    def get(self, table_name):
+        '''Get all Operation Logs for a given table'''
+        try:
+            OperationLogs = database.GetAllByTable(OPERATION_LOG, table_name)
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/list/hash')
+class PyHSS_Operation_Log_Hash_List(Resource):
+    def get(self):
+        '''Get all Operation Log SHA256 Hashes'''
+        try:
+            OperationLogs = database.get_all_operation_hashes()
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/list/hash/table/<string:table_name>')
+class PyHSS_Operation_Log_List_Hash_Table(Resource):
+    def get(self, table_name):
+        '''Get all Operation Log SHA256 Hashes for a given table'''
+        try:
+            OperationLogs = database.get_all_operation_hashes_by_table(table_name)
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/last/hash/')
+class PyHSS_Operation_Log_Last_Hash(Resource):
+    def get(self):
+        '''Get the most recent Operation Log SHA256 Hash'''
+        try:
+            table_name, operation_timestamp, operation_hash = database.get_last_operation_hash()
+            response =  {"table": table_name, "operation_timestamp": operation_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),  "hash": operation_hash}
+            return response, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/last/hash/table/<string:table_name>')
+class PyHSS_Operation_Log_Last_Hash_By_Table(Resource):
+    def get(self, table_name):
+        '''Get the most recent Operation Log SHA256 Hash for a given Table'''
+        try:
+            table_name, operation_timestamp, operation_hash = database.get_last_operation_hash_by_table(table_name)
+            response =  {"table": table_name, "operation_timestamp": operation_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),  "hash": operation_hash}
+            return response, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
     def get(self):
@@ -752,6 +893,42 @@ class PyHSS_OAM_Peers(Resource):
             logObj = logtool.LogTool()
             DiameterPeers = logObj.GetDiameterPeers()
             return DiameterPeers, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_oam.route("/ping")
+class PyHSS_OAM_Ping(Resource):
+    def get(self):
+        """Ping the API to check if it's alive"""
+        try:
+            apiPingResponse = {"result": "OK"}
+            return apiPingResponse, 200
+        except Exception as E:
+            print(E)
+            response_json = {"result": "Failed", "Reason": str(E)}
+            return response_json, 500
+
+@ns_oam.route('/rollback_operation/last')
+class PyHSS_OAM_Rollback_Last(Resource):
+    def get(self):
+        '''Undo the last Insert/Update/Delete operation'''
+        try:
+            RollbackResponse = database.rollback_last_change()
+            return RollbackResponse, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_oam.route('/rollback_operation/last/table/<string:table_name>')
+class PyHSS_OAM_Rollback_Last_Table(Resource):
+    def get(self, table_name):
+        '''Undo the last Insert/Update/Delete operation for given table'''
+        try:
+            RollbackResponse = database.rollback_last_change_by_table(table_name)
+            return RollbackResponse, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
