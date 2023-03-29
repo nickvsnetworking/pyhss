@@ -82,8 +82,8 @@ geored:
   enabled: False
   sync_actions: ['HSS', 'IMS', 'PCRF', 'EIR']    #What event actions should be synced
   sync_endpoints:                         #List of PyHSS API Endpoints to update
-    - 'http://hss01:8080'
-    - 'http://hss02:8080'
+    - 'http://172.23.0.7:8080'
+    - 'http://172.23.0.21:8080'
 
 ## Stats Parameters
 redis:

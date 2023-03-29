@@ -2,11 +2,12 @@ import sys
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event
 from sqlalchemy import create_engine
 from sqlalchemy.engine.reflection import Inspector
-from sqlalchemy.sql import func
+from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
 from alchemyjsonschema import SchemaFactory, ForeignKeyWalker
+from functools import wraps
 import json
 import datetime, time
 import re
@@ -15,6 +16,7 @@ import sys
 import binascii
 import hashlib
 import uuid
+from contextlib import contextmanager
 sys.path.append(os.path.realpath('lib'))
 
 import yaml
@@ -287,6 +289,7 @@ def log_change(session, item_id, operation, column_name, old_value, new_value, t
     return operation_id
 
 def log_changes_before_commit(session):
+
     changelog_pending = any(isinstance(obj, OPERATION_LOG_BASE) for obj in session.new)
     if changelog_pending:
         return  # Skip if there are pending OPERATION_LOG_BASE objects
@@ -328,6 +331,15 @@ def log_changes_before_commit(session):
                     value = getattr(obj, column_name)
                     operation_id = log_change(session, item_id, operation, column_name, value, None if operation == 'DELETE' else value, obj.__table__.name, operation_id)
 
+
+@contextmanager
+def disable_logging_listener():
+    event.remove(Session, 'before_commit', log_changes_before_commit)
+    try:
+        yield
+    finally:
+        event.listen(Session, 'before_commit', log_changes_before_commit)
+
 def get_class_by_tablename(base, tablename):
     """
     Returns a class object based on the given tablename.
@@ -346,130 +358,164 @@ def rollback_last_change():
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
-    last_change = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
-    rollback_messages = []
 
-    if last_change:
-        operation_id = last_change.operation_id
-        last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).all()
+    try:
+        # Get the top 100 records ordered by timestamp (descending order)
+        top_100_records = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
 
-        for last_change in last_changes:
-            target_class = get_class_by_tablename(Base, last_change.table_name)
-            if not target_class:
-                return f"Error: Could not find table {last_change.table_name}"
+        # Get the most recent operation_id
+        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
 
-            primary_key_col = target_class.__mapper__.primary_key[0].key
-            filter_by_kwargs = {primary_key_col: last_change.item_id}
-            target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
+        if most_recent_operation_id:
+            operation_id = most_recent_operation_id[0]
+            last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).all()
+            rollback_messages = []
 
-            if not target_item:
-                return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
+            for last_change in last_changes:
+                target_class = get_class_by_tablename(Base, last_change.table_name)
+                if not target_class:
+                    return f"Error: Could not find table {last_change.table_name}"
 
-            # Revert the change
-            setattr(target_item, last_change.column_name, last_change.old_value)
-            session.add(target_item)
+                primary_key_col = target_class.__mapper__.primary_key[0].key
+                filter_by_kwargs = {primary_key_col: last_change.item_id}
+                target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
 
-            # Log the rollback
-            rollback_entry = OPERATION_LOG_BASE(
-                table_name=last_change.table_name,
-                item_id=last_change.item_id,
-                operation_id=str(uuid.uuid4()),
-                column_name=last_change.column_name,
-                operation='ROLLBACK',
-                old_value=last_change.new_value,
-                new_value=last_change.old_value,
-                timestamp=datetime.datetime.now()
-            )
-            session.add(rollback_entry)
+                if not target_item:
+                    return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
 
-            rollback_messages.append(
-                f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
-            )
+                # Revert the change
+                setattr(target_item, last_change.column_name, last_change.old_value)
+                session.add(target_item)
 
-        try:
-            session.commit()
-            session.close()
-        except Exception as E:
-            DBLogger.error("Failed to commit rollback, error: " + str(E))
-            session.rollback()
-            session.close()
-            raise ValueError(E)
+                # Log the rollback
+                rollback_entry = OPERATION_LOG_BASE(
+                    table_name=last_change.table_name,
+                    item_id=last_change.item_id,
+                    operation_id=str(uuid.uuid4()),
+                    column_name=last_change.column_name,
+                    operation='ROLLBACK',
+                    old_value=last_change.new_value,
+                    new_value=last_change.old_value,
+                    timestamp=datetime.datetime.now()
+                )
+                session.add(rollback_entry)
 
-        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
-    else:
-        return "No changes to roll back."
+                rollback_messages.append(
+                    f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
+                )
 
+            try:
+                session.commit()
+                session.close()
+            except Exception as E:
+                DBLogger.error("Failed to commit rollback, error: " + str(E))
+                session.rollback()
+                session.close()
+                raise ValueError(E)
 
+            return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
+        else:
+            return "No changes to roll back."
+
+    except Exception as E:
+        DBLogger.error("rollback_last_change error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
 
 def rollback_last_change_by_table(table_name):
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
-    last_change = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
-    rollback_messages = []
-    if last_change:
-        operation_id = last_change.operation_id
-        last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).all()
-        for last_change in last_changes:
-            target_class = get_class_by_tablename(Base, last_change.table_name)
-            if not target_class:
-                return f"Error: Could not find table {last_change.table_name}"
 
-            primary_key_col = target_class.__mapper__.primary_key[0].key
-            filter_by_kwargs = {primary_key_col: last_change.item_id}
-            target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
+    try:
+        # Get the top 100 records ordered by timestamp (descending order) for the specified table_name
+        top_100_records = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
 
-            if not target_item:
-                return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
+        # Get the most recent operation_id
+        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
 
-            # Revert the change
-            setattr(target_item, last_change.column_name, last_change.old_value)
-            session.add(target_item)
+        if most_recent_operation_id:
+            operation_id = most_recent_operation_id[0]
+            last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).all()
+            rollback_messages = []
 
-            rollback_messages.append(
-                f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
-            )
+            for last_change in last_changes:
+                target_class = get_class_by_tablename(Base, last_change.table_name)
+                if not target_class:
+                    return f"Error: Could not find table {last_change.table_name}"
 
-            # Log the rollback
-            rollback_entry = OPERATION_LOG_BASE(
-                table_name=last_change.table_name,
-                item_id=last_change.item_id,
-                operation_id = str(uuid.uuid4()),
-                column_name=last_change.column_name,
-                operation='ROLLBACK',
-                old_value=last_change.new_value,
-                new_value=last_change.old_value,
-                timestamp=datetime.datetime.now()
-            )
-        try:
-            session.add(rollback_entry)
-            session.commit()
-            session.close()
-        except Exception as E:
-            DBLogger.error("Failed to commit rollback, error: " + str(E))
-            session.rollback()
-            session.close()
-            raise ValueError(E)
+                primary_key_col = target_class.__mapper__.primary_key[0].key
+                filter_by_kwargs = {primary_key_col: last_change.item_id}
+                target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
 
-        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
-    else:
-        return "No changes to roll back."
+                if not target_item:
+                    return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
+
+                # Revert the change
+                setattr(target_item, last_change.column_name, last_change.old_value)
+                session.add(target_item)
+
+                # Log the rollback
+                rollback_entry = OPERATION_LOG_BASE(
+                    table_name=last_change.table_name,
+                    item_id=last_change.item_id,
+                    operation_id=str(uuid.uuid4()),
+                    column_name=last_change.column_name,
+                    operation='ROLLBACK',
+                    old_value=last_change.new_value,
+                    new_value=last_change.old_value,
+                    timestamp=datetime.datetime.now()
+                )
+                session.add(rollback_entry)
+
+                rollback_messages.append(
+                    f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
+                )
+
+            try:
+                session.commit()
+                session.close()
+            except Exception as E:
+                DBLogger.error("Failed to commit rollback, error: " + str(E))
+                session.rollback()
+                session.close()
+                raise ValueError(E)
+
+            return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
+        else:
+            return "No changes to roll back."
+
+    except Exception as E:
+        DBLogger.error("rollback_last_change error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
 
 event.listen(Session, 'before_commit', log_changes_before_commit)
 
-def get_all_operation_hashes():
+def get_all_operation_hashes(page=1, page_size=100):
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
+
     try:
-        change_list = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc())
+        offset = (page - 1) * page_size
+        change_list = (session.query(OPERATION_LOG_BASE)
+                       .order_by(desc(OPERATION_LOG_BASE.timestamp))
+                       .limit(page_size)
+                       .offset(offset))
+
         all_hashes = []
 
         if change_list:
             for unfiltered_change in change_list:
                 operation_id = unfiltered_change.operation_id
-                print(unfiltered_change)
-                related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+
+                related_changes = (session.query(OPERATION_LOG_BASE)
+                                   .filter(OPERATION_LOG_BASE.operation_id == operation_id)
+                                   .order_by(OPERATION_LOG_BASE.id.asc())
+                                   .all())
 
                 operation_details = ""
                 for change in related_changes:
@@ -492,19 +538,29 @@ def get_all_operation_hashes():
         session.close()
         raise ValueError(E)
 
-def get_all_operation_hashes_by_table(table_name):
+def get_all_operation_hashes_by_table(table_name, page=1, page_size=100):
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
+
     try:
-        change_list = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(OPERATION_LOG_BASE.timestamp.desc())
+        offset = (page - 1) * page_size
+        change_list = (session.query(OPERATION_LOG_BASE)
+                       .filter(OPERATION_LOG_BASE.table_name == table_name)
+                       .order_by(desc(OPERATION_LOG_BASE.timestamp))
+                       .limit(page_size)
+                       .offset(offset))
+
         all_hashes = []
 
         if change_list:
             for unfiltered_change in change_list:
                 operation_id = unfiltered_change.operation_id
-                print(unfiltered_change)
-                related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+
+                related_changes = (session.query(OPERATION_LOG_BASE)
+                                   .filter(OPERATION_LOG_BASE.operation_id == operation_id)
+                                   .order_by(OPERATION_LOG_BASE.id.asc())
+                                   .all())
 
                 operation_details = ""
                 for change in related_changes:
@@ -529,22 +585,26 @@ def get_all_operation_hashes_by_table(table_name):
 
 def get_last_operation_hash_by_table(table_name):
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
     try:
-        last_change = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
+        # Get the top 100 records ordered by timestamp (descending order) for the specified table_name
+        top_100_records = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
 
-        if last_change:
-            operation_id = last_change.operation_id
-            related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+        # Get the most recent operation_id
+        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
+
+        if most_recent_operation_id:
+            # Get the records with the most recent operation_id
+            related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == most_recent_operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
 
             operation_details = ""
             for change in related_changes:
                 operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
-            
+
             operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
             session.close()
-            return (last_change.table_name, last_change.timestamp, operation_hash)
+            return (related_changes[0].table_name, related_changes[0].timestamp, operation_hash)
         else:
             return None
     except Exception as E:
@@ -556,13 +616,18 @@ def get_last_operation_hash_by_table(table_name):
 
 def get_last_operation_hash():
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
-    try:
-        last_change = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
 
-        if last_change:
-            operation_id = last_change.operation_id
+    try:
+        # Get the top 100 records ordered by timestamp (descending order)
+        top_100_records = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
+
+        # Get the most recent operation_id
+        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
+
+        if most_recent_operation_id:
+            operation_id = most_recent_operation_id[0]
             related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
 
             operation_details = ""
@@ -571,7 +636,7 @@ def get_last_operation_hash():
             
             operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
             session.close()
-            return (last_change.table_name, last_change.timestamp, operation_hash)
+            return (related_changes[0].table_name, related_changes[0].timestamp, operation_hash)
         else:
             return None
     except Exception as E:
@@ -583,14 +648,27 @@ def get_last_operation_hash():
     
 def get_last_operation_log():
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        result = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.desc()).first()
-        result = result.__dict__
-        result.pop('_sa_instance_state')
-        result = Sanitize_Datetime(result)
+        # Get the top 100 records ordered by timestamp (descending order)
+        top_100_records = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
+
+        # Get the most recent operation_id
+        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
+
+        # Get the records with the most recent operation_id
+        result_objects = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == most_recent_operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
+        
+        # Convert the result_objects list to a list of dictionaries
+        result = []
+        for obj in result_objects:
+            obj_dict = obj.__dict__
+            obj_dict.pop('_sa_instance_state')
+            sanitized_obj_dict = Sanitize_Datetime(obj_dict)
+            result.append(sanitized_obj_dict)
+        
         session.close()
         return result
     except Exception as E:
@@ -599,6 +677,7 @@ def get_last_operation_log():
         session.rollback()
         session.close()
         raise ValueError(E)
+
 
 def GeoRed_Push_Request(remote_hss, json_data):
     headers = {"Content-Type": "application/json"}
@@ -635,24 +714,49 @@ def Sanitize_Keys(result):
             DBLogger.debug("failed to strip " + str(name_to_strip))
     return result 
 
-def GetObj(obj_type, obj_id):
-    DBLogger.debug("Called GetObj for type " + str(obj_type) + " with id " + str(obj_id))
+def GetObj(obj_type, obj_id=None, page=None, page_size=None):
+    DBLogger.debug("Called GetObj for type " + str(obj_type))
 
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        result = session.query(obj_type).get(obj_id)
+        if obj_id is not None:
+            result = session.query(obj_type).get(obj_id)
+            if result is None:
+                raise ValueError(f"No {obj_type} found with id {obj_id}")
+
+            result = result.__dict__
+            result.pop('_sa_instance_state')
+            result = Sanitize_Datetime(result)
+        elif page is not None and page_size is not None:
+            if page < 1 or page_size < 1:
+                raise ValueError("page and page_size should be positive integers")
+
+            offset = (page - 1) * page_size
+            results = (
+                session.query(obj_type)
+                .order_by(obj_type.id)  # Assuming obj_type has an attribute 'id'
+                .offset(offset)
+                .limit(page_size)
+                .all()
+            )
+
+            result = []
+            for item in results:
+                item_dict = item.__dict__
+                item_dict.pop('_sa_instance_state')
+                result.append(Sanitize_Datetime(item_dict))
+        else:
+            raise ValueError("Provide either obj_id or both page and page_size")
+
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
         session.rollback()
         session.close()
-        raise ValueError(E)    
-    
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    result = Sanitize_Datetime(result)
+        raise ValueError(E)
+
     session.close()
     return result
 
@@ -708,7 +812,7 @@ def GetAllByTable(obj_type, table):
     session.close()
     return final_result_list
 
-def UpdateObj(obj_type, json_data, obj_id):
+def UpdateObj(obj_type, json_data, obj_id, disable_logging=False):
     DBLogger.debug("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -728,7 +832,11 @@ def UpdateObj(obj_type, json_data, obj_id):
         raise ValueError(E)
 
     try:
-        session.commit()
+        if(disable_logging):
+            with disable_logging_listener():
+                session.commit()
+        else:
+            session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         session.rollback()
@@ -738,7 +846,7 @@ def UpdateObj(obj_type, json_data, obj_id):
     session.close()
     return GetObj(obj_type, obj_id)
 
-def DeleteObj(obj_type, obj_id):
+def DeleteObj(obj_type, obj_id, disable_logging=False):
     DBLogger.debug("Called DeleteObj for type " + str(obj_type) + " with id " + str(obj_id))
 
     Session = sessionmaker(bind = engine)
@@ -750,7 +858,11 @@ def DeleteObj(obj_type, obj_id):
             session.close()
             raise ValueError("The specified row does not exist")
         session.delete(res)
-        session.commit()
+        if(disable_logging):
+            with disable_logging_listener():
+                session.commit()
+        else:
+            session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         session.rollback()
@@ -758,14 +870,18 @@ def DeleteObj(obj_type, obj_id):
         raise ValueError(E)
     session.close()
 
-def CreateObj(obj_type, json_data):
+def CreateObj(obj_type, json_data, disable_logging=False):
     newObj = obj_type(**json_data)
     Session = sessionmaker(bind = engine)
     session = Session()
 
     session.add(newObj)
     try:
-        session.commit()
+        if(disable_logging):
+            with disable_logging_listener():
+                session.commit()
+        else:
+            session.commit()
         session.refresh(newObj)
         result = newObj.__dict__
         result.pop('_sa_instance_state')
@@ -1108,7 +1224,7 @@ def Get_APN_by_Name(apn):
 
 def Update_AuC(auc_id, sqn=1):
     DBLogger.debug("Updating AuC record for sub " + str(auc_id))
-    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id))
+    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id, True))
     return
 
 def Update_Serving_MME(imsi, serving_mme, propagate=True):
@@ -1132,7 +1248,8 @@ def Update_Serving_MME(imsi, serving_mme, propagate=True):
         result.serving_mme = None
         result.serving_mme_timestamp = None
     try:
-        session.commit()
+        with disable_logging_listener():
+            session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         session.rollback()
@@ -1170,7 +1287,8 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         result.scscf = None
         result.scscf_timestamp = None
     try:
-        session.commit()
+        with disable_logging_listener():
+            session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         session.rollback()
@@ -1231,14 +1349,14 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate
                 ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
                 DBLogger.debug("Existing Serving APN ID on record, updating")
                 if type(serving_pgw) == str:
-                    UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'])
+                    UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
                 else:
                     DBLogger.debug("Clearing PCRF session ID")
-                    DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'])
+                    DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
             except Exception as E:
                 DBLogger.info("Failed to update existing APN " + str(E))
-                #Update if does not exist
-                CreateObj(SERVING_APN, json_data)
+                #Create if does not exist
+                CreateObj(SERVING_APN, json_data, True)
 
             #Sync state change with geored
             if propagate == True:
@@ -1382,7 +1500,8 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
         session.add(newObj)
         try:
-            session.commit()
+            with disable_logging_listener():
+                session.commit()
         except Exception as E:
             DBLogger.error("Failed to commit session, error: " + str(E))
             session.rollback()

@@ -1,14 +1,18 @@
 import yaml
-import requests
+import httpx
+from httpx import AsyncClient
 import json
 from pprint import pprint
-from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from typing import Dict, List
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
-pyhss_provisioner = FastAPI()
+pyhss_provisioner = FastAPI(
+    title="PyHSS Provisioner",
+    description="Centralized provisioner, supporting multiple PyHSS endpoints.",
+    version="1.0.0",
+)
 
 class PyHssProvisioner:
     def __init__(self, config_file):
@@ -19,97 +23,81 @@ class PyHssProvisioner:
         self.provisioning_key = self.config.get('hss', {}).get('provisioning_key', '')
         self.webhook_subscribers = self.config.get('webhooks', [])
 
-        self.session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            method_whitelist=["GET", "POST", "PUT", "PATCH", "DELETE"]
-        )
-        self.session.mount("http://", HTTPAdapter(max_retries=retries))
-
-    def build_response_body(self, host, status, data=None, failure=False):
+    def build_response_body(self, host, status, data=None, failed=False):
         response_body = {
-                "host": host,
-                "status": status,
-                "data": data if data else {},
-                "failure": failure
-            }
+            "host": host,
+            "status": status,
+            "data": data if data else {},
+            "failed": failed
+        }
         return response_body
 
-    def ping(self, host):
+    async def ping(self, host):
         try:
-            response = self.session.get(f"{host}/oam/ping", timeout=3)
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{host}/oam/ping", timeout=3)
             return self.build_response_body(host, response.status_code, response.json(), False)
         except Exception:
             return self.build_response_body(host, 500, "Unreachable", True)
 
-    def forward_requests(self, method, path, headers, data=None):
+    async def forward_requests(self, method, path, headers, data=None):
         headers['Provisioning-Key'] = self.provisioning_key
-        responses = []
-        host_alive_check_list = []
-        failed_hosts = []
+        ping_responses = []
+        operation_responses = []
+
+        # Ping all hosts first to ensure all are live before proceeding with operations.
+        for host in self.hss_hosts:
+            host_alive_check = await self.ping(host)
+            if host_alive_check['status'] != 200:
+                failed_response = self.build_response_body(host, host_alive_check['status'], host_alive_check['data'], True)
+                ping_responses.append(failed_response)
+
+        # If one or more host failed a ping check, cancel the operation and return the status of all hosts.
+        if any(response['failed'] for response in ping_responses):
+            return (500, {"responses": ping_responses})
 
         for host in self.hss_hosts:
-            host_alive_check_list.append(self.ping(host))
-        
-            for host_alive_check in host_alive_check_list:
-                if host_alive_check['status'] != 200:
-                    failed_hosts.append(host_alive_check)
-        
-            if len(failed_hosts) > 0:
-                return (500, {"responses": failed_hosts})
-
             endpoint = f"{host}/{path}"
             try:
-                response = self.session.request(method, endpoint, headers=headers, json=data)
-                response_model = self.build_response_body(host, response.status_code, response.json(), False)
-            except requests.exceptions.RequestException:
-                failed_hosts.append(host)
-                response_model = self.build_response_body(host, response.status_code, response.json(), False)
-                continue
+                async with httpx.AsyncClient() as client:
+                    response = await client.request(method, endpoint, headers=headers, json=data, timeout=2)
+                response_data = response.json() if 'application/json' in response.headers.get('Content-Type', '') else {}
+                if response.status_code // 100 != 2:  # Check if the response is not a 2xx status code
+                    response_model = self.build_response_body(host, response.status_code, response_data, True)  # Set 'failed' to True
+                    operation_responses.append(response_model)
+                    break
+                else:
+                    response_model = self.build_response_body(host, response.status_code, response_data, False)
+                    operation_responses.append(response_model)
+            except httpx.RequestError as E:
+                response_model = self.build_response_body(host, 500, "Unknown Error", True)  # Set 'failed' to True
+                operation_responses.append(response_model)
+                break
 
-            if response.status_code // 100 != 2:
-                failed_hosts.append(host)
-                response_model = self.build_response_body(host, response.status_code, response.json(), False)
-                continue
-
-            if len(failed_hosts) > 0:
-                return failed_hosts
-
-            responses.append(response_model)
-
-        return (200, {"responses": responses})
+        # If any of the responses['failed'] is True, send back 500 along with the responses dict.
+        # Else, just send back our responses from the PyHSS APIs.
+        if any(response['failed'] for response in operation_responses):
+            return (500, {"responses": operation_responses})
+        else:
+            return (200, {"responses": operation_responses})
 
 
-    def forward_request_to_all(self, method, path, headers, data=None):
-        headers['Provisioning-Key'] = self.provisioning_key
-
-        for host in self.hss_hosts:
-            if self.ping(host):
-                endpoint = f"{host}/{path}"
-                try:
-                    response = self.session.request(method, endpoint, headers=headers, json=data)
-                except requests.exceptions.RequestException:
-                    continue
-
-                self.notify_webhook_subscribers(response)
-
-    def notify_webhook_subscribers(self, update_response):
+    async def notify_webhook_subscribers(self, update_response):
         update_notification = json.dumps({"notification": update_response})
         for subscriber in self.webhook_subscribers:
             try:
-                self.session.post(subscriber, json=update_notification)
-            except requests.exceptions.RequestException:
+                async with httpx.AsyncClient() as client:
+                    await client.post(subscriber, json=update_notification, timeout=1)
+            except httpx.RequestError:
                 print(f"Error: Failed to send notification to {subscriber}")
                 continue
+
 
 provisioner = PyHssProvisioner('config.yaml')
 
 class WebhookUrl(BaseModel):
     url: str
 
-@pyhss_provisioner.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def handle_request(request: Request, path: str):
     method = request.method
     headers = dict(request.headers)
@@ -118,7 +106,17 @@ async def handle_request(request: Request, path: str):
     if method in ['POST', 'PUT', 'PATCH']:
         data = await request.json()
 
-    status_code, response = provisioner.forward_requests(method, path, headers, data)
-    pprint(response)
-    provisioner.notify_webhook_subscribers(response)
-    return response
+    status_code, response = await provisioner.forward_requests(method, path, headers, data)
+    await provisioner.notify_webhook_subscribers(response)
+
+    return JSONResponse(content=response, status_code=status_code)
+
+methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+
+for method in methods:
+    pyhss_provisioner.add_api_route(
+        path="/{path:path}",
+        endpoint=handle_request,
+        methods=[method],
+        name=f"handle_request_{method.lower()}",
+    )

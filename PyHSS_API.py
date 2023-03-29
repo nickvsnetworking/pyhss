@@ -859,7 +859,7 @@ class PyHSS_Operation_Log_List_Hash_Table(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_operation_log.route('/last/hash/')
+@ns_operation_log.route('/last/hash')
 class PyHSS_Operation_Log_Last_Hash(Resource):
     def get(self):
         '''Get the most recent Operation Log SHA256 Hash'''
@@ -1067,6 +1067,7 @@ class PyHSS_PCRF_Complete(Resource):
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
     @ns_geored.expect(GeoRed_model)
+    @no_auth_required
     def patch(self):
         '''Get Geored data Pushed'''
         try:
