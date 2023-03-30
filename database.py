@@ -16,6 +16,7 @@ import sys
 import binascii
 import hashlib
 import uuid
+import functools
 from contextlib import contextmanager
 sys.path.append(os.path.realpath('lib'))
 
@@ -264,9 +265,7 @@ for table_name in Base.metadata.tables.keys():
     else:
         DBLogger.debug(f"Table {table_name} already exists")
 
-def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id=None):
-    if operation_id is None:
-        operation_id = str(uuid.uuid4())
+def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id):
 
     change = OPERATION_LOG_BASE(
         item_id=item_id,
@@ -289,6 +288,8 @@ def log_change(session, item_id, operation, column_name, old_value, new_value, t
     return operation_id
 
 def log_changes_before_commit(session):
+
+    operation_id = session.info.get("operation_id", None) or str(uuid.uuid4())
 
     changelog_pending = any(isinstance(obj, OPERATION_LOG_BASE) for obj in session.new)
     if changelog_pending:
@@ -320,17 +321,14 @@ def log_changes_before_commit(session):
                 if not changes:
                     continue
 
-                operation_id = None  # Initialize operation_id for each UPDATE operation
                 for column_name, old_value, new_value in changes:
                     operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id)
 
             elif operation in ['INSERT', 'DELETE']:
-                operation_id = None  # Initialize operation_id for each INSERT/DELETE operation
                 for column in obj.__table__.columns:
                     column_name = column.name
                     value = getattr(obj, column_name)
                     operation_id = log_change(session, item_id, operation, column_name, value, None if operation == 'DELETE' else value, obj.__table__.name, operation_id)
-
 
 @contextmanager
 def disable_logging_listener():
@@ -339,6 +337,7 @@ def disable_logging_listener():
         yield
     finally:
         event.listen(Session, 'before_commit', log_changes_before_commit)
+
 
 def get_class_by_tablename(base, tablename):
     """
@@ -494,153 +493,91 @@ def rollback_last_change_by_table(table_name):
 
 event.listen(Session, 'before_commit', log_changes_before_commit)
 
-def get_all_operation_hashes(page=1, page_size=100):
+
+def get_all_operation_logs(page=0, page_size=100):
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        offset = (page - 1) * page_size
-        change_list = (session.query(OPERATION_LOG_BASE)
-                       .order_by(desc(OPERATION_LOG_BASE.timestamp))
-                       .limit(page_size)
-                       .offset(offset))
+        # Get all distinct operation_ids ordered by max timestamp (descending order)
+        operation_ids = session.query(OPERATION_LOG_BASE.operation_id).group_by(OPERATION_LOG_BASE.operation_id).order_by(desc(func.max(OPERATION_LOG_BASE.timestamp)))
 
-        all_hashes = []
+        operation_ids = operation_ids.limit(page_size).offset(page * page_size)
 
-        if change_list:
-            for unfiltered_change in change_list:
-                operation_id = unfiltered_change.operation_id
+        operation_ids = operation_ids.all()
 
-                related_changes = (session.query(OPERATION_LOG_BASE)
-                                   .filter(OPERATION_LOG_BASE.operation_id == operation_id)
-                                   .order_by(OPERATION_LOG_BASE.id.asc())
-                                   .all())
+        all_operations = []
 
-                operation_details = ""
-                for change in related_changes:
-                    operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
-                    operation_dict = {}
-
-                operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
-                operation_dict = {"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash}
-                if all(operation_dict != d for d in all_hashes):
-                    all_hashes.append({"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash})
-
-            session.close()
-            return all_hashes
-        else:
-            return None
-    except Exception as E:
-        DBLogger.error(f"get_all_operation_hashes error: {E}")
-        DBLogger.error(E)
-        session.rollback()
-        session.close()
-        raise ValueError(E)
-
-def get_all_operation_hashes_by_table(table_name, page=1, page_size=100):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    try:
-        offset = (page - 1) * page_size
-        change_list = (session.query(OPERATION_LOG_BASE)
-                       .filter(OPERATION_LOG_BASE.table_name == table_name)
-                       .order_by(desc(OPERATION_LOG_BASE.timestamp))
-                       .limit(page_size)
-                       .offset(offset))
-
-        all_hashes = []
-
-        if change_list:
-            for unfiltered_change in change_list:
-                operation_id = unfiltered_change.operation_id
-
-                related_changes = (session.query(OPERATION_LOG_BASE)
-                                   .filter(OPERATION_LOG_BASE.operation_id == operation_id)
-                                   .order_by(OPERATION_LOG_BASE.id.asc())
-                                   .all())
-
-                operation_details = ""
-                for change in related_changes:
-                    operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
-                    operation_dict = {}
-
-                operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
-                operation_dict = {"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash}
-                if all(operation_dict != d for d in all_hashes):
-                    all_hashes.append({"table": change.table_name, "operation_timestamp": change.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "hash": operation_hash})
-
-            session.close()
-            return all_hashes
-        else:
-            return None
-    except Exception as E:
-        DBLogger.error(f"get_all_operation_hashes_by_table error: {E}")
-        DBLogger.error(E)
-        session.rollback()
-        session.close()
-        raise ValueError(E)
-
-def get_last_operation_hash_by_table(table_name):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    try:
-        # Get the top 100 records ordered by timestamp (descending order) for the specified table_name
-        top_100_records = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
-
-        # Get the most recent operation_id
-        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
-
-        if most_recent_operation_id:
-            # Get the records with the most recent operation_id
-            related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == most_recent_operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
+        for operation_id in operation_ids:
+            result_objects = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
 
             operation_details = ""
-            for change in related_changes:
-                operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
+            for obj in result_objects:
+                operation_details += f"{obj.operation_id}-{obj.operation}-{obj.table_name}-{obj.item_id}-{obj.column_name}-{obj.old_value}-{obj.new_value};"
 
             operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
-            session.close()
-            return (related_changes[0].table_name, related_changes[0].timestamp, operation_hash)
-        else:
-            return None
+
+            # Convert the result_objects list to a list of dictionaries
+            result = []
+            for obj in result_objects:
+                obj_dict = obj.__dict__
+                obj_dict.pop('_sa_instance_state')
+                sanitized_obj_dict = Sanitize_Datetime(obj_dict)
+                sanitized_obj_dict['hash'] = operation_hash
+                result.append(sanitized_obj_dict)
+
+            all_operations.append(result)
+
+        session.close()
+        return all_operations
     except Exception as E:
-        DBLogger.error(f"get_last_operation_hash_by_table error: {E}")
+        DBLogger.error(f"get_all_operation_logs error: {E}")
         DBLogger.error(E)
         session.rollback()
         session.close()
         raise ValueError(E)
 
-def get_last_operation_hash():
+
+def get_all_operation_logs_by_table(table_name, page=0, page_size=100):
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        # Get the top 100 records ordered by timestamp (descending order)
-        top_100_records = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
+        # Get all distinct operation_ids ordered by max timestamp (descending order)
+        operation_ids = session.query(OPERATION_LOG_BASE.operation_id).filter(OPERATION_LOG_BASE.table_name == table_name).group_by(OPERATION_LOG_BASE.operation_id).order_by(desc(func.max(OPERATION_LOG_BASE.timestamp)))
 
-        # Get the most recent operation_id
-        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
+        operation_ids = operation_ids.limit(page_size).offset(page * page_size)
 
-        if most_recent_operation_id:
-            operation_id = most_recent_operation_id[0]
-            related_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(OPERATION_LOG_BASE.id.asc()).all()
+        operation_ids = operation_ids.all()
+
+        all_operations = []
+
+        for operation_id in operation_ids:
+            result_objects = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
 
             operation_details = ""
-            for change in related_changes:
-                operation_details += f"{change.operation}-{change.table_name}-{change.item_id}-{change.column_name}-{change.old_value}-{change.new_value}-{change.timestamp.timestamp()};"
-            
+            for obj in result_objects:
+                operation_details += f"{obj.operation_id}-{obj.operation}-{obj.table_name}-{obj.item_id}-{obj.column_name}-{obj.old_value}-{obj.new_value};"
+
             operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
-            session.close()
-            return (related_changes[0].table_name, related_changes[0].timestamp, operation_hash)
-        else:
-            return None
+
+            # Convert the result_objects list to a list of dictionaries
+            result = []
+            for obj in result_objects:
+                obj_dict = obj.__dict__
+                obj_dict.pop('_sa_instance_state')
+                sanitized_obj_dict = Sanitize_Datetime(obj_dict)
+                sanitized_obj_dict['hash'] = operation_hash
+                result.append(sanitized_obj_dict)
+
+            all_operations.append(result)
+
+        session.close()
+        return all_operations
     except Exception as E:
-        DBLogger.error(f"get_last_operation_hash error: {E}")
+        DBLogger.error(f"get_all_operation_logs error: {E}")
         DBLogger.error(E)
         session.rollback()
         session.close()
@@ -660,15 +597,22 @@ def get_last_operation_log():
 
         # Get the records with the most recent operation_id
         result_objects = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == most_recent_operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
-        
+
+        operation_details = ""
+        for obj in result_objects:
+            operation_details += f"{obj.operation_id}-{obj.operation}-{obj.table_name}-{obj.item_id}-{obj.column_name}-{obj.old_value}-{obj.new_value};"
+
+        operation_hash = hashlib.sha256(operation_details.encode('utf-8')).hexdigest()
+
         # Convert the result_objects list to a list of dictionaries
         result = []
         for obj in result_objects:
             obj_dict = obj.__dict__
             obj_dict.pop('_sa_instance_state')
             sanitized_obj_dict = Sanitize_Datetime(obj_dict)
+            sanitized_obj_dict['hash'] = operation_hash
             result.append(sanitized_obj_dict)
-        
+
         session.close()
         return result
     except Exception as E:
@@ -677,6 +621,7 @@ def get_last_operation_log():
         session.rollback()
         session.close()
         raise ValueError(E)
+
 
 
 def GeoRed_Push_Request(remote_hss, json_data):
@@ -812,12 +757,12 @@ def GetAllByTable(obj_type, table):
     session.close()
     return final_result_list
 
-def UpdateObj(obj_type, json_data, obj_id, disable_logging=False):
-    DBLogger.debug("Called UpdateObj() for type " + str(obj_type) + " id " + str(obj_id) + " with JSON data: " + str(json_data))
+def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=None):
+    DBLogger.debug(f"Called UpdateObj() for type {obj_type} id {obj_id} with JSON data: {json_data} and operation_id: {operation_id}")
     Session = sessionmaker(bind=engine)
     session = Session()
     obj_type_str = str(obj_type.__table__.name).upper()
-    DBLogger.debug("obj_type_str is " + str(obj_type_str))
+    DBLogger.debug(f"obj_type_str is {obj_type_str}")
     filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
 
     try:
@@ -826,7 +771,7 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False):
             if hasattr(obj, key):
                 setattr(obj, key, value)
     except Exception as E:
-        DBLogger.error("Failed to query or update object, error: " + str(E))
+        DBLogger.error(f"Failed to query or update object, error: {E}")
         session.rollback()
         session.close()
         raise ValueError(E)
@@ -836,9 +781,10 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False):
             with disable_logging_listener():
                 session.commit()
         else:
+            session.info["operation_id"] = operation_id #Pass the operation id
             session.commit()
     except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
+        DBLogger.error(f"Failed to commit session, error: {E}")
         session.rollback()
         session.close()
         raise ValueError(E)
@@ -846,8 +792,8 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False):
     session.close()
     return GetObj(obj_type, obj_id)
 
-def DeleteObj(obj_type, obj_id, disable_logging=False):
-    DBLogger.debug("Called DeleteObj for type " + str(obj_type) + " with id " + str(obj_id))
+def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
+    DBLogger.debug(f"Called DeleteObj for type {obj_type} with id {obj_id}")
 
     Session = sessionmaker(bind = engine)
     session = Session()
@@ -862,15 +808,16 @@ def DeleteObj(obj_type, obj_id, disable_logging=False):
             with disable_logging_listener():
                 session.commit()
         else:
+            session.info["operation_id"] = operation_id #Pass the operation id
             session.commit()
     except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
+        DBLogger.error(f"Failed to commit session, error: {E}")
         session.rollback()
         session.close()
         raise ValueError(E)
     session.close()
 
-def CreateObj(obj_type, json_data, disable_logging=False):
+def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
     newObj = obj_type(**json_data)
     Session = sessionmaker(bind = engine)
     session = Session()
@@ -881,6 +828,7 @@ def CreateObj(obj_type, json_data, disable_logging=False):
             with disable_logging_listener():
                 session.commit()
         else:
+            session.info["operation_id"] = operation_id #Pass the operation id
             session.commit()
         session.refresh(newObj)
         result = newObj.__dict__

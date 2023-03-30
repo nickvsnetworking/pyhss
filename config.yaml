@@ -73,17 +73,13 @@ database:
   password: password
   database: hss2
 
-#Webhooks to send provisioning responses to
-webhooks:
-  - http://localhost:5000/webhook
-
 ## Geographic Redundancy Parameters
 geored:
   enabled: False
   sync_actions: ['HSS', 'IMS', 'PCRF', 'EIR']    #What event actions should be synced
   sync_endpoints:                         #List of PyHSS API Endpoints to update
-    - 'http://172.23.0.7:8080'
-    - 'http://172.23.0.21:8080'
+    - 'http://hss01.mnc001.mcc001.3gppnetwork.org:8080'
+    - 'http://hss02.mnc001.mcc001.3gppnetwork.org:8080'
 
 ## Stats Parameters
 redis:
