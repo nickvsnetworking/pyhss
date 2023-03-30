@@ -799,6 +799,18 @@ class PyHSS_EIR_All(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_subscriber_attributes.route('/list')
+class PyHSS_Subscriber_Attributes_All(Resource):
+    def get(self):
+        '''Get all Subscriber Attributes'''
+        try:
+            data = database.GetAll(SUBSCRIBER_ATTRIBUTES)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_subscriber_attributes.route('/<string:subscriber_id>')
 class PyHSS_Attributes_Get(Resource):
     def get(self, subscriber_id):
@@ -930,6 +942,7 @@ class PyHSS_OAM_Ping(Resource):
 
 @ns_oam.route('/rollback_operation/last')
 class PyHSS_OAM_Rollback_Last(Resource):
+    @auth_required
     def get(self):
         '''Undo the last Insert/Update/Delete operation'''
         try:
@@ -942,6 +955,7 @@ class PyHSS_OAM_Rollback_Last(Resource):
 
 @ns_oam.route('/rollback_operation/last/table/<string:table_name>')
 class PyHSS_OAM_Rollback_Last_Table(Resource):
+    @auth_required
     def get(self, table_name):
         '''Undo the last Insert/Update/Delete operation for given table'''
         try:
