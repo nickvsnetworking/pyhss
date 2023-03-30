@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
+import datetime
 
 app = Flask(__name__)
 
@@ -31,6 +32,9 @@ CHARGING_RULE = database.CHARGING_RULE
 EIR = database.EIR
 IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
 SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
+OPERATION_LOG = database.OPERATION_LOG_BASE
+
+
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 api = Api(app, version='1.0', title='PyHSS OAM API',
@@ -47,13 +51,19 @@ ns_charging_rule = api.namespace('charging_rule', description='PyHSS Charging Ru
 ns_eir = api.namespace('eir', description='PyHSS PyHSS Equipment Identity Register')
 ns_imsi_imei = api.namespace('imsi_imei', description='PyHSS IMSI / IMEI Mapping')
 ns_subscriber_attributes = api.namespace('subscriber_attributes', description='PyHSS Subscriber Attributes')
-
+ns_operation_log = api.namespace('operation_logs', description='PyHSS Operation Logs')
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
 ns_pcrf = api.namespace('pcrf', description='PyHSS PCRF Dynamic Functions')
 ns_geored = api.namespace('geored', description='PyHSS GeoRedundancy Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
+parser.add_argument('operation_id', type=str, help='Operation ID', location='args')
+
+paginatorParser = reqparse.RequestParser()
+paginatorParser.add_argument('page', type=int, required=False, default=0, help='Page number for pagination')
+paginatorParser.add_argument('page_size', type=int, required=False, default=100, help='Number of items per page for pagination')
+
 
 APN_model = api.schema_model('APN JSON', 
     database.Generate_JSON_Model_for_Flask(APN)
@@ -85,6 +95,7 @@ IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON',
 SUBSCRIBER_ATTRIBUTES_model = api.schema_model('SUBSCRIBER_ATTRIBUTES JSON', 
     database.Generate_JSON_Model_for_Flask(SUBSCRIBER_ATTRIBUTES)
 )
+
 PCRF_Push_model = api.model('PCRF_Rule', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to push rule to'),
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
@@ -143,8 +154,6 @@ def auth_before_request():
             return {'Result': 'Unauthorized'}, 401
     return None
 
-
-
 app.before_request(auth_before_request)
 
 @app.errorhandler(404)
@@ -171,7 +180,9 @@ class PyHSS_APN_Get(Resource):
     def delete(self, apn_id):
         '''Delete all APN data for specified APN ID'''
         try:
-            apn_data = database.DeleteObj(APN, apn_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_data = database.DeleteObj(APN, apn_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -185,7 +196,10 @@ class PyHSS_APN_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            apn_data = database.UpdateObj(APN, json_data, apn_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_data = database.UpdateObj(APN, json_data, apn_id, False, operation_id)
+
             print("Updated object")
             print(apn_data)
             return apn_data, 200
@@ -203,7 +217,10 @@ class PyHSS_APN(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            apn_id = database.CreateObj(APN, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_id = database.CreateObj(APN, json_data, False, operation_id)
+
             return apn_id, 200
         except Exception as E:
             print(E)
@@ -238,7 +255,9 @@ class PyHSS_AUC_Get(Resource):
     def delete(self, auc_id):
         '''Delete all AUC data for specified AUC ID'''
         try:
-            data = database.DeleteObj(AUC, auc_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(AUC, auc_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -252,7 +271,10 @@ class PyHSS_AUC_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(AUC, json_data, auc_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(AUC, json_data, auc_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -296,7 +318,10 @@ class PyHSS_AUC(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(AUC, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(AUC, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
@@ -330,7 +355,9 @@ class PyHSS_SUBSCRIBER_Get(Resource):
     def delete(self, subscriber_id):
         '''Delete all data for specified subscriber_id'''
         try:
-            data = database.DeleteObj(SUBSCRIBER, subscriber_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(SUBSCRIBER, subscriber_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -344,7 +371,10 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(SUBSCRIBER, json_data, subscriber_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -362,7 +392,10 @@ class PyHSS_SUBSCRIBER(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(SUBSCRIBER, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(SUBSCRIBER, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
@@ -420,7 +453,9 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
     def delete(self, ims_subscriber_id):
         '''Delete all data for specified ims_subscriber_id'''
         try:
-            data = database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -434,7 +469,10 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -452,7 +490,10 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(IMS_SUBSCRIBER, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(IMS_SUBSCRIBER, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
@@ -512,7 +553,9 @@ class PyHSS_TFT_Get(Resource):
     def delete(self, tft_id):
         '''Delete all data for specified tft_id'''
         try:
-            data = database.DeleteObj(TFT, tft_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(TFT, tft_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -526,7 +569,10 @@ class PyHSS_TFT_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(TFT, json_data, tft_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(TFT, json_data, tft_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -544,7 +590,10 @@ class PyHSS_TFT(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(TFT, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(TFT, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
@@ -578,7 +627,9 @@ class PyHSS_Charging_Rule_Get(Resource):
     def delete(self, charging_rule_id):
         '''Delete all data for specified charging_rule_id'''
         try:
-            data = database.DeleteObj(CHARGING_RULE, charging_rule_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(CHARGING_RULE, charging_rule_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -592,7 +643,10 @@ class PyHSS_Charging_Rule_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(CHARGING_RULE, json_data, charging_rule_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(CHARGING_RULE, json_data, charging_rule_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -610,7 +664,10 @@ class PyHSS_Charging_Rule(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(CHARGING_RULE, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(CHARGING_RULE, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
@@ -644,7 +701,9 @@ class PyHSS_EIR_Get(Resource):
     def delete(self, eir_id):
         '''Delete all data for specified eir_data'''
         try:
-            data = database.DeleteObj(EIR, eir_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(EIR, eir_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -658,7 +717,10 @@ class PyHSS_EIR_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(EIR, json_data, eir_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(EIR, json_data, eir_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -676,7 +738,10 @@ class PyHSS_EIR(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(EIR, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(EIR, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
@@ -734,6 +799,18 @@ class PyHSS_EIR_All(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_subscriber_attributes.route('/list')
+class PyHSS_Subscriber_Attributes_All(Resource):
+    def get(self):
+        '''Get all Subscriber Attributes'''
+        try:
+            data = database.GetAll(SUBSCRIBER_ATTRIBUTES)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 @ns_subscriber_attributes.route('/<string:subscriber_id>')
 class PyHSS_Attributes_Get(Resource):
     def get(self, subscriber_id):
@@ -751,7 +828,9 @@ class PyHSS_Attributes_Get(Resource):
     def delete(self, subscriber_attributes_id):
         '''Delete specified attribute ID'''
         try:
-            data = database.DeleteObj(SUBSCRIBER_ATTRIBUTES, subscriber_attributes_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.DeleteObj(SUBSCRIBER_ATTRIBUTES, subscriber_attributes_id, False, operation_id)
             return {"Result": "OK"}, 200
         except Exception as E:
             print(E)
@@ -765,7 +844,10 @@ class PyHSS_Attributes_Get(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.UpdateObj(SUBSCRIBER_ATTRIBUTES, json_data, subscriber_attributes_id)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(SUBSCRIBER_ATTRIBUTES, json_data, subscriber_attributes_id, False, operation_id)
+
             print("Updated object")
             print(data)
             return data, 200
@@ -783,8 +865,51 @@ class PyHSS_Attributes(Resource):
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
-            data = database.CreateObj(SUBSCRIBER_ATTRIBUTES, json_data)
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(SUBSCRIBER_ATTRIBUTES, json_data, False, operation_id)
+
             return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/list')
+class PyHSS_Operation_Log_List(Resource):
+    @ns_operation_log.expect(paginatorParser)
+    def get(self):
+        '''Get all Operation Logs'''
+        try:
+            args = paginatorParser.parse_args()
+            OperationLogs = database.get_all_operation_logs(args['page'], args['page_size'])
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/last')
+class PyHSS_Operation_Log_Last(Resource):
+    def get(self):
+        '''Get the most recent Operation Log'''
+        try:
+            OperationLogs = database.get_last_operation_log()
+            return OperationLogs, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_operation_log.route('/list/table/<string:table_name>')
+class PyHSS_Operation_Log_List_Table(Resource):
+    @ns_operation_log.expect(paginatorParser)
+    def get(self, table_name):
+        '''Get all Operation Logs for a given table'''
+        try:
+            args = paginatorParser.parse_args()
+            OperationLogs = database.get_all_operation_logs_by_table(table_name, args['page'], args['page_size'])
+            return OperationLogs, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -813,6 +938,32 @@ class PyHSS_OAM_Ping(Resource):
         except Exception as E:
             print(E)
             response_json = {"result": "Failed", "Reason": str(E)}
+            return response_json, 500
+
+@ns_oam.route('/rollback_operation/last')
+class PyHSS_OAM_Rollback_Last(Resource):
+    @auth_required
+    def get(self):
+        '''Undo the last Insert/Update/Delete operation'''
+        try:
+            RollbackResponse = database.rollback_last_change()
+            return RollbackResponse, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_oam.route('/rollback_operation/last/table/<string:table_name>')
+class PyHSS_OAM_Rollback_Last_Table(Resource):
+    @auth_required
+    def get(self, table_name):
+        '''Undo the last Insert/Update/Delete operation for given table'''
+        try:
+            RollbackResponse = database.rollback_last_change_by_table(table_name)
+            return RollbackResponse, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
 @ns_oam.route('/serving_subs')
@@ -948,6 +1099,7 @@ class PyHSS_PCRF_Complete(Resource):
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
     @ns_geored.expect(GeoRed_model)
+    @no_auth_required
     def patch(self):
         '''Get Geored data Pushed'''
         try:
