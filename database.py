@@ -872,6 +872,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         if res is None:
             session.close()
             raise ValueError("The specified row does not exist")
+        return_data = GetObj(obj_type, obj_id)
         session.delete(res)
         if(disable_logging):
             with disable_logging_listener():
@@ -879,12 +880,13 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         else:
             session.info["operation_id"] = operation_id #Pass the operation id
             session.commit()
+        session.close()
+        return return_data
     except Exception as E:
         DBLogger.error(f"Failed to commit session, error: {E}")
         session.rollback()
         session.close()
         raise ValueError(E)
-    session.close()
 
 def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
     newObj = obj_type(**json_data)

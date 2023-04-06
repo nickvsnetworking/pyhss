@@ -182,8 +182,8 @@ class PyHSS_APN_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            apn_data = database.DeleteObj(APN, apn_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            data = database.DeleteObj(APN, apn_id, False, operation_id)
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -258,7 +258,7 @@ class PyHSS_AUC_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(AUC, auc_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -358,7 +358,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(SUBSCRIBER, subscriber_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -456,7 +456,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -556,7 +556,7 @@ class PyHSS_TFT_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(TFT, tft_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -630,7 +630,7 @@ class PyHSS_Charging_Rule_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(CHARGING_RULE, charging_rule_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -704,7 +704,7 @@ class PyHSS_EIR_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(EIR, eir_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
@@ -831,7 +831,7 @@ class PyHSS_Attributes_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = database.DeleteObj(SUBSCRIBER_ATTRIBUTES, subscriber_attributes_id, False, operation_id)
-            return {"Result": "OK"}, 200
+            return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
