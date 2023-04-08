@@ -265,10 +265,10 @@ for table_name in Base.metadata.tables.keys():
     else:
         DBLogger.debug(f"Table {table_name} already exists")
 
-def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id):
+def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id, generated_id=None):
 
     change = OPERATION_LOG_BASE(
-        item_id=item_id,
+        item_id=item_id or generated_id,
         operation_id=operation_id,  # Assign the operation_id
         operation=operation,
         column_name=column_name,
@@ -305,6 +305,11 @@ def log_changes_before_commit(session):
                 continue  # Skip change log entries
 
             item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
+            generated_id = None
+
+            # Flush the session to generate primary key for new objects
+            if operation == 'INSERT':
+                session.flush()
 
             if operation == 'UPDATE':
                 changes = []
@@ -330,10 +335,11 @@ def log_changes_before_commit(session):
                     value = getattr(obj, column_name)
                     if operation == 'INSERT':
                         old_value, new_value = None, value
+                        if item_id is None:
+                            generated_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
                     elif operation == 'DELETE':
                         old_value, new_value = value, None
-                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id)
-
+                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id, generated_id)
 
 @contextmanager
 def disable_logging_listener():
