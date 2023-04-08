@@ -1198,6 +1198,15 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         Update_AuC(auc_id, sqn=key_data['sqn']+100)
         return vector_dict
 
+    elif action == "Digest-MD5":
+        DBLogger.debug("Generating Digest-MD5 Auth vectors")
+        DBLogger.debug("key_data: " + str(key_data))
+        nonce = uuid.uuid4().hex
+        #nonce = "beef4d878f2642ed98afe491b943ca60"
+        vector_dict['nonce'] = nonce
+        vector_dict['SIP_Authenticate'] = key_data['ki']
+        return vector_dict
+
 def Get_APN(apn_id):
     DBLogger.debug("Getting APN " + str(apn_id))
     Session = sessionmaker(bind = engine)

@@ -1281,7 +1281,7 @@ class Diameter:
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
 
-        #Determine if SQN Resync is required
+        #Determine if SQN Resync is required & auth type to use
         for sub_avp_612 in self.get_avp_data(avps, 612)[0]:
             if sub_avp_612['avp_code'] == 610:
                 DiameterLogger.info("SQN in HSS is out of sync - Performing resync")
@@ -1290,36 +1290,50 @@ class Diameter:
                 rand = binascii.unhexlify(rand)
                 database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
                 DiameterLogger.debug("Resynced SQN in DB")
+            if sub_avp_612['avp_code'] == 608:
+                DiameterLogger.info("Auth mechansim requested: " + str(sub_avp_612['misc_data']))
+                auth_scheme = binascii.unhexlify(sub_avp_612['misc_data']).decode('utf-8')
+                DiameterLogger.info("Auth mechansim requested: " + str(auth_scheme))
 
-
-        vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
-        
         DiameterLogger.debug("IMSI is " + str(imsi))        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi + "@" + domain)),'ascii'))                                    #Username
         
-        #diameter.3GPP-SIP-Auth-Data-Items:
 
-        #AVP Code: 613 3GPP-SIP-Item-Number
-        avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
-        #AVP Code: 608 3GPP-SIP-Authentication-Scheme
-        avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
+        #Determine Vectors to Generate
+        if auth_scheme == "Digest-MD5":
+            DiameterLogger.debug("Generating MD5 Challenge")
+            vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "Digest-MD5", username=imsi, plmn=plmn)
+            avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
+            avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-MD5'),'ascii'))
+            #Nonce
+            avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(vector_dict['nonce']))
+            #Expected Response
+            avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415,  str(binascii.hexlify(str.encode(vector_dict['SIP_Authenticate'])),'ascii'))
+            auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization
+        else:
+            DiameterLogger.debug("Generating AKA-MD5 Auth Challenge")
+            vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
+        
 
-        #AVP Code: 609 3GPP-SIP-Authenticate
-        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(vector_dict['SIP_Authenticate']),'ascii'))   #RAND + AUTN
-        
-        #AVP Code: 610 3GPP-SIP-Authorization
-        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(vector_dict['xres']),'ascii'))  #XRES
-        
-        #AVP Code: 625 Confidentiality-Key
-        avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(vector_dict['ck']),'ascii'))  #CK
-        
-        #AVP Code: 626 Integrity-Key
-        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(vector_dict['ik']),'ascii'))          #IK
+            #diameter.3GPP-SIP-Auth-Data-Items:
 
-        auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
+            #AVP Code: 613 3GPP-SIP-Item-Number
+            avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
+            #AVP Code: 608 3GPP-SIP-Authentication-Scheme
+            avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-AKAv1-MD5'),'ascii'))
+            #AVP Code: 609 3GPP-SIP-Authenticate
+            avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, str(binascii.hexlify(vector_dict['SIP_Authenticate']),'ascii'))   #RAND + AUTN
+            #AVP Code: 610 3GPP-SIP-Authorization
+            avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, str(binascii.hexlify(vector_dict['xres']),'ascii'))  #XRES
+            #AVP Code: 625 Confidentiality-Key
+            avp_Confidentialility_Key = self.generate_vendor_avp(625, "c0", 10415, str(binascii.hexlify(vector_dict['ck']),'ascii'))  #CK
+            #AVP Code: 626 Integrity-Key
+            avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, str(binascii.hexlify(vector_dict['ik']),'ascii'))          #IK
+
+            auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization + avp_Confidentialility_Key + avp_Integrity_Key
         avp += self.generate_vendor_avp(612, "c0", 10415, auth_data_item)    #3GPP-SIP-Auth-Data-Item
-        
+            
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
 
 
@@ -1486,7 +1500,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 307, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777217_307_success_count')
         return response
-
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
