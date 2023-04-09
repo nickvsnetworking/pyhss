@@ -54,8 +54,8 @@ class OPERATION_LOG_BASE(Base):
     operation_id = Column(String(36), nullable=False)
     operation = Column(String(10))
     column_name = Column(String(255))
-    old_value = Column(String(255))
-    new_value = Column(String(255))
+    old_value = Column(String(12000))
+    new_value = Column(String(12000))
     timestamp = Column(DateTime, default=func.now())
     table_name = Column('table_name', String(255))
     __mapper_args__ = {'polymorphic_on': table_name}
@@ -126,7 +126,6 @@ class APN(Base):
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
-    
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
