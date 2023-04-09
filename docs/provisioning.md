@@ -23,7 +23,7 @@ At a minimum you will need to specify the OPc/Ki & AMF of the card.
 
 If your data output only include the OP you can use the `CryptoTool.py` from the `lib` folder to convert the OP values into OPc values.
 
-```
+```shell
 curl -X 'PUT' \
   'http://10.97.0.36:8080/auc/' \
   -H 'accept: application/json' \
@@ -39,7 +39,7 @@ curl -X 'PUT' \
 
 ### Define Subscriber for EPC Access
 This defines IMSI 001010000000001 with access to APN with APN_ID 1 & APN_ID 2, where the APN with APN_ID 1 is the default APN for the subscriber. The AMBR values allow for 9999999 bytes per second (~8Mbps).
-```
+```shell
 curl -X 'PUT' \
   'http://10.97.0.36:8080/subscriber/' \
   -H 'accept: application/json' \
@@ -64,7 +64,7 @@ This defines a subscriber for access to the IMS.
 Multiple MSISDNs can be defined as comma separated values in `msisdn_list` as required.
 
 The Sh profile will need to be updated with a valid Sh profile for the sub.
-```
+```shell
 curl -X 'PUT' \
   'http://10.97.0.36:8080/ims_subscriber/' \
   -H 'accept: application/json' \
