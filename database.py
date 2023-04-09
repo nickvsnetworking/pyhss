@@ -54,8 +54,8 @@ class OPERATION_LOG_BASE(Base):
     operation_id = Column(String(36), nullable=False)
     operation = Column(String(10))
     column_name = Column(String(255))
-    old_value = Column(String(255))
-    new_value = Column(String(255))
+    old_value = Column(String(12000))
+    new_value = Column(String(12000))
     timestamp = Column(DateTime, default=func.now())
     table_name = Column('table_name', String(255))
     __mapper_args__ = {'polymorphic_on': table_name}
@@ -126,7 +126,6 @@ class APN(Base):
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
-    
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
@@ -265,10 +264,10 @@ for table_name in Base.metadata.tables.keys():
     else:
         DBLogger.debug(f"Table {table_name} already exists")
 
-def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id):
+def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id, generated_id=None):
 
     change = OPERATION_LOG_BASE(
-        item_id=item_id,
+        item_id=item_id or generated_id,
         operation_id=operation_id,  # Assign the operation_id
         operation=operation,
         column_name=column_name,
@@ -305,6 +304,11 @@ def log_changes_before_commit(session):
                 continue  # Skip change log entries
 
             item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
+            generated_id = None
+
+            # Flush the session to generate primary key for new objects
+            if operation == 'INSERT':
+                session.flush()
 
             if operation == 'UPDATE':
                 changes = []
@@ -330,10 +334,11 @@ def log_changes_before_commit(session):
                     value = getattr(obj, column_name)
                     if operation == 'INSERT':
                         old_value, new_value = None, value
+                        if item_id is None:
+                            generated_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
                     elif operation == 'DELETE':
                         old_value, new_value = value, None
-                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id)
-
+                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id, generated_id)
 
 @contextmanager
 def disable_logging_listener():
@@ -1196,6 +1201,15 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         vector_dict['ck'] = ck
         vector_dict['ik'] = ik
         Update_AuC(auc_id, sqn=key_data['sqn']+100)
+        return vector_dict
+
+    elif action == "Digest-MD5":
+        DBLogger.debug("Generating Digest-MD5 Auth vectors")
+        DBLogger.debug("key_data: " + str(key_data))
+        nonce = uuid.uuid4().hex
+        #nonce = "beef4d878f2642ed98afe491b943ca60"
+        vector_dict['nonce'] = nonce
+        vector_dict['SIP_Authenticate'] = key_data['ki']
         return vector_dict
 
 def Get_APN(apn_id):
