@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--This is the default iFC template used by PyHSS, variables come from the Jinja2 template passed inside diameter.py where you can additional variables if required -->
 <IMSSubscription>
-    <PrivateID>{{ iFC_vars['imsi'] }}@mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</PrivateID>
+    <PrivateID>{{ iFC_vars['imsi'] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</PrivateID>
     <ServiceProfile>
         <PublicIdentity>
             <Identity>sip:{{ iFC_vars['msisdn'] }}@ims.mnc{{ iFC_vars['mnc'] }}.mcc{{ iFC_vars['mcc'] }}.3gppnetwork.org</Identity>
