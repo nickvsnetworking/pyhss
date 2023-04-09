@@ -16,3 +16,4 @@ requests==2.25.1
 SQLAlchemy==1.4.29
 sqlalchemy_utils==0.40.0
 Werkzeug==2.2.2
+mysqlclient
