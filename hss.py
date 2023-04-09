@@ -688,6 +688,8 @@ class PyHSS:
                 self.logger.info(e)
                 traceback.print_exc()
                 self.terminate_connection(clientsocket, client_address, thread_event)
+                self.logger.info("Thread terminated to " + str(client_address))
+                break
 
     def manage_client(
         self, clientsocket, client_address, diameter, thread_event, send_queue
