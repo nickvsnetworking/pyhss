@@ -1137,13 +1137,11 @@ class PyHSS_Geored(Resource):
 @ns_push.route('/clr/<string:imsi>')
 class PyHSS_Push_CLR(Resource):
     @ns_push.expect(Push_CLR_Model)
-    @ns_push.doc('Push CLR to MME')
+    @ns_push.doc('Push CLR (Cancel Location Request) to MME')
     def put(self, imsi):
-        '''Push CLR to MME'''
-    
+        '''Push CLR (Cancel Location Request) to MME'''
         json_data = request.get_json(force=True)
         print("JSON Data sent: " + str(json_data))
-
         if 'DestinationHost' not in json_data:
             json_data['DestinationHost'] = None
         import diameter
@@ -1154,7 +1152,6 @@ class PyHSS_Push_CLR(Resource):
             MCC=yaml_config['hss']['MCC'],
             ProductName='PyHSS-client-API'
         )
-
         diam_hex = diameter.Request_16777251_317(
             imsi=imsi, 
             DestinationHost=json_data['DestinationHost'], 
