@@ -55,6 +55,7 @@ ns_operation_log = api.namespace('operation_logs', description='PyHSS Operation 
 ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
 ns_pcrf = api.namespace('pcrf', description='PyHSS PCRF Dynamic Functions')
 ns_geored = api.namespace('geored', description='PyHSS GeoRedundancy Functions')
+ns_push = api.namespace('push', description='PyHSS Push Async Diameter Command')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -101,6 +102,14 @@ PCRF_Push_model = api.model('PCRF_Rule', {
     'apn_id': fields.Integer(required=True, description='APN_ID of APN to push rule on'),
     'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
+
+Push_CLR_Model = api.model('CLR', {
+    'DestinationRealm': fields.String(required=True, description='Destination Realm to set'),
+    'DestinationHost': fields.String(required=False, description='Destination Host (Optional)'),
+    'cancellationType' : fields.Integer(required=True, default=2, description='Cancellation Type as per 3GPP TS 29.272 / 7.3.24'),
+    'diameterPeer': fields.String(required=True, description='Diameter peer to send to'),
+})
+
 GeoRed_model = api.model('GeoRed', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to Update'),
     'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
@@ -1125,6 +1134,36 @@ class PyHSS_Geored(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E), 'Partial Response Data' : str(response_data)}
             return response_json, 500
 
+@ns_push.route('/clr/<string:imsi>')
+class PyHSS_Push_CLR(Resource):
+    @ns_push.expect(Push_CLR_Model)
+    @ns_push.doc('Push CLR to MME')
+    def put(self, imsi):
+        '''Push CLR to MME'''
+    
+        json_data = request.get_json(force=True)
+        print("JSON Data sent: " + str(json_data))
+
+        if 'DestinationHost' not in json_data:
+            json_data['DestinationHost'] = None
+        import diameter
+        diameter = diameter.Diameter(
+            OriginHost=yaml_config['hss']['OriginHost'], 
+            OriginRealm=yaml_config['hss']['OriginRealm'], 
+            MNC=yaml_config['hss']['MNC'],
+            MCC=yaml_config['hss']['MCC'],
+            ProductName='PyHSS-client-API'
+        )
+
+        diam_hex = diameter.Request_16777251_317(
+            imsi=imsi, 
+            DestinationHost=json_data['DestinationHost'], 
+            DestinationRealm=json_data['DestinationRealm'], 
+            CancellationType=json_data['cancellationType']
+        )
+        logObj = logtool.LogTool()
+        logObj.Async_SendRequest(diam_hex, str(json_data['diameterPeer']))
+        return diam_hex, 200
 
 if __name__ == '__main__':
     app.run(debug=True)
