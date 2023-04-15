@@ -1510,6 +1510,25 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
+def Get_UE_by_IP(ue_ip):   
+    DBLogger.debug("Called Get_UE_by_IP() for IP " + str(ue_ip))
+
+    Session = sessionmaker(bind = engine)
+    session = Session()    
+    
+    try:
+        result = session.query(SERVING_APN).filter_by(ue_ip=ue_ip).one()
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+    result = result.__dict__
+    result.pop('_sa_instance_state')
+    result = Sanitize_Datetime(result)
+    return result
+    #Get Subscriber ID from IMSI
+    subscriber_details = Get_Subscriber(imsi=str(imsi))
+
+
 def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #IMSI           14-15 Digits
     #IMEI           15 Digits

@@ -1104,6 +1104,19 @@ class PyHSS_PCRF_Complete(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_pcrf.route('/ue_ip/<string:ue_ip>')
+class PyHSS_PCRF_UE_IP(Resource):
+    def get(self, ue_ip):
+        '''Get Subscriber info from UE IP'''
+        try:
+            data = database.Get_UE_by_IP(ue_ip)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
 @ns_geored.route('/')
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
@@ -1137,13 +1150,11 @@ class PyHSS_Geored(Resource):
 @ns_push.route('/clr/<string:imsi>')
 class PyHSS_Push_CLR(Resource):
     @ns_push.expect(Push_CLR_Model)
-    @ns_push.doc('Push CLR to MME')
+    @ns_push.doc('Push CLR (Cancel Location Request) to MME')
     def put(self, imsi):
-        '''Push CLR to MME'''
-    
+        '''Push CLR (Cancel Location Request) to MME'''
         json_data = request.get_json(force=True)
         print("JSON Data sent: " + str(json_data))
-
         if 'DestinationHost' not in json_data:
             json_data['DestinationHost'] = None
         import diameter
@@ -1154,7 +1165,6 @@ class PyHSS_Push_CLR(Resource):
             MCC=yaml_config['hss']['MCC'],
             ProductName='PyHSS-client-API'
         )
-
         diam_hex = diameter.Request_16777251_317(
             imsi=imsi, 
             DestinationHost=json_data['DestinationHost'], 
