@@ -64,9 +64,23 @@ class AUC_Tests(unittest.TestCase):
     auc_id = 0
     template_data = {
     "ki": "fad51018f65affc04e6d56d699df3a76",
-    "opc": "44d51018f65affc04e6d56d699df3a76",
+    "opc": '44d51018f65affc04e6d56d699df3a76',
     "amf": "8000",
-    "sqn": 99
+    "sqn": 99,
+    'batch_name': None,
+    'esim': False,
+    'iccid': None,
+    'imsi': None,
+    'lpa': None,
+    'misc1': None,
+    'misc2': None,
+    'misc3': None,
+    'misc4': None,
+    'pin1': None,
+    'pin2': None,
+    'puk1': None,
+    'puk2': None,
+    'sim_vendor': None,    
     }
 
     def test_B_create_AUC(self):
@@ -80,11 +94,13 @@ class AUC_Tests(unittest.TestCase):
         r = requests.get(str(base_url) + '/auc/' + str(self.__class__.auc_id))
         #Add AUC ID into Template for Validating
         self.__class__.template_data['auc_id'] = self.__class__.auc_id
+        self.__class__.template_data.pop('opc')
+        self.__class__.template_data.pop('ki')
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
     def test_D_Patch_AUC(self):
         headers = {"Content-Type": "application/json"}
-        self.__class__.template_data['ki'] = "xxxxxx18f65affc04e6d56d699df3a76"
+        #self.__class__.template_data['sim_vendor'] = "Nick1234"    
         r = requests.patch(str(base_url) + '/auc/' + str(self.__class__.auc_id), data=json.dumps(self.__class__.template_data), headers=headers)
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
@@ -161,7 +177,8 @@ class Subscriber_Tests(unittest.TestCase):
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
     def test_F_Get_Patched_Subscriber_by_MSISDN(self):
-        r = requests.get(str(base_url) + '/oam/subscriber_msisdn/' + str(self.__class__.template_data['msisdn']))
+        r = requests.get(str(base_url) + '/subscriber/msisdn/' + str(self.__class__.template_data['msisdn']))
+        self.__class__.template_data['attributes'] = []
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
     def test_Z_Delete_Patched_Subscriber(self):
@@ -308,7 +325,7 @@ class ChargingRule_Tests(unittest.TestCase):
         self.assertEqual(patch_charging_rule_template, r.json(), "JSON body should match input")
 
     def test_J_Get_Full_Charging_Rule(self):
-        r = requests.get(str(base_url) + '/PCRF/' + str(self.__class__.charging_rule_id))
+        r = requests.get(str(base_url) + '/pcrf/' + str(self.__class__.charging_rule_id))
         #Add charging_rule_id into Template for Validating
         patch_charging_rule_template = self.__class__.charging_rule_template
         patch_charging_rule_template['rule_name'] = 'updated-via-api'
@@ -398,7 +415,7 @@ class EIR_Tests(unittest.TestCase):
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
 
     def test_Z_Get_All_EIR_Rules(self):
-        r = requests.get(str(base_url) + '/oam/eir_rules')
+        r = requests.get(str(base_url) + '/eir/list')
         self.assertEqual(len(r.json()), 0, "JSON body should return 0")
 
 class GeoRed_MME(unittest.TestCase):
@@ -625,4 +642,5 @@ class GeoRed_IMS(unittest.TestCase):
 if __name__ == '__main__':
     logging.basicConfig( stream=sys.stderr )
     logging.getLogger("UnitTestLogger").setLevel( logging.DEBUG )
-    unittest.main()
+    runner = unittest.TextTestRunner(failfast=True)
+    unittest.main(testRunner=runner)

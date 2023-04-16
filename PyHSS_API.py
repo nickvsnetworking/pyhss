@@ -282,11 +282,12 @@ class PyHSS_AUC_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(AUC, json_data, auc_id, False, operation_id)
-
+            auc_data = database.UpdateObj(AUC, json_data, auc_id, False, operation_id)
+            auc_data = database.Sanitize_Keys(auc_data)
             print("Updated object")
-            print(data)
-            return data, 200
+            print(auc_data)
+            
+            return auc_data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
