@@ -12,8 +12,6 @@ PyYAML==6.0
 redis==4.5.4
 Requests==2.28.2
 SQLAlchemy==2.0.9
-SQLAlchemy==1.4.29
 systemd==0.16.1
 Werkzeug==2.2.3
-Werkzeug==2.2.2
 mysqlclient
