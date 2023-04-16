@@ -1040,16 +1040,16 @@ class Diameter:
             DiameterLogger.info("Added to AVP List")
             DiameterLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
             
-        #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
-        if ChargingRules and ChargingRules['charging_rules'] is not None:
-            try:
-                DiameterLogger.debug(ChargingRules)
-                for individual_charging_rule in ChargingRules['charging_rules']:
-                    DiameterLogger.debug("Processing Charging Rule: " + str(individual_charging_rule))
-                    avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
+            #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+            if ChargingRules and ChargingRules['charging_rules'] is not None:
+                try:
+                    DiameterLogger.debug(ChargingRules)
+                    for individual_charging_rule in ChargingRules['charging_rules']:
+                        DiameterLogger.debug("Processing Charging Rule: " + str(individual_charging_rule))
+                        avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
 
-            except Exception as E:
-                DiameterLogger.debug("Error in populating dynamic charging rules: " + str(E))
+                except Exception as E:
+                    DiameterLogger.debug("Error in populating dynamic charging rules: " + str(E))
 
         elif int(CC_Request_Type) == 3:
             DiameterLogger.info("Request type for CCA is 3 - Termination")
