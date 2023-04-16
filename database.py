@@ -6,7 +6,7 @@ from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
-from alchemyjsonschema import SchemaFactory, ForeignKeyWalker
+
 from functools import wraps
 import json
 import datetime, time
@@ -254,6 +254,45 @@ if not database_exists(engine.url):
     Base.metadata.create_all(engine)
 else:
     DBLogger.debug("Database already created")
+
+
+def sqlalchemy_type_to_json_schema_type(sqlalchemy_type):
+    """
+    Map SQLAlchemy types to JSON Schema types.
+    """
+    if isinstance(sqlalchemy_type, Integer):
+        return "integer"
+    elif isinstance(sqlalchemy_type, String):
+        return "string"
+    elif isinstance(sqlalchemy_type, Boolean):
+        return "boolean"
+    elif isinstance(sqlalchemy_type, DateTime):
+        return "string"
+    elif isinstance(sqlalchemy_type, Float):
+        return "number"
+    else:
+        return "string"  # Default to string for unsupported types.
+
+def generate_json_schema(model_class, required=None):
+    properties = {}
+    required = required or []
+
+    for column in model_class.__table__.columns:
+        prop_type = sqlalchemy_type_to_json_schema_type(column.type)
+        prop_dict = {
+            "type": prop_type,
+            "description": column.doc
+        }
+        if prop_type == "string":
+            if hasattr(column.type, 'length'):
+                prop_dict["maxLength"] = column.type.length
+        if isinstance(column.type, DateTime):
+            prop_dict["format"] = "date-time"
+        if not column.nullable:
+            required.append(column.name)
+        properties[column.name] = prop_dict
+
+    return {"type": "object", "title" : str(model_class.__name__), "properties": properties, "required": required}
 
 # Create individual tables if they do not exist.
 inspector = Inspector.from_engine(engine)
@@ -890,7 +929,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
             session.info["operation_id"] = operation_id #Pass the operation id
             session.commit()
         session.close()
-        return return_data
+        return {'Result': 'OK'}
     except Exception as E:
         DBLogger.error(f"Failed to commit session, error: {E}")
         session.rollback()
@@ -923,10 +962,12 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
 
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
-    factory = SchemaFactory(ForeignKeyWalker)
-    dictty = dict(factory(obj_type))
 
-    dictty['properties'] = dict(dictty['properties'])
+    dictty = dict(generate_json_schema(obj_type))
+    pprint.pprint(dictty)
+
+
+    #dictty['properties'] = dict(dictty['properties'])
 
     # Exclude 'table_name' column from the properties
     if 'properties' in dictty:
