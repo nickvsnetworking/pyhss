@@ -714,6 +714,10 @@ def GeoRed_Push_Async(json_data):
             GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
             GeoRed_Push_thread.start()
 
+def Webhook_Push_Async(target, json_data):
+        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
+        Webook_Push_thread.start()
+
 def Sanitize_Datetime(result):
     for keys in result:
         if "timestamp" in keys:
@@ -1559,15 +1563,16 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
             session.rollback()
             session.close()
             raise ValueError(E)
+        session.close()
         DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
+
         try:
-            import grequests
             dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
-            grequests.post(str(yaml_config['eir']['sim_swap_notify_webhook']), json=dictToSend)
+            Webhook_Push_Async(str(yaml_config['eir']['sim_swap_notify_webhook']), json_data=dictToSend)
         except Exception as E:
             DBLogger.debug("Failed to post to Webhook")
             DBLogger.debug(str(E))
-        session.close()
+
 
         #Sync state change with geored
         if propagate == True:
