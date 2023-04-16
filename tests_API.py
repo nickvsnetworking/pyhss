@@ -100,7 +100,7 @@ class AUC_Tests(unittest.TestCase):
 
     def test_D_Patch_AUC(self):
         headers = {"Content-Type": "application/json"}
-        #self.__class__.template_data['sim_vendor'] = "Nick1234"    
+        self.__class__.template_data['sim_vendor'] = "Nick1234"    
         r = requests.patch(str(base_url) + '/auc/' + str(self.__class__.auc_id), data=json.dumps(self.__class__.template_data), headers=headers)
         self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
 
