@@ -715,8 +715,8 @@ def GeoRed_Push_Async(json_data):
             GeoRed_Push_thread.start()
 
 def Webhook_Push_Async(target, json_data):
-        GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
-        GeoRed_Push_thread.start()
+        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
+        Webook_Push_thread.start()
 
 def Sanitize_Datetime(result):
     for keys in result:
