@@ -109,6 +109,8 @@ class SUBSCRIBER(Base):
     subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
     serving_mme = Column(String(50), doc='MME serving this subscriber')
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
+    serving_mme_realm = Column(String(50), doc='Realm of serving mme')
+    serving_mme_peer = Column(String(50), doc='Diameter peer used to reach MME')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
 
@@ -122,6 +124,8 @@ class SERVING_APN(Base):
     ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
     serving_pgw = Column(String(50), doc='PGW serving this subscriber')
     serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
+    serving_pgw_realm = Column(String(50), doc='Realm of serving PGW')
+    serving_pgw_peer = Column(String(50), doc='Diameter peer used to reach PGW')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
 
@@ -135,6 +139,8 @@ class IMS_SUBSCRIBER(Base):
     sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
     scscf = Column(String(50), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of attach to S-CSCF')
+    scscf_realm = Column(String(50), doc='Realm of SCSCF')
+    scsf_peer = Column(String(50), doc='Diameter peer used to reach SCSCF') 
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
