@@ -140,7 +140,7 @@ class IMS_SUBSCRIBER(Base):
     scscf = Column(String(50), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of attach to S-CSCF')
     scscf_realm = Column(String(50), doc='Realm of SCSCF')
-    scsf_peer = Column(String(50), doc='Diameter peer used to reach SCSCF') 
+    scscf_peer = Column(String(50), doc='Diameter peer used to reach SCSCF') 
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
