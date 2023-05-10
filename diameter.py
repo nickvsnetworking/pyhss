@@ -7,6 +7,7 @@ import binascii
 import math
 import uuid
 import os
+import random
 import ipaddress
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
@@ -1227,7 +1228,17 @@ class Diameter:
                 avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
             else:
                 DiameterLogger.debug("No SCSF assigned - Using SCSCF Pool")
-                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                if 'scscf_pool' in yaml_config['hss']:
+                    try:
+                        scscf = random.choice(yaml_config['hss']['scscf_pool'])
+                        DiameterLogger.debug("Randomly picked SCSCF address " + str(scscf) + " from pool")
+                        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
+                    except Exception as E:
+                        avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                        DiameterLogger.info("Using generated iFC as failed to source from list due to " + str(E))
+                else:                        
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                    DiameterLogger.info("Using generated iFC")
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
