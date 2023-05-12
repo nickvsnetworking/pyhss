@@ -1125,8 +1125,18 @@ class Diameter:
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8))            #DIAMETER_SUBSEQUENT_REGISTRATION (2002)
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
         else:
-            DiameterLogger.debug("No SCSCF Assigned from DB - Using default SRV so I-CSCF can discover")
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+            DiameterLogger.debug("No SCSCF Assigned from DB")
+            if 'scscf_pool' in yaml_config['hss']:
+                try:
+                    scscf = random.choice(yaml_config['hss']['scscf_pool'])
+                    DiameterLogger.debug("Randomly picked SCSCF address " + str(scscf) + " from pool")
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
+                except Exception as E:
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                    DiameterLogger.info("Using generated S-CSCF Address as failed to source from list due to " + str(E))
+            else:                        
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                DiameterLogger.info("Using generated S-CSCF Address as none set in scscf_pool in config")
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))            #DIAMETER_FIRST_REGISTRATION (2001) 
@@ -1235,10 +1245,10 @@ class Diameter:
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
                     except Exception as E:
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                        DiameterLogger.info("Using generated iFC as failed to source from list due to " + str(E))
+                        DiameterLogger.info("Using generated S-CSCF Address as failed to source from list due to " + str(E))
                 else:                        
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                    DiameterLogger.info("Using generated iFC")
+                    DiameterLogger.info("Using generated S-CSCF Address")
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
