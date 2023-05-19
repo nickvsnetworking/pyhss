@@ -452,40 +452,62 @@ class PyHSS_SUBSCRIBER_All(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_subscriber.route('/ue_ip/<string:subscriber_id>/<string:apn_id>')
-class PyHSS_SUBSCRIBER_UE_IP(Resource):
-    def get(self, subscriber_id, apn_id):
-        '''Get UE IP for specified subscriber_id & apn_id'''
+@ns_subscriber.route('/ue_ip/')
+class PyHSS_UE_IP_Create(Resource):
+    @ns_ims_subscriber.doc('Create UE IP Object')
+    @ns_ims_subscriber.expect(UE_IP_model)
+    def put(self):
+        '''Create new UE IP Binding'''
         try:
-            apn_data = database.GetObj(UE_IP, subscriber_id)
-            return apn_data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-    def delete(self, subscriber_id):
-        '''Delete all data for specified subscriber_id'''
-        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(SUBSCRIBER, subscriber_id, False, operation_id)
+            data = database.CreateObj(UE_IP, json_data, False, operation_id)
+
             return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-    @ns_subscriber.doc('Update SUBSCRIBER Object')
-    @ns_subscriber.expect(SUBSCRIBER_model)
-    def patch(self, subscriber_id):
-        '''Update SUBSCRIBER data for specified subscriber_id'''
+
+@ns_subscriber.route('/ue_ip/<string:subscriber_id>/<string:apn_id>')
+class PyHSS_SUBSCRIBER_UE_IP(Resource):
+    def get(self, subscriber_id, apn_id):
+        '''Get UE IP for specified subscriber_id & apn_id'''
+        try:
+            apn_data = database.Get_UE_IP(subscriber_id, apn_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    def delete(self, subscriber_id, apn_id):
+        '''Delete UE IP binding for specified subscriber_id & apn_id'''
+        try:
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_data = database.Get_UE_IP(subscriber_id, apn_id)
+            data = database.DeleteObj(UE_IP, apn_data['ue_ip_id'], False, operation_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+@ns_subscriber.route('/ue_ip/<string:ue_ip_id>')
+class PyHSS_SUBSCRIBER_UE_IP(Resource):
+    @ns_subscriber.doc('Update UE_IP Object')
+    @ns_subscriber.expect(UE_IP_model)
+    def patch(self, ue_ip_id):
+        '''Update SUBSCRIBER data for specified ue_ip_id'''
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
+            data = database.UpdateObj(UE_IP, json_data, ue_ip_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -1164,55 +1186,6 @@ class PyHSS_PCRF_UE_IP(Resource):
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
-
-@ns_pcrf.route('/ue_ip_id/<string:ue_ip_id>')
-class PyHSS_PCRF_UE_IP_ID(Resource):
-    def get(self, ue_ip_id):
-        '''Get UE IP object'''
-        try:
-            data = database.Get_UE_IP_Object(ue_ip_id)
-            return data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-@ns_pcrf.route('/ue_ip/')
-class PyHSS_PCRF_UE_IP_ID(Resource):
-    @ns_pcrf.doc('Create UE IP Object')
-    @ns_pcrf.expect(UE_IP_model)
-    def put(self):
-        '''Assign UE IP to subscriber'''
-        try:
-            json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
-            args = parser.parse_args()
-            operation_id = args.get('operation_id', None)
-            ue_ip_id = database.CreateObj(UE_IP, json_data, False, operation_id)
-
-            return ue_ip_id, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
-
-    @ns_pcrf.doc('Update UE IP Object')
-    @ns_pcrf.expect(UE_IP_model)
-    def patch(self, ue_ip_id):
-        '''Update UE IP for specified subscriber'''
-        try:
-            json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
-            args = parser.parse_args()
-            operation_id = args.get('operation_id', None)
-            ue_ip_data = database.UpdateObj(UE_IP, json_data, ue_ip_id, False, operation_id)
-            print("Updated object")
-            print(ue_ip_data)
-            return ue_ip_data, 200
-        except Exception as E:
-            print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500   
 
 
 

@@ -134,6 +134,10 @@ class APN(Base):
 
 class UE_IP(Base):
     __tablename__ = 'ue_ip'
+    __table_args__ = (
+        # this can be db.PrimaryKeyConstraint if you want it to be a primary key
+        UniqueConstraint('subscriber_id', 'apn_id'),
+    )
     ue_ip_id = Column(Integer, primary_key=True, doc='Unique ID of UE IP')
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
     apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
@@ -1131,26 +1135,6 @@ def Get_UE_IP(subscriber_id, apn_id):
     DBLogger.debug("Got back result: " + str(result))
     session.close()
     return result
-
-def Get_UE_IP_Object(ue_ip_id):
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    DBLogger.debug("Get_UE_IP for ue_ip_id " + str(ue_ip_id))
-    try:
-        result = session.query(UE_IP).filter_by(ue_ip_id=ue_ip_id)
-    except Exception as E:
-        session.close()
-        raise ValueError(E)
-    final_res = []
-    for record in result:
-        result = record.__dict__
-        result = Sanitize_Datetime(result)
-        result.pop('_sa_instance_state')
-        final_res.append(result)
-    DBLogger.debug("Got back result: " + str(final_res))
-    session.close()
-    return final_res
 
 def Get_Subscriber_Attributes(subscriber_id):
     #Get subscriber attributes
