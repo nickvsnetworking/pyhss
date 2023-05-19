@@ -65,6 +65,11 @@ class APN_OPERATION_LOG(OPERATION_LOG_BASE):
     apn = relationship("APN", back_populates="operation_logs")
     apn_id = Column(Integer, ForeignKey('apn.apn_id'))
 
+class UE_IP_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'ue_ip'}
+    ue_ip = relationship("UE_IP", back_populates="operation_logs")
+    ue_ip_id = Column(Integer, ForeignKey('ue_ip.ue_ip_id'))
+
 class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
     serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
@@ -126,6 +131,14 @@ class APN(Base):
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
+
+class UE_IP(Base):
+    __tablename__ = 'ue_up'
+    ue_ip_id = Column(Integer, primary_key=True, doc='Unique ID of UE IP')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
+    apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    operation_logs = relationship("UE_IP_OPERATION_LOG", back_populates="ue_ip")
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
@@ -1114,7 +1127,6 @@ def Get_Subscriber_Attributes(subscriber_id):
     session.close()
     return final_res
 
-
 def Get_Served_Subscribers():
     DBLogger.debug("Getting all subscribers served by this HSS")
 
@@ -1573,7 +1585,6 @@ def Get_UE_by_IP(ue_ip):
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
 
-
 def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #IMSI           14-15 Digits
     #IMEI           15 Digits
@@ -1632,7 +1643,6 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 DBLogger.debug(E)
 
         return
-
 
 def Get_IMEI_IMSI_History(attribute):
     DBLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
