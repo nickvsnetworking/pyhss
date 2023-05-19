@@ -1165,6 +1165,56 @@ class PyHSS_PCRF_UE_IP(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
+@ns_pcrf.route('/ue_ip_id/<string:ue_ip_id>')
+class PyHSS_PCRF_UE_IP_ID(Resource):
+    def get(self, ue_ip_id):
+        '''Get UE IP object'''
+        try:
+            data = database.Get_UE_IP_Object(ue_ip_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+@ns_pcrf.route('/ue_ip/')
+class PyHSS_PCRF_UE_IP_ID(Resource):
+    @ns_pcrf.doc('Create UE IP Object')
+    @ns_pcrf.expect(UE_IP_model)
+    def put(self):
+        '''Assign UE IP to subscriber'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            ue_ip_id = database.CreateObj(UE_IP, json_data, False, operation_id)
+
+            return ue_ip_id, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    @ns_pcrf.doc('Update UE IP Object')
+    @ns_pcrf.expect(UE_IP_model)
+    def patch(self, ue_ip_id):
+        '''Update UE IP for specified subscriber'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            ue_ip_data = database.UpdateObj(UE_IP, json_data, ue_ip_id, False, operation_id)
+            print("Updated object")
+            print(ue_ip_data)
+            return ue_ip_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500   
+
+
 
 @ns_geored.route('/')
 class PyHSS_Geored(Resource):
@@ -1226,3 +1276,4 @@ class PyHSS_Push_CLR(Resource):
 
 if __name__ == '__main__':
     app.run(debug=True)
+

@@ -133,11 +133,12 @@ class APN(Base):
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
 
 class UE_IP(Base):
-    __tablename__ = 'ue_up'
+    __tablename__ = 'ue_ip'
     ue_ip_id = Column(Integer, primary_key=True, doc='Unique ID of UE IP')
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
     apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
     ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    ip_address = Column(String(254), doc='IP of the UE')
     operation_logs = relationship("UE_IP_OPERATION_LOG", back_populates="ue_ip")
 
 class SERVING_APN(Base):
@@ -1105,6 +1106,46 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
+def Get_UE_IP(subscriber_id):
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    DBLogger.debug("Get_UE_IP for subscriber_id " + str(subscriber_id))
+    try:
+        result = session.query(UE_IP).filter_by(subscriber_id=subscriber_id)
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+    final_res = []
+    for record in result:
+        result = record.__dict__
+        result = Sanitize_Datetime(result)
+        result.pop('_sa_instance_state')
+        final_res.append(result)
+    DBLogger.debug("Got back result: " + str(final_res))
+    session.close()
+    return final_res
+
+def Get_UE_IP_Object(ue_ip_id):
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    DBLogger.debug("Get_UE_IP for ue_ip_id " + str(ue_ip_id))
+    try:
+        result = session.query(UE_IP).filter_by(ue_ip_id=ue_ip_id)
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+    final_res = []
+    for record in result:
+        result = record.__dict__
+        result = Sanitize_Datetime(result)
+        result.pop('_sa_instance_state')
+        final_res.append(result)
+    DBLogger.debug("Got back result: " + str(final_res))
+    session.close()
+    return final_res
+
 def Get_Subscriber_Attributes(subscriber_id):
     #Get subscriber attributes
 
@@ -2019,5 +2060,6 @@ if __name__ == "__main__":
 
     print("\n\n\n")
     print(Generate_JSON_Model_for_Flask(SUBSCRIBER))
+
 
 
