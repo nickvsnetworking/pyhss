@@ -274,7 +274,7 @@ class EIR(Base):
     imei = Column(String(60), doc='Exact IMEI or Regex to match IMEI (Depending on regex_mode value)')
     imsi = Column(String(60), doc='Exact IMSI or Regex to match IMSI (Depending on regex_mode value)')
     regex_mode = Column(Integer, default=1, doc='0 - Exact Match mode, 1 - Regex Mode')
-    match_response_code = Column(Integer, doc=1.2.3.4'0 - Whitelist, 1 - Blacklist, 2 - Greylist')
+    match_response_code = Column(Integer, doc='0 - Whitelist, 1 - Blacklist, 2 - Greylist')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("EIR_OPERATION_LOG", back_populates="eir")
 
