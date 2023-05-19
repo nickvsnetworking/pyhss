@@ -147,6 +147,7 @@ class UE_IP(Base):
     apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
     ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
     ip_address = Column(String(254), doc='IP of the UE')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("UE_IP_OPERATION_LOG", back_populates="ue_ip")
 
 class AUC(Base):
