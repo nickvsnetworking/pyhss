@@ -1106,25 +1106,31 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
-def Get_UE_IP(subscriber_id):
+def Get_UE_IP(subscriber_id, apn_id):
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    DBLogger.debug("Get_UE_IP for subscriber_id " + str(subscriber_id))
+    DBLogger.debug("Get_UE_IP for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
     try:
-        result = session.query(UE_IP).filter_by(subscriber_id=subscriber_id)
+        result = session.query(UE_IP).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
     except Exception as E:
         session.close()
         raise ValueError(E)
-    final_res = []
-    for record in result:
-        result = record.__dict__
-        result = Sanitize_Datetime(result)
-        result.pop('_sa_instance_state')
-        final_res.append(result)
-    DBLogger.debug("Got back result: " + str(final_res))
+
+    result = result.__dict__
+    result = Sanitize_Datetime(result)
+    result.pop('_sa_instance_state')
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+    DBLogger.debug("Got back result: " + str(result))
     session.close()
-    return final_res
+    return result
 
 def Get_UE_IP_Object(ue_ip_id):
     Session = sessionmaker(bind = engine)

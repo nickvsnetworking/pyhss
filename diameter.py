@@ -696,32 +696,18 @@ class Diameter:
             AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
             APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
-        try:
-            ue_ip_data = database.Get_UE_IP(subscriber_id=subscriber_details['subscriber_id'])                                               #Get subscriber details
-        except ValueError as e:
-            DiameterLogger.error("failed to get data back from database for subscriber_id " + str(subscriber_details['subscriber_id']))
-            DiameterLogger.error("Error is " + str(e))
-            raise
-        except Exception as ex:
-            template = "An exception of type {0} occurred. Arguments:\n{1!r}"
-            message = template.format(type(ex).__name__, ex.args)
-            DiameterLogger.critical(message)
-            DiameterLogger.critical("Unhandled general exception when getting subscriber details for subscriber_id " + str(subscriber_details['subscriber_id']))
-            raise
-
-
-
-
-
-            #If static UE IP is specified - ToDo Fix This
+            #Try static IP allocation
             try:
+                ue_ip_dict = database.Get_UE_IP(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
+                DiameterLogger.info("Got static UE IP " + str(ue_ip_dict))
+                DiameterLogger.debug("Found static IP for UE " + str(ue_ip_dict['ip_address']))
+                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(ue_ip_dict['ip_address']))
+            except Exception as E:
+                DiameterLogger.debug("Error getting static UE IP: " + str(E))
                 Served_Party_Address = ""
-                ue_ip = ue_ip_data['ip_address']
-                DiameterLogger.debug("Found static IP for UE " + str(ue_ip))
-                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(ue_ip))
-            except:
-                Served_Party_Address = ""
-            # if 'PDN_GW_Allocation_Type' in apn_profile:
+
+
+            #if 'PDN_GW_Allocation_Type' in apn_profile:
             #     DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
             #     PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
             #     DiameterLogger.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
@@ -734,7 +720,6 @@ class Diameter:
             # else:
             #     VPLMN_Dynamic_Address_Allowed = ''            
             PDN_GW_Allocation_Type = ''
-            # Served_Party_Address = ""
             VPLMN_Dynamic_Address_Allowed = ''
 
             #If static SMF / PGW-C defined
@@ -1261,10 +1246,10 @@ class Diameter:
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
                     except Exception as E:
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                        DiameterLogger.info("Using generated S-CSCF Address as failed to source from list due to " + str(E))
+                        DiameterLogger.info("Using generated iFC as failed to source from list due to " + str(E))
                 else:                        
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                    DiameterLogger.info("Using generated S-CSCF Address")
+                    DiameterLogger.info("Using generated iFC")
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
@@ -2466,4 +2451,3 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
-
