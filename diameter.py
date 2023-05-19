@@ -696,15 +696,17 @@ class Diameter:
             AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
             APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
+            #Try static IP allocation
+            try:
+                ue_ip_dict = database.Get_UE_IP(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
+                DiameterLogger.info("Got static UE IP " + str(ue_ip_dict))
+                DiameterLogger.debug("Found static IP for UE " + str(ue_ip_dict['ip_address']))
+                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(ue_ip_dict['ip_address']))
+            except Exception as E:
+                DiameterLogger.debug("Error getting static UE IP: " + str(E))
+                Served_Party_Address = ""
 
-            #If static UE IP is specified - ToDo Fix This
-            # try:
-            #     Served_Party_Address = ""
-            #     apn_ip = apn_profile['ue']['addr']
-            #     DiameterLogger.debug("Found static IP for UE " + str(apn_ip))
-            #     Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
-            # except:
-            #     Served_Party_Address = ""
+
             #if 'PDN_GW_Allocation_Type' in apn_profile:
             #     DiameterLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
             #     PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
@@ -718,7 +720,6 @@ class Diameter:
             # else:
             #     VPLMN_Dynamic_Address_Allowed = ''            
             PDN_GW_Allocation_Type = ''
-            Served_Party_Address = ""
             VPLMN_Dynamic_Address_Allowed = ''
 
             #If static SMF / PGW-C defined
@@ -1125,8 +1126,18 @@ class Diameter:
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8))            #DIAMETER_SUBSEQUENT_REGISTRATION (2002)
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
         else:
-            DiameterLogger.debug("No SCSCF Assigned from DB - Using default SRV so I-CSCF can discover")
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+            DiameterLogger.debug("No SCSCF Assigned from DB")
+            if 'scscf_pool' in yaml_config['hss']:
+                try:
+                    scscf = random.choice(yaml_config['hss']['scscf_pool'])
+                    DiameterLogger.debug("Randomly picked SCSCF address " + str(scscf) + " from pool")
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
+                except Exception as E:
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                    DiameterLogger.info("Using generated S-CSCF Address as failed to source from list due to " + str(E))
+            else:                        
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
+                DiameterLogger.info("Using generated S-CSCF Address as none set in scscf_pool in config")
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))            #DIAMETER_FIRST_REGISTRATION (2001) 

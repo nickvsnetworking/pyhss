@@ -425,10 +425,7 @@ class PyHSS:
             packet_vars["command_code"] == 317
             and packet_vars["ApplicationId"] == 16777251
         ):
-            self.logger.info(
-                f"Received Request with command code 317 (3GPP Cancel Location Request) from {origin_host}"
-                + "\n\tDoing nothing"
-            )
+            self.logger.info("Received Response with command code 317 (3GPP Cancel Location Request) from " + str(origin_host))
 
         # Cx Authentication Answer
         elif (

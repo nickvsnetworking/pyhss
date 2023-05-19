@@ -33,6 +33,7 @@ EIR = database.EIR
 IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
 SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
 OPERATION_LOG = database.OPERATION_LOG_BASE
+UE_IP = database.UE_IP
 
 
 
@@ -77,6 +78,9 @@ AUC_model = api.schema_model('AUC JSON',
 )
 SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON', 
     database.Generate_JSON_Model_for_Flask(SUBSCRIBER)
+)
+UE_IP_model = api.schema_model('UE_IP JSON', 
+    database.Generate_JSON_Model_for_Flask(UE_IP)
 )
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
     database.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
@@ -447,6 +451,72 @@ class PyHSS_SUBSCRIBER_All(Resource):
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
+
+@ns_subscriber.route('/ue_ip/')
+class PyHSS_UE_IP_Create(Resource):
+    @ns_ims_subscriber.doc('Create UE IP Object')
+    @ns_ims_subscriber.expect(UE_IP_model)
+    def put(self):
+        '''Create new UE IP Binding'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.CreateObj(UE_IP, json_data, False, operation_id)
+
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+
+@ns_subscriber.route('/ue_ip/<string:subscriber_id>/<string:apn_id>')
+class PyHSS_SUBSCRIBER_UE_IP(Resource):
+    def get(self, subscriber_id, apn_id):
+        '''Get UE IP for specified subscriber_id & apn_id'''
+        try:
+            apn_data = database.Get_UE_IP(subscriber_id, apn_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
+    def delete(self, subscriber_id, apn_id):
+        '''Delete UE IP binding for specified subscriber_id & apn_id'''
+        try:
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_data = database.Get_UE_IP(subscriber_id, apn_id)
+            data = database.DeleteObj(UE_IP, apn_data['ue_ip_id'], False, operation_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+@ns_subscriber.route('/ue_ip/<string:ue_ip_id>')
+class PyHSS_SUBSCRIBER_UE_IP(Resource):
+    @ns_subscriber.doc('Update UE_IP Object')
+    @ns_subscriber.expect(UE_IP_model)
+    def patch(self, ue_ip_id):
+        '''Update SUBSCRIBER data for specified ue_ip_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = database.UpdateObj(UE_IP, json_data, ue_ip_id, False, operation_id)
+
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            response_json = {'result': 'Failed', 'Reason' : str(E)}
+            return response_json, 500
+
 
 @ns_ims_subscriber.route('/<string:ims_subscriber_id>')
 class PyHSS_IMS_SUBSCRIBER_Get(Resource):
@@ -1118,6 +1188,7 @@ class PyHSS_PCRF_UE_IP(Resource):
             return response_json, 500
 
 
+
 @ns_geored.route('/')
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
@@ -1178,3 +1249,4 @@ class PyHSS_Push_CLR(Resource):
 
 if __name__ == '__main__':
     app.run(debug=True)
+

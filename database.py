@@ -48,6 +48,75 @@ import S6a_crypt
 import requests
 import threading
 
+class OPERATION_LOG_BASE(Base):
+    __tablename__ = 'operation_log'
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, nullable=False)
+    operation_id = Column(String(36), nullable=False)
+    operation = Column(String(10))
+    column_name = Column(String(255))
+    old_value = Column(Text(12000))
+    new_value = Column(Text(12000))
+    timestamp = Column(DateTime, default=func.now())
+    table_name = Column('table_name', String(255))
+    __mapper_args__ = {'polymorphic_on': table_name}
+
+class APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'apn'}
+    apn = relationship("APN", back_populates="operation_logs")
+    apn_id = Column(Integer, ForeignKey('apn.apn_id'))
+
+class UE_IP_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'ue_ip'}
+    ue_ip = relationship("UE_IP", back_populates="operation_logs")
+    ue_ip_id = Column(Integer, ForeignKey('ue_ip.ue_ip_id'))
+
+class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
+    serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
+    serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
+
+class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'auc'}
+    auc = relationship("AUC", back_populates="operation_logs")
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'))
+
+class SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber'}
+    subscriber = relationship("SUBSCRIBER", back_populates="operation_logs")
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
+
+class IMS_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'ims_subscriber'}
+    ims_subscriber = relationship("IMS_SUBSCRIBER", back_populates="operation_logs")
+    ims_subscriber_id = Column(Integer, ForeignKey('ims_subscriber.ims_subscriber_id'))
+
+class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
+    charging_rule = relationship("CHARGING_RULE", back_populates="operation_logs")
+    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
+
+class TFT_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'tft'}
+    tft = relationship("TFT", back_populates="operation_logs")
+    tft_id = Column(Integer, ForeignKey('tft.tft_id'))
+
+class EIR_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir'}
+    eir = relationship("EIR", back_populates="operation_logs")
+    eir_id = Column(Integer, ForeignKey('eir.eir_id'))
+
+class IMSI_IMEI_HISTORY_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir_history'}
+    eir_history = relationship("IMSI_IMEI_HISTORY", back_populates="operation_logs")
+    imsi_imei_history_id = Column(Integer, ForeignKey('eir_history.imsi_imei_history_id'))
+
+class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_attributes'}
+    subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
+    subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
+
+
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -65,6 +134,32 @@ class APN(Base):
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
+
+class UE_IP(Base):
+    __tablename__ = 'ue_ip'
+    __table_args__ = (
+        # this can be db.PrimaryKeyConstraint if you want it to be a primary key
+        UniqueConstraint('subscriber_id', 'apn_id'),
+    )
+    ue_ip_id = Column(Integer, primary_key=True, doc='Unique ID of UE IP')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
+    apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    ip_address = Column(String(254), doc='IP of the UE')
+    operation_logs = relationship("UE_IP_OPERATION_LOG", back_populates="ue_ip")
+
+class SERVING_APN(Base):
+    __tablename__ = 'serving_apn'
+    serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
+    apn = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the APN served')
+    pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
+    ue_ip = Column(String(100), doc='IP Address allocated to the UE')
+    ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
+    serving_pgw = Column(String(50), doc='PGW serving this subscriber')
+    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
+    operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
+
 
 class AUC(Base):
     __tablename__ = 'auc'
@@ -1114,6 +1209,32 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
+def Get_UE_IP(subscriber_id, apn_id):
+    Session = sessionmaker(bind = engine)
+    session = Session()
+
+    DBLogger.debug("Get_UE_IP for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
+    try:
+        result = session.query(UE_IP).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
+    except Exception as E:
+        session.close()
+        raise ValueError(E)
+
+    result = result.__dict__
+    result = Sanitize_Datetime(result)
+    result.pop('_sa_instance_state')
+    try:
+        session.commit()
+    except Exception as E:
+        DBLogger.error("Failed to commit session, error: " + str(E))
+        session.rollback()
+        session.close()
+        raise ValueError(E)
+
+    DBLogger.debug("Got back result: " + str(result))
+    session.close()
+    return result
+
 def Get_Subscriber_Attributes(subscriber_id):
     #Get subscriber attributes
 
@@ -1135,7 +1256,6 @@ def Get_Subscriber_Attributes(subscriber_id):
     DBLogger.debug("Got back result: " + str(final_res))
     session.close()
     return final_res
-
 
 def Get_Served_Subscribers():
     DBLogger.debug("Getting all subscribers served by this HSS")
@@ -1595,7 +1715,6 @@ def Get_UE_by_IP(ue_ip):
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
 
-
 def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #IMSI           14-15 Digits
     #IMEI           15 Digits
@@ -1654,7 +1773,6 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 DBLogger.debug(E)
 
         return
-
 
 def Get_IMEI_IMSI_History(attribute):
     DBLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
@@ -2031,5 +2149,6 @@ if __name__ == "__main__":
 
     print("\n\n\n")
     print(Generate_JSON_Model_for_Flask(SUBSCRIBER))
+
 
 
