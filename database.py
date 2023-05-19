@@ -57,6 +57,7 @@ class OPERATION_LOG_BASE(Base):
     column_name = Column(String(255))
     old_value = Column(Text(12000))
     new_value = Column(Text(12000))
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc))
     timestamp = Column(DateTime, default=func.now())
     table_name = Column('table_name', String(255))
     __mapper_args__ = {'polymorphic_on': table_name}
