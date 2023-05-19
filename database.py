@@ -1,5 +1,5 @@
 import sys
-from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event, Text
+from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event, Text, DateTime
 from sqlalchemy import create_engine
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql import desc, func
@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import History, get_history
 from functools import wraps
 import json
 import datetime, time
+from datetime import timezone
 import re
 import os
 import sys
@@ -115,6 +116,7 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
     subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
     subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
 
+
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -130,6 +132,7 @@ class APN(Base):
     arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
 
 class UE_IP(Base):
@@ -157,6 +160,7 @@ class SERVING_APN(Base):
     serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
     operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
 
+
 class AUC(Base):
     __tablename__ = 'auc'
     auc_id = Column(Integer, primary_key = True, doc='Unique ID of AuC entry')
@@ -182,6 +186,7 @@ class AUC(Base):
     misc2 = Column(String(128), doc='For misc data storage 2')
     misc3 = Column(String(128), doc='For misc data storage 3')
     misc4 = Column(String(128), doc='For misc data storage 4')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("AUC_OPERATION_LOG", back_populates="auc")
     
 class SUBSCRIBER(Base):
@@ -197,9 +202,27 @@ class SUBSCRIBER(Base):
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
     nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2] - 0 (PACKET_AND_CIRCUIT) or 2 (ONLY_PACKET)')
     subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
-    serving_mme = Column(String(50), doc='MME serving this subscriber')
+    serving_mme = Column(String(512), doc='MME serving this subscriber')
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
+    serving_mme_realm = Column(String(512), doc='Realm of serving mme')
+    serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
+
+class SERVING_APN(Base):
+    __tablename__ = 'serving_apn'
+    serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
+    apn = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the APN served')
+    pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
+    ue_ip = Column(String(100), doc='IP Address allocated to the UE')
+    ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
+    serving_pgw = Column(String(512), doc='PGW serving this subscriber')
+    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
+    serving_pgw_realm = Column(String(512), doc='Realm of serving PGW')
+    serving_pgw_peer = Column(String(512), doc='Diameter peer used to reach PGW')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
 
 class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
@@ -209,8 +232,11 @@ class IMS_SUBSCRIBER(Base):
     imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
     ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
     sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
-    scscf = Column(String(50), doc='Serving-CSCF serving this subscriber')
+    scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of attach to S-CSCF')
+    scscf_realm = Column(String(512), doc='Realm of SCSCF')
+    scscf_peer = Column(String(512), doc='Diameter peer used to reach SCSCF') 
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
 class CHARGING_RULE(Base):
@@ -230,6 +256,7 @@ class CHARGING_RULE(Base):
     tft_group_id = Column(Integer, doc='Will match any TFTs using this TFT Group to form the TFT list used in the Charging Rule')
     precedence = Column(Integer, doc='Precedence of this rule, allows rule to override or be overridden by a higher priority rule')
     rating_group = Column(Integer, doc='Rating Group in OCS / OFCS that traffic matching this rule will be charged under')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("CHARGING_RULE_OPERATION_LOG", back_populates="charging_rule")
     
 class TFT(Base):
@@ -238,6 +265,7 @@ class TFT(Base):
     tft_group_id = Column(Integer, nullable=False, doc=CHARGING_RULE.tft_group_id.doc)
     tft_string = Column(String(100), nullable=False, doc='IPFilterRules as defined in [RFC 6733] taking the format: action dir proto from src to dst')
     direction = Column(Integer, nullable=False, doc='Traffic Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("TFT_OPERATION_LOG", back_populates="tft")
 
 class EIR(Base):
@@ -246,7 +274,8 @@ class EIR(Base):
     imei = Column(String(60), doc='Exact IMEI or Regex to match IMEI (Depending on regex_mode value)')
     imsi = Column(String(60), doc='Exact IMSI or Regex to match IMSI (Depending on regex_mode value)')
     regex_mode = Column(Integer, default=1, doc='0 - Exact Match mode, 1 - Regex Mode')
-    match_response_code = Column(Integer, doc='0 - Whitelist, 1 - Blacklist, 2 - Greylist')
+    match_response_code = Column(Integer, doc=1.2.3.4'0 - Whitelist, 1 - Blacklist, 2 - Greylist')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("EIR_OPERATION_LOG", back_populates="eir")
 
 class IMSI_IMEI_HISTORY(Base):
@@ -255,6 +284,7 @@ class IMSI_IMEI_HISTORY(Base):
     imsi_imei = Column(String(60), unique=True, doc='Combined IMSI + IMEI value')
     match_response_code = Column(Integer, doc='Response code that was returned')
     imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMSI_IMEI_HISTORY_OPERATION_LOG", back_populates="eir_history")
 
 class SUBSCRIBER_ATTRIBUTES(Base):
@@ -262,8 +292,72 @@ class SUBSCRIBER_ATTRIBUTES(Base):
     subscriber_attributes_id = Column(Integer, primary_key = True, doc='Unique ID of Attribute')
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
     key = Column(String(60), doc='Arbitrary key')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     value = Column(String(12000), doc='Arbitrary value')
     operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
+
+class OPERATION_LOG_BASE(Base):
+    __tablename__ = 'operation_log'
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, nullable=False)
+    operation_id = Column(String(36), nullable=False)
+    operation = Column(String(10))
+    column_name = Column(String(255))
+    old_value = Column(Text(12000))
+    new_value = Column(Text(12000))
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc))
+    table_name = Column('table_name', String(255))
+    __mapper_args__ = {'polymorphic_on': table_name}
+
+class APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'apn'}
+    apn = relationship("APN", back_populates="operation_logs")
+    apn_id = Column(Integer, ForeignKey('apn.apn_id'))
+
+class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
+    serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
+    serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
+
+class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'auc'}
+    auc = relationship("AUC", back_populates="operation_logs")
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'))
+
+class SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber'}
+    subscriber = relationship("SUBSCRIBER", back_populates="operation_logs")
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
+
+class IMS_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'ims_subscriber'}
+    ims_subscriber = relationship("IMS_SUBSCRIBER", back_populates="operation_logs")
+    ims_subscriber_id = Column(Integer, ForeignKey('ims_subscriber.ims_subscriber_id'))
+
+class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
+    charging_rule = relationship("CHARGING_RULE", back_populates="operation_logs")
+    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
+
+class TFT_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'tft'}
+    tft = relationship("TFT", back_populates="operation_logs")
+    tft_id = Column(Integer, ForeignKey('tft.tft_id'))
+
+class EIR_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir'}
+    eir = relationship("EIR", back_populates="operation_logs")
+    eir_id = Column(Integer, ForeignKey('eir.eir_id'))
+
+class IMSI_IMEI_HISTORY_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir_history'}
+    eir_history = relationship("IMSI_IMEI_HISTORY", back_populates="operation_logs")
+    imsi_imei_history_id = Column(Integer, ForeignKey('eir_history.imsi_imei_history_id'))
+
+class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_attributes'}
+    subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
+    subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
 
 # Create database if it does not exist.
 if not database_exists(engine.url):
@@ -905,12 +999,13 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
         for key, value in json_data.items():
             if hasattr(obj, key):
                 setattr(obj, key, value)
+                setattr(obj, "last_modified", datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z')
     except Exception as E:
         DBLogger.error(f"Failed to query or update object, error: {E}")
         session.rollback()
         session.close()
         raise ValueError(E)
-
+    
     try:
         if(disable_logging):
             with disable_logging_listener():
@@ -955,8 +1050,10 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         raise ValueError(E)
 
 def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
+    last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
+    json_data["last_modified"] = last_modified_value  # set last_modified value in json_data
     newObj = obj_type(**json_data)
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     session.add(newObj)
@@ -965,7 +1062,7 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
             with disable_logging_listener():
                 session.commit()
         else:
-            session.info["operation_id"] = operation_id #Pass the operation id
+            session.info["operation_id"] = operation_id  # Pass the operation id
             session.commit()
         session.refresh(newObj)
         result = newObj.__dict__
@@ -990,6 +1087,8 @@ def Generate_JSON_Model_for_Flask(obj_type):
     # Exclude 'table_name' column from the properties
     if 'properties' in dictty:
         dictty['properties'].pop('discriminator', None)
+        dictty['properties'].pop('last_modified', None)
+        
 
     # Set the ID Object to not required
     obj_type_str = str(dictty['title']).lower()
