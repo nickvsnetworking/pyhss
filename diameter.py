@@ -698,10 +698,10 @@ class Diameter:
 
             #Try static IP allocation
             try:
-                ue_ip_dict = database.Get_UE_IP(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
-                DiameterLogger.info("Got static UE IP " + str(ue_ip_dict))
-                DiameterLogger.debug("Found static IP for UE " + str(ue_ip_dict['ip_address']))
-                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(ue_ip_dict['ip_address']))
+                subscriber_routing_dict = database.Get_SUBSCRIBER_ROUTING(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
+                DiameterLogger.info("Got static UE IP " + str(subscriber_routing_dict))
+                DiameterLogger.debug("Found static IP for UE " + str(subscriber_routing_dict['ip_address']))
+                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(subscriber_routing_dict['ip_address']))
             except Exception as E:
                 DiameterLogger.debug("Error getting static UE IP: " + str(E))
                 Served_Party_Address = ""
