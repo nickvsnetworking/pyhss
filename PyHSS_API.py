@@ -452,7 +452,7 @@ class PyHSS_SUBSCRIBER_All(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_subscriber.route('/subscriber_routing/')
+@ns_subscriber.route('/routing/')
 class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
     @ns_ims_subscriber.doc('Create Subscriber Routing Object')
     @ns_ims_subscriber.expect(SUBSCRIBER_ROUTING_model)
@@ -472,7 +472,7 @@ class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
             return response_json, 500
 
 
-@ns_subscriber.route('/subscriber_routing/<string:subscriber_id>/<string:apn_id>')
+@ns_subscriber.route('/routing/<string:subscriber_id>/<string:apn_id>')
 class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     def get(self, subscriber_id, apn_id):
         '''Get Subscriber Routing for specified subscriber_id & apn_id'''
@@ -496,7 +496,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
-@ns_subscriber.route('/subscriber_routing/<string:subscriber_routing_id>')
+@ns_subscriber.route('/routing/<string:subscriber_routing_id>')
 class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     @ns_subscriber.doc('Update SUBSCRIBER_ROUTING Object')
     @ns_subscriber.expect(SUBSCRIBER_ROUTING_model)
