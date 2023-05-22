@@ -33,7 +33,7 @@ EIR = database.EIR
 IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
 SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
 OPERATION_LOG = database.OPERATION_LOG_BASE
-UE_IP = database.UE_IP
+SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
 
 
 
@@ -79,8 +79,8 @@ AUC_model = api.schema_model('AUC JSON',
 SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON', 
     database.Generate_JSON_Model_for_Flask(SUBSCRIBER)
 )
-UE_IP_model = api.schema_model('UE_IP JSON', 
-    database.Generate_JSON_Model_for_Flask(UE_IP)
+SUBSCRIBER_ROUTING_model = api.schema_model('SUBSCRIBER_ROUTING JSON', 
+    database.Generate_JSON_Model_for_Flask(SUBSCRIBER_ROUTING)
 )
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
     database.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
@@ -119,7 +119,7 @@ GeoRed_model = api.model('GeoRed', {
     'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
-    'ue_ip' : fields.String(description=Serving_APN.ue_ip.doc),
+    'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
     'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
     'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.doc),
     'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.doc),
@@ -452,18 +452,18 @@ class PyHSS_SUBSCRIBER_All(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_subscriber.route('/ue_ip/')
-class PyHSS_UE_IP_Create(Resource):
-    @ns_ims_subscriber.doc('Create UE IP Object')
-    @ns_ims_subscriber.expect(UE_IP_model)
+@ns_subscriber.route('/subscriber_routing/')
+class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
+    @ns_ims_subscriber.doc('Create Subscriber Routing Object')
+    @ns_ims_subscriber.expect(SUBSCRIBER_ROUTING_model)
     def put(self):
-        '''Create new UE IP Binding'''
+        '''Create new Subscriber Routing Binding'''
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(UE_IP, json_data, False, operation_id)
+            data = database.CreateObj(SUBSCRIBER_ROUTING, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -472,12 +472,12 @@ class PyHSS_UE_IP_Create(Resource):
             return response_json, 500
 
 
-@ns_subscriber.route('/ue_ip/<string:subscriber_id>/<string:apn_id>')
-class PyHSS_SUBSCRIBER_UE_IP(Resource):
+@ns_subscriber.route('/subscriber_routing/<string:subscriber_id>/<string:apn_id>')
+class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     def get(self, subscriber_id, apn_id):
-        '''Get UE IP for specified subscriber_id & apn_id'''
+        '''Get Subscriber Routing for specified subscriber_id & apn_id'''
         try:
-            apn_data = database.Get_UE_IP(subscriber_id, apn_id)
+            apn_data = database.Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -485,29 +485,29 @@ class PyHSS_SUBSCRIBER_UE_IP(Resource):
             return response_json, 500
 
     def delete(self, subscriber_id, apn_id):
-        '''Delete UE IP binding for specified subscriber_id & apn_id'''
+        '''Delete Subscriber Routing binding for specified subscriber_id & apn_id'''
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            apn_data = database.Get_UE_IP(subscriber_id, apn_id)
-            data = database.DeleteObj(UE_IP, apn_data['ue_ip_id'], False, operation_id)
+            apn_data = database.Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id)
+            data = database.DeleteObj(SUBSCRIBER_ROUTING, apn_data['subscriber_routing_id'], False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
-@ns_subscriber.route('/ue_ip/<string:ue_ip_id>')
-class PyHSS_SUBSCRIBER_UE_IP(Resource):
-    @ns_subscriber.doc('Update UE_IP Object')
-    @ns_subscriber.expect(UE_IP_model)
-    def patch(self, ue_ip_id):
-        '''Update SUBSCRIBER data for specified ue_ip_id'''
+@ns_subscriber.route('/subscriber_routing/<string:subscriber_routing_id>')
+class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
+    @ns_subscriber.doc('Update SUBSCRIBER_ROUTING Object')
+    @ns_subscriber.expect(SUBSCRIBER_ROUTING_model)
+    def patch(self, subscriber_routing_id):
+        '''Update SUBSCRIBER data for specified subscriber_routing_id'''
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(UE_IP, json_data, ue_ip_id, False, operation_id)
+            data = database.UpdateObj(SUBSCRIBER_ROUTING, json_data, subscriber_routing_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -1157,7 +1157,7 @@ class PyHSS_PCRF(Resource):
         mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
         import diameter
         diameter = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
-        diam_hex = diameter.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['ue_ip'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
+        diam_hex = diameter.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['subscriber_routing'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
         import time
         logObj = logtool.LogTool()
         logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
@@ -1175,12 +1175,12 @@ class PyHSS_PCRF_Complete(Resource):
             response_json = {'result': 'Failed', 'Reason' : str(E)}
             return response_json, 500
 
-@ns_pcrf.route('/ue_ip/<string:ue_ip>')
-class PyHSS_PCRF_UE_IP(Resource):
-    def get(self, ue_ip):
-        '''Get Subscriber info from UE IP'''
+@ns_pcrf.route('/subscriber_routing/<string:subscriber_routing>')
+class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
+    def get(self, subscriber_routing):
+        '''Get Subscriber info from Subscriber Routing'''
         try:
-            data = database.Get_UE_by_IP(ue_ip)
+            data = database.Get_UE_by_IP(subscriber_routing)
             return data, 200
         except Exception as E:
             print(E)
@@ -1206,7 +1206,7 @@ class PyHSS_Geored(Resource):
                 response_data.append(database.Update_Serving_MME(str(json_data['imsi']), json_data['serving_mme'], propagate=False))
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
-                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['ue_ip'], propagate=False))
+                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['subscriber_routing'], propagate=False))
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
                 response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))

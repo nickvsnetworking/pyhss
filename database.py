@@ -67,10 +67,10 @@ class APN_OPERATION_LOG(OPERATION_LOG_BASE):
     apn = relationship("APN", back_populates="operation_logs")
     apn_id = Column(Integer, ForeignKey('apn.apn_id'))
 
-class UE_IP_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'ue_ip'}
-    ue_ip = relationship("UE_IP", back_populates="operation_logs")
-    ue_ip_id = Column(Integer, ForeignKey('ue_ip.ue_ip_id'))
+class SUBSCRIBER_ROUTING_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_routing'}
+    subscriber_routing = relationship("SUBSCRIBER_ROUTING", back_populates="operation_logs")
+    subscriber_routing_id = Column(Integer, ForeignKey('subscriber_routing.subscriber_routing_id'))
 
 class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
@@ -136,19 +136,19 @@ class APN(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
 
-class UE_IP(Base):
-    __tablename__ = 'ue_ip'
+class SUBSCRIBER_ROUTING(Base):
+    __tablename__ = 'subscriber_routing'
     __table_args__ = (
         # this can be db.PrimaryKeyConstraint if you want it to be a primary key
         UniqueConstraint('subscriber_id', 'apn_id'),
     )
-    ue_ip_id = Column(Integer, primary_key=True, doc='Unique ID of UE IP')
+    subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
     apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
     ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
     ip_address = Column(String(254), doc='IP of the UE')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("UE_IP_OPERATION_LOG", back_populates="ue_ip")
+    operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
 
 class AUC(Base):
     __tablename__ = 'auc'
@@ -204,7 +204,7 @@ class SERVING_APN(Base):
     subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
     apn = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the APN served')
     pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
-    ue_ip = Column(String(100), doc='IP Address allocated to the UE')
+    subscriber_routing = Column(String(100), doc='IP Address allocated to the UE')
     ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
     serving_pgw = Column(String(512), doc='PGW serving this subscriber')
     serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
@@ -440,10 +440,13 @@ def get_class_by_tablename(base, tablename):
             return cls
     return None
 
-def rollback_last_change():
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def rollback_last_change(existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
 
@@ -546,10 +549,13 @@ def rollback_last_change():
         session.close()
         raise ValueError(E)
 
-def rollback_last_change_by_table(table_name):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def rollback_last_change_by_table(table_name, existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
 
@@ -645,10 +651,13 @@ def rollback_last_change_by_table(table_name):
 event.listen(Session, 'before_commit', log_changes_before_commit)
 
 
-def get_all_operation_logs(page=0, page_size=100):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def get_all_operation_logs(page=0, page_size=100, existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
         # Get all distinct operation_ids ordered by max timestamp (descending order)
@@ -690,10 +699,13 @@ def get_all_operation_logs(page=0, page_size=100):
         raise ValueError(E)
 
 
-def get_all_operation_logs_by_table(table_name, page=0, page_size=100):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def get_all_operation_logs_by_table(table_name, page=0, page_size=100, existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
         # Get all distinct operation_ids ordered by max timestamp (descending order)
@@ -734,10 +746,13 @@ def get_all_operation_logs_by_table(table_name, page=0, page_size=100):
         session.close()
         raise ValueError(E)
     
-def get_last_operation_log():
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def get_last_operation_log(existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
         # Get the top 100 records ordered by timestamp (descending order)
@@ -1135,13 +1150,13 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
-def Get_UE_IP(subscriber_id, apn_id):
+def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    DBLogger.debug("Get_UE_IP for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
+    DBLogger.debug("Get_SUBSCRIBER_ROUTING for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
     try:
-        result = session.query(UE_IP).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
+        result = session.query(SUBSCRIBER_ROUTING).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
     except Exception as E:
         session.close()
         raise ValueError(E)
@@ -1455,7 +1470,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
     session.close()
     return    
 
-def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate=True):
+def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
     DBLogger.debug("Called Update_Serving_APN()")
 
     #Get Subscriber ID from IMSI
@@ -1487,7 +1502,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate
                 'pcrf_session_id' : str(pcrf_session_id),
                 'serving_pgw' : str(serving_pgw),
                 'serving_pgw_timestamp' : datetime.datetime.now(),
-                'ue_ip' : str(ue_ip)
+                'subscriber_routing' : str(subscriber_routing)
             }
 
             try:
@@ -1512,7 +1527,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate
                         GeoRed_Push_Async({"imsi": str(imsi),
                                         'pcrf_session_id': str(pcrf_session_id),
                                         'serving_pgw': str(serving_pgw),
-                                        'ue_ip': str(ue_ip)
+                                        'subscriber_routing': str(subscriber_routing)
                                         })
                     else:
                         DBLogger.debug("Config does not allow sync of PCRF events")
@@ -1623,14 +1638,14 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
-def Get_UE_by_IP(ue_ip):   
-    DBLogger.debug("Called Get_UE_by_IP() for IP " + str(ue_ip))
+def Get_UE_by_IP(subscriber_routing):   
+    DBLogger.debug("Called Get_UE_by_IP() for IP " + str(subscriber_routing))
 
     Session = sessionmaker(bind = engine)
     session = Session()    
     
     try:
-        result = session.query(SERVING_APN).filter_by(ue_ip=ue_ip).one()
+        result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriber_routing).one()
     except Exception as E:
         session.close()
         raise ValueError(E)
@@ -1971,7 +1986,7 @@ if __name__ == "__main__":
 
     #Update Serving APN for Subscriber
     print("Updating Serving APN for Subscriber")
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', ue_ip='1.2.3.4')
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', subscriber_routing='1.2.3.4')
 
     print("Getting Charging Rule for Subscriber / APN Combo")
     ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn=apn2['apn'])
@@ -2008,7 +2023,7 @@ if __name__ == "__main__":
 
     #Clear Serving PGW for PCRF Subscriber
     print("Clear Serving PGW for PCRF Subscriber")
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, ue_ip=None)
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, subscriber_routing=None)
 
     #Clear MME Location for Subscriber    
     print("Clear MME Location for Subscriber")
