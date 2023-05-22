@@ -943,52 +943,69 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
                 setattr(obj, "last_modified", datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z')
     except Exception as E:
         DBLogger.error(f"Failed to query or update object, error: {E}")
-        session.rollback()
-        session.close()
         raise ValueError(E)
-    
     try:
-        if(disable_logging):
+        if disable_logging:
             with disable_logging_listener():
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as E:
+                    DBLogger.error(f"Failed to commit session, error: {E}")
+                    session.rollback()
+                    raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id #Pass the operation id
-            session.commit()
+            session.info["operation_id"] = operation_id  # Pass the operation id
+            try:
+                session.commit()
+            except Exception as E:
+                DBLogger.error(f"Failed to commit session, error: {E}")
+                session.rollback()
+                raise ValueError(E)
     except Exception as E:
-        DBLogger.error(f"Failed to commit session, error: {E}")
-        session.rollback()
-        session.close()
+        DBLogger.error(f"Exception in UpdateObj, error: {E}")
         raise ValueError(E)
+    finally:
+        session.close()
 
-    session.close()
     return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
     DBLogger.debug(f"Called DeleteObj for type {obj_type} with id {obj_id}")
 
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
         res = session.query(obj_type).get(obj_id)
         if res is None:
-            session.close()
             raise ValueError("The specified row does not exist")
-        return_data = GetObj(obj_type, obj_id)
         session.delete(res)
-        if(disable_logging):
+
+        if disable_logging:
             with disable_logging_listener():
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as E:
+                    DBLogger.error(f"Failed to commit session, error: {E}")
+                    session.rollback()
+                    raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id #Pass the operation id
-            session.commit()
-        session.close()
-        return {'Result': 'OK'}
+            session.info["operation_id"] = operation_id  # Pass the operation id
+            try:
+                session.commit()
+            except Exception as E:
+                DBLogger.error(f"Failed to commit session, error: {E}")
+                session.rollback()
+                raise ValueError(E)
+
     except Exception as E:
-        DBLogger.error(f"Failed to commit session, error: {E}")
-        session.rollback()
-        session.close()
+        DBLogger.error(f"Exception in DeleteObj, error: {E}")
         raise ValueError(E)
+    finally:
+        session.close()
+
+    return {'Result': 'OK'}
+
 
 def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
     last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
@@ -999,22 +1016,31 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
 
     session.add(newObj)
     try:
-        if(disable_logging):
+        if disable_logging:
             with disable_logging_listener():
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as E:
+                    DBLogger.error(f"Failed to commit session, error: {E}")
+                    session.rollback()
+                    raise ValueError(E)
         else:
             session.info["operation_id"] = operation_id  # Pass the operation id
-            session.commit()
+            try:
+                session.commit()
+            except Exception as E:
+                DBLogger.error(f"Failed to commit session, error: {E}")
+                session.rollback()
+                raise ValueError(E)
         session.refresh(newObj)
         result = newObj.__dict__
         result.pop('_sa_instance_state')
-        session.close()
         return result
     except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
+        DBLogger.error(f"Exception in CreateObj, error: {E}")
         raise ValueError(E)
+    finally:
+        session.close()
 
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
