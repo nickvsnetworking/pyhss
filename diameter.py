@@ -983,7 +983,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)
+            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=ue_ip)
 
             #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
