@@ -1420,81 +1420,68 @@ def Update_Serving_MME(imsi, serving_mme, propagate=True):
     session = Session()
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-    except Exception as E:
-        DBLogger.error("Failed to query session, error: " + str(E))
-        session.rollback()
-        session.close()
 
-    if type(serving_mme) == str:
-        DBLogger.debug("Updating serving MME")
-        result.serving_mme = serving_mme
-        result.serving_mme_timestamp = datetime.datetime.now()
-    else:
-        #Clear values
-        DBLogger.debug("Clearing serving MME")
-        result.serving_mme = None
-        result.serving_mme_timestamp = None
-    try:
+        if type(serving_mme) == str:
+            DBLogger.debug("Updating serving MME")
+            result.serving_mme = serving_mme
+            result.serving_mme_timestamp = datetime.datetime.now()
+        else:
+            #Clear values
+            DBLogger.debug("Clearing serving MME")
+            result.serving_mme = None
+            result.serving_mme_timestamp = None
+
         with disable_logging_listener():
             session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
 
-    #Sync state change with geored
-    if propagate == True:
-        try:
+        #Sync state change with geored
+        if propagate == True:
             if 'HSS' in yaml_config['geored'].get('sync_actions', []) and yaml_config['geored'].get('enabled', False) == True:
                 DBLogger.debug("Propagate MME changes to Geographic PyHSS instances")
                 GeoRed_Push_Async({"imsi": str(imsi), "serving_mme": result.serving_mme})
             else:
                 DBLogger.debug("Config does not allow sync of HSS events")
-        except Exception as E:
-            DBLogger.debug("Nothing synced to Geographic PyHSS instances for HSS event")
-            DBLogger.debug(E)
+    except Exception as E:
+        DBLogger.error("Error occurred, rolling back session: " + str(E))
+        raise
+    finally:
+        session.close()
 
-    session.close()
-    return
 
 def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
     DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
-    if type(serving_cscf) == str:
-        DBLogger.debug("Setting serving CSCF")
-        result.scscf = serving_cscf
-        result.scscf_timestamp = datetime.datetime.now()
-    else:
-        #Clear values
-        DBLogger.debug("Clearing serving CSCF")
-        result.scscf = None
-        result.scscf_timestamp = None
     try:
+        result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
+        if type(serving_cscf) == str:
+            DBLogger.debug("Setting serving CSCF")
+            result.scscf = serving_cscf
+            result.scscf_timestamp = datetime.datetime.now()
+        else:
+            #Clear values
+            DBLogger.debug("Clearing serving CSCF")
+            result.scscf = None
+            result.scscf_timestamp = None
+
         with disable_logging_listener():
             session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
 
-
-    #Sync state change with geored
-    if propagate == True:
-        try:
+        #Sync state change with geored
+        if propagate == True:
             if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
                 DBLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
                 GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf})
             else:
                 DBLogger.debug("Config does not allow sync of IMS events")
-        except Exception as E:
-            DBLogger.debug("Nothing synced to Geographic PyHSS instances for IMS event")
-    session.close()
-    return    
+    except Exception as E:
+        DBLogger.error("An error occurred, rolling back session: " + str(E))
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
     DBLogger.debug("Called Update_Serving_APN()")
