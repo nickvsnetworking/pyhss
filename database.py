@@ -217,7 +217,7 @@ class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
     ims_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of IMS_Subscriber entry')
     msisdn = Column(String(18), unique=True, doc=SUBSCRIBER.msisdn.doc)
-    msisdn_list = Column(String(1200), doc='Coma Separated list of additional MSISDNs for Subscriber')
+    msisdn_list = Column(String(1200), doc='Comma Separated list of additional MSISDNs for Subscriber')
     imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
     ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
     sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
