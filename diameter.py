@@ -2030,7 +2030,7 @@ class Diameter:
 
     #3GPP Cx Location Information Request (LIR)
     #ToDo - Check the command code here...
-    def Request_16777216_285(self, sipaor):                                                             
+    def Request_16777216_302(self, sipaor):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         #Auth Session state
@@ -2051,7 +2051,7 @@ class Diameter:
 
         #* [ Route-Record ]
         avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))              
-        response = self.generate_diameter_packet("01", "c0", 285, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        response = self.generate_diameter_packet("01", "c0", 302, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
     #3GPP Cx User Authorization Request (UAR)
