@@ -698,10 +698,10 @@ class Diameter:
 
             #Try static IP allocation
             try:
-                ue_ip_dict = database.Get_UE_IP(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
-                DiameterLogger.info("Got static UE IP " + str(ue_ip_dict))
-                DiameterLogger.debug("Found static IP for UE " + str(ue_ip_dict['ip_address']))
-                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(ue_ip_dict['ip_address']))
+                subscriber_routing_dict = database.Get_SUBSCRIBER_ROUTING(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
+                DiameterLogger.info("Got static UE IP " + str(subscriber_routing_dict))
+                DiameterLogger.debug("Found static IP for UE " + str(subscriber_routing_dict['ip_address']))
+                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(subscriber_routing_dict['ip_address']))
             except Exception as E:
                 DiameterLogger.debug("Error getting static UE IP: " + str(E))
                 Served_Party_Address = ""
@@ -983,7 +983,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, ue_ip=ue_ip)
+            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=ue_ip)
 
             #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
@@ -1055,7 +1055,7 @@ class Diameter:
 
         elif int(CC_Request_Type) == 3:
             DiameterLogger.info("Request type for CCA is 3 - Termination")
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, ue_ip=None)
+            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm

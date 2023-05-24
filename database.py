@@ -67,10 +67,10 @@ class APN_OPERATION_LOG(OPERATION_LOG_BASE):
     apn = relationship("APN", back_populates="operation_logs")
     apn_id = Column(Integer, ForeignKey('apn.apn_id'))
 
-class UE_IP_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'ue_ip'}
-    ue_ip = relationship("UE_IP", back_populates="operation_logs")
-    ue_ip_id = Column(Integer, ForeignKey('ue_ip.ue_ip_id'))
+class SUBSCRIBER_ROUTING_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_routing'}
+    subscriber_routing = relationship("SUBSCRIBER_ROUTING", back_populates="operation_logs")
+    subscriber_routing_id = Column(Integer, ForeignKey('subscriber_routing.subscriber_routing_id'))
 
 class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
@@ -136,19 +136,19 @@ class APN(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
 
-class UE_IP(Base):
-    __tablename__ = 'ue_ip'
+class SUBSCRIBER_ROUTING(Base):
+    __tablename__ = 'subscriber_routing'
     __table_args__ = (
         # this can be db.PrimaryKeyConstraint if you want it to be a primary key
         UniqueConstraint('subscriber_id', 'apn_id'),
     )
-    ue_ip_id = Column(Integer, primary_key=True, doc='Unique ID of UE IP')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
-    apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn')
+    subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn_id = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the target apn')
     ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
     ip_address = Column(String(254), doc='IP of the UE')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("UE_IP_OPERATION_LOG", back_populates="ue_ip")
+    operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
 
 class AUC(Base):
     __tablename__ = 'auc'
@@ -201,10 +201,10 @@ class SUBSCRIBER(Base):
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
     serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber')
-    apn = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the APN served')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the APN served')
     pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
-    ue_ip = Column(String(100), doc='IP Address allocated to the UE')
+    subscriber_routing = Column(String(100), doc='IP Address allocated to the UE')
     ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
     serving_pgw = Column(String(512), doc='PGW serving this subscriber')
     serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
@@ -217,7 +217,7 @@ class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
     ims_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of IMS_Subscriber entry')
     msisdn = Column(String(18), unique=True, doc=SUBSCRIBER.msisdn.doc)
-    msisdn_list = Column(String(1200), doc='Coma Separated list of additional MSISDNs for Subscriber')
+    msisdn_list = Column(String(1200), doc='Comma Separated list of additional MSISDNs for Subscriber')
     imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
     ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
     sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
@@ -279,7 +279,7 @@ class IMSI_IMEI_HISTORY(Base):
 class SUBSCRIBER_ATTRIBUTES(Base):
     __tablename__ = 'subscriber_attributes'
     subscriber_attributes_id = Column(Integer, primary_key = True, doc='Unique ID of Attribute')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
     key = Column(String(60), doc='Arbitrary key')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     value = Column(String(12000), doc='Arbitrary value')
@@ -292,6 +292,12 @@ if not database_exists(engine.url):
     Base.metadata.create_all(engine)
 else:
     DBLogger.debug("Database already created")
+
+def safe_rollback(session):
+    try:
+        session.rollback()
+    except Exception as E:
+        DBLogger.error(f"Failed to rollback session, error: {E}")
 
 
 def sqlalchemy_type_to_json_schema_type(sqlalchemy_type):
@@ -357,7 +363,7 @@ def log_change(session, item_id, operation, column_name, old_value, new_value, t
         session.flush()
     except Exception as E:
         DBLogger.error("Failed to commit changelog, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -440,10 +446,13 @@ def get_class_by_tablename(base, tablename):
             return cls
     return None
 
-def rollback_last_change():
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def rollback_last_change(existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
 
@@ -532,7 +541,7 @@ def rollback_last_change():
                 session.close()
             except Exception as E:
                 DBLogger.error("Failed to commit rollback, error: " + str(E))
-                session.rollback()
+                safe_rollback(session)
                 session.close()
                 raise ValueError(E)
 
@@ -542,14 +551,17 @@ def rollback_last_change():
 
     except Exception as E:
         DBLogger.error("rollback_last_change error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
-def rollback_last_change_by_table(table_name):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def rollback_last_change_by_table(table_name, existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
 
@@ -627,7 +639,7 @@ def rollback_last_change_by_table(table_name):
                 session.close()
             except Exception as E:
                 DBLogger.error("Failed to commit rollback, error: " + str(E))
-                session.rollback()
+                safe_rollback(session)
                 session.close()
                 raise ValueError(E)
 
@@ -637,7 +649,7 @@ def rollback_last_change_by_table(table_name):
 
     except Exception as E:
         DBLogger.error("rollback_last_change error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -645,10 +657,13 @@ def rollback_last_change_by_table(table_name):
 event.listen(Session, 'before_commit', log_changes_before_commit)
 
 
-def get_all_operation_logs(page=0, page_size=100):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def get_all_operation_logs(page=0, page_size=100, existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
         # Get all distinct operation_ids ordered by max timestamp (descending order)
@@ -685,15 +700,18 @@ def get_all_operation_logs(page=0, page_size=100):
     except Exception as E:
         DBLogger.error(f"get_all_operation_logs error: {E}")
         DBLogger.error(E)
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
 
-def get_all_operation_logs_by_table(table_name, page=0, page_size=100):
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def get_all_operation_logs_by_table(table_name, page=0, page_size=100, existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
         # Get all distinct operation_ids ordered by max timestamp (descending order)
@@ -730,14 +748,17 @@ def get_all_operation_logs_by_table(table_name, page=0, page_size=100):
     except Exception as E:
         DBLogger.error(f"get_all_operation_logs error: {E}")
         DBLogger.error(E)
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     
-def get_last_operation_log():
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+def get_last_operation_log(existingSession=None):
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
 
     try:
         # Get the top 100 records ordered by timestamp (descending order)
@@ -769,7 +790,7 @@ def get_last_operation_log():
     except Exception as E:
         DBLogger.error(f"get_last_operation_log error: {E}")
         DBLogger.error(E)
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -787,9 +808,10 @@ def GeoRed_Push_Request(remote_hss, json_data):
 
 def GeoRed_Push_Async(json_data):
     if yaml_config['geored']['enabled'] == True:
-        for remote_hss in yaml_config['geored']['sync_endpoints']:
-            GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
-            GeoRed_Push_thread.start()
+        if len(yaml_config['geored']['sync_endpoints'] > 0):
+            for remote_hss in yaml_config['geored']['sync_endpoints']:
+                GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
+                GeoRed_Push_thread.start()
 
 def Webhook_Push_Async(target, json_data):
         Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
@@ -853,7 +875,7 @@ def GetObj(obj_type, obj_id=None, page=None, page_size=None):
 
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -872,7 +894,7 @@ def GetAll(obj_type):
         result = session.query(obj_type)
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)    
     
@@ -898,7 +920,7 @@ def GetAllByTable(obj_type, table):
         result = session.query(obj_type).filter_by(table_name=str(table))
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)    
     
@@ -928,52 +950,69 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
                 setattr(obj, "last_modified", datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z')
     except Exception as E:
         DBLogger.error(f"Failed to query or update object, error: {E}")
-        session.rollback()
-        session.close()
         raise ValueError(E)
-    
     try:
-        if(disable_logging):
+        if disable_logging:
             with disable_logging_listener():
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as E:
+                    DBLogger.error(f"Failed to commit session, error: {E}")
+                    safe_rollback(session)
+                    raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id #Pass the operation id
-            session.commit()
+            session.info["operation_id"] = operation_id  # Pass the operation id
+            try:
+                session.commit()
+            except Exception as E:
+                DBLogger.error(f"Failed to commit session, error: {E}")
+                safe_rollback(session)
+                raise ValueError(E)
     except Exception as E:
-        DBLogger.error(f"Failed to commit session, error: {E}")
-        session.rollback()
-        session.close()
+        DBLogger.error(f"Exception in UpdateObj, error: {E}")
         raise ValueError(E)
+    finally:
+        session.close()
 
-    session.close()
     return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
     DBLogger.debug(f"Called DeleteObj for type {obj_type} with id {obj_id}")
 
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
         res = session.query(obj_type).get(obj_id)
         if res is None:
-            session.close()
             raise ValueError("The specified row does not exist")
-        return_data = GetObj(obj_type, obj_id)
         session.delete(res)
-        if(disable_logging):
+
+        if disable_logging:
             with disable_logging_listener():
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as E:
+                    DBLogger.error(f"Failed to commit session, error: {E}")
+                    safe_rollback(session)
+                    raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id #Pass the operation id
-            session.commit()
-        session.close()
-        return {'Result': 'OK'}
+            session.info["operation_id"] = operation_id  # Pass the operation id
+            try:
+                session.commit()
+            except Exception as E:
+                DBLogger.error(f"Failed to commit session, error: {E}")
+                safe_rollback(session)
+                raise ValueError(E)
+
     except Exception as E:
-        DBLogger.error(f"Failed to commit session, error: {E}")
-        session.rollback()
-        session.close()
+        DBLogger.error(f"Exception in DeleteObj, error: {E}")
         raise ValueError(E)
+    finally:
+        session.close()
+
+    return {'Result': 'OK'}
+
 
 def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
     last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
@@ -984,22 +1023,31 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
 
     session.add(newObj)
     try:
-        if(disable_logging):
+        if disable_logging:
             with disable_logging_listener():
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as E:
+                    DBLogger.error(f"Failed to commit session, error: {E}")
+                    safe_rollback(session)
+                    raise ValueError(E)
         else:
             session.info["operation_id"] = operation_id  # Pass the operation id
-            session.commit()
+            try:
+                session.commit()
+            except Exception as E:
+                DBLogger.error(f"Failed to commit session, error: {E}")
+                safe_rollback(session)
+                raise ValueError(E)
         session.refresh(newObj)
         result = newObj.__dict__
         result.pop('_sa_instance_state')
-        session.close()
         return result
     except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
+        DBLogger.error(f"Exception in CreateObj, error: {E}")
         raise ValueError(E)
+    finally:
+        session.close()
 
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
@@ -1050,7 +1098,7 @@ def Get_AuC(**kwargs):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -1087,7 +1135,7 @@ def Get_IMS_Subscriber(**kwargs):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
@@ -1122,7 +1170,7 @@ def Get_Subscriber(**kwargs):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     
@@ -1135,13 +1183,13 @@ def Get_Subscriber(**kwargs):
     session.close()
     return result
 
-def Get_UE_IP(subscriber_id, apn_id):
+def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    DBLogger.debug("Get_UE_IP for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
+    DBLogger.debug("Get_SUBSCRIBER_ROUTING for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
     try:
-        result = session.query(UE_IP).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
+        result = session.query(SUBSCRIBER_ROUTING).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
     except Exception as E:
         session.close()
         raise ValueError(E)
@@ -1153,7 +1201,7 @@ def Get_UE_IP(subscriber_id, apn_id):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -1206,7 +1254,7 @@ def Get_Served_Subscribers():
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
@@ -1235,7 +1283,7 @@ def Get_Served_IMS_Subscribers():
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
@@ -1273,7 +1321,7 @@ def Get_Served_PCRF_Subscribers():
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)     
     DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
@@ -1341,7 +1389,7 @@ def Get_APN(apn_id):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     session.close()
@@ -1362,7 +1410,7 @@ def Get_APN_by_Name(apn):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     session.close()
@@ -1379,83 +1427,70 @@ def Update_Serving_MME(imsi, serving_mme, propagate=True):
     session = Session()
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-    except Exception as E:
-        DBLogger.error("Failed to query session, error: " + str(E))
-        session.rollback()
-        session.close()
 
-    if type(serving_mme) == str:
-        DBLogger.debug("Updating serving MME")
-        result.serving_mme = serving_mme
-        result.serving_mme_timestamp = datetime.datetime.now()
-    else:
-        #Clear values
-        DBLogger.debug("Clearing serving MME")
-        result.serving_mme = None
-        result.serving_mme_timestamp = None
-    try:
+        if type(serving_mme) == str:
+            DBLogger.debug("Updating serving MME")
+            result.serving_mme = serving_mme
+            result.serving_mme_timestamp = datetime.datetime.now()
+        else:
+            #Clear values
+            DBLogger.debug("Clearing serving MME")
+            result.serving_mme = None
+            result.serving_mme_timestamp = None
+
         with disable_logging_listener():
             session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
 
-    #Sync state change with geored
-    if propagate == True:
-        try:
+        #Sync state change with geored
+        if propagate == True:
             if 'HSS' in yaml_config['geored'].get('sync_actions', []) and yaml_config['geored'].get('enabled', False) == True:
                 DBLogger.debug("Propagate MME changes to Geographic PyHSS instances")
                 GeoRed_Push_Async({"imsi": str(imsi), "serving_mme": result.serving_mme})
             else:
                 DBLogger.debug("Config does not allow sync of HSS events")
-        except Exception as E:
-            DBLogger.debug("Nothing synced to Geographic PyHSS instances for HSS event")
-            DBLogger.debug(E)
+    except Exception as E:
+        DBLogger.error("Error occurred, rolling back session: " + str(E))
+        raise
+    finally:
+        session.close()
 
-    session.close()
-    return
 
 def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
     DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
-    if type(serving_cscf) == str:
-        DBLogger.debug("Setting serving CSCF")
-        result.scscf = serving_cscf
-        result.scscf_timestamp = datetime.datetime.now()
-    else:
-        #Clear values
-        DBLogger.debug("Clearing serving CSCF")
-        result.scscf = None
-        result.scscf_timestamp = None
     try:
+        result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
+        if type(serving_cscf) == str:
+            DBLogger.debug("Setting serving CSCF")
+            result.scscf = serving_cscf
+            result.scscf_timestamp = datetime.datetime.now()
+        else:
+            #Clear values
+            DBLogger.debug("Clearing serving CSCF")
+            result.scscf = None
+            result.scscf_timestamp = None
+
         with disable_logging_listener():
             session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
-        session.close()
-        raise ValueError(E)
 
-
-    #Sync state change with geored
-    if propagate == True:
-        try:
+        #Sync state change with geored
+        if propagate == True:
             if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
                 DBLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
                 GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf})
             else:
                 DBLogger.debug("Config does not allow sync of IMS events")
-        except Exception as E:
-            DBLogger.debug("Nothing synced to Geographic PyHSS instances for IMS event")
-    session.close()
-    return    
+    except Exception as E:
+        DBLogger.error("An error occurred, rolling back session: " + str(E))
+        safe_rollback(session)
+        raise
+    finally:
+        session.close()
 
-def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate=True):
+
+def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
     DBLogger.debug("Called Update_Serving_APN()")
 
     #Get Subscriber ID from IMSI
@@ -1487,7 +1522,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate
                 'pcrf_session_id' : str(pcrf_session_id),
                 'serving_pgw' : str(serving_pgw),
                 'serving_pgw_timestamp' : datetime.datetime.now(),
-                'ue_ip' : str(ue_ip)
+                'subscriber_routing' : str(subscriber_routing)
             }
 
             try:
@@ -1512,7 +1547,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, ue_ip, propagate
                         GeoRed_Push_Async({"imsi": str(imsi),
                                         'pcrf_session_id': str(pcrf_session_id),
                                         'serving_pgw': str(serving_pgw),
-                                        'ue_ip': str(ue_ip)
+                                        'subscriber_routing': str(subscriber_routing)
                                         })
                     else:
                         DBLogger.debug("Config does not allow sync of PCRF events")
@@ -1539,7 +1574,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     
@@ -1567,7 +1602,7 @@ def Get_Charging_Rule(charging_rule_id):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     session.close()
@@ -1623,14 +1658,14 @@ def Get_Charging_Rules(imsi, apn):
             DBLogger.debug(ChargingRule)
             return ChargingRule
 
-def Get_UE_by_IP(ue_ip):   
-    DBLogger.debug("Called Get_UE_by_IP() for IP " + str(ue_ip))
+def Get_UE_by_IP(subscriber_routing):   
+    DBLogger.debug("Called Get_UE_by_IP() for IP " + str(subscriber_routing))
 
     Session = sessionmaker(bind = engine)
     session = Session()    
     
     try:
-        result = session.query(SERVING_APN).filter_by(ue_ip=ue_ip).one()
+        result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriber_routing).one()
     except Exception as E:
         session.close()
         raise ValueError(E)
@@ -1668,7 +1703,7 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 session.commit()
         except Exception as E:
             DBLogger.error("Failed to commit session, error: " + str(E))
-            session.rollback()
+            safe_rollback(session)
             session.close()
             raise ValueError(E)
         session.close()
@@ -1748,7 +1783,7 @@ def Check_EIR(imsi, imei):
                 Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                 return match_response_code
     except Exception as E:
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     
@@ -1772,7 +1807,7 @@ def Check_EIR(imsi, imei):
                     Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                     return match_response_code
     except Exception as E:
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
 
@@ -1780,7 +1815,7 @@ def Check_EIR(imsi, imei):
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     DBLogger.debug("No matches at all - Returning default response")
@@ -1800,14 +1835,14 @@ def Get_EIR_Rules():
             result.pop('_sa_instance_state')
             EIR_Rules.append(result)
     except Exception as E:
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     try:
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
-        session.rollback()
+        safe_rollback(session)
         session.close()
         raise ValueError(E)
     DBLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
@@ -1971,7 +2006,7 @@ if __name__ == "__main__":
 
     #Update Serving APN for Subscriber
     print("Updating Serving APN for Subscriber")
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', ue_ip='1.2.3.4')
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', subscriber_routing='1.2.3.4')
 
     print("Getting Charging Rule for Subscriber / APN Combo")
     ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn=apn2['apn'])
@@ -2008,7 +2043,7 @@ if __name__ == "__main__":
 
     #Clear Serving PGW for PCRF Subscriber
     print("Clear Serving PGW for PCRF Subscriber")
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, ue_ip=None)
+    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, subscriber_routing=None)
 
     #Clear MME Location for Subscriber    
     print("Clear MME Location for Subscriber")
