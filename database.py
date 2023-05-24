@@ -143,8 +143,8 @@ class SUBSCRIBER_ROUTING(Base):
         UniqueConstraint('subscriber_id', 'apn_id'),
     )
     subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber', ondelete='CASCADE')
-    apn_id = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the target apn', ondelete='CASCADE')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn_id = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the target apn')
     ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
     ip_address = Column(String(254), doc='IP of the UE')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
@@ -201,8 +201,8 @@ class SUBSCRIBER(Base):
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
     serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='subscriber_id of the served subscriber', ondelete='CASCADE')
-    apn = Column(Integer, ForeignKey('apn.apn_id'), doc='apn_id of the APN served', ondelete='CASCADE')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the APN served')
     pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
     subscriber_routing = Column(String(100), doc='IP Address allocated to the UE')
     ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
@@ -279,7 +279,7 @@ class IMSI_IMEI_HISTORY(Base):
 class SUBSCRIBER_ATTRIBUTES(Base):
     __tablename__ = 'subscriber_attributes'
     subscriber_attributes_id = Column(Integer, primary_key = True, doc='Unique ID of Attribute')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False, ondelete='CASCADE')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
     key = Column(String(60), doc='Arbitrary key')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     value = Column(String(12000), doc='Arbitrary value')
