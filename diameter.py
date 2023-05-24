@@ -1055,7 +1055,7 @@ class Diameter:
 
         elif int(CC_Request_Type) == 3:
             DiameterLogger.info("Request type for CCA is 3 - Termination")
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, ue_ip=None)
+            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
