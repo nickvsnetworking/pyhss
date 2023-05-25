@@ -175,14 +175,9 @@ def handle_exception(e):
     logging.error(f"An error occurred: {e}")
     response_json = {'result': 'Failed'}
 
-    if isinstance(e, sqlalchemy.exc.IntegrityError):
+    if isinstance(e, sqlalchemy.exc.SQLAlchemyError):
         response_json['reason'] = f'A database integrity error occurred: {e}'
         return response_json, 400
-    elif isinstance(e, sqlalchemy.exc.OperationalError):
-        error_message = str(e)
-        if "Incorrect integer value" in error_message:
-            response_json['reason'] = f'An operational error occurred: {e}'
-            return response_json, 400
     else:
         response_json['reason'] = f'An internal server error occurred: {e}'
         logging.error(f'{traceback.format_exc()}')
