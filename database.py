@@ -298,7 +298,7 @@ def safe_rollback(session):
             session.rollback()
     except Exception as E:
         DBLogger.error(f"Failed to rollback session, error: {E}")
-        
+
 def safe_close(session):
     try:
         if session.is_active:
@@ -814,7 +814,7 @@ def GeoRed_Push_Request(remote_hss, json_data):
 
 def GeoRed_Push_Async(json_data):
     if yaml_config['geored']['enabled'] == True:
-        if len(yaml_config['geored']['sync_endpoints'] > 0):
+        if len(yaml_config['geored']['sync_endpoints']) > 0:
             for remote_hss in yaml_config['geored']['sync_endpoints']:
                 GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
                 GeoRed_Push_thread.start()
