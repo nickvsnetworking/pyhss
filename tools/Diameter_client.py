@@ -166,7 +166,7 @@ while True:
         msisdn = str(input("MSISDN:\t"))
         sipaor = "sip:" + str(msisdn)
         print("Sending Location-Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777216_285(sipaor))
+        SendRequest(diameter.Request_16777216_302(sipaor))
     elif request == "UDR":
         msisdn = str(input("MSISDN:\t"))
         print("Sending User-Data Request to " + str(hostname))
