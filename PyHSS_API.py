@@ -167,6 +167,24 @@ def auth_before_request():
             return {'Result': 'Unauthorized'}, 401
     return None
 
+
+def handle_exception(e):
+    logging.error(f"An error occurred: {e}")
+    response_json = {'result': 'Failed'}
+
+    exception_name = type(e).__name__
+
+    if exception_name == 'IntegrityError':
+        response_json['reason'] = f'A database integrity error occurred: {e}'
+        return response_json, 409
+    if exception_name == 'OperationalError':
+        response_json['reason'] = f'An operational error occurred: {e}'
+        return response_json, 409
+    else:
+        response_json['reason'] = f'An internal server error occurred: {e}'
+        return response_json, 500
+
+
 app.before_request(auth_before_request)
 
 @app.errorhandler(404)
@@ -187,8 +205,7 @@ class PyHSS_APN_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, apn_id):
         '''Delete all APN data for specified APN ID'''
@@ -199,8 +216,7 @@ class PyHSS_APN_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_apn.doc('Update APN Object')
     @ns_apn.expect(APN_model)
@@ -218,8 +234,7 @@ class PyHSS_APN_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500   
+            return handle_exception(E)   
 
 @ns_apn.route('/')
 class PyHSS_APN(Resource):
@@ -237,8 +252,7 @@ class PyHSS_APN(Resource):
             return apn_id, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_apn.route('/list')
 class PyHSS_OAM_All_APNs(Resource):
@@ -249,8 +263,7 @@ class PyHSS_OAM_All_APNs(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_auc.route('/<string:auc_id>')
 class PyHSS_AUC_Get(Resource):
@@ -262,8 +275,7 @@ class PyHSS_AUC_Get(Resource):
             return auc_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, auc_id):
         '''Delete all AUC data for specified AUC ID'''
@@ -274,8 +286,7 @@ class PyHSS_AUC_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_auc.doc('Update AUC Object')
     @ns_auc.expect(AUC_model)
@@ -294,8 +305,7 @@ class PyHSS_AUC_Get(Resource):
             return auc_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_auc.route('/iccid/<string:iccid>')
 class PyHSS_AUC_Get_ICCID(Resource):
@@ -307,8 +317,7 @@ class PyHSS_AUC_Get_ICCID(Resource):
             return auc_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_auc.route('/imsi/<string:imsi>')
 class PyHSS_AUC_Get_IMSI(Resource):
@@ -320,8 +329,7 @@ class PyHSS_AUC_Get_IMSI(Resource):
             return auc_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_auc.route('/')
 class PyHSS_AUC(Resource):
@@ -339,8 +347,7 @@ class PyHSS_AUC(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_auc.route('/list')
 class PyHSS_AUC_All(Resource):
@@ -351,8 +358,7 @@ class PyHSS_AUC_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_SUBSCRIBER_Get(Resource):
@@ -363,8 +369,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, subscriber_id):
         '''Delete all data for specified subscriber_id'''
@@ -375,8 +380,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_subscriber.doc('Update SUBSCRIBER Object')
     @ns_subscriber.expect(SUBSCRIBER_model)
@@ -394,8 +398,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber.route('/')
 class PyHSS_SUBSCRIBER(Resource):
@@ -413,8 +416,7 @@ class PyHSS_SUBSCRIBER(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber.route('/imsi/<string:imsi>')
 class PyHSS_SUBSCRIBER_IMSI(Resource):
@@ -425,8 +427,7 @@ class PyHSS_SUBSCRIBER_IMSI(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber.route('/msisdn/<string:msisdn>')
 class PyHSS_SUBSCRIBER_MSISDN(Resource):
@@ -437,8 +438,7 @@ class PyHSS_SUBSCRIBER_MSISDN(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber.route('/list')
 class PyHSS_SUBSCRIBER_All(Resource):
@@ -449,8 +449,7 @@ class PyHSS_SUBSCRIBER_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber.route('/routing/')
 class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
@@ -468,8 +467,7 @@ class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 
 @ns_subscriber.route('/routing/<string:subscriber_id>/<string:apn_id>')
@@ -481,8 +479,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, subscriber_id, apn_id):
         '''Delete Subscriber Routing binding for specified subscriber_id & apn_id'''
@@ -494,8 +491,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 @ns_subscriber.route('/routing/<string:subscriber_routing_id>')
 class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     @ns_subscriber.doc('Update SUBSCRIBER_ROUTING Object')
@@ -514,8 +510,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 
 @ns_ims_subscriber.route('/<string:ims_subscriber_id>')
@@ -527,8 +522,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, ims_subscriber_id):
         '''Delete all data for specified ims_subscriber_id'''
@@ -539,8 +533,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_ims_subscriber.doc('Update IMS SUBSCRIBER Object')
     @ns_ims_subscriber.expect(IMS_SUBSCRIBER_model)
@@ -558,8 +551,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_ims_subscriber.route('/')
 class PyHSS_IMS_SUBSCRIBER(Resource):
@@ -577,8 +569,7 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_ims_subscriber.route('/ims_subscriber_msisdn/<string:msisdn>')
 class PyHSS_IMS_SUBSCRIBER_MSISDN(Resource):
@@ -590,8 +581,8 @@ class PyHSS_IMS_SUBSCRIBER_MSISDN(Resource):
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            
+            return handle_exception(E)
 
 @ns_ims_subscriber.route('/ims_subscriber_imsi/<string:imsi>')
 class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
@@ -603,8 +594,8 @@ class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            
+            return handle_exception(E)
 
 @ns_ims_subscriber.route('/list')
 class PyHSS_IMS_Subscriber_All(Resource):
@@ -615,8 +606,7 @@ class PyHSS_IMS_Subscriber_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_tft.route('/<string:tft_id>')
 class PyHSS_TFT_Get(Resource):
@@ -627,8 +617,7 @@ class PyHSS_TFT_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, tft_id):
         '''Delete all data for specified tft_id'''
@@ -639,8 +628,7 @@ class PyHSS_TFT_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_ims_subscriber.doc('Update IMS tft_id Object')
     @ns_ims_subscriber.expect(TFT_model)
@@ -658,8 +646,7 @@ class PyHSS_TFT_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_tft.route('/')
 class PyHSS_TFT(Resource):
@@ -677,8 +664,7 @@ class PyHSS_TFT(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_tft.route('/list')
 class PyHSS_TFT_All(Resource):
@@ -689,8 +675,7 @@ class PyHSS_TFT_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_charging_rule.route('/<string:charging_rule_id>')
 class PyHSS_Charging_Rule_Get(Resource):
@@ -701,8 +686,7 @@ class PyHSS_Charging_Rule_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, charging_rule_id):
         '''Delete all data for specified charging_rule_id'''
@@ -713,8 +697,7 @@ class PyHSS_Charging_Rule_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_charging_rule.doc('Update charging_rule_id Object')
     @ns_charging_rule.expect(CHARGING_RULE_model)
@@ -732,8 +715,7 @@ class PyHSS_Charging_Rule_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_charging_rule.route('/')
 class PyHSS_Charging_Rule(Resource):
@@ -751,8 +733,7 @@ class PyHSS_Charging_Rule(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_charging_rule.route('/list')
 class PyHSS_Charging_Rule_All(Resource):
@@ -763,8 +744,7 @@ class PyHSS_Charging_Rule_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_eir.route('/<string:eir_id>')
 class PyHSS_EIR_Get(Resource):
@@ -775,8 +755,7 @@ class PyHSS_EIR_Get(Resource):
             return eir_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, eir_id):
         '''Delete all data for specified eir_data'''
@@ -787,8 +766,7 @@ class PyHSS_EIR_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_eir.doc('Update eir Object')
     @ns_eir.expect(EIR_model)
@@ -806,8 +784,7 @@ class PyHSS_EIR_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_eir.route('/')
 class PyHSS_EIR(Resource):
@@ -825,8 +802,7 @@ class PyHSS_EIR(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_eir.route('/eir_history/<string:attribute>')
 class PyHSS_EIR_HISTORY(Resource):
@@ -837,8 +813,7 @@ class PyHSS_EIR_HISTORY(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     def delete(self, attribute):
         '''Get Delete for IMSI or IMEI'''
@@ -849,8 +824,7 @@ class PyHSS_EIR_HISTORY(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_eir.route('/eir_history/list')
 class PyHSS_EIR_All(Resource):
@@ -864,8 +838,7 @@ class PyHSS_EIR_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_eir.route('/list')
 class PyHSS_EIR_All(Resource):
@@ -876,8 +849,7 @@ class PyHSS_EIR_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber_attributes.route('/list')
 class PyHSS_Subscriber_Attributes_All(Resource):
@@ -888,8 +860,7 @@ class PyHSS_Subscriber_Attributes_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber_attributes.route('/<string:subscriber_id>')
 class PyHSS_Attributes_Get(Resource):
@@ -900,8 +871,7 @@ class PyHSS_Attributes_Get(Resource):
             return apn_data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber_attributes.route('/<string:subscriber_attributes_id>')
 class PyHSS_Attributes_Get(Resource):
@@ -914,8 +884,7 @@ class PyHSS_Attributes_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
     @ns_subscriber_attributes.doc('Update Attribute Object')
     @ns_subscriber_attributes.expect(SUBSCRIBER_ATTRIBUTES_model)
@@ -933,8 +902,7 @@ class PyHSS_Attributes_Get(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_subscriber_attributes.route('/')
 class PyHSS_Attributes(Resource):
@@ -952,8 +920,7 @@ class PyHSS_Attributes(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_operation_log.route('/list')
 class PyHSS_Operation_Log_List(Resource):
@@ -966,8 +933,7 @@ class PyHSS_Operation_Log_List(Resource):
             return OperationLogs, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_operation_log.route('/last')
 class PyHSS_Operation_Log_Last(Resource):
@@ -978,8 +944,7 @@ class PyHSS_Operation_Log_Last(Resource):
             return OperationLogs, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_operation_log.route('/list/table/<string:table_name>')
 class PyHSS_Operation_Log_List_Table(Resource):
@@ -992,8 +957,7 @@ class PyHSS_Operation_Log_List_Table(Resource):
             return OperationLogs, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
@@ -1005,8 +969,7 @@ class PyHSS_OAM_Peers(Resource):
             return DiameterPeers, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route("/ping")
 class PyHSS_OAM_Ping(Resource):
@@ -1017,8 +980,7 @@ class PyHSS_OAM_Ping(Resource):
             return apiPingResponse, 200
         except Exception as E:
             print(E)
-            response_json = {"result": "Failed", "Reason": str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route('/rollback_operation/last')
 class PyHSS_OAM_Rollback_Last(Resource):
@@ -1030,8 +992,7 @@ class PyHSS_OAM_Rollback_Last(Resource):
             return RollbackResponse, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route('/rollback_operation/last/table/<string:table_name>')
 class PyHSS_OAM_Rollback_Last_Table(Resource):
@@ -1043,8 +1004,7 @@ class PyHSS_OAM_Rollback_Last_Table(Resource):
             return RollbackResponse, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route('/serving_subs')
 class PyHSS_OAM_Serving_Subs(Resource):
@@ -1056,8 +1016,7 @@ class PyHSS_OAM_Serving_Subs(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route('/serving_subs_pcrf')
 class PyHSS_OAM_Serving_Subs_PCRF(Resource):
@@ -1069,8 +1028,7 @@ class PyHSS_OAM_Serving_Subs_PCRF(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_oam.route('/serving_subs_ims')
 class PyHSS_OAM_Serving_Subs_IMS(Resource):
@@ -1082,8 +1040,7 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>/<string:apn_id>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
@@ -1125,8 +1082,8 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            
+            return handle_exception(E)
 
 @ns_pcrf.route('/')
 class PyHSS_PCRF(Resource):
@@ -1172,8 +1129,7 @@ class PyHSS_PCRF_Complete(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 @ns_pcrf.route('/subscriber_routing/<string:subscriber_routing>')
 class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
@@ -1184,8 +1140,7 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
             return data, 200
         except Exception as E:
             print(E)
-            response_json = {'result': 'Failed', 'Reason' : str(E)}
-            return response_json, 500
+            return handle_exception(E)
 
 
 
@@ -1217,7 +1172,7 @@ class PyHSS_Geored(Resource):
         except Exception as E:
             print("Exception when updating: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : str(E), 'Partial Response Data' : str(response_data)}
-            return response_json, 500
+            return response_json
 
 @ns_push.route('/clr/<string:imsi>')
 class PyHSS_Push_CLR(Resource):
