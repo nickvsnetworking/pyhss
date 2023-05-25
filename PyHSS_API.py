@@ -5,6 +5,8 @@ from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 import datetime
+import traceback
+
 
 app = Flask(__name__)
 
@@ -182,6 +184,8 @@ def handle_exception(e):
         return response_json, 409
     else:
         response_json['reason'] = f'An internal server error occurred: {e}'
+        logging.error(f'{traceback.format_exc()}')
+        logging.error(f'{sys.exc_info()[2]}')
         return response_json, 500
 
 
