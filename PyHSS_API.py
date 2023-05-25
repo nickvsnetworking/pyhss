@@ -178,15 +178,17 @@ def handle_exception(e):
 
     if exception_name == 'IntegrityError':
         response_json['reason'] = f'A database integrity error occurred: {e}'
-        return response_json, 409
+        return response_json, 400
     if exception_name == 'OperationalError':
-        response_json['reason'] = f'An operational error occurred: {e}'
-        return response_json, 409
-    else:
-        response_json['reason'] = f'An internal server error occurred: {e}'
-        logging.error(f'{traceback.format_exc()}')
-        logging.error(f'{sys.exc_info()[2]}')
-        return response_json, 500
+        error_message = str(e)
+        if "Incorrect integer value" in error_message:
+            response_json['reason'] = f'An operational error occurred: {e}'
+            return response_json, 400
+    response_json['reason'] = f'An internal server error occurred: {e}'
+    logging.error(f'{traceback.format_exc()}')
+    logging.error(f'{sys.exc_info()[2]}')
+    return response_json, 500
+
 
 
 app.before_request(auth_before_request)
