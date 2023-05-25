@@ -294,10 +294,11 @@ else:
 
 def safe_rollback(session):
     try:
-        session.rollback()
+        if session.is_active:
+            session.rollback()
     except Exception as E:
         DBLogger.error(f"Failed to rollback session, error: {E}")
-
+        
 def safe_close(session):
     try:
         if session.is_active:
