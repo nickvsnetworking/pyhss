@@ -1,5 +1,5 @@
 import sys
-from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event, Text, DateTime
+from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event, Text, DateTime, Float
 from sqlalchemy import create_engine
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql import desc, func
@@ -116,7 +116,6 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'subscriber_attributes'}
     subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
     subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
-
 
 class APN(Base):
     __tablename__ = 'apn'
@@ -295,10 +294,17 @@ else:
 
 def safe_rollback(session):
     try:
-        session.rollback()
+        if session.is_active:
+            session.rollback()
     except Exception as E:
         DBLogger.error(f"Failed to rollback session, error: {E}")
-
+        
+def safe_close(session):
+    try:
+        if session.is_active:
+            session.close()
+    except Exception as E:
+        DBLogger.error(f"Failed to run safe_close on session, error: {E}")
 
 def sqlalchemy_type_to_json_schema_type(sqlalchemy_type):
     """
@@ -364,7 +370,7 @@ def log_change(session, item_id, operation, column_name, old_value, new_value, t
     except Exception as E:
         DBLogger.error("Failed to commit changelog, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
     return operation_id
@@ -538,11 +544,11 @@ def rollback_last_change(existingSession=None):
 
             try:
                 session.commit()
-                session.close()
+                safe_close(session)
             except Exception as E:
                 DBLogger.error("Failed to commit rollback, error: " + str(E))
                 safe_rollback(session)
-                session.close()
+                safe_close(session)
                 raise ValueError(E)
 
             return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
@@ -552,7 +558,7 @@ def rollback_last_change(existingSession=None):
     except Exception as E:
         DBLogger.error("rollback_last_change error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
 def rollback_last_change_by_table(table_name, existingSession=None):
@@ -636,11 +642,11 @@ def rollback_last_change_by_table(table_name, existingSession=None):
 
             try:
                 session.commit()
-                session.close()
+                safe_close(session)
             except Exception as E:
                 DBLogger.error("Failed to commit rollback, error: " + str(E))
                 safe_rollback(session)
-                session.close()
+                safe_close(session)
                 raise ValueError(E)
 
             return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
@@ -650,7 +656,7 @@ def rollback_last_change_by_table(table_name, existingSession=None):
     except Exception as E:
         DBLogger.error("rollback_last_change error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
 
@@ -695,13 +701,13 @@ def get_all_operation_logs(page=0, page_size=100, existingSession=None):
 
             all_operations.append(result)
 
-        session.close()
+        safe_close(session)
         return all_operations
     except Exception as E:
         DBLogger.error(f"get_all_operation_logs error: {E}")
         DBLogger.error(E)
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
 
@@ -743,13 +749,13 @@ def get_all_operation_logs_by_table(table_name, page=0, page_size=100, existingS
 
             all_operations.append(result)
 
-        session.close()
+        safe_close(session)
         return all_operations
     except Exception as E:
         DBLogger.error(f"get_all_operation_logs error: {E}")
         DBLogger.error(E)
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     
 def get_last_operation_log(existingSession=None):
@@ -785,13 +791,13 @@ def get_last_operation_log(existingSession=None):
             sanitized_obj_dict['hash'] = operation_hash
             result.append(sanitized_obj_dict)
 
-        session.close()
+        safe_close(session)
         return result
     except Exception as E:
         DBLogger.error(f"get_last_operation_log error: {E}")
         DBLogger.error(E)
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
 
@@ -879,10 +885,10 @@ def GetObj(obj_type, obj_id=None, page=None, page_size=None):
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
-    session.close()
+    safe_close(session)
     return result
 
 def GetAll(obj_type):
@@ -898,7 +904,7 @@ def GetAll(obj_type):
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)    
     
     for record in result:
@@ -908,7 +914,7 @@ def GetAll(obj_type):
         record = Sanitize_Keys(record)
         final_result_list.append(record)
 
-    session.close()
+    safe_close(session)
     return final_result_list
 
 def GetAllByTable(obj_type, table):
@@ -924,7 +930,7 @@ def GetAllByTable(obj_type, table):
     except Exception as E:
         DBLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)    
     
     for record in result:
@@ -934,7 +940,7 @@ def GetAllByTable(obj_type, table):
         record = Sanitize_Keys(record)
         final_result_list.append(record)
 
-    session.close()
+    safe_close(session)
     return final_result_list
 
 def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=None):
@@ -975,7 +981,7 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
         DBLogger.error(f"Exception in UpdateObj, error: {E}")
         raise ValueError(E)
     finally:
-        session.close()
+        safe_close(session)
 
     return GetObj(obj_type, obj_id)
 
@@ -1012,7 +1018,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         DBLogger.error(f"Exception in DeleteObj, error: {E}")
         raise ValueError(E)
     finally:
-        session.close()
+        safe_close(session)
 
     return {'Result': 'OK'}
 
@@ -1050,7 +1056,7 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
         DBLogger.error(f"Exception in CreateObj, error: {E}")
         raise ValueError(E)
     finally:
-        session.close()
+        safe_close(session)
 
 def Generate_JSON_Model_for_Flask(obj_type):
     DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
@@ -1084,14 +1090,14 @@ def Get_AuC(**kwargs):
         try:
             result = session.query(AUC).filter_by(iccid=str(kwargs['iccid'])).one()
         except Exception as E:
-            session.close()
+            safe_close(session)
             raise ValueError(E)
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_AuC for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(AUC).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
-            session.close()
+            safe_close(session)
             raise ValueError(E)
 
     result = result.__dict__
@@ -1102,11 +1108,11 @@ def Get_AuC(**kwargs):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
     DBLogger.debug("Got back result: " + str(result))
-    session.close()
+    safe_close(session)
     return result
 
 def Get_IMS_Subscriber(**kwargs):
@@ -1118,14 +1124,14 @@ def Get_IMS_Subscriber(**kwargs):
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except Exception as E:
-            session.close()
+            safe_close(session)
             raise ValueError(E)
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
-            session.close()
+            safe_close(session)
             raise ValueError(E)
     DBLogger.debug("Converting result to dict")
     result = result.__dict__
@@ -1139,10 +1145,10 @@ def Get_IMS_Subscriber(**kwargs):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
-    session.close()
+    safe_close(session)
     return result
 
 def Get_Subscriber(**kwargs):
@@ -1156,14 +1162,14 @@ def Get_Subscriber(**kwargs):
         try:
             result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except Exception as E:
-            session.close()
+            safe_close(session)
             raise ValueError(E)
     elif 'imsi' in kwargs:
         DBLogger.debug("Get_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
-            session.close()
+            safe_close(session)
             raise ValueError(E)
 
     result = result.__dict__
@@ -1174,7 +1180,7 @@ def Get_Subscriber(**kwargs):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     
     if 'get_attributes' in kwargs:
@@ -1183,7 +1189,7 @@ def Get_Subscriber(**kwargs):
             result['attributes'] = attributes
 
     DBLogger.debug("Got back result: " + str(result))
-    session.close()
+    safe_close(session)
     return result
 
 def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
@@ -1194,7 +1200,7 @@ def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     try:
         result = session.query(SUBSCRIBER_ROUTING).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
     result = result.__dict__
@@ -1205,11 +1211,11 @@ def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
     DBLogger.debug("Got back result: " + str(result))
-    session.close()
+    safe_close(session)
     return result
 
 def Get_Subscriber_Attributes(subscriber_id):
@@ -1222,7 +1228,7 @@ def Get_Subscriber_Attributes(subscriber_id):
     try:
         result = session.query(SUBSCRIBER_ATTRIBUTES).filter_by(subscriber_id=subscriber_id)
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     final_res = []
     for record in result:
@@ -1231,7 +1237,7 @@ def Get_Subscriber_Attributes(subscriber_id):
         result.pop('_sa_instance_state')
         final_res.append(result)
     DBLogger.debug("Got back result: " + str(final_res))
-    session.close()
+    safe_close(session)
     return final_res
 
 def Get_Served_Subscribers():
@@ -1251,17 +1257,17 @@ def Get_Served_Subscribers():
             Served_Subs[result['imsi']] = result
             DBLogger.debug("Processed result")
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     try:
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
-    session.close()
+    safe_close(session)
     return Served_Subs 
 
 def Get_Served_IMS_Subscribers():
@@ -1280,17 +1286,17 @@ def Get_Served_IMS_Subscribers():
             Served_Subs[result['imsi']] = result
             DBLogger.debug("Processed result")
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     try:
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
-    session.close()
+    safe_close(session)
     return Served_Subs 
 
 def Get_Served_PCRF_Subscribers():
@@ -1325,10 +1331,10 @@ def Get_Served_PCRF_Subscribers():
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)     
     DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
-    session.close()
+    safe_close(session)
     return Served_Subs 
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
@@ -1384,7 +1390,7 @@ def Get_APN(apn_id):
     try:
         result = session.query(APN).filter_by(apn_id=apn_id).one()
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
@@ -1393,9 +1399,9 @@ def Get_APN(apn_id):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
-    session.close()
+    safe_close(session)
     return result    
 
 def Get_APN_by_Name(apn):
@@ -1405,7 +1411,7 @@ def Get_APN_by_Name(apn):
     try:
         result = session.query(APN).filter_by(apn=str(apn)).one()
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
@@ -1414,9 +1420,9 @@ def Get_APN_by_Name(apn):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
-    session.close()
+    safe_close(session)
     return result 
 
 def Update_AuC(auc_id, sqn=1):
@@ -1455,7 +1461,7 @@ def Update_Serving_MME(imsi, serving_mme, propagate=True):
         DBLogger.error("Error occurred, rolling back session: " + str(E))
         raise
     finally:
-        session.close()
+        safe_close(session)
 
 
 def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
@@ -1490,7 +1496,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         safe_rollback(session)
         raise
     finally:
-        session.close()
+        safe_close(session)
 
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
@@ -1569,7 +1575,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
         result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).one()
     except Exception as E:
         DBLogger.debug(E)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
@@ -1578,10 +1584,10 @@ def Get_Serving_APN(subscriber_id, apn_id):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     
-    session.close()
+    safe_close(session)
     return result   
 
 def Get_Charging_Rule(charging_rule_id):
@@ -1599,16 +1605,16 @@ def Get_Charging_Rule(charging_rule_id):
             result.pop('_sa_instance_state')
             ChargingRule['tft'].append(result)
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     try:
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
-    session.close()
+    safe_close(session)
     return ChargingRule
 
 def Get_Charging_Rules(imsi, apn):
@@ -1670,7 +1676,7 @@ def Get_UE_by_IP(subscriber_routing):
     try:
         result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriber_routing).one()
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
@@ -1696,7 +1702,7 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     try:
         session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
         DBLogger.debug("Entry already present for IMSI/IMEI Combo")   
-        session.close()     
+        safe_close(session)     
         return 
     except Exception as E:
         newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
@@ -1707,9 +1713,9 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         except Exception as E:
             DBLogger.error("Failed to commit session, error: " + str(E))
             safe_rollback(session)
-            session.close()
+            safe_close(session)
             raise ValueError(E)
-        session.close()
+        safe_close(session)
         DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
 
         try:
@@ -1758,10 +1764,10 @@ def Get_IMEI_IMSI_History(attribute):
             except:
                 continue                
             result_array.append(result)
-        session.close()
+        safe_close(session)
         return result_array
     except Exception as E:
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
 def Check_EIR(imsi, imei):
@@ -1787,7 +1793,7 @@ def Check_EIR(imsi, imei):
                 return match_response_code
     except Exception as E:
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     
     DBLogger.debug("Did not match any Exact Matches - Checking Regex")   
@@ -1811,7 +1817,7 @@ def Check_EIR(imsi, imei):
                     return match_response_code
     except Exception as E:
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
 
     try:
@@ -1819,11 +1825,11 @@ def Check_EIR(imsi, imei):
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     DBLogger.debug("No matches at all - Returning default response")
     Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=yaml_config['eir']['no_match_response'])
-    session.close()
+    safe_close(session)
     return yaml_config['eir']['no_match_response']
 
 def Get_EIR_Rules():
@@ -1839,17 +1845,17 @@ def Get_EIR_Rules():
             EIR_Rules.append(result)
     except Exception as E:
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     try:
         session.commit()
     except Exception as E:
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
-        session.close()
+        safe_close(session)
         raise ValueError(E)
     DBLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
-    session.close()
+    safe_close(session)
     return EIR_Rules 
 
 
