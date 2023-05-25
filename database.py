@@ -807,11 +807,14 @@ def GeoRed_Push_Request(remote_hss, json_data):
         DBLogger.error(E)
 
 def GeoRed_Push_Async(json_data):
-    if yaml_config['geored']['enabled'] == True:
-        if len(yaml_config['geored']['sync_endpoints'] > 0):
-            for remote_hss in yaml_config['geored']['sync_endpoints']:
-                GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
-                GeoRed_Push_thread.start()
+    try:
+        if yaml_config['geored']['enabled'] == True:
+            if len(yaml_config['geored']['sync_endpoints']) > 0:
+                for remote_hss in yaml_config['geored']['sync_endpoints']:
+                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
+                    GeoRed_Push_thread.start()
+    except Exception as E:
+        DBLogger.debug("Failed to push Async jobs due to error: " + str(E))
 
 def Webhook_Push_Async(target, json_data):
         Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
