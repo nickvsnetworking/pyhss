@@ -62,6 +62,11 @@ class Diameter:
             ip_hex += format(ipaddress.IPv6Address(ip), 'X')
         #DiameterLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
         return ip_hex
+    
+    def hex_to_int(self, hex):
+        return int(str(hex), base=16)
+
+
     #Converts a hex formatted IPv4 address or IPV6 address to dotted-decimal 
     def hex_to_ip(self, hex_ip):
         if len(hex_ip) == 8:
@@ -737,7 +742,7 @@ class Diameter:
             
             #Incriment Context Identifier Count to keep track of how many APN Profiles returned
             APN_context_identifer_count = APN_context_identifer_count + 1  
-            DiameterLogger.debug("Processed APN ID " + str(apn_id))
+            DiameterLogger.debug("Completed processing APN ID " + str(apn_id))
         
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_Configuration_Profile + APN_Configuration)
 
@@ -983,7 +988,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=ue_ip)
+            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip))
 
             #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
@@ -1201,7 +1206,8 @@ class Diameter:
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
 
         #Determine SAR Type & Store
-        Server_Assignment_Type = int(self.get_avp_data(avps, 614)[0])
+        Server_Assignment_Type_Hex = self.get_avp_data(avps, 614)[0]
+        Server_Assignment_Type = self.hex_to_int(Server_Assignment_Type_Hex)
         DiameterLogger.debug("Server-Assignment-Type is: " + str(Server_Assignment_Type))
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
