@@ -1242,7 +1242,7 @@ class Diameter:
             ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username)                                                    
             if ims_subscriber_details['scscf'] != None:
                 DiameterLogger.debug("Got SCSCF on record for Sub")
-                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + str(ims_subscriber_details['scscf']) + ":5060")),'ascii'))
+                avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(str(ims_subscriber_details['scscf']))),'ascii'))
             else:
                 DiameterLogger.debug("No SCSF assigned - Using SCSCF Pool")
                 if 'scscf_pool' in yaml_config['hss']:
