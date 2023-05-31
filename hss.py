@@ -221,6 +221,18 @@ class PyHSS:
             "request",
         ).inc()
 
+
+        self.logger.info(
+            "\n\nNew request with Command Code: "
+            + str(packet_vars["command_code"])
+            + ", ApplicationID: "
+            + str(packet_vars["ApplicationId"])
+            + ", flags "
+            + str(packet_vars["flags"])
+            + ", e2e ID: "
+            + str(packet_vars["end-to-end-identifier"])
+        )
+
         # Gobble up any Response traffic that is sent to us:
         if packet_vars["flags_bin"][0:1] == "0":
             self.logger.info("Got a Response, not a request - dropping it.")
