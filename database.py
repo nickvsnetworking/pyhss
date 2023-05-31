@@ -842,7 +842,7 @@ def Sanitize_Keys(result):
         try:
             result.pop(name_to_strip)
         except:
-            DBLogger.debug("failed to strip " + str(name_to_strip))
+            pass
     return result 
 
 def GetObj(obj_type, obj_id=None, page=None, page_size=None):
@@ -1024,6 +1024,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
 
 
 def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
+    DBLogger.debug("Called CreateObj to create " + str(obj_type) + " with value: " + str(json_data))
     last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
     json_data["last_modified"] = last_modified_value  # set last_modified value in json_data
     newObj = obj_type(**json_data)
@@ -1501,6 +1502,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
     DBLogger.debug("Called Update_Serving_APN()")
+    DBLogger.debug("subscriber_routing: " + str(subscriber_routing))
 
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
@@ -1524,7 +1526,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
         apn_data = Get_APN(apn_id)
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            DBLogger.debug("Matched named APN with APN ID")
+            DBLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
             json_data = {
                 'apn' : apn_id,
                 'subscriber_id' : subscriber_id,
@@ -1641,7 +1643,7 @@ def Get_Charging_Rules(imsi, apn):
         apn_data = Get_APN(apn_id)
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            DBLogger.debug("Matched named APN with APN ID")
+            DBLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
 
             DBLogger.debug("Getting charging rule list from " + str(apn_data['charging_rule_list']))
             ChargingRule = {}
