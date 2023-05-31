@@ -2048,15 +2048,9 @@ class Diameter:
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex(sipaor))                      #Public-Identity / SIP-AOR
         avp += self.generate_avp(293, 40, str(binascii.hexlify(b'hss.localdomain'),'ascii'))                 #Destination Host
 
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")            #Vendor-Specific-Application-ID
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID
 
-        #* [ Proxy-Info ]
-        proxy_host_avp = self.generate_avp(280, "40", str(binascii.hexlify(b'localdomain'),'ascii'))
-        proxy_state_avp = self.generate_avp(33, "40", "0001")
-        avp += self.generate_avp(284, "40", proxy_host_avp + proxy_state_avp)                 #Proxy-Info  AVP ( 284 )
 
-        #* [ Route-Record ]
-        avp += self.generate_avp(282, "40", str(binascii.hexlify(b'localdomain'),'ascii'))              
         response = self.generate_diameter_packet("01", "c0", 302, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
