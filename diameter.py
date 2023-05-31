@@ -1209,12 +1209,12 @@ class Diameter:
         Server_Assignment_Type_Hex = self.get_avp_data(avps, 614)[0]
         Server_Assignment_Type = self.hex_to_int(Server_Assignment_Type_Hex)
         DiameterLogger.debug("Server-Assignment-Type is: " + str(Server_Assignment_Type))
-        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
-        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
-        DiameterLogger.debug("Subscriber is served by S-CSCF " + str(OriginHost))
+        ServingCSCF = self.get_avp_data(avps, 602)[0]                          #Get OriginHost from AVP
+        ServingCSCF = binascii.unhexlify(ServingCSCF).decode('utf-8')      #Format it
+        DiameterLogger.debug("Subscriber is served by S-CSCF " + str(ServingCSCF))
         if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
             DiameterLogger.debug("SAR is Register / Re-Restister")
-            database.Update_Serving_CSCF(imsi, serving_cscf=OriginHost)
+            database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF)
         else:
             DiameterLogger.debug("SAR is not Register")
             database.Update_Serving_CSCF(imsi, serving_cscf=None)
