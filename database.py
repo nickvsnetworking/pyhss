@@ -1474,6 +1474,8 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
         if type(serving_cscf) == str:
             DBLogger.debug("Setting serving CSCF")
+            #Strip duplicate SIP prefix before storing
+            serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
             result.scscf = serving_cscf
             result.scscf_timestamp = datetime.datetime.now()
         else:
