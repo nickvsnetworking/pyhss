@@ -67,7 +67,7 @@ parser.add_argument('operation_id', type=str, help='Operation ID', location='arg
 
 paginatorParser = reqparse.RequestParser()
 paginatorParser.add_argument('page', type=int, required=False, default=0, help='Page number for pagination')
-paginatorParser.add_argument('page_size', type=int, required=False, default=100, help='Number of items per page for pagination')
+paginatorParser.add_argument('page_size', type=int, required=False, default=yaml_config['api'].get('page_size', 100), help='Number of items per page for pagination')
 
 
 APN_model = api.schema_model('APN JSON', 
