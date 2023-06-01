@@ -2281,8 +2281,8 @@ class Diameter:
         avp += self.generate_vendor_avp(1024, 80, 10415, self.int_to_hex(1, 4))                 #Network Requests Supported
         
         avp += self.generate_avp(8, 40, '2d2d0002')                                             #Framed IP Address (ToDo - Better)
-        avp += self.generate_vendor_avp(1027, 80, 10415, self.int_to_hex(5, 4))                 #IP CAN Type (EPS)
-        avp += self.generate_vendor_avp(1032, 80, 10415, self.int_to_hex(1004, 4))              #RAT-Type (EUTRAN)
+        avp += self.generate_vendor_avp(1027, 'c0', 10415, self.int_to_hex(5, 4))                 #IP CAN Type (EPS)
+        avp += self.generate_vendor_avp(1032, 'c0', 10415, self.int_to_hex(1004, 4))              #RAT-Type (EUTRAN)
         #Default EPS Bearer QoS
         avp += self.generate_vendor_avp(1049, 80, 10415, 
             '0000041980000058000028af00000404c0000010000028af000000090000040a8000003c000028af0000041680000010000028af000000080000041780000010000028af000000010000041880000010000028af00000001')
