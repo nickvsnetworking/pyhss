@@ -67,7 +67,7 @@ parser.add_argument('operation_id', type=str, help='Operation ID', location='arg
 
 paginatorParser = reqparse.RequestParser()
 paginatorParser.add_argument('page', type=int, required=False, default=0, help='Page number for pagination')
-paginatorParser.add_argument('page_size', type=int, required=False, default=100, help='Number of items per page for pagination')
+paginatorParser.add_argument('page_size', type=int, required=False, default=yaml_config['api'].get('page_size', 100), help='Number of items per page for pagination')
 
 
 APN_model = api.schema_model('APN JSON', 
@@ -266,10 +266,12 @@ class PyHSS_APN(Resource):
 
 @ns_apn.route('/list')
 class PyHSS_OAM_All_APNs(Resource):
+    @ns_apn.expect(paginatorParser)
     def get(self):
         '''Get all APNs'''
         try:
-            data = database.GetAll(APN)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(APN, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -361,10 +363,12 @@ class PyHSS_AUC(Resource):
 
 @ns_auc.route('/list')
 class PyHSS_AUC_All(Resource):
+    @ns_auc.expect(paginatorParser)
     def get(self):
         '''Get all AuC Data (except keys)'''
         try:
-            data = database.GetAll(AUC)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(AUC, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -452,10 +456,12 @@ class PyHSS_SUBSCRIBER_MSISDN(Resource):
 
 @ns_subscriber.route('/list')
 class PyHSS_SUBSCRIBER_All(Resource):
+    @ns_subscriber.expect(paginatorParser)
     def get(self):
         '''Get all Subscribers'''
         try:
-            data = database.GetAll(SUBSCRIBER)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(SUBSCRIBER, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -607,10 +613,12 @@ class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
 
 @ns_ims_subscriber.route('/list')
 class PyHSS_IMS_Subscriber_All(Resource):
+    @ns_ims_subscriber.expect(paginatorParser)
     def get(self):
         '''Get all IMS Subscribers'''
         try:
-            data = database.GetAll(IMS_SUBSCRIBER)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(IMS_SUBSCRIBER, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -676,15 +684,17 @@ class PyHSS_TFT(Resource):
 
 @ns_tft.route('/list')
 class PyHSS_TFT_All(Resource):
+    @ns_tft.expect(paginatorParser)
     def get(self):
         '''Get all TFTs'''
         try:
-            data = database.GetAll(TFT)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(TFT, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
             return handle_exception(E)
-
+        
 @ns_charging_rule.route('/<string:charging_rule_id>')
 class PyHSS_Charging_Rule_Get(Resource):
     def get(self, charging_rule_id):
@@ -745,10 +755,12 @@ class PyHSS_Charging_Rule(Resource):
 
 @ns_charging_rule.route('/list')
 class PyHSS_Charging_Rule_All(Resource):
+    @ns_charging_rule.expect(paginatorParser)
     def get(self):
         '''Get all Charging Rules'''
         try:
-            data = database.GetAll(CHARGING_RULE)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(CHARGING_RULE, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -836,10 +848,12 @@ class PyHSS_EIR_HISTORY(Resource):
 
 @ns_eir.route('/eir_history/list')
 class PyHSS_EIR_All(Resource):
+    @ns_eir.expect(paginatorParser)
     def get(self):
         '''Get EIR history for all subscribers'''
         try:
-            data = database.GetAll(IMSI_IMEI_HISTORY)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(IMSI_IMEI_HISTORY, args['page'], args['page_size'])
             for record in data:
                 record['imsi'] = record['imsi_imei'].split(',')[0]
                 record['imei'] = record['imsi_imei'].split(',')[1]
@@ -850,10 +864,12 @@ class PyHSS_EIR_All(Resource):
 
 @ns_eir.route('/list')
 class PyHSS_EIR_All(Resource):
+    @ns_eir.expect(paginatorParser)
     def get(self):
         '''Get all EIR Rules'''
         try:
-            data = database.GetAll(EIR)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(EIR, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -861,10 +877,12 @@ class PyHSS_EIR_All(Resource):
 
 @ns_subscriber_attributes.route('/list')
 class PyHSS_Subscriber_Attributes_All(Resource):
+    @ns_subscriber_attributes.expect(paginatorParser)
     def get(self):
         '''Get all Subscriber Attributes'''
         try:
-            data = database.GetAll(SUBSCRIBER_ATTRIBUTES)
+            args = paginatorParser.parse_args()
+            data = database.getAllPaginated(SUBSCRIBER_ATTRIBUTES, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
