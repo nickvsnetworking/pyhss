@@ -1114,8 +1114,7 @@ class Diameter:
                     DiameterLogger.debug("This is Deregister")
                     database.Update_Serving_CSCF(imsi, serving_cscf=None)
                     #Populate S-CSCF Address
-                    ims_subscriber_details['scscf'] = ims_subscriber_details['scscf'].replace("sip:sip:", "sip:")
-                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + ims_subscriber_details['scscf'] + ":5060")),'ascii'))
+                    avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(ims_subscriber_details['scscf'])),'ascii'))
                     avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
                     response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
                     logtool.RedisIncrimenter('Answer_16777216_300_success_count')
@@ -1125,9 +1124,8 @@ class Diameter:
                 DiameterLogger.debug("Failed to get User_Authorization_Type AVP & Update_Serving_CSCF error: " + str(E))
         DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
         if ims_subscriber_details['scscf'] != None:
-            ims_subscriber_details['scscf'] = ims_subscriber_details['scscf'].replace("sip:sip:", "sip:")
             DiameterLogger.debug("Already has SCSCF Assigned from DB: " + str(ims_subscriber_details['scscf']))
-            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:" + ims_subscriber_details['scscf'] + ":5060")),'ascii'))
+            avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(ims_subscriber_details['scscf'])),'ascii'))
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8))            #DIAMETER_SUBSEQUENT_REGISTRATION (2002)
@@ -1245,7 +1243,6 @@ class Diameter:
             if ims_subscriber_details['scscf'] != None:
                 DiameterLogger.debug("Got SCSCF on record for Sub")
                 #Strip double sip prefix
-                ims_subscriber_details['scscf'] = ims_subscriber_details['scscf'].replace("sip:sip:", "sip:")
                 avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(str(ims_subscriber_details['scscf']))),'ascii'))
             else:
                 DiameterLogger.debug("No SCSF assigned - Using SCSCF Pool")
