@@ -663,7 +663,7 @@ def rollback_last_change_by_table(table_name, existingSession=None):
 event.listen(Session, 'before_commit', log_changes_before_commit)
 
 
-def get_all_operation_logs(page=0, page_size=100, existingSession=None):
+def get_all_operation_logs(page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
     if not existingSession:
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine)
@@ -711,7 +711,7 @@ def get_all_operation_logs(page=0, page_size=100, existingSession=None):
         raise ValueError(E)
 
 
-def get_all_operation_logs_by_table(table_name, page=0, page_size=100, existingSession=None):
+def get_all_operation_logs_by_table(table_name, page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
     if not existingSession:
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine)
@@ -916,6 +916,44 @@ def GetAll(obj_type):
 
     safe_close(session)
     return final_result_list
+
+def getAllPaginated(obj_type, page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
+    DBLogger.debug("Called getAllPaginated for type " + str(obj_type))
+
+    if not existingSession:
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        session = existingSession
+
+    final_result_list = []
+
+    try:
+        # Query object type
+        result = session.query(obj_type)
+
+        # Apply pagination
+        result = result.limit(page_size).offset(page * page_size)
+        
+        result = result.all()
+
+        for record in result:
+            record = record.__dict__
+            record.pop('_sa_instance_state')
+            record = Sanitize_Datetime(record)
+            record = Sanitize_Keys(record)
+            final_result_list.append(record)
+            
+        safe_close(session)
+        return final_result_list
+
+    except Exception as E:
+        DBLogger.error("Failed to query, error: " + str(E))
+        safe_rollback(session)
+        safe_close(session)
+        raise ValueError(E)
+
 
 def GetAllByTable(obj_type, table):
     DBLogger.debug(f"Called GetAll for type {str(obj_type)} and table {table}")

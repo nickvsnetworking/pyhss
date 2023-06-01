@@ -62,6 +62,9 @@ hss:
   scscf_pool:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
 
+api:
+  page_size: 200
+
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
   sim_swap_notify_webhook:  http://localhost:5000/webhooks/sim_swap_notify/
