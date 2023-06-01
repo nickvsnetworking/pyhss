@@ -591,8 +591,7 @@ class PyHSS_IMS_SUBSCRIBER_MSISDN(Resource):
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
-            
-            return handle_exception(E)
+            return handle_exception(E), 400
 
 @ns_ims_subscriber.route('/ims_subscriber_imsi/<string:imsi>')
 class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
@@ -604,8 +603,7 @@ class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
-            
-            return handle_exception(E)
+            return handle_exception(E), 400
 
 @ns_ims_subscriber.route('/list')
 class PyHSS_IMS_Subscriber_All(Resource):
@@ -616,7 +614,7 @@ class PyHSS_IMS_Subscriber_All(Resource):
             return (data), 200
         except Exception as E:
             print(E)
-            return handle_exception(E)
+            return handle_exception(E), 400
 
 @ns_tft.route('/<string:tft_id>')
 class PyHSS_TFT_Get(Resource):
