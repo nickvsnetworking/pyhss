@@ -917,7 +917,7 @@ def GetAll(obj_type):
     safe_close(session)
     return final_result_list
 
-def getAllPaginated(obj_type, page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
+def getAllPaginated(obj_type, page=0, page_size=0, existingSession=None):
     DBLogger.debug("Called getAllPaginated for type " + str(obj_type))
 
     if not existingSession:
@@ -934,7 +934,8 @@ def getAllPaginated(obj_type, page=0, page_size=yaml_config['api'].get('page_siz
         result = session.query(obj_type)
 
         # Apply pagination
-        result = result.limit(page_size).offset(page * page_size)
+        if page_size is not 0:
+            result = result.limit(page_size).offset(page * page_size)
         
         result = result.all()
 
