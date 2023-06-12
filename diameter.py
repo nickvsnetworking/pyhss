@@ -1278,11 +1278,10 @@ class Diameter:
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_303_attempt_count')
-        username = self.get_avp_data(avps, 601)[0]                                                     
+        username = self.get_avp_data(avps, 1)[0]                                                     
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
-        imsi = imsi[4:]                 #Strip SIP: from start of string
         DiameterLogger.debug("Got MAR for public_identity : " + str(username))
 
         avp = ''                                                                                    #Initiate empty var AVP
