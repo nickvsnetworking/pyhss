@@ -1278,12 +1278,14 @@ class Diameter:
     #3GPP Cx Multimedia Authentication Answer
     def Answer_16777216_303(self, packet_vars, avps):
         logtool.RedisIncrimenter('Answer_16777216_303_attempt_count')
-        username = self.get_avp_data(avps, 601)[0]
+        public_identity = self.get_avp_data(avps, 601)[0]
+        public_identity = binascii.unhexlify(public_identity).decode('utf-8')
+        DiameterLogger.debug("Got MAR for public_identity : " + str(public_identity))
+        username = self.get_avp_data(avps, 1)[0]
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
-        imsi = imsi[4:]                 #Strip SIP: from start of string
-        DiameterLogger.debug("Got MAR for public_identity : " + str(username))
+        DiameterLogger.debug("Got MAR username: " + str(username))
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -1305,6 +1307,8 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
+        DiameterLogger.debug("Got subscriber data for MAA OK")
+        
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
 
@@ -1323,7 +1327,7 @@ class Diameter:
                 DiameterLogger.info("Auth mechansim requested: " + str(auth_scheme))
 
         DiameterLogger.debug("IMSI is " + str(imsi))        
-        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(username)),'ascii'))               #Public Identity (IMSI)
+        avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(public_identity)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi + "@" + domain)),'ascii'))                                    #Username
         
 

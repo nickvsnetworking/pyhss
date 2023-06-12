@@ -457,7 +457,13 @@ class PyHSS:
                     "Failed to generate Diameter Response for Cx Auth Answer"
                 )
                 self.logger.info(e)
-                traceback.print_exc()
+                self.logger.info(traceback.print_exc())
+                self.logger.info(
+                    type(e).__name__,          # TypeError
+                    __file__,                  # /tmp/example.py
+                    e.__traceback__.tb_lineno  # 2
+                )
+                
                 response = diameter.Respond_ResultCode(
                     packet_vars, avps, 4100
                 )  # DIAMETER_USER_DATA_NOT_AVAILABLE
