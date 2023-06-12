@@ -1280,11 +1280,12 @@ class Diameter:
         logtool.RedisIncrimenter('Answer_16777216_303_attempt_count')
         public_identity = self.get_avp_data(avps, 601)[0]
         public_identity = binascii.unhexlify(public_identity).decode('utf-8')
+        DiameterLogger.debug("Got MAR for public_identity : " + str(public_identity))
         username = self.get_avp_data(avps, 1)[0]
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
-        DiameterLogger.debug("Got MAR for public_identity : " + str(public_identity) / + " username: " + str(username))
+        DiameterLogger.debug("Got MAR username: " + str(username))
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -1305,6 +1306,8 @@ class Diameter:
             avp += self.generate_avp(297, 40, experimental_result)
             response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
+        
+        DiameterLogger.debug("Got subscriber data for MAA OK")
         
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
