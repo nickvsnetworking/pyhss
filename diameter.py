@@ -843,6 +843,9 @@ class Diameter:
                     if sub_avp['avp_code'] == 1410:
                         DiameterLogger.debug("Raw value of requested vectors is " + str(sub_avp['misc_data']))
                         requested_vectors = int(sub_avp['misc_data'], 16)
+                        if requested_vectors >= 32:
+                            DiameterLogger.info("Client has requested " + str(requested_vectors) + " vectors, limiting this to 32")
+                            requested_vectors = 32
 
         DiameterLogger.debug("Generating " + str(requested_vectors) + " vectors as requested")
         eutranvector_complete = ''
