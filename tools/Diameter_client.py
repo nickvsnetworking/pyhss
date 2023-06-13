@@ -123,7 +123,7 @@ while True:
         imsi = str(input("IMSI:\t"))
         requested_vectors = str(input("Number of Vectors:\t"))
         print("Sending Authentication Information Request to " + str(hostname))
-        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm))
+        SendRequest(diameter.Request_16777251_318(imsi, DestinationHost, DestinationRealm, requested_vectors=requested_vectors))
     elif request == "UAR":
         imsi = str(input("IMSI:\t"))
         domain = str(input("Domain:\t"))

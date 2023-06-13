@@ -1717,7 +1717,7 @@ class Diameter:
         return response
 
     #3GPP S6a/S6d Authentication Information Request
-    def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm):                                                             
+    def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm, requested_vectors=1):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
@@ -1727,7 +1727,10 @@ class Diameter:
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
         #avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                   #Destination Host
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
-        avp += self.generate_vendor_avp(1408, "c0", 10415, "00000582c0000010000028af0000000100000584c0000010000028af00000001")
+        number_of_requested_vectors = self.generate_vendor_avp(1410, "c0", 10415,  format(int(requested_vectors),"x").zfill(8))
+        immediate_response_preferred = self.generate_vendor_avp(1412, "c0", 10415,  format(int(1),"x").zfill(8))
+        avp += self.generate_vendor_avp(1408, "c0", 10415, str(number_of_requested_vectors) + str(immediate_response_preferred))
+
         mcc = str(imsi)[:3]
         mnc = str(imsi)[3:5]
         avp += self.generate_vendor_avp(1407, "c0", 10415, self.EncodePLMN(mcc, mnc))                    #Visited-PLMN-Id(1407) (Derrived from start of IMSI)
@@ -2285,7 +2288,8 @@ class Diameter:
 
         avp += self.generate_vendor_avp(1024, 80, 10415, self.int_to_hex(1, 4))                 #Network Requests Supported
         
-        avp += self.generate_avp(8, 40, '2d2d0002')                                             #Framed IP Address (ToDo - Better)
+        avp += self.generate_avp(8, 40, binascii.b2a_hex(os.urandom(4)).decode('utf-8'))        #Framed IP Address Randomly Generated
+
         avp += self.generate_vendor_avp(1027, 'c0', 10415, self.int_to_hex(5, 4))                 #IP CAN Type (EPS)
         avp += self.generate_vendor_avp(1032, 'c0', 10415, self.int_to_hex(1004, 4))              #RAT-Type (EUTRAN)
         #Default EPS Bearer QoS
