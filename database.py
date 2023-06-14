@@ -193,7 +193,7 @@ class SUBSCRIBER(Base):
     serving_mme = Column(String(512), doc='MME serving this subscriber')
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
     serving_mme_realm = Column(String(512), doc='Realm of serving mme')
-    serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME')
+    serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME then ; then the HSS the Diameter peer is connected to')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
 
@@ -802,11 +802,14 @@ def get_last_operation_log(existingSession=None):
 
 
 
-def GeoRed_Push_Request(remote_hss, json_data):
+def GeoRed_Push_Request(remote_hss, json_data, url=None):
     headers = {"Content-Type": "application/json"}
     DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
     try:
-        r = requests.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
+        if url == None:
+            r = requests.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
+        else:
+            r = requests.patch(url, data=json.dumps(json_data), headers=headers)
         DBLogger.debug("Updated on " + str(remote_hss))
     except requests.exceptions.RequestException as E:  # This is the correct syntax
         DBLogger.error("Failed to push data to remote PyHSS instance at " + str(remote_hss))
@@ -1470,22 +1473,61 @@ def Update_AuC(auc_id, sqn=1):
     DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id, True))
     return
 
-def Update_Serving_MME(imsi, serving_mme, propagate=True):
+def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, propagate=True):
     DBLogger.debug("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
     Session = sessionmaker(bind = engine)
     session = Session()
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
 
+
+        if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
+            DBLogger.debug("Evaluating if we should trigger sending a CLR.")
+            serving_hss = str(result.serving_mme_peer).split(';',1)[1]
+            serving_mme_peer = str(result.serving_mme_peer).split(';',1)[0]
+            DBLogger.debug("Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer))
+            DBLogger.debug("Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer))
+            #Evaluate if we need to send a CLR to the old MME
+            if result.serving_mme != None:
+                if str(result.serving_mme) == str(serving_mme):
+                    DBLogger.debug("This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR")
+                elif (str(result.serving_mme) != str(serving_mme)):
+                    DBLogger.debug("There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR")
+                    if serving_hss != yaml_config['hss']['OriginHost']:
+                        DBLogger.debug("This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss))
+                        URL = 'http://' + serving_hss + '.' + yaml_config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                    else:
+                        DBLogger.debug("This subscriber is served by this HSS we need to send a CLR to old MME from this HSS")
+                    
+                    URL = 'http://' + serving_hss + '.' + yaml_config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                    DBLogger.debug("Sending CLR to API at " + str(URL))
+                    json_data = {
+                        "DestinationRealm": result.serving_mme_realm,
+                        "DestinationHost": result.serving_mme,
+                        "cancellationType": 2,
+                        "diameterPeer": serving_mme_peer,
+                    }
+                    
+                    DBLogger.debug("Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data))
+                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, URL))
+                    GeoRed_Push_thread.start()
+            else:
+                #No currently serving MME - No action to take
+                DBLogger.debug("No currently serving MME - No need to send CLR")
+
         if type(serving_mme) == str:
-            DBLogger.debug("Updating serving MME")
+            DBLogger.debug("Updating serving MME & Timestamp")
             result.serving_mme = serving_mme
             result.serving_mme_timestamp = datetime.datetime.now()
+            result.serving_mme_realm = serving_mme_realm
+            result.serving_mme_peer = serving_mme_peer
         else:
             #Clear values
             DBLogger.debug("Clearing serving MME")
             result.serving_mme = None
             result.serving_mme_timestamp = None
+            result.serving_mme_realm = None
+            result.serving_mme_peer = None
 
         with disable_logging_listener():
             session.commit()
@@ -1494,7 +1536,12 @@ def Update_Serving_MME(imsi, serving_mme, propagate=True):
         if propagate == True:
             if 'HSS' in yaml_config['geored'].get('sync_actions', []) and yaml_config['geored'].get('enabled', False) == True:
                 DBLogger.debug("Propagate MME changes to Geographic PyHSS instances")
-                GeoRed_Push_Async({"imsi": str(imsi), "serving_mme": result.serving_mme})
+                GeoRed_Push_Async({
+                    "imsi": str(imsi), 
+                    "serving_mme": result.serving_mme, 
+                    "serving_mme_realm": str(result.serving_mme_realm), 
+                    "serving_mme_peer": str(result.serving_mme_peer) + ";" + str(yaml_config['hss']['OriginHost'])
+                    })
             else:
                 DBLogger.debug("Config does not allow sync of HSS events")
     except Exception as E:
@@ -2054,7 +2101,7 @@ if __name__ == "__main__":
 
     #Set MME Location for Subscriber
     print("Updating Serving MME for Subscriber")
-    Update_Serving_MME(newObj['imsi'], "Test123")
+    Update_Serving_MME(imsi=newObj['imsi'], serving_mme="Test123", serving_mme_peer="Test123", serving_mme_realm="TestRealm")
 
     #Update Serving APN for Subscriber
     print("Updating Serving APN for Subscriber")

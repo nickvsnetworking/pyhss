@@ -120,6 +120,8 @@ Push_CLR_Model = api.model('CLR', {
 GeoRed_model = api.model('GeoRed', {
     'imsi': fields.String(required=True, description='IMSI of Subscriber to Update'),
     'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
+    'serving_mme_realm': fields.String(description=SUBSCRIBER.serving_mme_realm.doc),
+    'serving_mme_peer': fields.String(description=SUBSCRIBER.serving_mme_peer.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
     'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
@@ -1184,7 +1186,7 @@ class PyHSS_Geored(Resource):
             response_data = []
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
-                response_data.append(database.Update_Serving_MME(str(json_data['imsi']), json_data['serving_mme'], propagate=False))
+                response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
                 response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['subscriber_routing'], propagate=False))
