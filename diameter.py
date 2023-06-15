@@ -1216,8 +1216,8 @@ class Diameter:
         avp += self.generate_vendor_avp(606, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         #Charging Information
-        avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
-        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+        #avp += self.generate_vendor_avp(618, "c0", 10415, "0000026dc000001b000028af7072695f6363665f6164647265737300")
+        #avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
 
         #Determine SAR Type & Store
         Server_Assignment_Type_Hex = self.get_avp_data(avps, 614)[0]
