@@ -16,6 +16,9 @@ hss:
   #Value to populate as the Product name in Diameter responses
   ProductName: "pyHSS"
 
+  #Name of the Site, shown in API
+  site_name: "Sydney"
+
   #Your Home Mobile Country Code (Used for PLMN calcluation)
   MCC: "001"
   #Your Home Mobile Network Code (Used for PLMN calcluation)
