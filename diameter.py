@@ -621,8 +621,19 @@ class Diameter:
         #Store MME Location into Database
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
-        DiameterLogger.debug("Subscriber is served by MME " + str(OriginHost))
-        database.Update_Serving_MME(imsi, OriginHost)
+        OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
+        OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
+        DiameterLogger.debug("Subscriber is served by MME " + str(OriginHost) + " at realm " + str(OriginRealm))
+
+        #Find Remote Peer we need to address CLRs through
+        try:        #Check if we have a record-route set as that's where we'll need to send the response
+            remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
+            remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
+        except:     #If we don't have a record-route set, we'll send the response to the OriginHost
+            remote_peer = OriginHost
+        DiameterLogger.debug("Remote Peer is " + str(remote_peer))
+
+        database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
 
 
         #Boilerplate AVPs
@@ -1749,7 +1760,7 @@ class Diameter:
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + yaml_config['hss']['OriginHost'])),'ascii'))          
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
