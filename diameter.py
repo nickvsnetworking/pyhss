@@ -1233,6 +1233,8 @@ class Diameter:
             DiameterLogger.debug("SAR is not Register")
             database.Update_Serving_CSCF(imsi, serving_cscf=None)
 
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         logtool.RedisIncrimenter('Answer_16777216_301_success_count')
         return response    
