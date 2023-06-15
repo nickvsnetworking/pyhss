@@ -7,6 +7,7 @@ from functools import wraps
 import datetime
 import traceback
 import sqlalchemy
+import socket
 
 
 app = Flask(__name__)
@@ -39,11 +40,11 @@ OPERATION_LOG = database.OPERATION_LOG_BASE
 SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
 
 
-site_name = yaml_config.get("site_name", "")
-origin_host_name = yaml_config.get("OriginHost", "")
+site_name = yaml_config.get("hss", {}).get("site_name", "")
+origin_host_name = socket.gethostname()
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
-api = Api(app, version='1.0', title=f'{site_name} | {origin_host_name} - PyHSS OAM API',
+api = Api(app, version='1.0', title=f'{site_name + " - " if site_name else ""}{origin_host_name} - PyHSS OAM API',
     description='Restful API for working with PyHSS',
     doc='/docs/'
 )
