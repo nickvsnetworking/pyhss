@@ -353,26 +353,40 @@ for table_name in Base.metadata.tables.keys():
     else:
         DBLogger.debug(f"Table {table_name} already exists")
 
+def update_old_record(session, operation_log):
+    oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
+    if oldest_log is not None:
+        for attr in class_mapper(oldest_log.__class__).column_attrs:
+            setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
+        session.flush()
+    else:
+        raise ValueError("Unable to find record to update")
+
 def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id, generated_id=None):
+    max_records = 1000
+    count = session.query(OPERATION_LOG_BASE).count()
 
     change = OPERATION_LOG_BASE(
         item_id=item_id or generated_id,
-        operation_id=operation_id,  # Assign the operation_id
+        operation_id=operation_id,
         operation=operation,
         column_name=column_name,
         old_value=old_value,
         new_value=new_value,
         table_name=table_name
     )
-    try:
-        session.add(change)
-        session.flush()
-    except Exception as E:
-        DBLogger.error("Failed to commit changelog, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
 
+    if count >= max_records:
+        update_old_record(session, change)
+    else:
+        try:
+            session.add(change)
+            session.flush()
+        except Exception as E:
+            DBLogger.error("Failed to commit changelog, error: " + str(E))
+            safe_rollback(session)
+            safe_close(session)
+            raise ValueError(E)
     return operation_id
 
 def log_changes_before_commit(session):
