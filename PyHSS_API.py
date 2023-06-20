@@ -1025,13 +1025,13 @@ class PyHSS_OAM_Rollback_Last(Resource):
             print(E)
             return handle_exception(E)
 
-@ns_oam.route('/rollback_operation/last/table/<string:table_name>')
+@ns_oam.route('/rollback_operation/<string:operation_id>')
 class PyHSS_OAM_Rollback_Last_Table(Resource):
     @auth_required
-    def get(self, table_name):
-        '''Undo the last Insert/Update/Delete operation for given table'''
+    def get(self, operation_id):
+        '''Undo the last Insert/Update/Delete operation for a given operation id'''
         try:
-            RollbackResponse = database.rollback_last_change_by_table(table_name)
+            RollbackResponse = database.rollback_change_by_operation_id(operation_id)
             return RollbackResponse, 200
         except Exception as E:
             print(E)

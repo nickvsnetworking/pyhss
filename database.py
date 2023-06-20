@@ -356,22 +356,17 @@ def update_old_record(session, operation_log):
     oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
     if oldest_log is not None:
         for attr in class_mapper(oldest_log.__class__).column_attrs:
-            setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
+            if attr.key != 'id' and hasattr(operation_log, attr.key):
+                setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
+        oldest_log.timestamp = datetime.datetime.now()
         session.flush()
     else:
         raise ValueError("Unable to find record to update")
 
-def update_old_record(session, operation_log):
-    oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
-    if oldest_log is not None:
-        for attr in class_mapper(oldest_log.__class__).column_attrs:
-            setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
-        session.flush()
-    else:
-        raise ValueError("Unable to find record to update")
+
 
 def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
-    # We don't want to log rollback operations.
+    # We don't want to log rollback operations
     if session.info.get("operation") == 'ROLLBACK':
         return
     max_records = 1000
@@ -606,10 +601,7 @@ def rollback_last_change(existingSession=None):
         safe_close(session)
         raise ValueError(E)
 
-
-
-
-def rollback_last_change_by_table(table_name, existingSession=None):
+def rollback_change_by_operation_id(operation_id, existingSession=None):
     if not existingSession:
         Base.metadata.create_all(engine)
         Session = sessionmaker(bind=engine)
@@ -618,88 +610,94 @@ def rollback_last_change_by_table(table_name, existingSession=None):
         session = existingSession
 
     try:
+        # Get the most recent operation
+        last_operation = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(desc(OPERATION_LOG_BASE.timestamp)).first()
 
-        # Get the top 100 records ordered by timestamp (descending order)
-        top_100_records = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.table_name == table_name).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100).subquery()
-
-        # Get the most recent operation_id
-        most_recent_operation_id = session.query(top_100_records.c.operation_id).group_by(top_100_records.c.operation_id).order_by(desc(func.max(top_100_records.c.timestamp))).first()
-
-        # Get the records with the most recent operation_id
-        last_changes = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == most_recent_operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).all()
+        if last_operation is None:
+            return "No operation to roll back."
 
         rollback_messages = []
         operation_id = str(uuid.uuid4())
 
-        if most_recent_operation_id:
-            for last_change in last_changes:
-                target_class = get_class_by_tablename(Base, last_change.table_name)
-                if not target_class:
-                    return f"Error: Could not find table {last_change.table_name}"
+        target_class = get_class_by_tablename(Base, last_operation.table_name)
+        if not target_class:
+            return f"Error: Could not find table {last_operation.table_name}"
 
-                primary_key_col = target_class.__mapper__.primary_key[0].key
-                filter_by_kwargs = {primary_key_col: last_change.item_id}
-                target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
+        primary_key_col = target_class.__mapper__.primary_key[0].key
+        filter_by_kwargs = {primary_key_col: last_operation.item_id}
+        target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
 
-                if last_change.operation == 'UPDATE':
-                    if not target_item:
-                        return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
+        if last_operation.operation == 'UPDATE':
+            if not target_item:
+                return f"Error: Could not find item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table"
 
-                    # Revert the change
-                    setattr(target_item, last_change.column_name, last_change.old_value)
+            # Split the changes string into separate changes
+            changes = last_operation.changes.split('\r\n\r\n')
+            for change in changes:
+                column_name, old_new_values = change.split(": ", 1)
+                old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
+
+                # Extract type and value
+                old_type_str, old_value_repr = old_value_str[1:-1].split("] ", 1)
+                old_value = str_to_type(old_type_str, old_value_repr)
+
+                # Revert the change
+                setattr(target_item, column_name, old_value)
+
+            rollback_message = (
+                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Reverted changes"
+            )
+
+        elif last_operation.operation == 'INSERT':
+            if target_item:
+                session.delete(target_item)
+
+            rollback_message = (
+                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Deleted item"
+            )
+
+        elif last_operation.operation == 'DELETE':
+            # Aggregate old values of all columns into a single dictionary
+            old_values_dict = {}
+            # Split the changes string into separate changes
+            changes = last_operation.changes.split('\r\n\r\n')
+            for change in changes:
+                column_name, old_new_values = change.split(": ", 1)
+                old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
+
+                # Extract type and value
+                old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
+                DBLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
+                old_value = str_to_type(old_type_str, old_value_repr)
+
+                old_values_dict[column_name] = old_value
+            DBLogger.error("old_value_dict: " + str(old_values_dict))
+
+            if not target_item:
+                try:
+                    # Create the target item using the aggregated old values
+                    target_item = target_class(**old_values_dict)
                     session.add(target_item)
+                except Exception as e:
+                    return f"Error: Failed to recreate item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table - {str(e)}"
 
-                    rollback_message = (
-                        f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
-                    )
+            rollback_message = (
+                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Re-inserted item"
+            )
 
-                elif last_change.operation == 'INSERT':
-                    if target_item:
-                        session.delete(target_item)
-
-                    rollback_message = (
-                        f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): Deleted item"
-                    )
-
-                elif last_change.operation == 'DELETE':
-                    if not target_item:
-                        target_item = target_class(**json.loads(last_change.old_value))
-                        session.add(target_item)
-
-                    rollback_message = (
-                        f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): Re-inserted item"
-                    )
-
-                else:
-                    return f"Error: Unknown operation {last_change.operation}"
-
-                # Log the rollback
-                rollback_entry = OPERATION_LOG_BASE(
-                    table_name=last_change.table_name,
-                    item_id=last_change.item_id,
-                    operation_id=operation_id,
-                    column_name=last_change.column_name,
-                    operation='ROLLBACK',
-                    old_value=last_change.new_value,
-                    new_value=last_change.old_value,
-                    timestamp=datetime.datetime.now()
-                )
-                session.add(rollback_entry)
-
-                rollback_messages.append(rollback_message)
-
-            try:
-                session.commit()
-                safe_close(session)
-            except Exception as E:
-                DBLogger.error("Failed to commit rollback, error: " + str(E))
-                safe_rollback(session)
-                safe_close(session)
-                raise ValueError(E)
-
-            return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
         else:
-            return f"No changes to roll back for table {table_name}."
+            return f"Error: Unknown operation {last_operation.operation}"
+
+        try:
+            session.commit()
+            safe_close(session)
+        except Exception as E:
+            DBLogger.error("rollback_last_change error: " + str(E))
+            safe_rollback(session)
+            safe_close(session)
+            raise ValueError(E)
+
+        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
 
     except Exception as E:
         DBLogger.error("rollback_last_change error: " + str(E))
