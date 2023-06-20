@@ -362,17 +362,27 @@ def update_old_record(session, operation_log):
     else:
         raise ValueError("Unable to find record to update")
 
-def log_change(session, item_id, operation, column_name, old_value, new_value, table_name, operation_id, generated_id=None):
+def update_old_record(session, operation_log):
+    oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
+    if oldest_log is not None:
+        for attr in class_mapper(oldest_log.__class__).column_attrs:
+            setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
+        session.flush()
+    else:
+        raise ValueError("Unable to find record to update")
+
+def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
     max_records = 1000
     count = session.query(OPERATION_LOG_BASE).count()
+
+    # Combine all changes into a single string
+    changes_string = '\r\n\r\n'.join(f"{column_name}: {old_value} -> {new_value}" for column_name, old_value, new_value in changes)
 
     change = OPERATION_LOG_BASE(
         item_id=item_id or generated_id,
         operation_id=operation_id,
         operation=operation,
-        column_name=column_name,
-        old_value=old_value,
-        new_value=new_value,
+        changes=changes_string,
         table_name=table_name
     )
 
@@ -428,10 +438,10 @@ def log_changes_before_commit(session):
                 if not changes:
                     continue
 
-                for column_name, old_value, new_value in changes:
-                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id)
+                operation_id = log_change(session, item_id, operation, changes, obj.__table__.name, operation_id)
 
             elif operation in ['INSERT', 'DELETE']:
+                changes = []
                 for column in obj.__table__.columns:
                     column_name = column.name
                     value = getattr(obj, column_name)
@@ -441,7 +451,9 @@ def log_changes_before_commit(session):
                             generated_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
                     elif operation == 'DELETE':
                         old_value, new_value = value, None
-                    operation_id = log_change(session, item_id, operation, column_name, old_value, new_value, obj.__table__.name, operation_id, generated_id)
+                    changes.append((column_name, old_value, new_value))
+                operation_id = log_change(session, item_id, operation, changes, obj.__table__.name, operation_id, generated_id)
+
 
 @contextmanager
 def disable_logging_listener():
@@ -502,12 +514,17 @@ def rollback_last_change(existingSession=None):
                     if not target_item:
                         return f"Error: Could not find item with ID {last_change.item_id} in {last_change.table_name.upper()} table"
 
-                    # Revert the change
-                    setattr(target_item, last_change.column_name, last_change.old_value)
-                    session.add(target_item)
+                    # Split the changes string into separate changes
+                    changes = last_change.changes.split('\n\n')
+                    for change in changes:
+                        column_name, old_new_values = change.split(": ")
+                        old_value, new_value = old_new_values.split(" -> ")
+                        
+                        # Revert the change
+                        setattr(target_item, column_name, old_value)
 
                     rollback_message = (
-                        f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): {last_change.column_name} changed from '{last_change.new_value}' to '{last_change.old_value}'"
+                        f"Rolled back '{last_change.operation}' operation on {last_change.table_name.upper()} table (ID: {last_change.item_id}): Reverted changes"
                     )
 
                 elif last_change.operation == 'INSERT':
@@ -546,10 +563,8 @@ def rollback_last_change(existingSession=None):
                     table_name=last_change.table_name,
                     item_id=last_change.item_id,
                     operation_id=operation_id,
-                    column_name=last_change.column_name,
+                    changes=last_change.changes,  # Instead of column_name
                     operation='ROLLBACK',
-                    old_value=last_change.new_value,
-                    new_value=last_change.old_value,
                     timestamp=datetime.datetime.now()
                 )
                 session.add(rollback_entry)
@@ -560,7 +575,7 @@ def rollback_last_change(existingSession=None):
                 session.commit()
                 safe_close(session)
             except Exception as E:
-                DBLogger.error("Failed to commit rollback, error: " + str(E))
+                DBLogger.error("rollback_last_change error: " + str(E))
                 safe_rollback(session)
                 safe_close(session)
                 raise ValueError(E)
