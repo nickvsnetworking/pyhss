@@ -379,6 +379,7 @@ def log_change(session, item_id, operation, changes, table_name, operation_id, g
         item_id=item_id or generated_id,
         operation_id=operation_id,
         operation=operation,
+        last_modified=datetime.datetime.now(tz=timezone.utc),
         changes=changes_string,
         table_name=table_name
     )
