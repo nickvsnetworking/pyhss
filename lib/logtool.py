@@ -43,6 +43,7 @@ prom_diam_response_time_method = Histogram('prom_diam_response_time_method', 'Di
 prom_diam_response_time_db = Summary('prom_diam_response_time_db', 'Diameter Response Times from Database')
 prom_diam_response_time_h = Histogram('request_latency_seconds', 'Diameter Response Time Histogram')
 
+prom_http_geored = Counter('prom_http_geored', 'Number of Geored Pushes', ['geored_endpoint', 'http_response_code', 'error'])
 
 
 class LogTool:

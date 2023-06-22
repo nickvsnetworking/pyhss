@@ -46,6 +46,7 @@ from construct import Default
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 import requests
+from requests.exceptions import Timeout
 import threading
 
 class OPERATION_LOG_BASE(Base):
@@ -807,13 +808,43 @@ def GeoRed_Push_Request(remote_hss, json_data, url=None):
     DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
     try:
         if url == None:
+            endpoint = 'geored'
             r = requests.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
         else:
+            endpoint = url.split('/', 1)[0]
             r = requests.patch(url, data=json.dumps(json_data), headers=headers)
-        DBLogger.debug("Updated on " + str(remote_hss))
+        DBLogger.debug("Updated on " + str(remote_hss) + " with status code " + str(r.status_code))
+        if str(r.status_code).startswith('2'):
+            prom_http_geored.labels(
+                geored_host=str(remote_hss),
+                endpoint=endpoint,
+                http_response_code=str(r.status_code),
+                error=""
+            ).inc()
+        else:
+            prom_http_geored.labels(
+                geored_host=str(remote_hss),
+                endpoint=endpoint,
+                http_response_code=str(r.status_code),
+                error=str(r.reason)
+            ).inc()
     except requests.exceptions.RequestException as E:  # This is the correct syntax
         DBLogger.error("Failed to push data to remote PyHSS instance at " + str(remote_hss))
         DBLogger.error(E)
+        try:
+            status_code = r.status_code
+        except:
+            status_code = '000'
+        try:
+            prom_http_geored.labels(
+                geored_host=str(remote_hss),
+                endpoint=endpoint,
+                http_response_code=str(status_code),
+                error=str(E)
+            ).inc()
+        except Exception as E:
+            DBLogger.error("Failed to update Prometheus: ")
+            DBLogger.error(E) 
 
 def GeoRed_Push_Async(json_data):
     try:
