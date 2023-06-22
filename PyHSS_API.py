@@ -175,7 +175,6 @@ def auth_before_request():
             return {'Result': 'Unauthorized'}, 401
     return None
 
-
 def handle_exception(e):
     logging.error(f"An error occurred: {e}")
     response_json = {'result': 'Failed'}
@@ -196,9 +195,6 @@ def handle_exception(e):
         logging.error(f'{traceback.format_exc()}')
         logging.error(f'{sys.exc_info()[2]}')
         return response_json, 500
-
-
-
 
 app.before_request(auth_before_request)
 
@@ -490,7 +486,6 @@ class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
             print(E)
             return handle_exception(E)
 
-
 @ns_subscriber.route('/routing/<string:subscriber_id>/<string:apn_id>')
 class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     def get(self, subscriber_id, apn_id):
@@ -513,6 +508,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E)
+
 @ns_subscriber.route('/routing/<string:subscriber_routing_id>')
 class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     @ns_subscriber.doc('Update SUBSCRIBER_ROUTING Object')
@@ -532,7 +528,6 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E)
-
 
 @ns_ims_subscriber.route('/<string:ims_subscriber_id>')
 class PyHSS_IMS_SUBSCRIBER_Get(Resource):
@@ -1172,8 +1167,6 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E)
-
-
 
 @ns_geored.route('/')
 class PyHSS_Geored(Resource):
