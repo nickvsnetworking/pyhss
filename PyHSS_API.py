@@ -135,6 +135,21 @@ GeoRed_model = api.model('GeoRed', {
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
 
+Geored_schema = {
+    'serving_mme': "string",
+    'serving_mme_realm': "string",
+    'serving_mme_peer': "string",
+    'serving_mme_timestamp': "string",
+    'serving_apn' : "string",
+    'pcrf_session_id' : "string",
+    'subscriber_routing' : "string",
+    'serving_pgw' : "string",
+    'serving_pgw_timestamp' : "string",
+    'scscf' : "string",
+    'imei' : "string",
+    'match_response_code' : "string"
+}
+
 
 lock_provisioning = yaml_config.get('hss', {}).get('lock_provisioning', False)
 provisioning_key = yaml_config.get('hss', {}).get('provisioning_key', '')
@@ -847,7 +862,7 @@ class PyHSS_EIR_HISTORY(Resource):
             return handle_exception(E)
 
 @ns_eir.route('/eir_history/list')
-class PyHSS_EIR_All(Resource):
+class PyHSS_EIR_All_History(Resource):
     @ns_eir.expect(paginatorParser)
     def get(self):
         '''Get EIR history for all subscribers'''
@@ -1196,6 +1211,15 @@ class PyHSS_Geored(Resource):
         except Exception as E:
             print("Exception when updating: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : str(E), 'Partial Response Data' : str(response_data)}
+            return response_json
+
+    def get(self):
+        '''Return the active geored schema'''
+        try:
+            return Geored_schema, 200
+        except Exception as E:
+            print("Exception when returning geored schema: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
             return response_json
 
 @ns_push.route('/clr/<string:imsi>')
