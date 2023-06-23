@@ -962,6 +962,17 @@ class Diameter:
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
 
+        OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
+        OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
+
+        try:        #Check if we have a record-route set as that's where we'll need to send the response
+            remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
+            remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
+        except:     #If we don't have a record-route set, we'll send the response to the OriginHost
+            remote_peer = OriginHost
+        DiameterLogger.debug("Remote Peer is " + str(remote_peer))
+        remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
+
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -1002,7 +1013,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip))
+            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
 
             #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
@@ -1096,6 +1107,17 @@ class Diameter:
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
 
 
+        OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
+        OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
+        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+
+        try:        #Check if we have a record-route set as that's where we'll need to send the response
+            remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
+            remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
+        except:     #If we don't have a record-route set, we'll send the response to the OriginHost
+            remote_peer = OriginHost
+        DiameterLogger.debug("Remote Peer is " + str(remote_peer))
 
         try:
             DiameterLogger.info("Checking if username present")
@@ -1180,6 +1202,20 @@ class Diameter:
 
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
 
+        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+
+        OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
+        OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
+
+        #Find Remote Peer we need to address CLRs through
+        try:        #Check if we have a record-route set as that's where we'll need to send the response
+            remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
+            remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
+        except:     #If we don't have a record-route set, we'll send the response to the OriginHost
+            remote_peer = OriginHost
+        DiameterLogger.debug("Remote Peer is " + str(remote_peer))
+
         try:
             DiameterLogger.info("Checking if username present")
             username = self.get_avp_data(avps, 601)[0]                                                     
@@ -1228,7 +1264,8 @@ class Diameter:
         DiameterLogger.debug("Subscriber is served by S-CSCF " + str(ServingCSCF))
         if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
             DiameterLogger.debug("SAR is Register / Re-Restister")
-            database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF)
+            remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
+            database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
         else:
             DiameterLogger.debug("SAR is not Register")
             database.Update_Serving_CSCF(imsi, serving_cscf=None)
@@ -2095,11 +2132,11 @@ class Diameter:
         return response
 
     #3GPP Cx Server Assignment Request (SAR)
-    def Request_16777216_301(self, imsi, domain):
+    def Request_16777216_301(self, imsi, domain, server_assignment_type):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session Session ID
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+        avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + yaml_config['hss']['OriginHost'])),'ascii'))                                                              #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
@@ -2107,7 +2144,7 @@ class Diameter:
         avp += self.generate_vendor_avp(601, "c0", 10415, self.string_to_hex("sip:" + imsi + "@" + domain))                 #Public-Identity
         avp += self.generate_vendor_avp(602, "c0", 10415, self.string_to_hex('sip:scscf.ims.mnc' + self.MNC + '.mcc' + self.MCC + '.3gppnetwork.org:5060'))                 #Public-Identity
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi + "@" + domain))                   #User-Name
-        avp += self.generate_vendor_avp(614, "c0", 10415, format(int(1),"x").zfill(8))              #Server Assignment Type
+        avp += self.generate_vendor_avp(614, "c0", 10415, format(int(server_assignment_type),"x").zfill(8))              #Server Assignment Type
         avp += self.generate_vendor_avp(624, "c0", 10415, "00000000")                               #User Data Already Available (Not Available)
         response = self.generate_diameter_packet("01", "c0", 301, 16777216, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response

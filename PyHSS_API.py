@@ -125,12 +125,18 @@ GeoRed_model = api.model('GeoRed', {
     'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
     'serving_mme_realm': fields.String(description=SUBSCRIBER.serving_mme_realm.doc),
     'serving_mme_peer': fields.String(description=SUBSCRIBER.serving_mme_peer.doc),
+    'serving_mme_timestamp' : fields.String(description=SUBSCRIBER.serving_mme_timestamp.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
     'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
     'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
+    'serving_pgw_realm' : fields.String(description=Serving_APN.serving_pgw_realm.doc),
+    'serving_pgw_peer' : fields.String(description=Serving_APN.serving_pgw_peer.doc),
     'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.doc),
     'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.doc),
+    'scscf_realm' : fields.String(description=IMS_SUBSCRIBER.scscf_realm.doc),
+    'scscf_peer' : fields.String(description=IMS_SUBSCRIBER.scscf_peer.doc),
+    'scscf_timestamp' : fields.String(description=IMS_SUBSCRIBER.scscf_timestamp.doc),
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
@@ -1200,10 +1206,26 @@ class PyHSS_Geored(Resource):
                 response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
-                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['subscriber_routing'], propagate=False))
+                if 'serving_pgw_realm' not in json_data:
+                    json_data['serving_pgw_realm'] = None
+                if 'serving_pgw_peer' not in json_data:
+                    json_data['serving_pgw_peer'] = None
+                response_data.append(database.Update_Serving_APN(
+                    imsi=str(json_data['imsi']), 
+                    apn=json_data['serving_apn'],
+                    pcrf_session_id=json_data['pcrf_session_id'],
+                    serving_pgw=json_data['serving_pgw'],
+                    subscriber_routing=json_data['subscriber_routing'],
+                    serving_pgw_realm=json_data['serving_pgw_realm'],
+                    serving_pgw_peer=json_data['serving_pgw_peer'],
+                    propagate=False))
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
-                response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))
+                if 'scscf_realm' not in json_data:
+                    json_data['scscf_realm'] = None
+                if 'scscf_peer' not in json_data:
+                    json_data['scscf_peer'] = None
+                response_data.append(database.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
@@ -1216,7 +1238,10 @@ class PyHSS_Geored(Resource):
     def get(self):
         '''Return the active geored schema'''
         try:
-            return Geored_schema, 200
+            geored_model_json = {}
+            for key in GeoRed_model:
+                geored_model_json[key] = 'string'
+            return geored_model_json, 200
         except Exception as E:
             print("Exception when returning geored schema: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
