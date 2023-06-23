@@ -971,6 +971,7 @@ class Diameter:
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
         DiameterLogger.debug("Remote Peer is " + str(remote_peer))
+        remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID

@@ -1206,7 +1206,19 @@ class PyHSS_Geored(Resource):
                 response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
-                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['subscriber_routing'], propagate=False))
+                if 'serving_pgw_realm' not in json_data:
+                    json_data['serving_pgw_realm'] = None
+                if 'serving_pgw_peer' not in json_data:
+                    json_data['serving_pgw_peer'] = None
+                response_data.append(database.Update_Serving_APN(
+                    imsi=str(json_data['imsi']), 
+                    apn=json_data['serving_apn'],
+                    pcrf_session_id=json_data['pcrf_session_id'],
+                    serving_pgw=json_data['serving_pgw'],
+                    subscriber_routing=json_data['subscriber_routing'],
+                    serving_pgw_realm=json_data['serving_pgw_realm'],
+                    serving_pgw_peer=json_data['serving_pgw_peer'],
+                    propagate=False))
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
                 if 'scscf_realm' not in json_data:

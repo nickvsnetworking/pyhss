@@ -1705,50 +1705,56 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
             DBLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
-            json_data = {
-                'apn' : apn_id,
-                'subscriber_id' : subscriber_id,
-                'pcrf_session_id' : str(pcrf_session_id),
-                'serving_pgw' : str(serving_pgw),
-                'serving_pgw_realm' : str(serving_pgw_realm),
-                'serving_pgw_peer' : str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
-                'serving_pgw_timestamp' : datetime.datetime.now(),
-                'subscriber_routing' : str(subscriber_routing)
-            }
+            break
+    DBLogger.debug("APN ID is " + str(apn_id))
 
-            try:
-            #Check if already a serving APN on record
-                ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
-                DBLogger.debug("Existing Serving APN ID on record, updating")
-                if type(serving_pgw) == str:
-                    UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
-                else:
-                    DBLogger.debug("Clearing PCRF session ID")
-                    DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
-            except Exception as E:
-                DBLogger.info("Failed to update existing APN " + str(E))
-                #Create if does not exist
-                CreateObj(SERVING_APN, json_data, True)
+    json_data = {
+        'apn' : apn_id,
+        'subscriber_id' : subscriber_id,
+        'pcrf_session_id' : str(pcrf_session_id),
+        'serving_pgw' : str(serving_pgw),
+        'serving_pgw_realm' : str(serving_pgw_realm),
+        'serving_pgw_peer' : str(serving_pgw_peer),
+        'serving_pgw_timestamp' : datetime.datetime.now(),
+        'subscriber_routing' : str(subscriber_routing)
+    }
 
-            #Sync state change with geored
-            if propagate == True:
-                try:
-                    if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                        DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
-                        GeoRed_Push_Async({"imsi": str(imsi),
-                                        'pcrf_session_id': str(pcrf_session_id),
-                                        'serving_pgw': str(serving_pgw),
-                                        'serving_pgw_realm': str(serving_pgw_realm),
-                                        'serving_pgw_peer': str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
-                                        'subscriber_routing': str(subscriber_routing)
-                                        })
-                    else:
-                        DBLogger.debug("Config does not allow sync of PCRF events")
-                except Exception as E:
-                    DBLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
+    try:
+    #Check if already a serving APN on record
+        DBLogger.debug("Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id))
+        ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
+        DBLogger.debug("Existing Serving APN ID on record, updating")
+        try:
+            assert(type(serving_pgw) == str)
+            assert(len(serving_pgw) > 0)
+            UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
+        except:
+            DBLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
+            DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
+    except Exception as E:
+        DBLogger.info("Failed to update existing APN " + str(E))
+        #Create if does not exist
+        CreateObj(SERVING_APN, json_data, True)
+
+    #Sync state change with geored
+    if propagate == True:
+        try:
+            if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+                DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
+                GeoRed_Push_Async({"imsi": str(imsi),
+                                'pcrf_session_id': str(pcrf_session_id),
+                                'serving_pgw': str(serving_pgw),
+                                'serving_pgw_realm': str(serving_pgw_realm),
+                                'serving_pgw_peer': str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
+                                'subscriber_routing': str(subscriber_routing)
+                                })
+            else:
+                DBLogger.debug("Config does not allow sync of PCRF events")
+        except Exception as E:
+            DBLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
 
 
-            return
+        return
 
 def Get_Serving_APN(subscriber_id, apn_id):
     DBLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
@@ -1756,7 +1762,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
     session = Session()
 
     try:
-        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).one()
+        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).first()
     except Exception as E:
         DBLogger.debug(E)
         safe_close(session)
