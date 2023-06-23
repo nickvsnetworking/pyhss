@@ -125,12 +125,18 @@ GeoRed_model = api.model('GeoRed', {
     'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
     'serving_mme_realm': fields.String(description=SUBSCRIBER.serving_mme_realm.doc),
     'serving_mme_peer': fields.String(description=SUBSCRIBER.serving_mme_peer.doc),
+    'serving_mme_timestamp' : fields.String(description=SUBSCRIBER.serving_mme_timestamp.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
     'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
     'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
+    'serving_pgw_realm' : fields.String(description=Serving_APN.serving_pgw_realm.doc),
+    'serving_pgw_peer' : fields.String(description=Serving_APN.serving_pgw_peer.doc),
     'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.doc),
     'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.doc),
+    'scscf_realm' : fields.String(description=IMS_SUBSCRIBER.scscf_realm.doc),
+    'scscf_peer' : fields.String(description=IMS_SUBSCRIBER.scscf_peer.doc),
+    'scscf_timestamp' : fields.String(description=IMS_SUBSCRIBER.scscf_timestamp.doc),
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
@@ -1216,7 +1222,10 @@ class PyHSS_Geored(Resource):
     def get(self):
         '''Return the active geored schema'''
         try:
-            return Geored_schema, 200
+            geored_model_json = {}
+            for key in GeoRed_model:
+                geored_model_json[key] = 'string'
+            return geored_model_json, 200
         except Exception as E:
             print("Exception when returning geored schema: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
