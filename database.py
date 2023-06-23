@@ -46,8 +46,12 @@ from construct import Default
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 import requests
-from requests.exceptions import Timeout
+from requests.exceptions import ConnectionError, Timeout
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import time
 import threading
+
 
 class OPERATION_LOG_BASE(Base):
     __tablename__ = 'operation_log'
@@ -803,61 +807,92 @@ def get_last_operation_log(existingSession=None):
 
 
 
-def GeoRed_Push_Request(remote_hss, json_data, url=None):
-    headers = {"Content-Type": "application/json"}
-    DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
+def GeoRed_Push_Request(remote_hss, json_data, transaction_id, url=None):
+    headers = {"Content-Type": "application/json", "Transaction-Id": str(transaction_id)}
+    DBLogger.debug("transaction_id: " + str(transaction_id) + " pushing update to " + str(remote_hss).replace('http://', ''))
     try:
+        session = requests.Session()
+        # Create a Retry object with desired parameters
+        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+
+        # Create an HTTPAdapter and pass the Retry object
+        adapter = HTTPAdapter(max_retries=retries)
+
+        session.mount('http://', adapter)
         if url == None:
             endpoint = 'geored'
-            r = requests.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
+            r = session.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
         else:
             endpoint = url.split('/', 1)[0]
-            r = requests.patch(url, data=json.dumps(json_data), headers=headers)
-        DBLogger.debug("Updated on " + str(remote_hss) + " with status code " + str(r.status_code))
+            r = session.patch(url, data=json.dumps(json_data), headers=headers)
+        DBLogger.debug("transaction_id: " + str(transaction_id) + " updated on " + str(remote_hss).replace('http://', '') + " with status code " + str(r.status_code))
         if str(r.status_code).startswith('2'):
             prom_http_geored.labels(
-                geored_host=str(remote_hss),
+                geored_host=str(remote_hss).replace('http://', ''),
                 endpoint=endpoint,
                 http_response_code=str(r.status_code),
                 error=""
             ).inc()
         else:
             prom_http_geored.labels(
-                geored_host=str(remote_hss),
+                geored_host=str(remote_hss).replace('http://', ''),
                 endpoint=endpoint,
                 http_response_code=str(r.status_code),
                 error=str(r.reason)
             ).inc()
-    except requests.exceptions.RequestException as E:  # This is the correct syntax
-        DBLogger.error("Failed to push data to remote PyHSS instance at " + str(remote_hss))
-        DBLogger.error(E)
-        try:
-            status_code = r.status_code
-        except:
-            status_code = '000'
-        try:
+    except ConnectionError as e:
+        error_message = str(e)
+        if "Name or service not known" in error_message:
+            DBLogger.error("transaction_id: " + str(transaction_id) + " name or service not known")
             prom_http_geored.labels(
-                geored_host=str(remote_hss),
+                geored_host=str(remote_hss).replace('http://', ''),
                 endpoint=endpoint,
-                http_response_code=str(status_code),
-                error=str(E)
+                http_response_code='000',
+                error="No matching DNS entry found"
             ).inc()
-        except Exception as E:
-            DBLogger.error("Failed to update Prometheus: ")
-            DBLogger.error(E) 
+        else:
+            print("Other ConnectionError:", error_message)
+            DBLogger.error("transaction_id: " + str(transaction_id) + " " + str(error_message))
+            prom_http_geored.labels(
+                geored_host=str(remote_hss).replace('http://', ''),
+                endpoint=endpoint,
+                http_response_code='000',
+                error="Connection Refused"
+            ).inc()
+    except Timeout:
+        DBLogger.error("transaction_id: " + str(transaction_id) + " timed out connecting to peer " + str(remote_hss).replace('http://', ''))
+        prom_http_geored.labels(
+                geored_host=str(remote_hss).replace('http://', ''),
+                endpoint=endpoint,
+                http_response_code='000',
+                error="Timeout"
+            ).inc()
+    except Exception as e:
+        DBLogger.error("transaction_id: " + str(transaction_id) + " unexpected error " + str(e) + " when connecting to peer " + str(remote_hss).replace('http://', ''))
+        prom_http_geored.labels(
+                geored_host=str(remote_hss).replace('http://', ''),
+                endpoint=endpoint,
+                http_response_code='000',
+                error=str(e)
+            ).inc()
+
+
 
 def GeoRed_Push_Async(json_data):
     try:
         if yaml_config['geored']['enabled'] == True:
             if yaml_config['geored']['sync_endpoints'] is not None and len(yaml_config['geored']['sync_endpoints']) > 0:
+                transaction_id = str(uuid.uuid4())
+                DBLogger.info("Pushing out data to GeoRed peers with transaction_id " + str(transaction_id) + " and JSON body: " + str(json_data))
                 for remote_hss in yaml_config['geored']['sync_endpoints']:
-                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
+                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data, transaction_id))
                     GeoRed_Push_thread.start()
     except Exception as E:
         DBLogger.debug("Failed to push Async jobs due to error: " + str(E))
 
 def Webhook_Push_Async(target, json_data):
-        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
+        transaction_id = str(uuid.uuid4())
+        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data, transaction_id))
         Webook_Push_thread.start()
 
 def Sanitize_Datetime(result):
@@ -1540,7 +1575,8 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
                     }
                     
                     DBLogger.debug("Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data))
-                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, URL))
+                    transaction_id = str(uuid.uuid4())
+                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, transaction_id, URL))
                     GeoRed_Push_thread.start()
             else:
                 #No currently serving MME - No action to take
