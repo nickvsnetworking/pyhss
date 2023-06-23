@@ -1633,8 +1633,8 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
         safe_close(session)
 
 
-def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
-    DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
+def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
+    DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer))
     Session = sessionmaker(bind = engine)
     session = Session()
 
@@ -1646,11 +1646,15 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
             serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
             result.scscf = serving_cscf
             result.scscf_timestamp = datetime.datetime.now()
+            result.scscf_realm = scscf_realm
+            result.scscf_peer = str(scscf_peer) + ";" + str(yaml_config['hss']['OriginHost'])
         else:
             #Clear values
             DBLogger.debug("Clearing serving CSCF")
             result.scscf = None
             result.scscf_timestamp = None
+            result.scscf_realm = None
+            result.scscf_peer = None
 
         with disable_logging_listener():
             session.commit()
@@ -1659,7 +1663,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         if propagate == True:
             if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
                 DBLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
-                GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf})
+                GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
             else:
                 DBLogger.debug("Config does not allow sync of IMS events")
     except Exception as E:
@@ -1670,8 +1674,10 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         safe_close(session)
 
 
-def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
-    DBLogger.debug("Called Update_Serving_APN()")
+def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
+    DBLogger.debug("Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn))
+    DBLogger.debug("PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing))
+    DBLogger.debug("Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer))
     DBLogger.debug("subscriber_routing: " + str(subscriber_routing))
 
     #Get Subscriber ID from IMSI
@@ -1702,6 +1708,8 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
                 'subscriber_id' : subscriber_id,
                 'pcrf_session_id' : str(pcrf_session_id),
                 'serving_pgw' : str(serving_pgw),
+                'serving_pgw_realm' : str(serving_pgw_realm),
+                'serving_pgw_peer' : str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
                 'serving_pgw_timestamp' : datetime.datetime.now(),
                 'subscriber_routing' : str(subscriber_routing)
             }
@@ -1728,6 +1736,8 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
                         GeoRed_Push_Async({"imsi": str(imsi),
                                         'pcrf_session_id': str(pcrf_session_id),
                                         'serving_pgw': str(serving_pgw),
+                                        'serving_pgw_realm': str(serving_pgw_realm),
+                                        'serving_pgw_peer': str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
                                         'subscriber_routing': str(subscriber_routing)
                                         })
                     else:
