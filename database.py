@@ -1640,15 +1640,17 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
 
     try:
         result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
-        if type(serving_cscf) == str:
+        try:
+            assert(type(serving_cscf) == str)
+            assert(len(serving_cscf) > 0)
             DBLogger.debug("Setting serving CSCF")
             #Strip duplicate SIP prefix before storing
             serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
             result.scscf = serving_cscf
             result.scscf_timestamp = datetime.datetime.now()
             result.scscf_realm = scscf_realm
-            result.scscf_peer = str(scscf_peer) + ";" + str(yaml_config['hss']['OriginHost'])
-        else:
+            result.scscf_peer = str(scscf_peer)
+        except:
             #Clear values
             DBLogger.debug("Clearing serving CSCF")
             result.scscf = None

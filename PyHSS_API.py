@@ -1209,7 +1209,11 @@ class PyHSS_Geored(Resource):
                 response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['subscriber_routing'], propagate=False))
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
-                response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))
+                if 'scscf_realm' not in json_data:
+                    json_data['scscf_realm'] = None
+                if 'scscf_peer' not in json_data:
+                    json_data['scscf_peer'] = None
+                response_data.append(database.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))

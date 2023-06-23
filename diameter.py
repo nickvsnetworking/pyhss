@@ -1263,6 +1263,7 @@ class Diameter:
         DiameterLogger.debug("Subscriber is served by S-CSCF " + str(ServingCSCF))
         if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
             DiameterLogger.debug("SAR is Register / Re-Restister")
+            remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
             database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
         else:
             DiameterLogger.debug("SAR is not Register")
