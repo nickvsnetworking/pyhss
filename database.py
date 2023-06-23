@@ -1890,12 +1890,14 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         safe_close(session)
         DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
 
-        try:
-            dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
-            Webhook_Push_Async(str(yaml_config['eir']['sim_swap_notify_webhook']), json_data=dictToSend)
-        except Exception as E:
-            DBLogger.debug("Failed to post to Webhook")
-            DBLogger.debug(str(E))
+        if 'sim_swap_notify_webhook' in yaml_config['eir']:
+            DBLogger.debug("Sending SIM Swap notification to Webhook")
+            try:
+                dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
+                Webhook_Push_Async(str(yaml_config['eir']['sim_swap_notify_webhook']), json_data=dictToSend)
+            except Exception as E:
+                DBLogger.debug("Failed to post to Webhook")
+                DBLogger.debug(str(E))
 
 
         #Sync state change with geored
