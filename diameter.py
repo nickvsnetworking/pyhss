@@ -789,7 +789,7 @@ class Diameter:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            prom_diam_auth_count.labels(
+            prom_diam_auth_event_count.labels(
                 diameter_application_id = 16777251,
                 diameter_cmd_code = 318,
                 event='Unknown User',
@@ -832,7 +832,7 @@ class Diameter:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
                         DiameterLogger.debug("Re-Synchronization required - SQN is out of sync")
-                        prom_diam_auth_count.labels(
+                        prom_diam_auth_event_count.labels(
                             diameter_application_id = 16777251,
                             diameter_cmd_code = 318,
                             event='Resync',
@@ -1118,7 +1118,7 @@ class Diameter:
         except Exception as E:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_300() input")
-            prom_diam_auth_count.labels(
+            prom_diam_auth_event_count.labels(
                 diameter_application_id = 16777216,
                 diameter_cmd_code = 300,
                 event='Unknown User',
@@ -1301,7 +1301,7 @@ class Diameter:
             DiameterLogger.error("Threw Exception: " + str(E))
             DiameterLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
             result_code = 5001
-            prom_diam_auth_count.labels(
+            prom_diam_auth_event_count.labels(
                 diameter_application_id = 16777216,
                 diameter_cmd_code = 302,
                 event='Unknown User',
@@ -1344,7 +1344,7 @@ class Diameter:
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
-            prom_diam_auth_count.labels(
+            prom_diam_auth_event_count.labels(
                 diameter_application_id = 16777216,
                 diameter_cmd_code = 303,
                 event='Unknown User',
@@ -1371,7 +1371,7 @@ class Diameter:
                 rand = binascii.unhexlify(rand)
                 database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
                 DiameterLogger.debug("Resynced SQN in DB")
-                prom_diam_auth_count.labels(
+                prom_diam_auth_event_count.labels(
                     diameter_application_id = 16777216,
                     diameter_cmd_code = 302,
                     event='ReAuth',
@@ -1508,7 +1508,7 @@ class Diameter:
                 DiameterLogger.debug("Merged subscriber details: " + str(subscriber_details))
         else:
             DiameterLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
-            prom_diam_auth_count.labels(
+            prom_diam_auth_event_count.labels(
                 diameter_application_id = 16777216,
                 diameter_cmd_code = 306,
                 event='Unknown User',
