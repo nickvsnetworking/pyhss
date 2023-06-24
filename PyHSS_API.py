@@ -10,8 +10,6 @@ import sqlalchemy
 import socket
 
 
-app = Flask(__name__)
-
 import logging
 import yaml
 
@@ -25,7 +23,15 @@ sys.path.append(os.path.realpath('lib'))
 #Setup Logging
 import logtool
 
+
 import database
+
+from prometheus_flask_exporter import PrometheusMetrics
+app = Flask(__name__)
+metrics = PrometheusMetrics.for_app_factory()
+metrics.init_app(app)
+from logtool import prom_flask_http_geored_endpoints
+
 APN = database.APN
 Serving_APN = database.SERVING_APN
 AUC = database.AUC
@@ -170,12 +176,12 @@ def auth_required(f):
         if getattr(f, 'no_auth_required', False) or (lock_provisioning == False):
             return f(*args, **kwargs)
         if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
-            return {'Result': 'Unauthorized'}, 401
+            return {'Result': 'Unauthorized - Provisioning-Key Invalid'}, 401
         return f(*args, **kwargs)
     return decorated_function
 
 def auth_before_request():
-    if request.path.startswith('/docs') or request.path.startswith('/swagger'):
+    if request.path.startswith('/docs') or request.path.startswith('/swagger') or request.path.startswith('/metrics'):
         return None
     if request.endpoint and 'static' not in request.endpoint:
         view_function = app.view_functions[request.endpoint]
@@ -193,7 +199,7 @@ def auth_before_request():
                     return None
 
         if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
-            return {'Result': 'Unauthorized'}, 401
+            return {'Result': 'Unauthorized - Provisioning-Key Invalid'}, 401
     return None
 
 def handle_exception(e):
@@ -1190,9 +1196,12 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
             return handle_exception(E)
 
 @ns_geored.route('/')
+
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
     @ns_geored.expect(GeoRed_model)
+    # @metrics.counter('flask_http_geored_pushes', 'Count of GeoRed Pushes to this API',
+    #      labels={'status': lambda r: r.status_code, 'source_endpoint': lambda r: r.remote_addr})
     @no_auth_required
     def patch(self):
         '''Get Geored data Pushed'''
@@ -1229,6 +1238,7 @@ class PyHSS_Geored(Resource):
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
+            prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
@@ -1276,5 +1286,5 @@ class PyHSS_Push_CLR(Resource):
         return diam_hex, 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
 
