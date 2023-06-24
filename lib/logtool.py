@@ -44,7 +44,7 @@ prom_diam_response_time_db = Summary('prom_diam_response_time_db', 'Diameter Res
 prom_diam_response_time_h = Histogram('request_latency_seconds', 'Diameter Response Time Histogram')
 
 prom_http_geored = Counter('prom_http_geored', 'Number of Geored Pushes', ['geored_host', 'endpoint', 'http_response_code', 'error'])
-
+prom_flask_http_geored_endpoints = Counter('prom_flask_http_geored_endpoints', 'Number of Geored Pushes Received', ['geored_host', 'endpoint'])
 
 class LogTool:
     def __init__(self, **kwargs):

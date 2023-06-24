@@ -16,3 +16,4 @@ sqlalchemy_utils
 systemd-python==234
 Werkzeug==2.2.3
 mysqlclient
+prometheus_flask_exporter
