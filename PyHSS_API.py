@@ -1213,6 +1213,7 @@ class PyHSS_Geored(Resource):
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
                 response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='HSS', geored_host=request.remote_addr).inc()
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
                 if 'serving_pgw_realm' not in json_data:
@@ -1228,6 +1229,7 @@ class PyHSS_Geored(Resource):
                     serving_pgw_realm=json_data['serving_pgw_realm'],
                     serving_pgw_peer=json_data['serving_pgw_peer'],
                     propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='PCRF', geored_host=request.remote_addr).inc()
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
                 if 'scscf_realm' not in json_data:
@@ -1235,10 +1237,11 @@ class PyHSS_Geored(Resource):
                 if 'scscf_peer' not in json_data:
                     json_data['scscf_peer'] = None
                 response_data.append(database.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='IMS', geored_host=request.remote_addr).inc()
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
-            prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
+                prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
