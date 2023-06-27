@@ -43,6 +43,8 @@ prom_diam_response_time_method = Histogram('prom_diam_response_time_method', 'Di
 prom_diam_response_time_db = Summary('prom_diam_response_time_db', 'Diameter Response Times from Database')
 prom_diam_response_time_h = Histogram('request_latency_seconds', 'Diameter Response Time Histogram')
 
+prom_eir_devices = Counter('prom_eir_devices', 'Profile of attached devices', ['imei_prefix', 'device_type', 'device_name'])
+
 prom_http_geored = Counter('prom_http_geored', 'Number of Geored Pushes', ['geored_host', 'endpoint', 'http_response_code', 'error'])
 prom_flask_http_geored_endpoints = Counter('prom_flask_http_geored_endpoints', 'Number of Geored Pushes Received', ['geored_host', 'endpoint'])
 
