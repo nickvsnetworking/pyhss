@@ -29,7 +29,12 @@ with open("config.yaml", 'r') as stream:
 #engine = create_engine('sqlite:///sales.db', echo = True)
 db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
 print(db_string)
-engine = create_engine(db_string, echo = True, pool_recycle=5)
+engine = create_engine(
+    db_string, 
+    echo = yaml_config['logging'].get('sqlalchemy_sql_echo', True), 
+    pool_recycle=yaml_config['logging'].get('sqlalchemy_pool_recycle', 5),
+    pool_size=yaml_config['logging'].get('sqlalchemy_pool_size', 30),
+    max_overflow=yaml_config['logging'].get('sqlalchemy_max_overflow', 0))
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
