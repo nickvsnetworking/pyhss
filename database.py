@@ -301,6 +301,37 @@ if not database_exists(engine.url):
 else:
     DBLogger.debug("Database already created")
 
+def load_IMEI_database_into_Redis():
+    try:
+        DBLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
+        csvfile = open(str(yaml_config['eir']['tac_database_csv']))
+        DBLogger.info("This may take a few seconds to buffer into Redis...")
+    except:
+        DBLogger.error("Failed to read CSV file of IMEI TAC database")
+        return
+    try:
+        count = 0
+        for line in csvfile:
+            line = line.replace('"', '')        #Strip excess invered commas
+            line = line.replace("'", '')        #Strip excess invered commas
+            line = line.rstrip()                #Strip newlines
+            result = line.split(',')
+            tac_prefix = result[0]
+            name = result[1].lstrip()
+            model = result[2].lstrip()
+            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+            logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
+            count = count +1
+        DBLogger.info("Successfully loaded " + str(count) + " IMEI TAC entries into Redis")
+    except Exception as E:
+        DBLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
+        return
+
+#Load IMEI TAC database into Redis if enabled
+if 'tac_database_csv' in yaml_config['eir']:
+    load_IMEI_database_into_Redis()
+
+
 def safe_rollback(session):
     try:
         if session.is_active:
@@ -2075,28 +2106,39 @@ def Get_EIR_Rules():
     return EIR_Rules 
 
 
+def dict_bytes_to_dict_string(dict_bytes):
+    dict_string = {}
+    for key, value in dict_bytes.items():
+        dict_string[key.decode()] = value.decode()
+    return dict_string
+
+
 def get_device_info_from_TAC(imei):
     DBLogger.debug("Getting Device Info from IMEI: " + str(imei))
+    #Try 8 digit TAC
     try:
-        csvfile = open(yaml_config['eir']['tac_database_csv'])
+        DBLogger.debug("Trying to match on 8 Digit IMEI")
+        imei_result = logtool.RedisHMGET(str(imei[0:8]))
+        print("Got back: " + str(imei_result))
+        imei_result = dict_bytes_to_dict_string(imei_result)
+        assert(len(imei_result) != 0)
+        DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        return imei_result
     except:
-        DBLogger.info("Failed to read CSV file")
-        raise ValueError("CSV file does not exist")
+        DBLogger.debug("Failed to match on 8 digit IMEI")
+    
     try:
-        for line in csvfile:
-            line = line.replace('"', '')        #Strip excess invered commas
-            line = line.replace("'", '')        #Strip excess invered commas
-            line = line.rstrip()                #Strip newlines
-            result = line.split(',')
-            tac_prefix = result[0]
-            name = result[1].lstrip()
-            model = result[2].lstrip()
-            if str(imei).startswith(str(tac_prefix)):
-                imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-                DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
-                return imei_result
+        DBLogger.debug("Trying to match on 6 Digit IMEI")
+        imei_result = logtool.RedisHMGET(str(imei[0:6]))
+        print("Got back: " + str(imei_result))
+        imei_result = dict_bytes_to_dict_string(imei_result)
+        assert(len(imei_result) != 0)
+        DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        return imei_result
     except:
-        raise ValueError("Failed to find match for IMEI " + str(imei))
+        DBLogger.debug("Failed to match on 6 digit IMEI")
+
+    raise ValueError("No matching TAC in IMEI Database")
 
 if __name__ == "__main__":
     import binascii,os,pprint
