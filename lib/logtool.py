@@ -63,8 +63,8 @@ class LogTool:
                     print("Called Init for HSS_Init")
                     redis_store.incr('restart_count')
                     if yaml_config['redis']['clear_stats_on_boot'] == True:
-                        logging.debug("Clearing all Redis keys")
-                        redis_store.flushall()
+                        logging.debug("Clearing ActivePeerDict")
+                        redis_store.delete('ActivePeerDict')
                     else:
                         logging.debug("Leaving prexisting Redis keys")
                     #Clear ActivePeerDict
