@@ -1923,7 +1923,7 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 device_info = get_device_info_from_TAC(imei=str(imei))
                 DBLogger.debug("Got Device Info: " + str(device_info))
                 prom_eir_devices.labels(
-                    imei_prefix=device_info['imei'],
+                    imei_prefix=device_info['tac_prefix'],
                     device_type=device_info['name'], 
                     device_name=device_info['model']
                 ).inc()
@@ -2087,7 +2087,7 @@ def get_device_info_from_TAC(imei):
             name = result[1].lstrip()
             model = result[2].lstrip()
             if str(imei).startswith(str(tac_prefix)):
-                imei_result = {'imei': imei, 'name': name, 'model': model}
+                imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
                 DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
                 return imei_result
     except:
