@@ -319,8 +319,6 @@ def load_IMEI_database_into_Redis():
             tac_prefix = result[0]
             name = result[1].lstrip()
             model = result[2].lstrip()
-            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-            logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
             if count == 0:
                 DBLogger.info("Checking to see if entries are already present...")
                 DBLogger.info(imei_result)
@@ -330,8 +328,10 @@ def load_IMEI_database_into_Redis():
                     break
                 else:
                     DBLogger.info("No data loaded into Redis, proceeding to load...")
+            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+            logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
             count = count +1
-        DBLogger.info("Successfully loaded " + str(count) + " IMEI TAC entries into Redis")
+        DBLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
     except Exception as E:
         DBLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
         return
