@@ -1918,17 +1918,24 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 DBLogger.debug(str(E))
 
         #Lookup Device Info
-        try:
-            device_info = get_device_info_from_TAC(imei=str(imei))
-            DBLogger.debug("Got Device Info: " + str(device_info))
-            prom_eir_devices.labels(
-                imei_prefix=device_info['imei'],
-                device_type=device_info['name'], 
-                device_name=device_info['model']
-            ).inc()
-        except Exception as E:
-            DBLogger.debug("Failed to get device info from TAC / write to Prom")
-
+        if 'tac_database_csv' in yaml_config['eir']:
+            try:
+                device_info = get_device_info_from_TAC(imei=str(imei))
+                DBLogger.debug("Got Device Info: " + str(device_info))
+                prom_eir_devices.labels(
+                    imei_prefix=device_info['imei'],
+                    device_type=device_info['name'], 
+                    device_name=device_info['model']
+                ).inc()
+            except Exception as E:
+                DBLogger.debug("Failed to get device info from TAC")
+                prom_eir_devices.labels(
+                    imei_prefix=str(imei)[0:8],
+                    device_type='Unknown', 
+                    device_name='Unknown'
+                ).inc()
+        else:
+            DBLogger.debug("No TAC database configured, skipping device info lookup")
 
         #Sync state change with geored
         if propagate == True:
