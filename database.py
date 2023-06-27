@@ -1917,6 +1917,25 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 DBLogger.debug("Failed to post to Webhook")
                 DBLogger.debug(str(E))
 
+        #Lookup Device Info
+        if 'tac_database_csv' in yaml_config['eir']:
+            try:
+                device_info = get_device_info_from_TAC(imei=str(imei))
+                DBLogger.debug("Got Device Info: " + str(device_info))
+                prom_eir_devices.labels(
+                    imei_prefix=device_info['tac_prefix'],
+                    device_type=device_info['name'], 
+                    device_name=device_info['model']
+                ).inc()
+            except Exception as E:
+                DBLogger.debug("Failed to get device info from TAC")
+                prom_eir_devices.labels(
+                    imei_prefix=str(imei)[0:8],
+                    device_type='Unknown', 
+                    device_name='Unknown'
+                ).inc()
+        else:
+            DBLogger.debug("No TAC database configured, skipping device info lookup")
 
         #Sync state change with geored
         if propagate == True:
@@ -2050,6 +2069,29 @@ def Get_EIR_Rules():
     safe_close(session)
     return EIR_Rules 
 
+
+def get_device_info_from_TAC(imei):
+    DBLogger.debug("Getting Device Info from IMEI: " + str(imei))
+    try:
+        csvfile = open(yaml_config['eir']['tac_database_csv'])
+    except:
+        DBLogger.info("Failed to read CSV file")
+        raise ValueError("CSV file does not exist")
+    try:
+        for line in csvfile:
+            line = line.replace('"', '')        #Strip excess invered commas
+            line = line.replace("'", '')        #Strip excess invered commas
+            line = line.rstrip()                #Strip newlines
+            result = line.split(',')
+            tac_prefix = result[0]
+            name = result[1].lstrip()
+            model = result[2].lstrip()
+            if str(imei).startswith(str(tac_prefix)):
+                imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+                DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+                return imei_result
+    except:
+        raise ValueError("Failed to find match for IMEI " + str(imei))
 
 if __name__ == "__main__":
     import binascii,os,pprint

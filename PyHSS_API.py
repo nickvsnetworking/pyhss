@@ -217,6 +217,9 @@ def handle_exception(e):
         if "IntegrityError" in error_message:
             response_json['reason'] = f'A database integrity error occurred: {e}'
             return response_json, 400
+        if "CSV file does not exist" in error_message:
+            response_json['reason'] = f'EIR CSV file is not defined / does not exist'
+            return response_json, 410
     else:
         response_json['reason'] = f'An internal server error occurred: {e}'
         logging.error(f'{traceback.format_exc()}')
@@ -857,7 +860,12 @@ class PyHSS_EIR_HISTORY(Resource):
         '''Get history for IMSI or IMEI'''
         try:
             data = database.Get_IMEI_IMSI_History(attribute=attribute)
-            return data, 200
+            #Add device info for each entry
+            data_w_device_info = []
+            for record in data:
+                record['imei_result'] = database.get_device_info_from_TAC(imei=str(record['imei']))
+                data_w_device_info.append(record)
+            return data_w_device_info, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
@@ -901,6 +909,18 @@ class PyHSS_EIR_All(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E)
+
+@ns_eir.route('/lookup_imei/<string:imei>')
+class PyHSS_EIR_TAC(Resource):
+    def get(self, imei):
+        '''Get Device Info from IMEI'''
+        try:
+            data = database.get_device_info_from_TAC(imei=imei)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
 
 @ns_subscriber_attributes.route('/list')
 class PyHSS_Subscriber_Attributes_All(Resource):
