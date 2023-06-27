@@ -863,7 +863,7 @@ class PyHSS_EIR_HISTORY(Resource):
             #Add device info for each entry
             data_w_device_info = []
             for record in data:
-                record['imei_result'] = database.Get_Device_Info(imei=str(record['imei']))
+                record['imei_result'] = database.get_device_info_from_TAC(imei=str(record['imei']))
                 data_w_device_info.append(record)
             return data_w_device_info, 200
         except Exception as E:
