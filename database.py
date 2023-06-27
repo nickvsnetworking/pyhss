@@ -321,7 +321,7 @@ def load_IMEI_database_into_Redis():
             model = result[2].lstrip()
             if count == 0:
                 DBLogger.info("Checking to see if entries are already present...")
-                DBLogger.info(imei_result)
+                #DBLogger.info("Searching Redis for key " + str(tac_prefix) + " to see if data already provisioned")
                 redis_imei_result = logtool.RedisHMGET(key=str(tac_prefix))
                 if len(redis_imei_result) != 0:
                     DBLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
@@ -337,8 +337,10 @@ def load_IMEI_database_into_Redis():
         return
 
 #Load IMEI TAC database into Redis if enabled
-if 'tac_database_csv' in yaml_config['eir']:
+if ('tac_database_csv' in yaml_config['eir']) and (yaml_config['redis']['enabled'] == True):
     load_IMEI_database_into_Redis()
+else:
+    DBLogger.info("Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config")
 
 
 def safe_rollback(session):
