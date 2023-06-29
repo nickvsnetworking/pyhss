@@ -759,9 +759,9 @@ class Diameter:
             DiameterLogger.debug("Adding rat_freq_priorityID: " + str(rat_freq_priorityID))
             subscription_data += rat_freq_priorityID
 
-        if 'charging_characteristics' in subscriber_details:
-            DiameterLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['charging_characteristics']) + " - Adding in ULA")
-            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, str(subscriber_details['charging_characteristics']))
+        if 'charging_characteristics' in apn_data:
+            DiameterLogger.debug("3gpp-charging-characteristics " + str(apn_data['charging_characteristics']) + " - Adding in ULA")
+            _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(apn_data['charging_characteristics']))
             subscription_data += _3gpp_charging_characteristics
             DiameterLogger.debug("Adding _3gpp_charging_characteristics: " + str(_3gpp_charging_characteristics))
 
