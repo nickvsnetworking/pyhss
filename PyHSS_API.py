@@ -1115,6 +1115,46 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_oam.route('/reconcile/ims/<string:imsi>')
+class PyHSS_OAM_Reconcile_IMS(Resource):
+    def get(self, imsi):
+        '''Get current location of IMS Subscriber from all linked HSS nodes'''
+        response_dict = {}
+        import requests
+        try:
+            #Get local database result
+            local_result = database.Get_IMS_Subscriber(imsi=imsi)
+            response_dict['localhost'] = {}
+            for keys in local_result:
+                if 'cscf' in keys:
+                    response_dict['localhost'][keys] = local_result[keys]
+
+            for remote_HSS in yaml_config['geored']['sync_endpoints']:
+                print("Pulling data from remote HSS: " + str(remote_HSS))
+                response = requests.get(remote_HSS + '/ims_subscriber/ims_subscriber_imsi/' + str(imsi))
+                response_dict[remote_HSS] = {}
+                for keys in response.json():
+                    if 'cscf' in keys:
+                        response_dict[remote_HSS][keys] = response.json()[keys]
+            mismatch_list = []
+            #Compare to check they all agree
+            for remote_HSS in response_dict:
+                for comparitor_hss in response_dict:
+                    if (response_dict[remote_HSS]['scscf'] != response_dict[comparitor_hss]['scscf']):
+                        print("\t Mismatch between " + str(remote_HSS) + " and " + str(comparitor_hss))
+                        mismatch_record = {
+                            str(remote_HSS) : response_dict[remote_HSS]['scscf'],
+                            str(comparitor_hss) : response_dict[comparitor_hss]['scscf'],
+                            }
+                        mismatch_list.append(mismatch_record)
+            print("mismatch_list: " + str(mismatch_list))
+            response_dict['mismatches'] = mismatch_list
+            return response_dict, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+
 @ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>/<string:apn_id>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
     def get(self, imsi, apn_id):
