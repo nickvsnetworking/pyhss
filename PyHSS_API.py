@@ -1144,13 +1144,16 @@ class PyHSS_OAM_Reconcile_IMS(Resource):
             #Compare to check they all agree
             for remote_HSS in response_dict:
                 for comparitor_hss in response_dict:
-                    if (response_dict[remote_HSS]['scscf'] != response_dict[comparitor_hss]['scscf']):
-                        print("\t Mismatch between " + str(remote_HSS) + " and " + str(comparitor_hss))
-                        mismatch_record = {
-                            str(remote_HSS) : response_dict[remote_HSS]['scscf'],
-                            str(comparitor_hss) : response_dict[comparitor_hss]['scscf'],
-                            }
-                        mismatch_list.append(mismatch_record)
+                    try:
+                        if (response_dict[remote_HSS]['scscf'] != response_dict[comparitor_hss]['scscf']):
+                            print("\t Mismatch between " + str(remote_HSS) + " and " + str(comparitor_hss))
+                            mismatch_record = {
+                                str(remote_HSS) : response_dict[remote_HSS]['scscf'],
+                                str(comparitor_hss) : response_dict[comparitor_hss]['scscf'],
+                                }
+                            mismatch_list.append(mismatch_record)
+                    except:
+                        continue
             print("mismatch_list: " + str(mismatch_list))
             response_dict['mismatches'] = mismatch_list
             return response_dict, 200
