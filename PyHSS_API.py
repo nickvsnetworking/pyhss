@@ -1131,11 +1131,15 @@ class PyHSS_OAM_Reconcile_IMS(Resource):
 
             for remote_HSS in yaml_config['geored']['sync_endpoints']:
                 print("Pulling data from remote HSS: " + str(remote_HSS))
-                response = requests.get(remote_HSS + '/ims_subscriber/ims_subscriber_imsi/' + str(imsi))
-                response_dict[remote_HSS] = {}
-                for keys in response.json():
-                    if 'cscf' in keys:
-                        response_dict[remote_HSS][keys] = response.json()[keys]
+                try:
+                    response = requests.get(remote_HSS + '/ims_subscriber/ims_subscriber_imsi/' + str(imsi))
+                    response_dict[remote_HSS] = {}
+                    for keys in response.json():
+                        if 'cscf' in keys:
+                            response_dict[remote_HSS][keys] = response.json()[keys]
+                except Exception as E:
+                    print("Exception pulling from " + str(remote_HSS) + " " + str(E))
+                    response_dict[remote_HSS] = str(E)
             mismatch_list = []
             #Compare to check they all agree
             for remote_HSS in response_dict:
