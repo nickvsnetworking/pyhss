@@ -69,7 +69,7 @@ api:
   page_size: 200
 
 external:
-  external_webhook_notification_enabled: True
+  external_webhook_notification_enabled: False
   external_webhook_notification_url: https://api.example.com/webhook
 
 eir:
