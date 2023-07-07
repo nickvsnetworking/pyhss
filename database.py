@@ -373,27 +373,41 @@ def handle_external_webhook(session, instance, operation):
     if not external_webhook_notification_url:
         DBLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
         
-        changes = instance.__dict__
-        old_state_dict = session.identity_map.get(instance.id).dict.items() if session.identity_map.get(instance.id) else {}
-        
-        change = {
-            'item_id': instance.id,
-            'operation_id': session.info.get("operation_id", None),
-            'operation': operation,
-            'last_modified': datetime.datetime.now(tz=timezone.utc).isoformat(),
-            'changes': str({key: changes[key] for key in set(changes) - set(old_state_dict) if key != '_sa_instance_state'}),
-            'table_name': instance.__tablename__
-        }
+    changes = instance.__dict__
+    id_attribute = f"{instance.__tablename__}_id"
+    if hasattr(instance, id_attribute):
+        instance_id = getattr(instance, id_attribute)
 
-        externalNotification = Sanitize_Datetime(change)
+    # Update old_state_dict line
+    old_state_dict = (session.identity_map.get(instance_id).dict.items() 
+                      if session.identity_map.get(instance_id) else {})
+    
+    # Update change dictionary
+    change = {
+        'item_id': instance_id,
+        'operation_id': session.info.get("operation_id", None),
+        'operation': operation,
+        'last_modified': datetime.datetime.now(tz=timezone.utc).isoformat(),
+        'changes': str({key: changes[key] for key in set(changes) - set(old_state_dict) if key != '_sa_instance_state'}),
+        'table_name': instance.__tablename__
+    }
 
-        externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
-        
-        webhookResponse = requests.post(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders)
-        
-        if webhookResponse.status_code != 200:
-            DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
-            return False 
+    externalNotification = Sanitize_Datetime(change)
+
+    externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
+    
+    try:
+        webhookResponse = requests.post(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+    except requests.exceptions.Timeout:
+        DBLogger.error(f"Timeout occurred when sending webhook to {external_webhook_notification_url}")
+        return False
+    except requests.exceptions.RequestException as e:
+        DBLogger.error(f"Request exception when sending webhook to {external_webhook_notification_url}")
+        return False
+    
+    if webhookResponse.status_code != 200:
+        DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
+        return False 
     
     return True
 
