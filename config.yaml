@@ -70,7 +70,7 @@ api:
 
 external:
   external_webhook_notification_enabled: True
-  webhook_notification_url: https://api.example.com/webhook
+  external_webhook_notification_url: https://api.example.com/webhook
 
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend

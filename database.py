@@ -19,6 +19,7 @@ import hashlib
 import uuid
 import functools
 import ast
+import socket
 from contextlib import contextmanager
 sys.path.append(os.path.realpath('lib'))
 
@@ -359,11 +360,55 @@ def update_old_record(session, operation_log):
         for attr in class_mapper(oldest_log.__class__).column_attrs:
             if attr.key != 'id' and hasattr(operation_log, attr.key):
                 setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
-        oldest_log.timestamp = datetime.datetime.now()
+        oldest_log.timestamp = datetime.datetime.now(tz=timezone.utc)
         session.flush()
     else:
         raise ValueError("Unable to find record to update")
 
+def handle_external_webhook(session):
+    external_webhook_notification_enabled = yaml_config.get('external', {}).get('external_webhook_notification_enabled', False)
+    external_webhook_notification_url = yaml_config.get('external', {}).get('external_webhook_notification_url', '')
+    if not external_webhook_notification_enabled:
+        return False
+    if not external_webhook_notification_url:
+        DBLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
+
+    # Handle newly created objects
+    for instance in session.new:
+        handle_changes(instance, 'CREATE')
+
+    # Handle updated objects
+    for instance in session.dirty:
+        handle_changes(instance, 'UPDATE')
+        
+    # Handle deleted objects
+    for instance in session.deleted:
+        handle_changes(instance, 'DELETE')
+        
+    def handle_changes(instance, operation):
+        changes = instance.__dict__
+        old_state_dict = session.identity_map.get(instance.id).dict.items() if session.identity_map.get(instance.id) else {}
+        
+        change = {
+            'item_id': instance.id,
+            'operation_id': session.info.get("operation_id", None),
+            'operation': operation,
+            'last_modified': datetime.datetime.now(tz=timezone.utc).isoformat(),
+            'changes': str({key: changes[key] for key in set(changes) - set(old_state_dict) if key != '_sa_instance_state'}),
+            'table_name': instance.__tablename__
+        }
+
+        externalNotification = Sanitize_Datetime(change)
+
+        externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
+        
+        webhookResponse = requests.post(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders)
+        
+        if webhookResponse.status_code != 200:
+            DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
+            return False 
+    
+    return True
 
 
 def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
@@ -1054,6 +1099,7 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
             with disable_logging_listener():
                 try:
                     session.commit()
+                    handle_external_webhook(session)
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
@@ -1062,6 +1108,7 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
             session.info["operation_id"] = operation_id  # Pass the operation id
             try:
                 session.commit()
+                handle_external_webhook(session)
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
@@ -1090,6 +1137,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
             with disable_logging_listener():
                 try:
                     session.commit()
+                    handle_external_webhook(session)
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
@@ -1098,6 +1146,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
             session.info["operation_id"] = operation_id  # Pass the operation id
             try:
                 session.commit()
+                handle_external_webhook(session)
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
@@ -1126,6 +1175,7 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
             with disable_logging_listener():
                 try:
                     session.commit()
+                    handle_external_webhook(session)
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
@@ -1134,6 +1184,7 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
             session.info["operation_id"] = operation_id  # Pass the operation id
             try:
                 session.commit()
+                handle_external_webhook(session)
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
@@ -1565,7 +1616,7 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
         if type(serving_mme) == str:
             DBLogger.debug("Updating serving MME & Timestamp")
             result.serving_mme = serving_mme
-            result.serving_mme_timestamp = datetime.datetime.now()
+            result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
             result.serving_mme_realm = serving_mme_realm
             result.serving_mme_peer = serving_mme_peer
         else:
@@ -1610,7 +1661,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
             #Strip duplicate SIP prefix before storing
             serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
             result.scscf = serving_cscf
-            result.scscf_timestamp = datetime.datetime.now()
+            result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
         else:
             #Clear values
             DBLogger.debug("Clearing serving CSCF")
@@ -1667,7 +1718,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
                 'subscriber_id' : subscriber_id,
                 'pcrf_session_id' : str(pcrf_session_id),
                 'serving_pgw' : str(serving_pgw),
-                'serving_pgw_timestamp' : datetime.datetime.now(),
+                'serving_pgw_timestamp' : datetime.datetime.now(tz=timezone.utc),
                 'subscriber_routing' : str(subscriber_routing)
             }
 
@@ -1842,7 +1893,7 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         safe_close(session)     
         return 
     except Exception as E:
-        newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now())
+        newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now(tz=timezone.utc))
         session.add(newObj)
         try:
             with disable_logging_listener():
