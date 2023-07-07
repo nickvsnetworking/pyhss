@@ -23,6 +23,7 @@ import socket
 from contextlib import contextmanager
 sys.path.append(os.path.realpath('lib'))
 
+
 import yaml
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
@@ -293,6 +294,13 @@ if not database_exists(engine.url):
 else:
     DBLogger.debug("Database already created")
 
+def after_commit(session):
+    try:
+        handle_external_webhook(session)
+    except Exception as E:
+        DBLogger.error(f"Failure in the after_commit event handler, error: {E}")
+
+
 def safe_rollback(session):
     try:
         if session.is_active:
@@ -509,10 +517,12 @@ def log_changes_before_commit(session):
 @contextmanager
 def disable_logging_listener():
     event.remove(Session, 'before_commit', log_changes_before_commit)
+    event.remove(Session, 'after_commit', after_commit)
     try:
         yield
     finally:
         event.listen(Session, 'before_commit', log_changes_before_commit)
+        event.listen(Session, 'after_commit', after_commit)
 
 
 def get_class_by_tablename(base, tablename):
@@ -754,7 +764,7 @@ def rollback_change_by_operation_id(operation_id, existingSession=None):
 
 
 event.listen(Session, 'before_commit', log_changes_before_commit)
-
+event.listen(Session, 'after_commit', after_commit)
 
 def get_all_operation_logs(page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
     if not existingSession:
@@ -1098,17 +1108,16 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
         if disable_logging:
             with disable_logging_listener():
                 try:
+                    session.info["operation_id"] = operation_id
                     session.commit()
-                    handle_external_webhook(session)
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
                     raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id  # Pass the operation id
             try:
+                session.info["operation_id"] = operation_id
                 session.commit()
-                handle_external_webhook(session)
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
@@ -1136,17 +1145,16 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         if disable_logging:
             with disable_logging_listener():
                 try:
+                    session.info["operation_id"] = operation_id
                     session.commit()
-                    handle_external_webhook(session)
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
                     raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id  # Pass the operation id
             try:
+                session.info["operation_id"] = operation_id
                 session.commit()
-                handle_external_webhook(session)
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
@@ -1174,17 +1182,16 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
         if disable_logging:
             with disable_logging_listener():
                 try:
+                    session.info["operation_id"] = operation_id
                     session.commit()
-                    handle_external_webhook(session)
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
                     raise ValueError(E)
         else:
-            session.info["operation_id"] = operation_id  # Pass the operation id
             try:
+                session.info["operation_id"] = operation_id
                 session.commit()
-                handle_external_webhook(session)
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
