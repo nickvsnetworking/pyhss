@@ -381,23 +381,20 @@ def handle_external_webhook(session, instance, operation):
     # Update old_state_dict line
     old_state_dict = (session.identity_map.get(instance_id).dict.items() 
                       if session.identity_map.get(instance_id) else {})
-    
-    # Update change dictionary
-    change = {
-        'item_id': instance_id,
-        'operation_id': session.info.get("operation_id", None),
-        'operation': operation,
-        'last_modified': datetime.datetime.now(tz=timezone.utc).isoformat(),
-        'changes': str({key: changes[key] for key in set(changes) - set(old_state_dict) if key != '_sa_instance_state'}),
-        'table_name': instance.__tablename__
-    }
+
+    change = GetObj(type(instance), instance_id)
 
     externalNotification = Sanitize_Datetime(change)
 
     externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
     
     try:
-        webhookResponse = requests.post(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+        if operation == 'UPDATE':
+            webhookResponse = requests.patch(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+        elif operation == 'DELETE':
+            webhookResponse = requests.delete(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+        elif operation == 'CREATE':
+            webhookResponse = requests.put(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
     except requests.exceptions.Timeout:
         DBLogger.error(f"Timeout occurred when sending webhook to {external_webhook_notification_url}")
         return False
@@ -1137,8 +1134,8 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         if disable_logging:
             with disable_logging_listener():
                 try:
-                    session.commit()
                     handle_external_webhook(session, res, 'DELETE')
+                    session.commit()
                 except Exception as E:
                     DBLogger.error(f"Failed to commit session, error: {E}")
                     safe_rollback(session)
@@ -1146,8 +1143,8 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         else:
             session.info["operation_id"] = operation_id  # Pass the operation id
             try:
-                session.commit()
                 handle_external_webhook(session, res, 'DELETE')
+                session.commit()
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
