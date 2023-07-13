@@ -1161,6 +1161,53 @@ class PyHSS_OAM_Reconcile_IMS(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>')
+class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
+    def get(self, imsi):
+        '''Get PCRF Data for a Subscriber'''
+        try:
+            #ToDo - Move the mapping an APN name to an APN ID for a sub into the Database functions
+            serving_sub_final = {}
+            serving_sub_final['subscriber_data'] = {}
+            serving_sub_final['apns'] = {}
+
+            #Resolve Subscriber ID
+            subscriber_data = database.Get_Subscriber(imsi=str(imsi))
+            print("subscriber_data: " + str(subscriber_data))
+            serving_sub_final['subscriber_data'] = database.Sanitize_Datetime(subscriber_data)
+
+            #Split the APN list into a list
+            apn_list = subscriber_data['apn_list'].split(',')
+            print("Current APN List: " + str(apn_list))
+            #Remove the default APN from the list
+            try:
+                apn_list.remove(str(subscriber_data['default_apn']))
+            except:
+                print("Failed to remove default APN (" + str(subscriber_data['default_apn']) + " from APN List")
+                pass
+            
+            #Add default APN in first position
+            apn_list.insert(0, str(subscriber_data['default_apn']))
+
+            #Get APN ID from APN
+            for list_apn_id in apn_list:
+                print("Getting APN ID " + str(list_apn_id))
+                apn_data = database.Get_APN(list_apn_id)
+                print(apn_data)
+                try:
+                    serving_sub_final['apns'][str(apn_data['apn'])] = {}
+                    serving_sub_final['apns'][str(apn_data['apn'])] = database.Sanitize_Datetime(database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=list_apn_id))
+                except:
+                    serving_sub_final['apns'][str(apn_data['apn'])] = {}
+                    print("Failed to get Serving APN for APN ID " + str(list_apn_id))
+
+            print("Got back: " + str(serving_sub_final))
+            return serving_sub_final, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            
+            return handle_exception(E)
+
 
 @ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>/<string:apn_id>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
