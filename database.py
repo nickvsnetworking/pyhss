@@ -365,6 +365,26 @@ def update_old_record(session, operation_log):
     else:
         raise ValueError("Unable to find record to update")
 
+def notify_webhook(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders):
+    try:
+        if operation == 'UPDATE':
+            webhookResponse = requests.patch(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+        elif operation == 'DELETE':
+            webhookResponse = requests.delete(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+        elif operation == 'CREATE':
+            webhookResponse = requests.put(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
+    except requests.exceptions.Timeout:
+        DBLogger.error(f"Timeout occurred when sending webhook to {external_webhook_notification_url}")
+        return False
+    except requests.exceptions.RequestException as e:
+        DBLogger.error(f"Request exception when sending webhook to {external_webhook_notification_url}")
+        return False
+
+    if webhookResponse.status_code != 200:
+        DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
+        return False
+    return True
+
 def handle_external_webhook(session, instance, operation):
     external_webhook_notification_enabled = yaml_config.get('external', {}).get('external_webhook_notification_enabled', False)
     external_webhook_notification_url = yaml_config.get('external', {}).get('external_webhook_notification_url', '')
@@ -385,26 +405,7 @@ def handle_external_webhook(session, instance, operation):
 
     # Using separate thread to process webhook
     threading.Thread(target=notify_webhook, args=(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders), daemon=True).start()
-
-def notify_webhook(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders):
-    try:
-        if operation == 'UPDATE':
-            webhookResponse = requests.patch(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
-        elif operation == 'DELETE':
-            webhookResponse = requests.delete(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
-        elif operation == 'CREATE':
-            webhookResponse = requests.put(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
-    except requests.exceptions.Timeout:
-        DBLogger.error(f"Timeout occurred when sending webhook to {external_webhook_notification_url}")
-        return False
-    except requests.exceptions.RequestException as e:
-        DBLogger.error(f"Request exception when sending webhook to {external_webhook_notification_url}")
-        return False
-
-    if webhookResponse.status_code != 200:
-        DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
-        return False 
-
+    return True
 
 def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
     # We don't want to log rollback operations
