@@ -372,22 +372,21 @@ def handle_external_webhook(session, instance, operation):
         return False
     if not external_webhook_notification_url:
         DBLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
-        
+
     changes = instance.__dict__
     id_attribute = f"{instance.__tablename__}_id"
     if hasattr(instance, id_attribute):
         instance_id = getattr(instance, id_attribute)
 
-    # Update old_state_dict line
-    old_state_dict = (session.identity_map.get(instance_id).dict.items() 
-                      if session.identity_map.get(instance_id) else {})
-
+    old_state_dict = (session.identity_map.get(instance_id).dict.items() if session.identity_map.get(instance_id) else {})
     change = GetObj(type(instance), instance_id)
-
     externalNotification = Sanitize_Datetime(change)
-
     externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
-    
+
+    # Using separate thread to process webhook
+    threading.Thread(target=notify_webhook, args=(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders), daemon=True).start()
+
+def notify_webhook(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders):
     try:
         if operation == 'UPDATE':
             webhookResponse = requests.patch(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
@@ -401,12 +400,10 @@ def handle_external_webhook(session, instance, operation):
     except requests.exceptions.RequestException as e:
         DBLogger.error(f"Request exception when sending webhook to {external_webhook_notification_url}")
         return False
-    
+
     if webhookResponse.status_code != 200:
         DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
         return False 
-    
-    return True
 
 
 def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
