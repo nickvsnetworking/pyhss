@@ -30,7 +30,12 @@ with open("config.yaml", 'r') as stream:
 #engine = create_engine('sqlite:///sales.db', echo = True)
 db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
 print(db_string)
-engine = create_engine(db_string, echo = True, pool_recycle=5)
+engine = create_engine(
+    db_string, 
+    echo = yaml_config['logging'].get('sqlalchemy_sql_echo', True), 
+    pool_recycle=yaml_config['logging'].get('sqlalchemy_pool_recycle', 5),
+    pool_size=yaml_config['logging'].get('sqlalchemy_pool_size', 30),
+    max_overflow=yaml_config['logging'].get('sqlalchemy_max_overflow', 0))
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
@@ -48,8 +53,12 @@ from construct import Default
 sys.path.append(os.path.realpath('lib'))
 import S6a_crypt
 import requests
-from requests.exceptions import Timeout
+from requests.exceptions import ConnectionError, Timeout
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import time
 import threading
+
 
 class OPERATION_LOG_BASE(Base):
     __tablename__ = 'operation_log'
@@ -292,6 +301,48 @@ if not database_exists(engine.url):
     Base.metadata.create_all(engine)
 else:
     DBLogger.debug("Database already created")
+
+def load_IMEI_database_into_Redis():
+    try:
+        DBLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
+        csvfile = open(str(yaml_config['eir']['tac_database_csv']))
+        DBLogger.info("This may take a few seconds to buffer into Redis...")
+    except:
+        DBLogger.error("Failed to read CSV file of IMEI TAC database")
+        return
+    try:
+        count = 0
+        for line in csvfile:
+            line = line.replace('"', '')        #Strip excess invered commas
+            line = line.replace("'", '')        #Strip excess invered commas
+            line = line.rstrip()                #Strip newlines
+            result = line.split(',')
+            tac_prefix = result[0]
+            name = result[1].lstrip()
+            model = result[2].lstrip()
+            if count == 0:
+                DBLogger.info("Checking to see if entries are already present...")
+                #DBLogger.info("Searching Redis for key " + str(tac_prefix) + " to see if data already provisioned")
+                redis_imei_result = logtool.RedisHMGET(key=str(tac_prefix))
+                if len(redis_imei_result) != 0:
+                    DBLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
+                    break
+                else:
+                    DBLogger.info("No data loaded into Redis, proceeding to load...")
+            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+            logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
+            count = count +1
+        DBLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
+    except Exception as E:
+        DBLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
+        return
+
+#Load IMEI TAC database into Redis if enabled
+if ('tac_database_csv' in yaml_config['eir']) and (yaml_config['redis']['enabled'] == True):
+    load_IMEI_database_into_Redis()
+else:
+    DBLogger.info("Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config")
+
 
 def safe_rollback(session):
     try:
@@ -859,62 +910,92 @@ def get_last_operation_log(existingSession=None):
 
 
 
-
-def GeoRed_Push_Request(remote_hss, json_data, url=None):
-    headers = {"Content-Type": "application/json"}
-    DBLogger.debug("Pushing update to remote PyHSS " + str(remote_hss) + " with JSON body: " + str(json_data))
+def GeoRed_Push_Request(remote_hss, json_data, transaction_id, url=None):
+    headers = {"Content-Type": "application/json", "Transaction-Id": str(transaction_id)}
+    DBLogger.debug("transaction_id: " + str(transaction_id) + " pushing update to " + str(remote_hss).replace('http://', ''))
     try:
+        session = requests.Session()
+        # Create a Retry object with desired parameters
+        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+
+        # Create an HTTPAdapter and pass the Retry object
+        adapter = HTTPAdapter(max_retries=retries)
+
+        session.mount('http://', adapter)
         if url == None:
             endpoint = 'geored'
-            r = requests.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
+            r = session.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
         else:
             endpoint = url.split('/', 1)[0]
-            r = requests.patch(url, data=json.dumps(json_data), headers=headers)
-        DBLogger.debug("Updated on " + str(remote_hss) + " with status code " + str(r.status_code))
+            r = session.patch(url, data=json.dumps(json_data), headers=headers)
+        DBLogger.debug("transaction_id: " + str(transaction_id) + " updated on " + str(remote_hss).replace('http://', '') + " with status code " + str(r.status_code))
         if str(r.status_code).startswith('2'):
             prom_http_geored.labels(
-                geored_host=str(remote_hss),
+                geored_host=str(remote_hss).replace('http://', ''),
                 endpoint=endpoint,
                 http_response_code=str(r.status_code),
                 error=""
             ).inc()
         else:
             prom_http_geored.labels(
-                geored_host=str(remote_hss),
+                geored_host=str(remote_hss).replace('http://', ''),
                 endpoint=endpoint,
                 http_response_code=str(r.status_code),
                 error=str(r.reason)
             ).inc()
-    except requests.exceptions.RequestException as E:  # This is the correct syntax
-        DBLogger.error("Failed to push data to remote PyHSS instance at " + str(remote_hss))
-        DBLogger.error(E)
-        try:
-            status_code = r.status_code
-        except:
-            status_code = '000'
-        try:
+    except ConnectionError as e:
+        error_message = str(e)
+        if "Name or service not known" in error_message:
+            DBLogger.error("transaction_id: " + str(transaction_id) + " name or service not known")
             prom_http_geored.labels(
-                geored_host=str(remote_hss),
+                geored_host=str(remote_hss).replace('http://', ''),
                 endpoint=endpoint,
-                http_response_code=str(status_code),
-                error=str(E)
+                http_response_code='000',
+                error="No matching DNS entry found"
             ).inc()
-        except Exception as E:
-            DBLogger.error("Failed to update Prometheus: ")
-            DBLogger.error(E) 
+        else:
+            print("Other ConnectionError:", error_message)
+            DBLogger.error("transaction_id: " + str(transaction_id) + " " + str(error_message))
+            prom_http_geored.labels(
+                geored_host=str(remote_hss).replace('http://', ''),
+                endpoint=endpoint,
+                http_response_code='000',
+                error="Connection Refused"
+            ).inc()
+    except Timeout:
+        DBLogger.error("transaction_id: " + str(transaction_id) + " timed out connecting to peer " + str(remote_hss).replace('http://', ''))
+        prom_http_geored.labels(
+                geored_host=str(remote_hss).replace('http://', ''),
+                endpoint=endpoint,
+                http_response_code='000',
+                error="Timeout"
+            ).inc()
+    except Exception as e:
+        DBLogger.error("transaction_id: " + str(transaction_id) + " unexpected error " + str(e) + " when connecting to peer " + str(remote_hss).replace('http://', ''))
+        prom_http_geored.labels(
+                geored_host=str(remote_hss).replace('http://', ''),
+                endpoint=endpoint,
+                http_response_code='000',
+                error=str(e)
+            ).inc()
+
+
 
 def GeoRed_Push_Async(json_data):
     try:
         if yaml_config['geored']['enabled'] == True:
             if yaml_config['geored']['sync_endpoints'] is not None and len(yaml_config['geored']['sync_endpoints']) > 0:
+                transaction_id = str(uuid.uuid4())
+                DBLogger.info("Pushing out data to GeoRed peers with transaction_id " + str(transaction_id) + " and JSON body: " + str(json_data))
                 for remote_hss in yaml_config['geored']['sync_endpoints']:
-                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data))
+                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data, transaction_id))
                     GeoRed_Push_thread.start()
     except Exception as E:
         DBLogger.debug("Failed to push Async jobs due to error: " + str(E))
 
 def Webhook_Push_Async(target, json_data):
-        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data))
+        transaction_id = str(uuid.uuid4())
+        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data, transaction_id))
         Webook_Push_thread.start()
 
 def Sanitize_Datetime(result):
@@ -1603,7 +1684,8 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
                     }
                     
                     DBLogger.debug("Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data))
-                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, URL))
+                    transaction_id = str(uuid.uuid4())
+                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, transaction_id, URL))
                     GeoRed_Push_thread.start()
             else:
                 #No currently serving MME - No action to take
@@ -1645,24 +1727,30 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
         safe_close(session)
 
 
-def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
-    DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf))
+def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
+    DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer))
     Session = sessionmaker(bind = engine)
     session = Session()
 
     try:
         result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
-        if type(serving_cscf) == str:
+        try:
+            assert(type(serving_cscf) == str)
+            assert(len(serving_cscf) > 0)
             DBLogger.debug("Setting serving CSCF")
             #Strip duplicate SIP prefix before storing
             serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
             result.scscf = serving_cscf
             result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
-        else:
+            result.scscf_realm = scscf_realm
+            result.scscf_peer = str(scscf_peer)
+        except:
             #Clear values
             DBLogger.debug("Clearing serving CSCF")
             result.scscf = None
             result.scscf_timestamp = None
+            result.scscf_realm = None
+            result.scscf_peer = None
 
         with disable_logging_listener():
             session.commit()
@@ -1671,7 +1759,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         if propagate == True:
             if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
                 DBLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
-                GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf})
+                GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
             else:
                 DBLogger.debug("Config does not allow sync of IMS events")
     except Exception as E:
@@ -1682,8 +1770,10 @@ def Update_Serving_CSCF(imsi, serving_cscf, propagate=True):
         safe_close(session)
 
 
-def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, propagate=True):
-    DBLogger.debug("Called Update_Serving_APN()")
+def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
+    DBLogger.debug("Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn))
+    DBLogger.debug("PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing))
+    DBLogger.debug("Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer))
     DBLogger.debug("subscriber_routing: " + str(subscriber_routing))
 
     #Get Subscriber ID from IMSI
@@ -1709,46 +1799,56 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
         DBLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
             DBLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
-            json_data = {
-                'apn' : apn_id,
-                'subscriber_id' : subscriber_id,
-                'pcrf_session_id' : str(pcrf_session_id),
-                'serving_pgw' : str(serving_pgw),
-                'serving_pgw_timestamp' : datetime.datetime.now(tz=timezone.utc),
-                'subscriber_routing' : str(subscriber_routing)
-            }
+            break
+    DBLogger.debug("APN ID is " + str(apn_id))
 
-            try:
-            #Check if already a serving APN on record
-                ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
-                DBLogger.debug("Existing Serving APN ID on record, updating")
-                if type(serving_pgw) == str:
-                    UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
-                else:
-                    DBLogger.debug("Clearing PCRF session ID")
-                    DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
-            except Exception as E:
-                DBLogger.info("Failed to update existing APN " + str(E))
-                #Create if does not exist
-                CreateObj(SERVING_APN, json_data, True)
+    json_data = {
+        'apn' : apn_id,
+        'subscriber_id' : subscriber_id,
+        'pcrf_session_id' : str(pcrf_session_id),
+        'serving_pgw' : str(serving_pgw),
+        'serving_pgw_realm' : str(serving_pgw_realm),
+        'serving_pgw_peer' : str(serving_pgw_peer),
+        'serving_pgw_timestamp' : datetime.datetime.now(tz=timezone.utc),
+        'subscriber_routing' : str(subscriber_routing)
+    }
 
-            #Sync state change with geored
-            if propagate == True:
-                try:
-                    if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                        DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
-                        GeoRed_Push_Async({"imsi": str(imsi),
-                                        'pcrf_session_id': str(pcrf_session_id),
-                                        'serving_pgw': str(serving_pgw),
-                                        'subscriber_routing': str(subscriber_routing)
-                                        })
-                    else:
-                        DBLogger.debug("Config does not allow sync of PCRF events")
-                except Exception as E:
-                    DBLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
+    try:
+    #Check if already a serving APN on record
+        DBLogger.debug("Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id))
+        ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
+        DBLogger.debug("Existing Serving APN ID on record, updating")
+        try:
+            assert(type(serving_pgw) == str)
+            assert(len(serving_pgw) > 0)
+            UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
+        except:
+            DBLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
+            DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
+    except Exception as E:
+        DBLogger.info("Failed to update existing APN " + str(E))
+        #Create if does not exist
+        CreateObj(SERVING_APN, json_data, True)
+
+    #Sync state change with geored
+    if propagate == True:
+        try:
+            if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
+                DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
+                GeoRed_Push_Async({"imsi": str(imsi),
+                                'pcrf_session_id': str(pcrf_session_id),
+                                'serving_pgw': str(serving_pgw),
+                                'serving_pgw_realm': str(serving_pgw_realm),
+                                'serving_pgw_peer': str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
+                                'subscriber_routing': str(subscriber_routing)
+                                })
+            else:
+                DBLogger.debug("Config does not allow sync of PCRF events")
+        except Exception as E:
+            DBLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
 
 
-            return
+        return
 
 def Get_Serving_APN(subscriber_id, apn_id):
     DBLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
@@ -1756,7 +1856,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
     session = Session()
 
     try:
-        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).one()
+        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).first()
     except Exception as E:
         DBLogger.debug(E)
         safe_close(session)
@@ -1902,13 +2002,34 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         safe_close(session)
         DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
 
-        try:
-            dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
-            Webhook_Push_Async(str(yaml_config['eir']['sim_swap_notify_webhook']), json_data=dictToSend)
-        except Exception as E:
-            DBLogger.debug("Failed to post to Webhook")
-            DBLogger.debug(str(E))
+        if 'sim_swap_notify_webhook' in yaml_config['eir']:
+            DBLogger.debug("Sending SIM Swap notification to Webhook")
+            try:
+                dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
+                Webhook_Push_Async(str(yaml_config['eir']['sim_swap_notify_webhook']), json_data=dictToSend)
+            except Exception as E:
+                DBLogger.debug("Failed to post to Webhook")
+                DBLogger.debug(str(E))
 
+        #Lookup Device Info
+        if 'tac_database_csv' in yaml_config['eir']:
+            try:
+                device_info = get_device_info_from_TAC(imei=str(imei))
+                DBLogger.debug("Got Device Info: " + str(device_info))
+                prom_eir_devices.labels(
+                    imei_prefix=device_info['tac_prefix'],
+                    device_type=device_info['name'], 
+                    device_name=device_info['model']
+                ).inc()
+            except Exception as E:
+                DBLogger.debug("Failed to get device info from TAC")
+                prom_eir_devices.labels(
+                    imei_prefix=str(imei)[0:8],
+                    device_type='Unknown', 
+                    device_name='Unknown'
+                ).inc()
+        else:
+            DBLogger.debug("No TAC database configured, skipping device info lookup")
 
         #Sync state change with geored
         if propagate == True:
@@ -2042,6 +2163,40 @@ def Get_EIR_Rules():
     safe_close(session)
     return EIR_Rules 
 
+
+def dict_bytes_to_dict_string(dict_bytes):
+    dict_string = {}
+    for key, value in dict_bytes.items():
+        dict_string[key.decode()] = value.decode()
+    return dict_string
+
+
+def get_device_info_from_TAC(imei):
+    DBLogger.debug("Getting Device Info from IMEI: " + str(imei))
+    #Try 8 digit TAC
+    try:
+        DBLogger.debug("Trying to match on 8 Digit IMEI")
+        imei_result = logtool.RedisHMGET(str(imei[0:8]))
+        print("Got back: " + str(imei_result))
+        imei_result = dict_bytes_to_dict_string(imei_result)
+        assert(len(imei_result) != 0)
+        DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        return imei_result
+    except:
+        DBLogger.debug("Failed to match on 8 digit IMEI")
+    
+    try:
+        DBLogger.debug("Trying to match on 6 Digit IMEI")
+        imei_result = logtool.RedisHMGET(str(imei[0:6]))
+        print("Got back: " + str(imei_result))
+        imei_result = dict_bytes_to_dict_string(imei_result)
+        assert(len(imei_result) != 0)
+        DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        return imei_result
+    except:
+        DBLogger.debug("Failed to match on 6 digit IMEI")
+
+    raise ValueError("No matching TAC in IMEI Database")
 
 if __name__ == "__main__":
     import binascii,os,pprint

@@ -10,8 +10,6 @@ import sqlalchemy
 import socket
 
 
-app = Flask(__name__)
-
 import logging
 import yaml
 
@@ -25,7 +23,15 @@ sys.path.append(os.path.realpath('lib'))
 #Setup Logging
 import logtool
 
+
 import database
+
+from prometheus_flask_exporter import PrometheusMetrics
+app = Flask(__name__)
+metrics = PrometheusMetrics.for_app_factory()
+metrics.init_app(app)
+from logtool import prom_flask_http_geored_endpoints
+
 APN = database.APN
 Serving_APN = database.SERVING_APN
 AUC = database.AUC
@@ -125,12 +131,18 @@ GeoRed_model = api.model('GeoRed', {
     'serving_mme': fields.String(description=SUBSCRIBER.serving_mme.doc),
     'serving_mme_realm': fields.String(description=SUBSCRIBER.serving_mme_realm.doc),
     'serving_mme_peer': fields.String(description=SUBSCRIBER.serving_mme_peer.doc),
+    'serving_mme_timestamp' : fields.String(description=SUBSCRIBER.serving_mme_timestamp.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
     'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
     'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
+    'serving_pgw_realm' : fields.String(description=Serving_APN.serving_pgw_realm.doc),
+    'serving_pgw_peer' : fields.String(description=Serving_APN.serving_pgw_peer.doc),
     'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.doc),
     'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.doc),
+    'scscf_realm' : fields.String(description=IMS_SUBSCRIBER.scscf_realm.doc),
+    'scscf_peer' : fields.String(description=IMS_SUBSCRIBER.scscf_peer.doc),
+    'scscf_timestamp' : fields.String(description=IMS_SUBSCRIBER.scscf_timestamp.doc),
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
 })
@@ -164,12 +176,12 @@ def auth_required(f):
         if getattr(f, 'no_auth_required', False) or (lock_provisioning == False):
             return f(*args, **kwargs)
         if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
-            return {'Result': 'Unauthorized'}, 401
+            return {'Result': 'Unauthorized - Provisioning-Key Invalid'}, 401
         return f(*args, **kwargs)
     return decorated_function
 
 def auth_before_request():
-    if request.path.startswith('/docs') or request.path.startswith('/swagger'):
+    if request.path.startswith('/docs') or request.path.startswith('/swagger') or request.path.startswith('/metrics'):
         return None
     if request.endpoint and 'static' not in request.endpoint:
         view_function = app.view_functions[request.endpoint]
@@ -187,7 +199,7 @@ def auth_before_request():
                     return None
 
         if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
-            return {'Result': 'Unauthorized'}, 401
+            return {'Result': 'Unauthorized - Provisioning-Key Invalid'}, 401
     return None
 
 def handle_exception(e):
@@ -205,6 +217,9 @@ def handle_exception(e):
         if "IntegrityError" in error_message:
             response_json['reason'] = f'A database integrity error occurred: {e}'
             return response_json, 400
+        if "CSV file does not exist" in error_message:
+            response_json['reason'] = f'EIR CSV file is not defined / does not exist'
+            return response_json, 410
     else:
         response_json['reason'] = f'An internal server error occurred: {e}'
         logging.error(f'{traceback.format_exc()}')
@@ -845,7 +860,12 @@ class PyHSS_EIR_HISTORY(Resource):
         '''Get history for IMSI or IMEI'''
         try:
             data = database.Get_IMEI_IMSI_History(attribute=attribute)
-            return data, 200
+            #Add device info for each entry
+            data_w_device_info = []
+            for record in data:
+                record['imei_result'] = database.get_device_info_from_TAC(imei=str(record['imei']))
+                data_w_device_info.append(record)
+            return data_w_device_info, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
@@ -889,6 +909,18 @@ class PyHSS_EIR_All(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E)
+
+@ns_eir.route('/lookup_imei/<string:imei>')
+class PyHSS_EIR_TAC(Resource):
+    def get(self, imei):
+        '''Get Device Info from IMEI'''
+        try:
+            data = database.get_device_info_from_TAC(imei=imei)
+            return (data), 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
 
 @ns_subscriber_attributes.route('/list')
 class PyHSS_Subscriber_Attributes_All(Resource):
@@ -1083,6 +1115,100 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_oam.route('/reconcile/ims/<string:imsi>')
+class PyHSS_OAM_Reconcile_IMS(Resource):
+    def get(self, imsi):
+        '''Get current location of IMS Subscriber from all linked HSS nodes'''
+        response_dict = {}
+        import requests
+        try:
+            #Get local database result
+            local_result = database.Get_IMS_Subscriber(imsi=imsi)
+            response_dict['localhost'] = {}
+            for keys in local_result:
+                if 'cscf' in keys:
+                    response_dict['localhost'][keys] = local_result[keys]
+
+            for remote_HSS in yaml_config['geored']['sync_endpoints']:
+                print("Pulling data from remote HSS: " + str(remote_HSS))
+                try:
+                    response = requests.get(remote_HSS + '/ims_subscriber/ims_subscriber_imsi/' + str(imsi))
+                    response_dict[remote_HSS] = {}
+                    for keys in response.json():
+                        if 'cscf' in keys:
+                            response_dict[remote_HSS][keys] = response.json()[keys]
+                except Exception as E:
+                    print("Exception pulling from " + str(remote_HSS) + " " + str(E))
+                    response_dict[remote_HSS] = str(E)
+            mismatch_list = []
+            #Compare to check they all agree
+            for remote_HSS in response_dict:
+                for comparitor_hss in response_dict:
+                    try:
+                        if (response_dict[remote_HSS]['scscf'] != response_dict[comparitor_hss]['scscf']):
+                            print("\t Mismatch between " + str(remote_HSS) + " and " + str(comparitor_hss))
+                            mismatch_record = {
+                                str(remote_HSS) : response_dict[remote_HSS]['scscf'],
+                                str(comparitor_hss) : response_dict[comparitor_hss]['scscf'],
+                                }
+                            mismatch_list.append(mismatch_record)
+                    except:
+                        continue
+            print("mismatch_list: " + str(mismatch_list))
+            response_dict['mismatches'] = mismatch_list
+            return response_dict, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>')
+class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
+    def get(self, imsi):
+        '''Get PCRF Data for a Subscriber'''
+        try:
+            #ToDo - Move the mapping an APN name to an APN ID for a sub into the Database functions
+            serving_sub_final = {}
+            serving_sub_final['subscriber_data'] = {}
+            serving_sub_final['apns'] = {}
+
+            #Resolve Subscriber ID
+            subscriber_data = database.Get_Subscriber(imsi=str(imsi))
+            print("subscriber_data: " + str(subscriber_data))
+            serving_sub_final['subscriber_data'] = database.Sanitize_Datetime(subscriber_data)
+
+            #Split the APN list into a list
+            apn_list = subscriber_data['apn_list'].split(',')
+            print("Current APN List: " + str(apn_list))
+            #Remove the default APN from the list
+            try:
+                apn_list.remove(str(subscriber_data['default_apn']))
+            except:
+                print("Failed to remove default APN (" + str(subscriber_data['default_apn']) + " from APN List")
+                pass
+            
+            #Add default APN in first position
+            apn_list.insert(0, str(subscriber_data['default_apn']))
+
+            #Get APN ID from APN
+            for list_apn_id in apn_list:
+                print("Getting APN ID " + str(list_apn_id))
+                apn_data = database.Get_APN(list_apn_id)
+                print(apn_data)
+                try:
+                    serving_sub_final['apns'][str(apn_data['apn'])] = {}
+                    serving_sub_final['apns'][str(apn_data['apn'])] = database.Sanitize_Datetime(database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=list_apn_id))
+                except:
+                    serving_sub_final['apns'][str(apn_data['apn'])] = {}
+                    print("Failed to get Serving APN for APN ID " + str(list_apn_id))
+
+            print("Got back: " + str(serving_sub_final))
+            return serving_sub_final, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            
+            return handle_exception(E)
+
+
 @ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>/<string:apn_id>')
 class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
     def get(self, imsi, apn_id):
@@ -1184,9 +1310,12 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
             return handle_exception(E)
 
 @ns_geored.route('/')
+
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
     @ns_geored.expect(GeoRed_model)
+    # @metrics.counter('flask_http_geored_pushes', 'Count of GeoRed Pushes to this API',
+    #      labels={'status': lambda r: r.status_code, 'source_endpoint': lambda r: r.remote_addr})
     @no_auth_required
     def patch(self):
         '''Get Geored data Pushed'''
@@ -1198,15 +1327,35 @@ class PyHSS_Geored(Resource):
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
                 response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='HSS', geored_host=request.remote_addr).inc()
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
-                response_data.append(database.Update_Serving_APN(str(json_data['imsi']), json_data['serving_apn'], json_data['pcrf_session_id'], json_data['serving_pgw'], json_data['subscriber_routing'], propagate=False))
+                if 'serving_pgw_realm' not in json_data:
+                    json_data['serving_pgw_realm'] = None
+                if 'serving_pgw_peer' not in json_data:
+                    json_data['serving_pgw_peer'] = None
+                response_data.append(database.Update_Serving_APN(
+                    imsi=str(json_data['imsi']), 
+                    apn=json_data['serving_apn'],
+                    pcrf_session_id=json_data['pcrf_session_id'],
+                    serving_pgw=json_data['serving_pgw'],
+                    subscriber_routing=json_data['subscriber_routing'],
+                    serving_pgw_realm=json_data['serving_pgw_realm'],
+                    serving_pgw_peer=json_data['serving_pgw_peer'],
+                    propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='PCRF', geored_host=request.remote_addr).inc()
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
-                response_data.append(database.Update_Serving_CSCF(str(json_data['imsi']), json_data['scscf'], propagate=False))
+                if 'scscf_realm' not in json_data:
+                    json_data['scscf_realm'] = None
+                if 'scscf_peer' not in json_data:
+                    json_data['scscf_peer'] = None
+                response_data.append(database.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='IMS', geored_host=request.remote_addr).inc()
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
+                prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
@@ -1216,7 +1365,10 @@ class PyHSS_Geored(Resource):
     def get(self):
         '''Return the active geored schema'''
         try:
-            return Geored_schema, 200
+            geored_model_json = {}
+            for key in GeoRed_model:
+                geored_model_json[key] = 'string'
+            return geored_model_json, 200
         except Exception as E:
             print("Exception when returning geored schema: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
@@ -1251,5 +1403,5 @@ class PyHSS_Push_CLR(Resource):
         return diam_hex, 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
 

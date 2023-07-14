@@ -42,9 +42,13 @@ prom_diam_response_time_diam = Histogram('prom_diam_response_time_diam', 'Diamet
 prom_diam_response_time_method = Histogram('prom_diam_response_time_method', 'Diameter Response Times', tags)
 prom_diam_response_time_db = Summary('prom_diam_response_time_db', 'Diameter Response Times from Database')
 prom_diam_response_time_h = Histogram('request_latency_seconds', 'Diameter Response Time Histogram')
+prom_diam_auth_event_count = Counter('prom_diam_auth_event_count', 'Diameter Authentication related Counters', ['diameter_application_id', 'diameter_cmd_code', 'event', 'imsi_prefix'])
+prom_diam_eir_event_count = Counter('prom_diam_eir_event_count', 'Diameter EIR event related Counters', ['response'])
+
+prom_eir_devices = Counter('prom_eir_devices', 'Profile of attached devices', ['imei_prefix', 'device_type', 'device_name'])
 
 prom_http_geored = Counter('prom_http_geored', 'Number of Geored Pushes', ['geored_host', 'endpoint', 'http_response_code', 'error'])
-
+prom_flask_http_geored_endpoints = Counter('prom_flask_http_geored_endpoints', 'Number of Geored Pushes Received', ['geored_host', 'endpoint'])
 
 class LogTool:
     def __init__(self, **kwargs):
@@ -59,8 +63,8 @@ class LogTool:
                     print("Called Init for HSS_Init")
                     redis_store.incr('restart_count')
                     if yaml_config['redis']['clear_stats_on_boot'] == True:
-                        logging.debug("Clearing all Redis keys")
-                        redis_store.flushall()
+                        logging.debug("Clearing ActivePeerDict")
+                        redis_store.delete('ActivePeerDict')
                     else:
                         logging.debug("Leaving prexisting Redis keys")
                     #Clear ActivePeerDict

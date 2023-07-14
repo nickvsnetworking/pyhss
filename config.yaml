@@ -76,6 +76,7 @@ eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
   sim_swap_notify_webhook:  http://localhost:5000/webhooks/sim_swap_notify/
   no_match_response: 2       #Greylist
+  tac_database_csv: '/etc/pyhss/tac_database_Nov2022.csv'
 
 logging:
   level: DEBUG
@@ -83,7 +84,11 @@ logging:
     hss_logging_file: log/hss.log
     diameter_logging_file: log/diameter.log
     database_logging_file: log/db.log
-  log_to_terminal: true
+  log_to_terminal: True
+  sqlalchemy_sql_echo: True
+  sqlalchemy_pool_recycle: 15
+  sqlalchemy_pool_size: 30
+  sqlalchemy_max_overflow: 0
 
 ## Database Parameters
 database:
