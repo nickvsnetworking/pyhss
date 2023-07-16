@@ -1731,7 +1731,80 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
+
+    #3GPP Rx - AA Request
+    def Answer_16777236_265(self, packet_vars, avps):
+        avp = '' 
+        session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                   #Set session    ID to received session ID
+
+        avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))   #Auth-Application-ID Rx
+        avp += self.generate_avp(274, 40, "00000001")                                                   #Auth-Request-Type - AUTHENTICATE_ONLY
+        avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
+
+        #Get Subscriber info from Subscription ID
+        for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+            for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                DiameterLogger.debug("Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find SIP URI")
+                if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                    sip_uri = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                    imsi = sip_uri.split('@')[0]                                #Strip Domain to get User part
+                    imsi = imsi[4:]                                             #Strip tel: or sip: prefix
+                    DiameterLogger.debug("Requested IMSI " + str(imsi))
+
         
+        try:    
+                assert(imsi is not None)
+                DiameterLogger.debug("Getting susbcriber location based on IMSI")
+                subscriber_details = database.Get_Subscriber(imsi=imsi)
+                DiameterLogger.debug("Got subscriber_details from IMSI: " + str(subscriber_details))
+        except Exception as E:
+            DiameterLogger.error("No IMSI returned in Answer_16777236_265 input")
+            DiameterLogger.error("Error is " + str(E))
+            DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
+            response = self.generate_diameter_packet("01", "40", 265, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
+            return response
+       
+        DiameterLogger.info("Got subscriber_details for subscriber: " + str(subscriber_details))
+        subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+        DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
+
+        #Extract out Media Component Description AVPs
+        for MediaComponentDescription in self.get_avp_data(avps, 517)[0]:
+            DiameterLogger.info(
+                "Media Component Description: " + str(MediaComponentDescription))
+            if MediaComponentDescription['avp_code'] == 519:
+                DiameterLogger.info("Found TFTs to Copy")
+                tft_obj = MediaComponentDescription['misc_data']
+                DiameterLogger.info("TFTs to Copy: " + str(tft_obj))
+            elif MediaComponentDescription['avp_code'] == 512:
+                DiameterLogger.info("Found Flow Usage: " + str(MediaComponentDescription['misc_data']))
+                FlowUsage = MediaComponentDescription['misc_data']
+
+        DiameterLogger.info("Found TFTs to Copy: " + str(tft_obj))
+        if 'FlowUsage' in locals():
+            DiameterLogger.info("Found Flow Usage: " + str(FlowUsage))
+        else:
+            DiameterLogger.info("No FlowUsage AVP present")
+
+
+        #Push rule to PCRF
+        #ToDo - Action this
+
+        avp += self.generate_vendor_avp(1027, 'c0', 10415, self.int_to_hex(5, 4))                 #IP CAN Type (EPS)
+        avp += self.generate_vendor_avp(1032, 'c0', 10415, self.int_to_hex(1004, 4))              #RAT-Type (EUTRAN)
+
+        #Set Result-Code
+        result_code = 2001                                                                                                  #Diameter Success
+        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                  #Result Code - DIAMETER_SUCCESS
+
+        response = self.generate_diameter_packet("01", "40", 265, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+     
+
     #### Diameter Requests ####
 
     #Capabilities Exchange Request
@@ -2442,7 +2515,6 @@ class Diameter:
         "0000036ac00000d8000028af00000002c0000010000028af0000010400000003c0000010000028af00000000000004cbc0000012000028af00010a2d01050000000004ccc0000012000028af0001ac1212ca00000000034fc0000012000028af0001ac12120400000000001e40000010696e7465726e65740000000cc000000d000028af300000000000000dc0000010000028af3030303000000012c0000011000028af30303130310000000000000ac000000d000028af0100000000000016c0000019000028af8200f110000100f11000000017000000")
         response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
-
 
     #3GPP Sh - Profile Update Request
     def Request_16777217_307(self, msisdn):

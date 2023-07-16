@@ -619,6 +619,30 @@ class PyHSS:
                 )  # DIAMETER_USER_DATA_NOT_AVAILABLE
             self.logger.info("Generated S13 ME-Identity Check Answer")
 
+        # Rx AA Request
+        elif (
+            packet_vars["command_code"] == 265
+            and packet_vars["ApplicationId"] == 16777236
+        ):
+            self.logger.info(
+                f"Received Request with command code 265 (3GPP Rx AA Request) from {origin_host}"
+                + "\n\tGenerating (AAA)"
+            )
+            try:
+                response = diameter.Answer_16777236_265(
+                    packet_vars, avps
+                )  # Generate Diameter packet
+            except Exception as e:
+                self.logger.info(
+                    "Failed to generate Diameter Response for Rx AA Answer"
+                )
+                self.logger.info(e)
+                traceback.print_exc()
+                response = diameter.Respond_ResultCode(
+                    packet_vars, avps, 4100
+                )  # DIAMETER_USER_DATA_NOT_AVAILABLE
+            self.logger.info("Generated Rx AA Answer")
+
         # SLh LCS-Routing-Info-Answer
         elif (
             packet_vars["command_code"] == 8388622
