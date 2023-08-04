@@ -1458,7 +1458,8 @@ def Get_Subscriber_Attributes(subscriber_id):
     safe_close(session)
     return final_res
 
-def Get_Served_Subscribers():
+
+def Get_Served_Subscribers(get_local_users_only=False):
     DBLogger.debug("Getting all subscribers served by this HSS")
 
     Session = sessionmaker(bind = engine)
@@ -1472,8 +1473,28 @@ def Get_Served_Subscribers():
             DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
-            Served_Subs[result['imsi']] = result
-            DBLogger.debug("Processed result")
+
+            if get_local_users_only == True:
+                DBLogger.debug("Filtering to locally served IMS Subs only")
+                try:
+                    serving_hss = result['serving_mme_peer'].split(';')[1]
+                    DBLogger.debug("Serving HSS: " + str(serving_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
+                    if serving_hss == yaml_config['hss']['OriginHost']:
+                        DBLogger.debug("Serving HSS matches local HSS")
+                        Served_Subs[result['imsi']] = {}
+                        Served_Subs[result['imsi']] = result
+                        #DBLogger.debug("Processed result")
+                        continue
+                    else:
+                        DBLogger.debug("Sub is served by remote HSS: " + str(serving_hss))
+                except Exception as E:
+                    DBLogger.debug("Error in filtering Get_Served_Subscribers to local peer only: " + str(E))
+                    continue
+            else:
+                Served_Subs[result['imsi']] = result
+                DBLogger.debug("Processed result")
+
+
     except Exception as E:
         safe_close(session)
         raise ValueError(E)
@@ -1486,23 +1507,45 @@ def Get_Served_Subscribers():
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     safe_close(session)
-    return Served_Subs 
+    return Served_Subs
 
-def Get_Served_IMS_Subscribers():
+
+def Get_Served_IMS_Subscribers(get_local_users_only=False):
     DBLogger.debug("Getting all subscribers served by this IMS-HSS")
-    Session = sessionmaker(bind = engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
 
     Served_Subs = {}
     try:
-        results = session.query(IMS_SUBSCRIBER).filter(IMS_SUBSCRIBER.scscf.isnot(None))
+        
+        results = session.query(IMS_SUBSCRIBER).filter(
+            IMS_SUBSCRIBER.scscf.isnot(None))
         for result in results:
             result = result.__dict__
-            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
+            DBLogger.debug("Result: " + str(result) +
+                           " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
-            Served_Subs[result['imsi']] = result
-            DBLogger.debug("Processed result")
+            if get_local_users_only == True:
+                DBLogger.debug("Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only")
+                try:
+                    serving_ims_hss = result['scscf_peer'].split(';')[1]
+                    DBLogger.debug("Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
+                    if serving_ims_hss == yaml_config['hss']['OriginHost']:
+                        DBLogger.debug("Serving IMS-HSS matches local HSS for " + str(result['imsi']))
+                        Served_Subs[result['imsi']] = {}
+                        Served_Subs[result['imsi']] = result
+                        DBLogger.debug("Processed result")
+                        continue
+                    else:
+                        DBLogger.debug("Sub is served by remote IMS-HSS: " + str(serving_ims_hss))
+                except Exception as E:
+                    DBLogger.debug("Error in filtering to local peer only: " + str(E))
+                    continue
+            else:
+                Served_Subs[result['imsi']] = result
+                DBLogger.debug("Processed result")
+
     except Exception as E:
         safe_close(session)
         raise ValueError(E)
@@ -1515,12 +1558,13 @@ def Get_Served_IMS_Subscribers():
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     safe_close(session)
-    return Served_Subs 
+    return Served_Subs
 
-def Get_Served_PCRF_Subscribers():
+
+def Get_Served_PCRF_Subscribers(get_local_users_only=False):
     DBLogger.debug("Getting all subscribers served by this PCRF")
-    Session = sessionmaker(bind = engine)
-    session = Session()    
+    Session = sessionmaker(bind=engine)
+    session = Session()
     Served_Subs = {}
     try:
         results = session.query(SERVING_APN).all()
@@ -1529,17 +1573,34 @@ def Get_Served_PCRF_Subscribers():
             DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
-            #Get APN Info
+
+            if get_local_users_only == True:
+                DBLogger.debug("Filtering to locally served IMS Subs only")
+                try:
+                    serving_pcrf = result['serving_pgw_peer'].split(';')[1]
+                    DBLogger.debug("Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(yaml_config['hss']['OriginHost']))
+                    if serving_pcrf == yaml_config['hss']['OriginHost']:
+                        DBLogger.debug("Serving PCRF matches local PCRF")
+                        DBLogger.debug("Processed result")
+                        
+                    else:
+                        DBLogger.debug("Sub is served by remote PCRF: " + str(serving_pcrf))
+                        continue
+                except Exception as E:
+                    DBLogger.debug("Error in filtering Get_Served_PCRF_Subscribers to local peer only: " + str(E))
+                    continue
+
+            # Get APN Info
             apn_info = GetObj(APN, result['apn'])
-            DBLogger.debug("Got APN Info: " + str(apn_info))
+            #DBLogger.debug("Got APN Info: " + str(apn_info))
             result['apn_info'] = apn_info
-            
-            #Get Subscriber Info
+
+            # Get Subscriber Info
             subscriber_info = GetObj(SUBSCRIBER, result['subscriber_id'])
             result['subscriber_info'] = subscriber_info
-            
-            DBLogger.debug("Got Subscriber Info: " + str(subscriber_info))
-            
+
+            #DBLogger.debug("Got Subscriber Info: " + str(subscriber_info))
+
             Served_Subs[subscriber_info['imsi']] = result
             DBLogger.debug("Processed result")
     except Exception as E:
@@ -1550,10 +1611,10 @@ def Get_Served_PCRF_Subscribers():
         DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
-        raise ValueError(E)     
-    DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
+        raise ValueError(E)
+    #DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     safe_close(session)
-    return Served_Subs 
+    return Served_Subs
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
     DBLogger.debug("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))

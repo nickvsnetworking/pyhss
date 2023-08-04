@@ -77,6 +77,25 @@ class PyHSS:
             self.yaml_config["hss"].get("diameter_max_retries", 1)
         )
 
+
+
+        try:
+            assert(self.yaml_config['prometheus']['enabled'] == True)
+            assert(self.yaml_config['prometheus']['async_subscriber_count'] == True)
+
+            self.logger.info("Enabling Prometheus Async Sub thread")
+            #Add Prometheus Async Calls
+            prom_async_thread = threading.Thread(
+                target=self.prom_async_function,
+                name=f"prom_async_function",
+                args=(),
+            )
+            prom_async_thread.start()
+        except:
+            self.logger.info("Prometheus Async Sub Count thread disabled")
+
+
+
     def terminate_connection(self, clientsocket, client_address, thread_event):
         thread_event.set()
         clientsocket.close()
@@ -980,6 +999,13 @@ class PyHSS:
                 ),
             )
 
+
+    def prom_async_function(self):
+        while True:
+            self.logger.debug("Running prom_async_function")
+            self.diameter_instance.Generate_Prom_Stats()
+            time.sleep(120)
+        
 
 if __name__ == "__main__":
     pyHss = PyHSS()

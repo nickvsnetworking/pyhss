@@ -494,6 +494,24 @@ class Diameter:
         DiameterLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
         return ims_subscriber_details
 
+
+    def Generate_Prom_Stats(self):
+        DiameterLogger.debug("Called Generate_Prom_Stats")
+        try:
+            prom_ims_subs_value = len(database.Get_Served_IMS_Subscribers(get_local_users_only=True))
+            prom_ims_subs.set(prom_ims_subs_value)
+            prom_mme_subs_value = len(database.Get_Served_Subscribers(get_local_users_only=True))
+            prom_mme_subs.set(prom_mme_subs_value)
+            prom_pcrf_subs_value = len(database.Get_Served_PCRF_Subscribers(get_local_users_only=True))
+            prom_pcrf_subs.set(prom_pcrf_subs_value)
+        except Exception as e:
+            DiameterLogger.debug("Failed to generate Prometheus Stats for IMS Subscribers")
+            DiameterLogger.debug(e)
+        DiameterLogger.debug("Generated Prometheus Stats for IMS Subscribers")
+
+        return
+
+
     #### Diameter Answers ####
 
     #Capabilities Exchange Answer
@@ -619,6 +637,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
+        remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
         DiameterLogger.debug("Remote Peer is " + str(remote_peer))
 
         database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
