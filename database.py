@@ -1478,7 +1478,7 @@ def Get_Served_Subscribers(get_local_users_only=False):
                 DBLogger.debug("Filtering to locally served IMS Subs only")
                 try:
                     serving_hss = result['serving_mme_peer'].split(';')[1]
-                    DBLogger.debug("Serving HSS: " + str(serving_hss))
+                    DBLogger.debug("Serving HSS: " + str(serving_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
                     if serving_hss == yaml_config['hss']['OriginHost']:
                         DBLogger.debug("Serving HSS matches local HSS")
                         Served_Subs[result['imsi']] = {}
@@ -1530,7 +1530,7 @@ def Get_Served_IMS_Subscribers(get_local_users_only=False):
                 DBLogger.debug("Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only")
                 try:
                     serving_ims_hss = result['scscf_peer'].split(';')[1]
-                    DBLogger.debug("Serving IMS-HSS: " + str(serving_ims_hss))
+                    DBLogger.debug("Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
                     if serving_ims_hss == yaml_config['hss']['OriginHost']:
                         DBLogger.debug("Serving IMS-HSS matches local HSS for " + str(result['imsi']))
                         Served_Subs[result['imsi']] = {}
@@ -1578,14 +1578,14 @@ def Get_Served_PCRF_Subscribers(get_local_users_only=False):
                 DBLogger.debug("Filtering to locally served IMS Subs only")
                 try:
                     serving_pcrf = result['serving_pgw_peer'].split(';')[1]
-                    DBLogger.debug("Serving PCRF: " + str(serving_pcrf))
+                    DBLogger.debug("Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(yaml_config['hss']['OriginHost']))
                     if serving_pcrf == yaml_config['hss']['OriginHost']:
-                        DBLogger.debug("Serving PCRF matches local HSS")
-                        Served_Subs[result['imsi']] = result
+                        DBLogger.debug("Serving PCRF matches local PCRF")
                         DBLogger.debug("Processed result")
                         
                     else:
                         DBLogger.debug("Sub is served by remote PCRF: " + str(serving_pcrf))
+                        continue
                 except Exception as E:
                     DBLogger.debug("Error in filtering Get_Served_PCRF_Subscribers to local peer only: " + str(E))
                     continue
