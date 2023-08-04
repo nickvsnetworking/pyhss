@@ -637,6 +637,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
+        remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
         DiameterLogger.debug("Remote Peer is " + str(remote_peer))
 
         database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
