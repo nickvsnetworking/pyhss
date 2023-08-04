@@ -116,6 +116,7 @@ redis:
 prometheus:
   enabled: False
   port: 8081    #If the API is run the API runs on the next port number up from this
+  async_subscriber_count: False    #If enabled the subscriber count will be updated asynchronously for Prometheus
 
 snmp:
   port: 1161
