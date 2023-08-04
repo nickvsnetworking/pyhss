@@ -1865,7 +1865,6 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
 
     json_data = {
         'apn' : apn_id,
-        'serving_apn' : apn,
         'subscriber_id' : subscriber_id,
         'pcrf_session_id' : str(pcrf_session_id),
         'serving_pgw' : str(serving_pgw),
@@ -1898,6 +1897,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
             if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
                 DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
                 GeoRed_Push_Async({"imsi": str(imsi),
+                                'serving_apn' : str(apn),
                                 'pcrf_session_id': str(pcrf_session_id),
                                 'serving_pgw': str(serving_pgw),
                                 'serving_pgw_realm': str(serving_pgw_realm),
