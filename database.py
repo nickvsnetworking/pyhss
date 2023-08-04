@@ -1882,6 +1882,8 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
         try:
             assert(type(serving_pgw) == str)
             assert(len(serving_pgw) > 0)
+            assert("None" not in serving_pgw)
+            
             UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
         except:
             DBLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
