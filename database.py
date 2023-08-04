@@ -1865,6 +1865,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
 
     json_data = {
         'apn' : apn_id,
+        'serving_apn' : apn,
         'subscriber_id' : subscriber_id,
         'pcrf_session_id' : str(pcrf_session_id),
         'serving_pgw' : str(serving_pgw),
