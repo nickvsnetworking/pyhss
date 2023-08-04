@@ -1777,7 +1777,7 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
                     "imsi": str(imsi), 
                     "serving_mme": result.serving_mme, 
                     "serving_mme_realm": str(result.serving_mme_realm), 
-                    "serving_mme_peer": str(result.serving_mme_peer) + ";" + str(yaml_config['hss']['OriginHost'])
+                    "serving_mme_peer": str(result.serving_mme_peer)
                     })
             else:
                 DBLogger.debug("Config does not allow sync of HSS events")
@@ -1901,7 +1901,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
                                 'pcrf_session_id': str(pcrf_session_id),
                                 'serving_pgw': str(serving_pgw),
                                 'serving_pgw_realm': str(serving_pgw_realm),
-                                'serving_pgw_peer': str(serving_pgw_peer) + ";" + str(yaml_config['hss']['OriginHost']),
+                                'serving_pgw_peer': str(serving_pgw_peer),
                                 'subscriber_routing': str(subscriber_routing)
                                 })
             else:
