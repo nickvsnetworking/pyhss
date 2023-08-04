@@ -1021,6 +1021,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
+            remote_peer = remote_peer + ";" + str(yaml_config['hss']['OriginHost'])
             database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
 
             #Supported-Features(628) (Gx feature list)
