@@ -1646,6 +1646,8 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
             result.serving_mme_peer = None
 
         session.commit()
+        objectData = GetObj(SUBSCRIBER, result.subscriber_id)
+        handle_external_webhook(objectData, 'UPDATE')
 
         #Sync state change with geored
         if propagate == True:
@@ -1690,6 +1692,10 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
             result.scscf_timestamp = None
             result.scscf_realm = None
             result.scscf_peer = None
+        
+        session.commit()
+        objectData = GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
+        handle_external_webhook(objectData, 'UPDATE')
 
         #Sync state change with geored
         if propagate == True:
@@ -1760,13 +1766,19 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
             assert("None" not in serving_pgw)
             
             UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
+            objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+            handle_external_webhook(objectData, 'UPDATE')
         except:
             DBLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
+            objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+            handle_external_webhook(objectData, 'DELETE')
             DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
     except Exception as E:
         DBLogger.info("Failed to update existing APN " + str(E))
         #Create if does not exist
         CreateObj(SERVING_APN, json_data, True)
+        objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+        handle_external_webhook(objectData, 'CREATE')
 
     #Sync state change with geored
     if propagate == True:
