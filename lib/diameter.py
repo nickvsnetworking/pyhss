@@ -9,29 +9,25 @@ import uuid
 import os
 import random
 import ipaddress
-sys.path.append(os.path.realpath('lib'))
-import S6a_crypt
-
 import jinja2
-import yaml
-import time
-with open("config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
 
-#Setup Logging
-import logtool
-from logtool import *
-logtool = logtool.LogTool()
-logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diameter_logging_file'], level=yaml_config['logging']['level'])
-DiameterLogger = logging.getLogger('DiameterLogger')
+# with open("config.yaml", 'r') as stream:
+#     yaml_config = (yaml.safe_load(stream))
 
-DiameterLogger.info("Initialised Diameter Logger, importing database")
-import database
-DiameterLogger.info("Imported database")
+# #Setup Logging
+# import logtool
+# from logtool import *
+# logtool = logtool.LogTool()
+# logtool.setup_logger('DiameterLogger', yaml_config['logging']['logfiles']['diameter_logging_file'], level=yaml_config['logging']['level'])
+# DiameterLogger = logging.getLogger('DiameterLogger')
 
-if yaml_config['redis']['enabled'] == True:
-    DiameterLogger.debug("Redis support enabled")
-    import redis
+# DiameterLogger.info("Initialised Diameter Logger, importing database")
+# import database
+# DiameterLogger.info("Imported database")
+
+# if yaml_config['redis']['enabled'] == True:
+#     DiameterLogger.debug("Redis support enabled")
+#     import redis
 
 
 class Diameter:
@@ -213,12 +209,13 @@ class Diameter:
                 return output
 
     #Hexify the vars we got when initializing the class
-    def __init__(self, OriginHost, OriginRealm, ProductName, MNC, MCC):
-        self.OriginHost = self.string_to_hex(OriginHost)
-        self.OriginRealm = self.string_to_hex(OriginRealm)
-        self.ProductName = self.string_to_hex(ProductName)
-        self.MNC = str(MNC)
-        self.MCC = str(MCC)
+    #@@@Fixme
+    def __init__(self):
+        self.OriginHost = self.string_to_hex("OriginHost")
+        self.OriginRealm = self.string_to_hex("OriginRealm")
+        self.ProductName = self.string_to_hex("ProductName")
+        self.MNC = str(505)
+        self.MCC = str(52)
 
         DiameterLogger.info("Initialized Diameter for " + str(OriginHost) + " at Realm " + str(OriginRealm) + " serving as Product Name " + str(ProductName))
         DiameterLogger.info("PLMN is " + str(MCC) + "/" + str(MNC))

@@ -6,7 +6,6 @@ from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
 import sys, os
-sys.path.append(os.path.realpath('lib'))
 from functools import wraps
 import json
 import datetime, time
