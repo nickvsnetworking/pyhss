@@ -1,4 +1,3 @@
-import sys
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event, Text, DateTime, Float
 from sqlalchemy import create_engine
 from sqlalchemy.engine.reflection import Inspector
@@ -6,28 +5,39 @@ from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
-
+import sys, os
+sys.path.append(os.path.realpath('lib'))
 from functools import wraps
 import json
 import datetime, time
 from datetime import timezone
 import re
-import os
-import sys
 import binascii
-import hashlib
 import uuid
-import functools
-import ast
 import socket
+import traceback
 from contextlib import contextmanager
-sys.path.append(os.path.realpath('lib'))
+import logging
+import logtool
+import pprint
+from logtool import *
+from construct import Default
+import S6a_crypt
+import requests
+from requests.exceptions import ConnectionError, Timeout
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import threading
 
 import yaml
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-#engine = create_engine('sqlite:///sales.db', echo = True)
+logtool = logtool.LogTool()
+logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
+DBLogger = logging.getLogger('DBLogger')
+DBLogger.info("DB Log Initialised.")
+
 db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
 print(db_string)
 engine = create_engine(
@@ -38,27 +48,6 @@ engine = create_engine(
     max_overflow=yaml_config['logging'].get('sqlalchemy_max_overflow', 0))
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
-
-import logging
-import logtool
-logtool = logtool.LogTool()
-logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
-DBLogger = logging.getLogger('DBLogger')
-import pprint
-DBLogger.info("DB Log Initialised.")
-from logtool import *
-
-import os
-from construct import Default
-sys.path.append(os.path.realpath('lib'))
-import S6a_crypt
-import requests
-from requests.exceptions import ConnectionError, Timeout
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-import time
-import threading
-
 
 class OPERATION_LOG_BASE(Base):
     __tablename__ = 'operation_log'
@@ -436,7 +425,7 @@ def notify_webhook(operation, external_webhook_notification_url, externalNotific
         return False
     return True
 
-def handle_external_webhook(session, instance, operation):
+def handle_external_webhook(objectData, operation):
     external_webhook_notification_enabled = yaml_config.get('external', {}).get('external_webhook_notification_enabled', False)
     external_webhook_notification_url = yaml_config.get('external', {}).get('external_webhook_notification_url', '')
     if not external_webhook_notification_enabled:
@@ -444,14 +433,7 @@ def handle_external_webhook(session, instance, operation):
     if not external_webhook_notification_url:
         DBLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
 
-    changes = instance.__dict__
-    id_attribute = f"{instance.__tablename__}_id"
-    if hasattr(instance, id_attribute):
-        instance_id = getattr(instance, id_attribute)
-
-    old_state_dict = (session.identity_map.get(instance_id).dict.items() if session.identity_map.get(instance_id) else {})
-    change = GetObj(type(instance), instance_id)
-    externalNotification = Sanitize_Datetime(change)
+    externalNotification = Sanitize_Datetime(objectData)
     externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
 
     # Using separate thread to process webhook
@@ -551,16 +533,6 @@ def log_changes_before_commit(session):
                         old_value, new_value = value, None
                     changes.append((column_name, old_value, new_value))
                 operation_id = log_change(session, item_id, operation, changes, obj.__table__.name, operation_id, generated_id)
-
-
-@contextmanager
-def disable_logging_listener():
-    event.remove(Session, 'before_commit', log_changes_before_commit)
-    try:
-        yield
-    finally:
-        event.listen(Session, 'before_commit', log_changes_before_commit)
-
 
 def get_class_by_tablename(base, tablename):
     """
@@ -798,10 +770,6 @@ def rollback_change_by_operation_id(operation_id, existingSession=None):
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
-
-
-event.listen(Session, 'before_commit', log_changes_before_commit)
-
 
 def get_all_operation_logs(page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
     if not existingSession:
@@ -1106,7 +1074,7 @@ def getAllPaginated(obj_type, page=0, page_size=0, existingSession=None):
         result = session.query(obj_type)
 
         # Apply pagination
-        if page_size is not 0:
+        if page_size != 0:
             result = result.limit(page_size).offset(page * page_size)
         
         result = result.all()
@@ -1161,7 +1129,6 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
     obj_type_str = str(obj_type.__table__.name).upper()
     DBLogger.debug(f"obj_type_str is {obj_type_str}")
     filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
-
     try:
         obj = session.query(obj_type).filter(filter_input).one()
         for key, value in json_data.items():
@@ -1172,20 +1139,13 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
         DBLogger.error(f"Failed to query or update object, error: {E}")
         raise ValueError(E)
     try:
-        if disable_logging:
-            with disable_logging_listener():
-                try:
-                    session.commit()
-                    handle_external_webhook(session, obj, 'UPDATE')
-                except Exception as E:
-                    DBLogger.error(f"Failed to commit session, error: {E}")
-                    safe_rollback(session)
-                    raise ValueError(E)
-        else:
             session.info["operation_id"] = operation_id  # Pass the operation id
             try:
+                if not disable_logging:
+                    log_changes_before_commit(session)
+                objectData = GetObj(obj_type, obj_id)
                 session.commit()
-                handle_external_webhook(session, obj, 'UPDATE')
+                handle_external_webhook(objectData, 'UPDATE')
             except Exception as E:
                 DBLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
@@ -1208,26 +1168,18 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
         res = session.query(obj_type).get(obj_id)
         if res is None:
             raise ValueError("The specified row does not exist")
+        objectData = GetObj(obj_type, obj_id)
         session.delete(res)
-
-        if disable_logging:
-            with disable_logging_listener():
-                try:
-                    handle_external_webhook(session, res, 'DELETE')
-                    session.commit()
-                except Exception as E:
-                    DBLogger.error(f"Failed to commit session, error: {E}")
-                    safe_rollback(session)
-                    raise ValueError(E)
-        else:
-            session.info["operation_id"] = operation_id  # Pass the operation id
-            try:
-                handle_external_webhook(session, res, 'DELETE')
-                session.commit()
-            except Exception as E:
-                DBLogger.error(f"Failed to commit session, error: {E}")
-                safe_rollback(session)
-                raise ValueError(E)
+        session.info["operation_id"] = operation_id  # Pass the operation id
+        try:
+            if not disable_logging:
+                log_changes_before_commit(session)
+            session.commit()
+            handle_external_webhook(objectData, 'DELETE')
+        except Exception as E:
+            DBLogger.error(f"Failed to commit session, error: {E}")
+            safe_rollback(session)
+            raise ValueError(E)
 
     except Exception as E:
         DBLogger.error(f"Exception in DeleteObj, error: {E}")
@@ -1248,27 +1200,19 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
 
     session.add(newObj)
     try:
-        if disable_logging:
-            with disable_logging_listener():
-                try:
-                    session.commit()
-                    handle_external_webhook(session, newObj, 'CREATE')
-                except Exception as E:
-                    DBLogger.error(f"Failed to commit session, error: {E}")
-                    safe_rollback(session)
-                    raise ValueError(E)
-        else:
-            session.info["operation_id"] = operation_id  # Pass the operation id
-            try:
-                session.commit()
-                handle_external_webhook(session, newObj, 'CREATE')
-            except Exception as E:
-                DBLogger.error(f"Failed to commit session, error: {E}")
-                safe_rollback(session)
-                raise ValueError(E)
+        session.info["operation_id"] = operation_id  # Pass the operation id
+        try:
+            if not disable_logging:
+                log_changes_before_commit(session)
+            session.commit()
+        except Exception as E:
+            DBLogger.error(f"Failed to commit session, error: {E}")
+            safe_rollback(session)
+            raise ValueError(E)
         session.refresh(newObj)
         result = newObj.__dict__
         result.pop('_sa_instance_state')
+        handle_external_webhook(result, 'CREATE')
         return result
     except Exception as E:
         DBLogger.error(f"Exception in CreateObj, error: {E}")
@@ -1321,13 +1265,6 @@ def Get_AuC(**kwargs):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
 
     DBLogger.debug("Got back result: " + str(result))
     safe_close(session)
@@ -1358,13 +1295,6 @@ def Get_IMS_Subscriber(**kwargs):
     except:
         pass
     result = Sanitize_Datetime(result)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
     DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
     safe_close(session)
     return result
@@ -1393,13 +1323,6 @@ def Get_Subscriber(**kwargs):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
     
     if 'get_attributes' in kwargs:
         if kwargs['get_attributes'] == True:
@@ -1424,13 +1347,6 @@ def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     result = result.__dict__
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
 
     DBLogger.debug("Got back result: " + str(result))
     safe_close(session)
@@ -1498,13 +1414,6 @@ def Get_Served_Subscribers(get_local_users_only=False):
     except Exception as E:
         safe_close(session)
         raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     safe_close(session)
     return Served_Subs
@@ -1547,13 +1456,6 @@ def Get_Served_IMS_Subscribers(get_local_users_only=False):
                 DBLogger.debug("Processed result")
 
     except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
@@ -1604,13 +1506,6 @@ def Get_Served_PCRF_Subscribers(get_local_users_only=False):
             Served_Subs[subscriber_info['imsi']] = result
             DBLogger.debug("Processed result")
     except Exception as E:
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
         raise ValueError(E)
     #DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     safe_close(session)
@@ -1673,13 +1568,6 @@ def Get_APN(apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
     safe_close(session)
     return result    
 
@@ -1694,13 +1582,6 @@ def Get_APN_by_Name(apn):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
     safe_close(session)
     return result 
 
@@ -1715,8 +1596,6 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
     session = Session()
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-
-
         if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
             DBLogger.debug("Evaluating if we should trigger sending a CLR.")
             serving_hss = str(result.serving_mme_peer).split(';',1)[1]
@@ -1766,8 +1645,9 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
             result.serving_mme_realm = None
             result.serving_mme_peer = None
 
-        with disable_logging_listener():
-            session.commit()
+        session.commit()
+        objectData = GetObj(SUBSCRIBER, result.subscriber_id)
+        handle_external_webhook(objectData, 'UPDATE')
 
         #Sync state change with geored
         if propagate == True:
@@ -1812,9 +1692,10 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
             result.scscf_timestamp = None
             result.scscf_realm = None
             result.scscf_peer = None
-
-        with disable_logging_listener():
-            session.commit()
+        
+        session.commit()
+        objectData = GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
+        handle_external_webhook(objectData, 'UPDATE')
 
         #Sync state change with geored
         if propagate == True:
@@ -1885,13 +1766,19 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
             assert("None" not in serving_pgw)
             
             UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
+            objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+            handle_external_webhook(objectData, 'UPDATE')
         except:
             DBLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
+            objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+            handle_external_webhook(objectData, 'DELETE')
             DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
     except Exception as E:
         DBLogger.info("Failed to update existing APN " + str(E))
         #Create if does not exist
         CreateObj(SERVING_APN, json_data, True)
+        objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+        handle_external_webhook(objectData, 'CREATE')
 
     #Sync state change with geored
     if propagate == True:
@@ -1927,13 +1814,6 @@ def Get_Serving_APN(subscriber_id, apn_id):
         raise ValueError(E)
     result = result.__dict__
     result.pop('_sa_instance_state')
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
     
     safe_close(session)
     return result   
@@ -1953,13 +1833,6 @@ def Get_Charging_Rule(charging_rule_id):
             result.pop('_sa_instance_state')
             ChargingRule['tft'].append(result)
     except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
     safe_close(session)
@@ -2056,8 +1929,7 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now(tz=timezone.utc))
         session.add(newObj)
         try:
-            with disable_logging_listener():
-                session.commit()
+            session.commit()
         except Exception as E:
             DBLogger.error("Failed to commit session, error: " + str(E))
             safe_rollback(session)
@@ -2213,13 +2085,6 @@ def Get_EIR_Rules():
             result.pop('_sa_instance_state')
             EIR_Rules.append(result)
     except Exception as E:
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-    try:
-        session.commit()
-    except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
