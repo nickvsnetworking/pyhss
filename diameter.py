@@ -225,9 +225,37 @@ class Diameter:
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
-    def generate_avp(self, avp_code, avp_flags, avp_content):
+    def generate_avp(self, avp_code, avp_flags, avp_content, avps=None, packet_vars=None):
+        if avp_code == 268 or avp_code == 298:
+            
+            
+            try:
+                DiameterLogger.debug("Incrementing Prometheus Stats for prom_diam_result_code")
+                try:
+                    imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
+                    imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
+                except:
+                    imsi = ''
+
+                try:
+                    OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+                    OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+                except:
+                    OriginHost = ''
+                DiameterLogger.debug("Generating result code: " + str(int(avp_content, 16)) + " for OriginHost: " + str(OriginHost) + " and IMSI: " + str(imsi))
+                #Turn result code into int
+                prom_diam_result_code.labels(
+                    diameter_application_id = packet_vars['ApplicationId'],
+                    diameter_cmd_code = packet_vars['command_code'],
+                    result_code = int(avp_content, 16),
+                    endpoint = OriginHost,
+                    imsi = imsi,
+                ).inc()
+                DiameterLogger.debug("Incremented Prometheus Stats for prom_diam_result_code")
+            except Exception as E:
+                DiameterLogger.debug("Failed to increment Prometheus Stats for prom_diam_result_code")
+                DiameterLogger.debug(E)
         avp_code = format(avp_code,"x").zfill(8)
-        
         avp_length = 1 ##This is a placeholder that's overwritten later
 
         #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
@@ -517,7 +545,7 @@ class Diameter:
     #Capabilities Exchange Answer
     def Answer_257(self, packet_vars, avps, recv_ip):
         avp = ''                                                                                    #Initiate empty var AVP 
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -557,7 +585,7 @@ class Diameter:
     def Answer_280(self, packet_vars, avps): 
         
         avp = ''                                                                                    #Initiate empty var AVP 
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
@@ -574,7 +602,7 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
         DiameterLogger.debug("Successfully Generated DPA")
         return response
@@ -613,7 +641,7 @@ class Diameter:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
             DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
-            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code
             response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
@@ -644,7 +672,7 @@ class Diameter:
 
 
         #Boilerplate AVPs
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
         avp += self.generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
 
@@ -825,7 +853,7 @@ class Diameter:
             #Experimental Result AVP(Response Code for Failure)
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             
             avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
@@ -893,7 +921,7 @@ class Diameter:
         avp += self.generate_vendor_avp(1413, "c0", 10415, eutranvector_complete)                                 #Authentication-Info (3GPP)                                      
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")
         #avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
@@ -912,7 +940,7 @@ class Diameter:
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)        
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         
@@ -942,7 +970,7 @@ class Diameter:
         avp = ''
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)        
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         
@@ -1098,7 +1126,7 @@ class Diameter:
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
@@ -1148,7 +1176,7 @@ class Diameter:
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)                           #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             response = self.generate_diameter_packet("01", "40", 300, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
@@ -1164,7 +1192,7 @@ class Diameter:
                     database.Update_Serving_CSCF(imsi, serving_cscf=None)
                     #Populate S-CSCF Address
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(ims_subscriber_details['scscf'])),'ascii'))
-                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
                     response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
                     return response
                     
@@ -1176,7 +1204,7 @@ class Diameter:
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(ims_subscriber_details['scscf'])),'ascii'))
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
-            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8))            #DIAMETER_SUBSEQUENT_REGISTRATION (2002)
+            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8), avps=avps, packet_vars=packet_vars)            #DIAMETER_SUBSEQUENT_REGISTRATION (2002)
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
         else:
             DiameterLogger.debug("No SCSCF Assigned from DB")
@@ -1193,7 +1221,7 @@ class Diameter:
                 DiameterLogger.info("Using generated S-CSCF Address as none set in scscf_pool in config")
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
-            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))            #DIAMETER_FIRST_REGISTRATION (2001) 
+            experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8), avps=avps, packet_vars=packet_vars)            #DIAMETER_FIRST_REGISTRATION (2001) 
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
 
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -1239,7 +1267,7 @@ class Diameter:
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             response = self.generate_diameter_packet("01", "40", 301, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
@@ -1279,7 +1307,7 @@ class Diameter:
             DiameterLogger.debug("SAR is not Register")
             database.Update_Serving_CSCF(imsi, serving_cscf=None)
 
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
 
         response = self.generate_diameter_packet("01", "40", 301, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response    
@@ -1330,12 +1358,12 @@ class Diameter:
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             response = self.generate_diameter_packet("01", "40", 302, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
-        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         
         return response
@@ -1370,7 +1398,7 @@ class Diameter:
                 event='Unknown User',
                 imsi_prefix = str(username[0:6]),
             ).inc()
-            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
+            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                                           #Result Code (DIAMETER ERROR - User Unknown)
             experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
             #Experimental Result (297)
             avp += self.generate_avp(297, 40, experimental_result)
@@ -1444,7 +1472,7 @@ class Diameter:
         avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")                                    #3GPP-SIP-Number-Auth-Items
 
 
-        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         
         response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -1459,19 +1487,19 @@ class Diameter:
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         except:
-            DiameterLogger.info("Failed to add SessionID into error")
+            DiameterLogger.info("Respond_ResultCode: Failed to add SessionID into error")
         for avps_to_check in avps:                                                                  #Only include AVP 260 (Vendor-Specific-Application-ID) if inital request included it
             if avps_to_check['avp_code'] == 260:
                 concat_subavp = ''
                 for sub_avp in avps_to_check['misc_data']:
                     concat_subavp += self.generate_avp(sub_avp['avp_code'], sub_avp['avp_flags'], sub_avp['misc_data'])
                 avp += self.generate_avp(260, 40, concat_subavp)        #Vendor-Specific-Application-ID
-        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                   #Response Code
+        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         
         #Experimental Result AVP(Response Code for Failure)
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+        avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
         avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
 
         response = self.generate_diameter_packet("01", "60", int(packet_vars['command_code']), int(packet_vars['ApplicationId']), packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -1487,7 +1515,7 @@ class Diameter:
         auth_application_id = self.generate_avp(248, 40, self.int_to_hex(16777252, 8))
         DiameterLogger.debug("auth_application_id: " + auth_application_id)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
-        avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State        
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
@@ -1538,7 +1566,7 @@ class Diameter:
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
@@ -1566,7 +1594,7 @@ class Diameter:
         xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
-        avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
 
         response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         
@@ -1637,8 +1665,8 @@ class Diameter:
         #Experimental Result AVP(Response Code for Failure)
         avp_experimental_result = ''
         avp_experimental_result += self.generate_vendor_avp(266, 'c0', 10415, '')                         #AVP Vendor ID
-        avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+        avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: SUCESS (2001)
+        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
 
         #Equipment-Status
         EquipmentStatus = database.Check_EIR(imsi=imsi, imei=imei)
@@ -1710,7 +1738,7 @@ class Diameter:
             DiameterLogger.error("No MSISDN or IMSI returned in Answer_16777291_8388622 input")
             DiameterLogger.error("Error is " + str(E))
             DiameterLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
-            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code (DIAMETER_SUCCESS (2001))
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             DiameterLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
             return response
@@ -1730,7 +1758,7 @@ class Diameter:
 
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -1747,7 +1775,7 @@ class Diameter:
 
         #Set Result-Code
         result_code = 2001                                                                                                  #Diameter Success
-        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4))                                                  #Result Code - DIAMETER_SUCCESS
+        avp += self.generate_avp(268, 40, self.int_to_hex(result_code, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code
 
         response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response

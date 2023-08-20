@@ -50,6 +50,7 @@ prom_eir_devices = Counter('prom_eir_devices', 'Profile of attached devices', ['
 prom_http_geored = Counter('prom_http_geored', 'Number of Geored Pushes', ['geored_host', 'endpoint', 'http_response_code', 'error'])
 prom_flask_http_geored_endpoints = Counter('prom_flask_http_geored_endpoints', 'Number of Geored Pushes Received', ['geored_host', 'endpoint'])
 
+prom_diam_result_code = Counter('prom_diam_result_code', 'Prometheus Result Codes', ['result_code', 'diameter_application_id', 'diameter_cmd_code', 'endpoint', 'imsi'])
 
 prom_pcrf_subs = Gauge('prom_pcrf_subs', 'Number of attached PCRF Subscribers')
 prom_mme_subs = Gauge('prom_mme_subs', 'Number of attached MME Subscribers')
