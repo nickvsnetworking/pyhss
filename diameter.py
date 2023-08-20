@@ -312,7 +312,6 @@ class Diameter:
         return packet_hex
 
     def decode_diameter_packet(self, data):
-        print(data)
         packet_vars = {}
         avps = []
         
