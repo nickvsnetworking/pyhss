@@ -226,9 +226,7 @@ class Diameter:
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
     def generate_avp(self, avp_code, avp_flags, avp_content, avps=None, packet_vars=None):
-        if avp_code == 268 or avp_code == 298:
-            
-            
+        if avp_code == 268 or avp_code == 298 and packet_vars['command_code'] != 280:           
             try:
                 DiameterLogger.debug("Incrementing Prometheus Stats for prom_diam_result_code")
                 try:
