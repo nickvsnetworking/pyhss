@@ -1211,6 +1211,7 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
             raise ValueError(E)
         session.refresh(newObj)
         result = newObj.__dict__
+        DBLogger.debug("Created new object OK")
         result.pop('_sa_instance_state')
         handle_external_webhook(result, 'CREATE')
         return result
@@ -1776,7 +1777,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
     except Exception as E:
         DBLogger.info("Failed to update existing APN " + str(E))
         #Create if does not exist
-        CreateObj(SERVING_APN, json_data, True)
+        ServingAPN = CreateObj(SERVING_APN, json_data, True)
         objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
         handle_external_webhook(objectData, 'CREATE')
 
