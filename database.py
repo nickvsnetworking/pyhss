@@ -1759,6 +1759,7 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
     #Check if already a serving APN on record
         DBLogger.debug("Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id))
         ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
+        assert(ServingAPN is not None)
         DBLogger.debug("Existing Serving APN ID on record, updating")
         try:
             assert(type(serving_pgw) == str)
@@ -1808,15 +1809,18 @@ def Get_Serving_APN(subscriber_id, apn_id):
 
     try:
         result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).first()
+        if result is None:
+            return result
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+            
     except Exception as E:
         DBLogger.debug(E)
         safe_close(session)
         raise ValueError(E)
-    result = result.__dict__
-    result.pop('_sa_instance_state')
     
     safe_close(session)
-    return result   
+    return result
 
 def Get_Charging_Rule(charging_rule_id):
     DBLogger.debug("Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id))
