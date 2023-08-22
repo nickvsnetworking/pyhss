@@ -30,17 +30,8 @@ hss:
   #IMSI of Test Subscriber for Unit Checks (Optional)
   test_sub_imsi: '001021234567890'
 
-  #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
-  device_watchdog_request_interval: 0
-
-  #Async Queue Check Interval (In Seconds - If set to 0 disabled)
-  async_check_interval: 0
-
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: 120
-
-  #The maximum amount of times a failed diameter response/query should be resent before considering the peer offline and terminating their connection
-  diameter_max_retries: 1
 
   #Prevent updates from being performed without a valid 'Provisioning-Key' in the header
   lock_provisioning: False

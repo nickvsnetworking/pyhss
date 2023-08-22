@@ -17,9 +17,7 @@ import socket
 import traceback
 from contextlib import contextmanager
 import logging
-import logtool
 import pprint
-from logtool import *
 from construct import Default
 import S6a_crypt
 import requests
@@ -29,16 +27,16 @@ from urllib3.util.retry import Retry
 import threading
 
 import yaml
-with open("config.yaml", 'r') as stream:
+with open("../config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-logtool = logtool.LogTool()
-logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
+# logtool = logtool.LogTool()
+# logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 DBLogger = logging.getLogger('DBLogger')
 DBLogger.info("DB Log Initialised.")
 
 db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
-print(db_string)
+# print(db_string)
 engine = create_engine(
     db_string, 
     echo = yaml_config['logging'].get('sqlalchemy_sql_echo', True), 
@@ -291,39 +289,41 @@ else:
     DBLogger.debug("Database already created")
 
 def load_IMEI_database_into_Redis():
-    try:
-        DBLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
-        csvfile = open(str(yaml_config['eir']['tac_database_csv']))
-        DBLogger.info("This may take a few seconds to buffer into Redis...")
-    except:
-        DBLogger.error("Failed to read CSV file of IMEI TAC database")
-        return
-    try:
-        count = 0
-        for line in csvfile:
-            line = line.replace('"', '')        #Strip excess invered commas
-            line = line.replace("'", '')        #Strip excess invered commas
-            line = line.rstrip()                #Strip newlines
-            result = line.split(',')
-            tac_prefix = result[0]
-            name = result[1].lstrip()
-            model = result[2].lstrip()
-            if count == 0:
-                DBLogger.info("Checking to see if entries are already present...")
-                #DBLogger.info("Searching Redis for key " + str(tac_prefix) + " to see if data already provisioned")
-                redis_imei_result = logtool.RedisHMGET(key=str(tac_prefix))
-                if len(redis_imei_result) != 0:
-                    DBLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
-                    break
-                else:
-                    DBLogger.info("No data loaded into Redis, proceeding to load...")
-            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-            logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
-            count = count +1
-        DBLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
-    except Exception as E:
-        DBLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
-        return
+    return
+    #@@Fixme
+    # try:
+    #     DBLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
+    #     csvfile = open(str(yaml_config['eir']['tac_database_csv']))
+    #     DBLogger.info("This may take a few seconds to buffer into Redis...")
+    # except:
+    #     DBLogger.error("Failed to read CSV file of IMEI TAC database")
+    #     return
+    # try:
+    #     count = 0
+    #     for line in csvfile:
+    #         line = line.replace('"', '')        #Strip excess invered commas
+    #         line = line.replace("'", '')        #Strip excess invered commas
+    #         line = line.rstrip()                #Strip newlines
+    #         result = line.split(',')
+    #         tac_prefix = result[0]
+    #         name = result[1].lstrip()
+    #         model = result[2].lstrip()
+    #         if count == 0:
+    #             DBLogger.info("Checking to see if entries are already present...")
+    #             #DBLogger.info("Searching Redis for key " + str(tac_prefix) + " to see if data already provisioned")
+    #             redis_imei_result = logtool.RedisHMGET(key=str(tac_prefix))
+    #             if len(redis_imei_result) != 0:
+    #                 DBLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
+    #                 break
+    #             else:
+    #                 DBLogger.info("No data loaded into Redis, proceeding to load...")
+    #         imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+    #         logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
+    #         count = count +1
+    #     DBLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
+    # except Exception as E:
+    #     DBLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
+    #     return
 
 #Load IMEI TAC database into Redis if enabled
 if ('tac_database_csv' in yaml_config['eir']) and (yaml_config['redis']['enabled'] == True):
@@ -880,71 +880,73 @@ def get_last_operation_log(existingSession=None):
 def GeoRed_Push_Request(remote_hss, json_data, transaction_id, url=None):
     headers = {"Content-Type": "application/json", "Transaction-Id": str(transaction_id)}
     DBLogger.debug("transaction_id: " + str(transaction_id) + " pushing update to " + str(remote_hss).replace('http://', ''))
-    try:
-        session = requests.Session()
-        # Create a Retry object with desired parameters
-        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    #@@Fixme
+    # try:
+    #     session = requests.Session()
+    #     # Create a Retry object with desired parameters
+    #     retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
 
-        # Create an HTTPAdapter and pass the Retry object
-        adapter = HTTPAdapter(max_retries=retries)
+    #     # Create an HTTPAdapter and pass the Retry object
+    #     adapter = HTTPAdapter(max_retries=retries)
 
-        session.mount('http://', adapter)
-        if url == None:
-            endpoint = 'geored'
-            r = session.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
-        else:
-            endpoint = url.split('/', 1)[0]
-            r = session.patch(url, data=json.dumps(json_data), headers=headers)
-        DBLogger.debug("transaction_id: " + str(transaction_id) + " updated on " + str(remote_hss).replace('http://', '') + " with status code " + str(r.status_code))
-        if str(r.status_code).startswith('2'):
-            prom_http_geored.labels(
-                geored_host=str(remote_hss).replace('http://', ''),
-                endpoint=endpoint,
-                http_response_code=str(r.status_code),
-                error=""
-            ).inc()
-        else:
-            prom_http_geored.labels(
-                geored_host=str(remote_hss).replace('http://', ''),
-                endpoint=endpoint,
-                http_response_code=str(r.status_code),
-                error=str(r.reason)
-            ).inc()
-    except ConnectionError as e:
-        error_message = str(e)
-        if "Name or service not known" in error_message:
-            DBLogger.error("transaction_id: " + str(transaction_id) + " name or service not known")
-            prom_http_geored.labels(
-                geored_host=str(remote_hss).replace('http://', ''),
-                endpoint=endpoint,
-                http_response_code='000',
-                error="No matching DNS entry found"
-            ).inc()
-        else:
-            print("Other ConnectionError:", error_message)
-            DBLogger.error("transaction_id: " + str(transaction_id) + " " + str(error_message))
-            prom_http_geored.labels(
-                geored_host=str(remote_hss).replace('http://', ''),
-                endpoint=endpoint,
-                http_response_code='000',
-                error="Connection Refused"
-            ).inc()
-    except Timeout:
-        DBLogger.error("transaction_id: " + str(transaction_id) + " timed out connecting to peer " + str(remote_hss).replace('http://', ''))
-        prom_http_geored.labels(
-                geored_host=str(remote_hss).replace('http://', ''),
-                endpoint=endpoint,
-                http_response_code='000',
-                error="Timeout"
-            ).inc()
-    except Exception as e:
-        DBLogger.error("transaction_id: " + str(transaction_id) + " unexpected error " + str(e) + " when connecting to peer " + str(remote_hss).replace('http://', ''))
-        prom_http_geored.labels(
-                geored_host=str(remote_hss).replace('http://', ''),
-                endpoint=endpoint,
-                http_response_code='000',
-                error=str(e)
-            ).inc()
+    #     session.mount('http://', adapter)
+    #     if url == None:
+    #         endpoint = 'geored'
+    #         r = session.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
+    #     else:
+    #         endpoint = url.split('/', 1)[0]
+    #         r = session.patch(url, data=json.dumps(json_data), headers=headers)
+    #     DBLogger.debug("transaction_id: " + str(transaction_id) + " updated on " + str(remote_hss).replace('http://', '') + " with status code " + str(r.status_code))
+    #     if str(r.status_code).startswith('2'):
+    #         prom_http_geored.labels(
+    #             geored_host=str(remote_hss).replace('http://', ''),
+    #             endpoint=endpoint,
+    #             http_response_code=str(r.status_code),
+    #             error=""
+    #         ).inc()
+    #     else:
+    #         prom_http_geored.labels(
+    #             geored_host=str(remote_hss).replace('http://', ''),
+    #             endpoint=endpoint,
+    #             http_response_code=str(r.status_code),
+    #             error=str(r.reason)
+    #         ).inc()
+    # except ConnectionError as e:
+    #     error_message = str(e)
+    #     if "Name or service not known" in error_message:
+    #         DBLogger.error("transaction_id: " + str(transaction_id) + " name or service not known")
+    #         prom_http_geored.labels(
+    #             geored_host=str(remote_hss).replace('http://', ''),
+    #             endpoint=endpoint,
+    #             http_response_code='000',
+    #             error="No matching DNS entry found"
+    #         ).inc()
+    #     else:
+    #         print("Other ConnectionError:", error_message)
+    #         DBLogger.error("transaction_id: " + str(transaction_id) + " " + str(error_message))
+    #         prom_http_geored.labels(
+    #             geored_host=str(remote_hss).replace('http://', ''),
+    #             endpoint=endpoint,
+    #             http_response_code='000',
+    #             error="Connection Refused"
+    #         ).inc()
+    # except Timeout:
+    #     DBLogger.error("transaction_id: " + str(transaction_id) + " timed out connecting to peer " + str(remote_hss).replace('http://', ''))
+    #     prom_http_geored.labels(
+    #             geored_host=str(remote_hss).replace('http://', ''),
+    #             endpoint=endpoint,
+    #             http_response_code='000',
+    #             error="Timeout"
+    #         ).inc()
+    # except Exception as e:
+    #     DBLogger.error("transaction_id: " + str(transaction_id) + " unexpected error " + str(e) + " when connecting to peer " + str(remote_hss).replace('http://', ''))
+    #     prom_http_geored.labels(
+    #             geored_host=str(remote_hss).replace('http://', ''),
+    #             endpoint=endpoint,
+    #             http_response_code='000',
+    #             error=str(e)
+    #         ).inc()
+    return
 
 
 
@@ -1951,18 +1953,19 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
             try:
                 device_info = get_device_info_from_TAC(imei=str(imei))
                 DBLogger.debug("Got Device Info: " + str(device_info))
-                prom_eir_devices.labels(
-                    imei_prefix=device_info['tac_prefix'],
-                    device_type=device_info['name'], 
-                    device_name=device_info['model']
-                ).inc()
+                #@@Fixme
+                # prom_eir_devices.labels(
+                #     imei_prefix=device_info['tac_prefix'],
+                #     device_type=device_info['name'], 
+                #     device_name=device_info['model']
+                # ).inc()
             except Exception as E:
                 DBLogger.debug("Failed to get device info from TAC")
-                prom_eir_devices.labels(
-                    imei_prefix=str(imei)[0:8],
-                    device_type='Unknown', 
-                    device_name='Unknown'
-                ).inc()
+                # prom_eir_devices.labels(
+                #     imei_prefix=str(imei)[0:8],
+                #     device_type='Unknown', 
+                #     device_name='Unknown'
+                # ).inc()
         else:
             DBLogger.debug("No TAC database configured, skipping device info lookup")
 
@@ -2104,23 +2107,27 @@ def get_device_info_from_TAC(imei):
     #Try 8 digit TAC
     try:
         DBLogger.debug("Trying to match on 8 Digit IMEI")
-        imei_result = logtool.RedisHMGET(str(imei[0:8]))
-        print("Got back: " + str(imei_result))
-        imei_result = dict_bytes_to_dict_string(imei_result)
-        assert(len(imei_result) != 0)
-        DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
-        return imei_result
+        #@@Fixme
+        # imei_result = logtool.RedisHMGET(str(imei[0:8]))
+        # print("Got back: " + str(imei_result))
+        # imei_result = dict_bytes_to_dict_string(imei_result)
+        # assert(len(imei_result) != 0)
+        # DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        # return imei_result
+        return "0"
     except:
         DBLogger.debug("Failed to match on 8 digit IMEI")
     
     try:
         DBLogger.debug("Trying to match on 6 Digit IMEI")
-        imei_result = logtool.RedisHMGET(str(imei[0:6]))
-        print("Got back: " + str(imei_result))
-        imei_result = dict_bytes_to_dict_string(imei_result)
-        assert(len(imei_result) != 0)
-        DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
-        return imei_result
+        #@@Fixme
+        # imei_result = logtool.RedisHMGET(str(imei[0:6]))
+        # print("Got back: " + str(imei_result))
+        # imei_result = dict_bytes_to_dict_string(imei_result)
+        # assert(len(imei_result) != 0)
+        # DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        # return imei_result
+        return "0"
     except:
         DBLogger.debug("Failed to match on 6 digit IMEI")
 

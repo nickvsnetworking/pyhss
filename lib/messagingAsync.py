@@ -1,0 +1,84 @@
+import asyncio
+import redis.asyncio as redis
+
+class RedisMessagingAsync:
+    """
+    PyHSS Redis Asynchronous Message Service
+    A class for sending and receiving redis messages asynchronously.
+    """
+
+    def __init__(self, host: str='localhost', port: int=6379):
+        self.redisClient = redis.Redis(host=host, port=port)
+
+    async def sendMessage(self, queue: str, message: str, queueExpiry: int=None) -> str:
+        """
+        Stores a message in a given Queue (Key), and sets an expiry (in seconds) if provided.
+        """
+        try:
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                sendMessageResult = await(redisPipe.rpush(queue, message).execute())
+                if queueExpiry is not None:
+                    expireKeyResult = await(redisPipe.expire(queue, queueExpiry).execute())
+            return f'{message} stored in {queue} successfully.'
+        except Exception as e:
+            return ''
+
+    async def getMessage(self, queue: str) -> str:
+        """
+        Gets the oldest message from a given Queue (Key), while removing it from the key as well. Deletes the key if the last message is being removed.
+        """
+        try:
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                message = await(redisPipe.lpop(queue).execute())
+                if message is None:
+                    message = ''
+                else:
+                    try:
+                        message = message[0].decode()
+                    except (UnicodeDecodeError, AttributeError):
+                        pass
+                return message
+        except Exception as e:
+            print(e)
+            return ''
+
+    async def getQueues(self, pattern: str='*') -> list:
+        """
+        Returns all Queues (Keys) in the database.
+        """
+        try:
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                allQueues = await(redisPipe.keys(pattern).execute())
+                return [x.decode() for x in allQueues[0]]
+        except Exception as e:
+            return []
+    
+    async def getNextQueue(self, pattern: str='*') -> dict:
+        """
+        Returns the next Queue (Key) in the list.
+        """
+        try:
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                return await(redisPipe.keys(pattern).execute())[1][0].decode()
+        except Exception as e:
+            return {}
+
+    async def deleteQueue(self, queue: str) -> bool:
+        """
+        Deletes the given Queue (Key)
+        """
+        try:
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                await(redisPipe.delete(queue).execute())
+            return True
+        except Exception as e:
+            return False
+        
+    async def closeConnection(self) -> bool:
+        await self.redisClient.close()
+        return True
+
+
+if __name__ == '__main__':
+    redisMessaging = RedisMessagingAsync()
+    print(redisMessaging.getNextQueue())
