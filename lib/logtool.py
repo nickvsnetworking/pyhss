@@ -7,7 +7,7 @@ sys.path.append(os.path.realpath('../'))
 class LogTool:
 
     def setupLogger(self, loggerName: str, config: dict):
-        logFile = config.get('logging', {}).get('logfiles', {}).get(f'{loggerName.lower()}_logging_file', '/var/log/pyhss_diameter.log')
+        logFile = config.get('logging', {}).get('logfiles', {}).get(f'{loggerName.lower()}_logging_file', '/var/log/pyhss_general.log')
         logLevel = config.get('logging', {}).get('level', 'INFO')
         logger = logging.getLogger(loggerName)
         formatter = logging.Formatter(fmt="%(asctime)s  %(levelname)s  {%(pathname)s:%(lineno)d}  %(message)s", datefmt="%m/%d/%Y %H:%M:%S %Z")

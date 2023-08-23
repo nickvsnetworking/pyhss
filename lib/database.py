@@ -16,27 +16,24 @@ import uuid
 import socket
 import traceback
 from contextlib import contextmanager
-import logging
 import pprint
 from construct import Default
 import S6a_crypt
 import requests
-from requests.exceptions import ConnectionError, Timeout
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import threading
+from logtool import LogTool
+from messaging import RedisMessaging
 
 import yaml
 with open("../config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-# logtool = logtool.LogTool()
-# logtool.setup_logger('DBLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
-DBLogger = logging.getLogger('DBLogger')
-DBLogger.info("DB Log Initialised.")
+logTool = LogTool()
+dbLogger = logTool.setupLogger(loggerName='Database', config=yaml_config)
+dbLogger.info("DB Log Initialised.")
+redisMessaging = RedisMessaging()
 
 db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
-# print(db_string)
 engine = create_engine(
     db_string, 
     echo = yaml_config['logging'].get('sqlalchemy_sql_echo', True), 
@@ -282,54 +279,51 @@ class SUBSCRIBER_ATTRIBUTES(Base):
 
 # Create database if it does not exist.
 if not database_exists(engine.url):
-    DBLogger.debug("Creating database")
+    dbLogger.debug("Creating database")
     create_database(engine.url)
     Base.metadata.create_all(engine)
 else:
-    DBLogger.debug("Database already created")
+    dbLogger.debug("Database already created")
 
 def load_IMEI_database_into_Redis():
-    return
-    #@@Fixme
-    # try:
-    #     DBLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
-    #     csvfile = open(str(yaml_config['eir']['tac_database_csv']))
-    #     DBLogger.info("This may take a few seconds to buffer into Redis...")
-    # except:
-    #     DBLogger.error("Failed to read CSV file of IMEI TAC database")
-    #     return
-    # try:
-    #     count = 0
-    #     for line in csvfile:
-    #         line = line.replace('"', '')        #Strip excess invered commas
-    #         line = line.replace("'", '')        #Strip excess invered commas
-    #         line = line.rstrip()                #Strip newlines
-    #         result = line.split(',')
-    #         tac_prefix = result[0]
-    #         name = result[1].lstrip()
-    #         model = result[2].lstrip()
-    #         if count == 0:
-    #             DBLogger.info("Checking to see if entries are already present...")
-    #             #DBLogger.info("Searching Redis for key " + str(tac_prefix) + " to see if data already provisioned")
-    #             redis_imei_result = logtool.RedisHMGET(key=str(tac_prefix))
-    #             if len(redis_imei_result) != 0:
-    #                 DBLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
-    #                 break
-    #             else:
-    #                 DBLogger.info("No data loaded into Redis, proceeding to load...")
-    #         imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-    #         logtool.RedisHMSET(key=str(tac_prefix), value_dict=imei_result)
-    #         count = count +1
-    #     DBLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
-    # except Exception as E:
-    #     DBLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
-    #     return
+    try:
+        dbLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
+        csvfile = open(str(yaml_config['eir']['tac_database_csv']))
+        dbLogger.info("This may take a few seconds to buffer into Redis...")
+    except:
+        dbLogger.error("Failed to read CSV file of IMEI TAC database")
+        return
+    try:
+        count = 0
+        for line in csvfile:
+            line = line.replace('"', '')        #Strip excess invered commas
+            line = line.replace("'", '')        #Strip excess invered commas
+            line = line.rstrip()                #Strip newlines
+            result = line.split(',')
+            tac_prefix = result[0]
+            name = result[1].lstrip()
+            model = result[2].lstrip()
+            if count == 0:
+                dbLogger.info("Checking to see if entries are already present...")
+                redis_imei_result = redisMessaging.getMessage(key=str(tac_prefix))
+                if len(redis_imei_result) != 0:
+                    dbLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
+                    break
+                else:
+                    dbLogger.info("No data loaded into Redis, proceeding to load...")
+            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+            redisMessaging.sendMessage(key=str(tac_prefix), value_dict=imei_result)
+            count = count +1
+        dbLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
+    except Exception as E:
+        dbLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
+        return
 
 #Load IMEI TAC database into Redis if enabled
 if ('tac_database_csv' in yaml_config['eir']) and (yaml_config['redis']['enabled'] == True):
     load_IMEI_database_into_Redis()
 else:
-    DBLogger.info("Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config")
+    dbLogger.info("Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config")
 
 
 def safe_rollback(session):
@@ -337,14 +331,14 @@ def safe_rollback(session):
         if session.is_active:
             session.rollback()
     except Exception as E:
-        DBLogger.error(f"Failed to rollback session, error: {E}")
+        dbLogger.error(f"Failed to rollback session, error: {E}")
 
 def safe_close(session):
     try:
         if session.is_active:
             session.close()
     except Exception as E:
-        DBLogger.error(f"Failed to run safe_close on session, error: {E}")
+        dbLogger.error(f"Failed to run safe_close on session, error: {E}")
 
 def sqlalchemy_type_to_json_schema_type(sqlalchemy_type):
     """
@@ -388,10 +382,10 @@ def generate_json_schema(model_class, required=None):
 inspector = Inspector.from_engine(engine)
 for table_name in Base.metadata.tables.keys():
     if table_name not in inspector.get_table_names():
-        DBLogger.debug(f"Creating table {table_name}")
+        dbLogger.debug(f"Creating table {table_name}")
         Base.metadata.tables[table_name].create(bind=engine)
     else:
-        DBLogger.debug(f"Table {table_name} already exists")
+        dbLogger.debug(f"Table {table_name} already exists")
 
 def update_old_record(session, operation_log):
     oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
@@ -403,41 +397,6 @@ def update_old_record(session, operation_log):
         session.flush()
     else:
         raise ValueError("Unable to find record to update")
-
-def notify_webhook(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders):
-    try:
-        if operation == 'UPDATE':
-            webhookResponse = requests.patch(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
-        elif operation == 'DELETE':
-            webhookResponse = requests.delete(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
-        elif operation == 'CREATE':
-            webhookResponse = requests.put(external_webhook_notification_url, json=externalNotification, headers=externalNotificationHeaders, timeout=5)
-    except requests.exceptions.Timeout:
-        DBLogger.error(f"Timeout occurred when sending webhook to {external_webhook_notification_url}")
-        return False
-    except requests.exceptions.RequestException as e:
-        DBLogger.error(f"Request exception when sending webhook to {external_webhook_notification_url}")
-        return False
-
-    if webhookResponse.status_code != 200:
-        DBLogger.error(f"Response code from external webhook at {external_webhook_notification_url} is != 200.\nResponse Code is: {webhookResponse.status_code}\nResponse Body is: {webhookResponse.content}")
-        return False
-    return True
-
-def handle_external_webhook(objectData, operation):
-    external_webhook_notification_enabled = yaml_config.get('external', {}).get('external_webhook_notification_enabled', False)
-    external_webhook_notification_url = yaml_config.get('external', {}).get('external_webhook_notification_url', '')
-    if not external_webhook_notification_enabled:
-        return False
-    if not external_webhook_notification_url:
-        DBLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
-
-    externalNotification = Sanitize_Datetime(objectData)
-    externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
-
-    # Using separate thread to process webhook
-    threading.Thread(target=notify_webhook, args=(operation, external_webhook_notification_url, externalNotification, externalNotificationHeaders), daemon=True).start()
-    return True
 
 def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
     # We don't want to log rollback operations
@@ -465,7 +424,7 @@ def log_change(session, item_id, operation, changes, table_name, operation_id, g
             session.add(change)
             session.flush()
         except Exception as E:
-            DBLogger.error("Failed to commit changelog, error: " + str(E))
+            dbLogger.error("Failed to commit changelog, error: " + str(E))
             safe_rollback(session)
             safe_close(session)
             raise ValueError(E)
@@ -506,11 +465,11 @@ def log_changes_before_commit(session):
                 changes = []
                 for attr in class_mapper(obj.__class__).column_attrs:
                     hist = get_history(obj, attr.key)
-                    DBLogger.info(f"History {hist}")
+                    dbLogger.info(f"History {hist}")
                     if hist.has_changes() and hist.added and hist.deleted:
                         old_value, new_value = hist.deleted[0], hist.added[0]
-                        DBLogger.info(f"Old Value {old_value}")
-                        DBLogger.info(f"New Value {new_value}")
+                        dbLogger.info(f"Old Value {old_value}")
+                        dbLogger.info(f"New Value {new_value}")
                         changes.append((attr.key, old_value, new_value))
                         continue
 
@@ -628,11 +587,11 @@ def rollback_last_change(existingSession=None):
 
                 # Extract type and value
                 old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
-                DBLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
+                dbLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
                 old_value = str_to_type(old_type_str, old_value_repr)
 
                 old_values_dict[column_name] = old_value
-            DBLogger.error("old_value_dict: " + str(old_values_dict))
+            dbLogger.error("old_value_dict: " + str(old_values_dict))
 
             if not target_item:
                 try:
@@ -653,7 +612,7 @@ def rollback_last_change(existingSession=None):
             session.commit()
             safe_close(session)
         except Exception as E:
-            DBLogger.error("rollback_last_change error: " + str(E))
+            dbLogger.error("rollback_last_change error: " + str(E))
             safe_rollback(session)
             safe_close(session)
             raise ValueError(E)
@@ -661,7 +620,7 @@ def rollback_last_change(existingSession=None):
         return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
 
     except Exception as E:
-        DBLogger.error("rollback_last_change error: " + str(E))
+        dbLogger.error("rollback_last_change error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
@@ -732,11 +691,11 @@ def rollback_change_by_operation_id(operation_id, existingSession=None):
 
                 # Extract type and value
                 old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
-                DBLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
+                dbLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
                 old_value = str_to_type(old_type_str, old_value_repr)
 
                 old_values_dict[column_name] = old_value
-            DBLogger.error("old_value_dict: " + str(old_values_dict))
+            dbLogger.error("old_value_dict: " + str(old_values_dict))
 
             if not target_item:
                 try:
@@ -757,7 +716,7 @@ def rollback_change_by_operation_id(operation_id, existingSession=None):
             session.commit()
             safe_close(session)
         except Exception as E:
-            DBLogger.error("rollback_last_change error: " + str(E))
+            dbLogger.error("rollback_last_change error: " + str(E))
             safe_rollback(session)
             safe_close(session)
             raise ValueError(E)
@@ -765,7 +724,7 @@ def rollback_change_by_operation_id(operation_id, existingSession=None):
         return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
 
     except Exception as E:
-        DBLogger.error("rollback_last_change error: " + str(E))
+        dbLogger.error("rollback_last_change error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
@@ -801,8 +760,8 @@ def get_all_operation_logs(page=0, page_size=yaml_config['api'].get('page_size',
         safe_close(session)
         return all_operations
     except Exception as E:
-        DBLogger.error(f"get_all_operation_logs error: {E}")
-        DBLogger.error(E)
+        dbLogger.error(f"get_all_operation_logs error: {E}")
+        dbLogger.error(E)
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
@@ -838,8 +797,8 @@ def get_all_operation_logs_by_table(table_name, page=0, page_size=yaml_config['a
         safe_close(session)
         return all_operations
     except Exception as E:
-        DBLogger.error(f"get_all_operation_logs_by_table error: {E}")
-        DBLogger.error(E)
+        dbLogger.error(f"get_all_operation_logs_by_table error: {E}")
+        dbLogger.error(E)
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
@@ -869,103 +828,34 @@ def get_last_operation_log(existingSession=None):
         safe_close(session)
         return None
     except Exception as E:
-        DBLogger.error(f"get_last_operation_log error: {E}")
-        DBLogger.error(E)
+        dbLogger.error(f"get_last_operation_log error: {E}")
+        dbLogger.error(E)
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
 
-
-
-def GeoRed_Push_Request(remote_hss, json_data, transaction_id, url=None):
-    headers = {"Content-Type": "application/json", "Transaction-Id": str(transaction_id)}
-    DBLogger.debug("transaction_id: " + str(transaction_id) + " pushing update to " + str(remote_hss).replace('http://', ''))
-    #@@Fixme
-    # try:
-    #     session = requests.Session()
-    #     # Create a Retry object with desired parameters
-    #     retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
-
-    #     # Create an HTTPAdapter and pass the Retry object
-    #     adapter = HTTPAdapter(max_retries=retries)
-
-    #     session.mount('http://', adapter)
-    #     if url == None:
-    #         endpoint = 'geored'
-    #         r = session.patch(str(remote_hss) + '/geored/', data=json.dumps(json_data), headers=headers)
-    #     else:
-    #         endpoint = url.split('/', 1)[0]
-    #         r = session.patch(url, data=json.dumps(json_data), headers=headers)
-    #     DBLogger.debug("transaction_id: " + str(transaction_id) + " updated on " + str(remote_hss).replace('http://', '') + " with status code " + str(r.status_code))
-    #     if str(r.status_code).startswith('2'):
-    #         prom_http_geored.labels(
-    #             geored_host=str(remote_hss).replace('http://', ''),
-    #             endpoint=endpoint,
-    #             http_response_code=str(r.status_code),
-    #             error=""
-    #         ).inc()
-    #     else:
-    #         prom_http_geored.labels(
-    #             geored_host=str(remote_hss).replace('http://', ''),
-    #             endpoint=endpoint,
-    #             http_response_code=str(r.status_code),
-    #             error=str(r.reason)
-    #         ).inc()
-    # except ConnectionError as e:
-    #     error_message = str(e)
-    #     if "Name or service not known" in error_message:
-    #         DBLogger.error("transaction_id: " + str(transaction_id) + " name or service not known")
-    #         prom_http_geored.labels(
-    #             geored_host=str(remote_hss).replace('http://', ''),
-    #             endpoint=endpoint,
-    #             http_response_code='000',
-    #             error="No matching DNS entry found"
-    #         ).inc()
-    #     else:
-    #         print("Other ConnectionError:", error_message)
-    #         DBLogger.error("transaction_id: " + str(transaction_id) + " " + str(error_message))
-    #         prom_http_geored.labels(
-    #             geored_host=str(remote_hss).replace('http://', ''),
-    #             endpoint=endpoint,
-    #             http_response_code='000',
-    #             error="Connection Refused"
-    #         ).inc()
-    # except Timeout:
-    #     DBLogger.error("transaction_id: " + str(transaction_id) + " timed out connecting to peer " + str(remote_hss).replace('http://', ''))
-    #     prom_http_geored.labels(
-    #             geored_host=str(remote_hss).replace('http://', ''),
-    #             endpoint=endpoint,
-    #             http_response_code='000',
-    #             error="Timeout"
-    #         ).inc()
-    # except Exception as e:
-    #     DBLogger.error("transaction_id: " + str(transaction_id) + " unexpected error " + str(e) + " when connecting to peer " + str(remote_hss).replace('http://', ''))
-    #     prom_http_geored.labels(
-    #             geored_host=str(remote_hss).replace('http://', ''),
-    #             endpoint=endpoint,
-    #             http_response_code='000',
-    #             error=str(e)
-    #         ).inc()
-    return
-
-
-
-def GeoRed_Push_Async(json_data):
+def handleGeored(jsonData):
     try:
-        if yaml_config['geored']['enabled'] == True:
-            if yaml_config['geored']['sync_endpoints'] is not None and len(yaml_config['geored']['sync_endpoints']) > 0:
+        if yaml_config.get('geored', {}).get('enabled', False):
+            if yaml_config.get('geored', {}).get('sync_endpoints', []) is not None and len(yaml_config.get('geored', {}).get('sync_endpoints', [])) > 0:
                 transaction_id = str(uuid.uuid4())
-                DBLogger.info("Pushing out data to GeoRed peers with transaction_id " + str(transaction_id) + " and JSON body: " + str(json_data))
-                for remote_hss in yaml_config['geored']['sync_endpoints']:
-                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(remote_hss, json_data, transaction_id))
-                    GeoRed_Push_thread.start()
+                redisMessaging.sendMessage(queue=f'geored-{time.time_ns()}', message=jsonData, queueExpiry=120)
     except Exception as E:
-        DBLogger.debug("Failed to push Async jobs due to error: " + str(E))
+        dbLogger.warning("Failed to send Geored message due to error: " + str(E))
 
-def Webhook_Push_Async(target, json_data):
-        transaction_id = str(uuid.uuid4())
-        Webook_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(target, json_data, transaction_id))
-        Webook_Push_thread.start()
+def handleWebhook(objectData, operation):
+    external_webhook_notification_enabled = yaml_config.get('external', {}).get('external_webhook_notification_enabled', False)
+    external_webhook_notification_url = yaml_config.get('external', {}).get('external_webhook_notification_url', '')
+    if not external_webhook_notification_enabled:
+        return False
+    if not external_webhook_notification_url:
+        dbLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
+
+    externalNotification = Sanitize_Datetime(objectData)
+    externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
+    #@@Fixme
+    redisMessaging.sendMessage(queue=f'webhook-{time.time_ns()}', message=jsonData, queueExpiry=120)
+    return True
 
 def Sanitize_Datetime(result):
     for keys in result:
@@ -973,7 +863,7 @@ def Sanitize_Datetime(result):
             if result[keys] == None:
                 continue
             else:
-                DBLogger.debug("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
+                dbLogger.debug("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
                 result[keys] = str(result[keys])
     return result
 
@@ -987,7 +877,7 @@ def Sanitize_Keys(result):
     return result 
 
 def GetObj(obj_type, obj_id=None, page=None, page_size=None):
-    DBLogger.debug("Called GetObj for type " + str(obj_type))
+    dbLogger.debug("Called GetObj for type " + str(obj_type))
 
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -1024,7 +914,7 @@ def GetObj(obj_type, obj_id=None, page=None, page_size=None):
             raise ValueError("Provide either obj_id or both page and page_size")
 
     except Exception as E:
-        DBLogger.error("Failed to query, error: " + str(E))
+        dbLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
@@ -1033,7 +923,7 @@ def GetObj(obj_type, obj_id=None, page=None, page_size=None):
     return result
 
 def GetAll(obj_type):
-    DBLogger.debug("Called GetAll for type " + str(obj_type))
+    dbLogger.debug("Called GetAll for type " + str(obj_type))
 
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind = engine)
@@ -1043,7 +933,7 @@ def GetAll(obj_type):
     try:
         result = session.query(obj_type)
     except Exception as E:
-        DBLogger.error("Failed to query, error: " + str(E))
+        dbLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)    
@@ -1059,7 +949,7 @@ def GetAll(obj_type):
     return final_result_list
 
 def getAllPaginated(obj_type, page=0, page_size=0, existingSession=None):
-    DBLogger.debug("Called getAllPaginated for type " + str(obj_type))
+    dbLogger.debug("Called getAllPaginated for type " + str(obj_type))
 
     if not existingSession:
         Base.metadata.create_all(engine)
@@ -1091,14 +981,14 @@ def getAllPaginated(obj_type, page=0, page_size=0, existingSession=None):
         return final_result_list
 
     except Exception as E:
-        DBLogger.error("Failed to query, error: " + str(E))
+        dbLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
 
 
 def GetAllByTable(obj_type, table):
-    DBLogger.debug(f"Called GetAll for type {str(obj_type)} and table {table}")
+    dbLogger.debug(f"Called GetAll for type {str(obj_type)} and table {table}")
 
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind = engine)
@@ -1108,7 +998,7 @@ def GetAllByTable(obj_type, table):
     try:
         result = session.query(obj_type).filter_by(table_name=str(table))
     except Exception as E:
-        DBLogger.error("Failed to query, error: " + str(E))
+        dbLogger.error("Failed to query, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)    
@@ -1124,11 +1014,11 @@ def GetAllByTable(obj_type, table):
     return final_result_list
 
 def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=None):
-    DBLogger.debug(f"Called UpdateObj() for type {obj_type} id {obj_id} with JSON data: {json_data} and operation_id: {operation_id}")
+    dbLogger.debug(f"Called UpdateObj() for type {obj_type} id {obj_id} with JSON data: {json_data} and operation_id: {operation_id}")
     Session = sessionmaker(bind=engine)
     session = Session()
     obj_type_str = str(obj_type.__table__.name).upper()
-    DBLogger.debug(f"obj_type_str is {obj_type_str}")
+    dbLogger.debug(f"obj_type_str is {obj_type_str}")
     filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
     try:
         obj = session.query(obj_type).filter(filter_input).one()
@@ -1137,7 +1027,7 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
                 setattr(obj, key, value)
                 setattr(obj, "last_modified", datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z')
     except Exception as E:
-        DBLogger.error(f"Failed to query or update object, error: {E}")
+        dbLogger.error(f"Failed to query or update object, error: {E}")
         raise ValueError(E)
     try:
             session.info["operation_id"] = operation_id  # Pass the operation id
@@ -1146,13 +1036,13 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
                     log_changes_before_commit(session)
                 objectData = GetObj(obj_type, obj_id)
                 session.commit()
-                handle_external_webhook(objectData, 'UPDATE')
+                handleWebhook(objectData, 'UPDATE')
             except Exception as E:
-                DBLogger.error(f"Failed to commit session, error: {E}")
+                dbLogger.error(f"Failed to commit session, error: {E}")
                 safe_rollback(session)
                 raise ValueError(E)
     except Exception as E:
-        DBLogger.error(f"Exception in UpdateObj, error: {E}")
+        dbLogger.error(f"Exception in UpdateObj, error: {E}")
         raise ValueError(E)
     finally:
         safe_close(session)
@@ -1160,7 +1050,7 @@ def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=N
     return GetObj(obj_type, obj_id)
 
 def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
-    DBLogger.debug(f"Called DeleteObj for type {obj_type} with id {obj_id}")
+    dbLogger.debug(f"Called DeleteObj for type {obj_type} with id {obj_id}")
 
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -1176,14 +1066,14 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
             if not disable_logging:
                 log_changes_before_commit(session)
             session.commit()
-            handle_external_webhook(objectData, 'DELETE')
+            handleWebhook(objectData, 'DELETE')
         except Exception as E:
-            DBLogger.error(f"Failed to commit session, error: {E}")
+            dbLogger.error(f"Failed to commit session, error: {E}")
             safe_rollback(session)
             raise ValueError(E)
 
     except Exception as E:
-        DBLogger.error(f"Exception in DeleteObj, error: {E}")
+        dbLogger.error(f"Exception in DeleteObj, error: {E}")
         raise ValueError(E)
     finally:
         safe_close(session)
@@ -1192,7 +1082,7 @@ def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
 
 
 def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
-    DBLogger.debug("Called CreateObj to create " + str(obj_type) + " with value: " + str(json_data))
+    dbLogger.debug("Called CreateObj to create " + str(obj_type) + " with value: " + str(json_data))
     last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
     json_data["last_modified"] = last_modified_value  # set last_modified value in json_data
     newObj = obj_type(**json_data)
@@ -1207,22 +1097,22 @@ def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
                 log_changes_before_commit(session)
             session.commit()
         except Exception as E:
-            DBLogger.error(f"Failed to commit session, error: {E}")
+            dbLogger.error(f"Failed to commit session, error: {E}")
             safe_rollback(session)
             raise ValueError(E)
         session.refresh(newObj)
         result = newObj.__dict__
         result.pop('_sa_instance_state')
-        handle_external_webhook(result, 'CREATE')
+        handleWebhook(result, 'CREATE')
         return result
     except Exception as E:
-        DBLogger.error(f"Exception in CreateObj, error: {E}")
+        dbLogger.error(f"Exception in CreateObj, error: {E}")
         raise ValueError(E)
     finally:
         safe_close(session)
 
 def Generate_JSON_Model_for_Flask(obj_type):
-    DBLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
+    dbLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
 
     dictty = dict(generate_json_schema(obj_type))
     pprint.pprint(dictty)
@@ -1249,14 +1139,14 @@ def Get_AuC(**kwargs):
     session = Session()
 
     if 'iccid' in kwargs:
-        DBLogger.debug("Get_AuC for iccid " + str(kwargs['iccid']))
+        dbLogger.debug("Get_AuC for iccid " + str(kwargs['iccid']))
         try:
             result = session.query(AUC).filter_by(iccid=str(kwargs['iccid'])).one()
         except Exception as E:
             safe_close(session)
             raise ValueError(E)
     elif 'imsi' in kwargs:
-        DBLogger.debug("Get_AuC for imsi " + str(kwargs['imsi']))
+        dbLogger.debug("Get_AuC for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(AUC).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
@@ -1267,7 +1157,7 @@ def Get_AuC(**kwargs):
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
 
-    DBLogger.debug("Got back result: " + str(result))
+    dbLogger.debug("Got back result: " + str(result))
     safe_close(session)
     return result
 
@@ -1276,27 +1166,27 @@ def Get_IMS_Subscriber(**kwargs):
     Session = sessionmaker(bind = engine)
     session = Session()
     if 'msisdn' in kwargs:
-        DBLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
+        dbLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except Exception as E:
             safe_close(session)
             raise ValueError(E)
     elif 'imsi' in kwargs:
-        DBLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
+        dbLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
             safe_close(session)
             raise ValueError(E)
-    DBLogger.debug("Converting result to dict")
+    dbLogger.debug("Converting result to dict")
     result = result.__dict__
     try:
         result.pop('_sa_instance_state')
     except:
         pass
     result = Sanitize_Datetime(result)
-    DBLogger.debug("Returning IMS Subscriber Data: " + str(result))
+    dbLogger.debug("Returning IMS Subscriber Data: " + str(result))
     safe_close(session)
     return result
 
@@ -1307,14 +1197,14 @@ def Get_Subscriber(**kwargs):
     session = Session()
 
     if 'msisdn' in kwargs:
-        DBLogger.debug("Get_Subscriber for msisdn " + str(kwargs['msisdn']))
+        dbLogger.debug("Get_Subscriber for msisdn " + str(kwargs['msisdn']))
         try:
             result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
         except Exception as E:
             safe_close(session)
             raise ValueError(E)
     elif 'imsi' in kwargs:
-        DBLogger.debug("Get_Subscriber for imsi " + str(kwargs['imsi']))
+        dbLogger.debug("Get_Subscriber for imsi " + str(kwargs['imsi']))
         try:
             result = session.query(SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
         except Exception as E:
@@ -1330,7 +1220,7 @@ def Get_Subscriber(**kwargs):
             attributes = Get_Subscriber_Attributes(result['subscriber_id'])
             result['attributes'] = attributes
 
-    DBLogger.debug("Got back result: " + str(result))
+    dbLogger.debug("Got back result: " + str(result))
     safe_close(session)
     return result
 
@@ -1338,7 +1228,7 @@ def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    DBLogger.debug("Get_SUBSCRIBER_ROUTING for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
+    dbLogger.debug("Get_SUBSCRIBER_ROUTING for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
     try:
         result = session.query(SUBSCRIBER_ROUTING).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
     except Exception as E:
@@ -1349,7 +1239,7 @@ def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
 
-    DBLogger.debug("Got back result: " + str(result))
+    dbLogger.debug("Got back result: " + str(result))
     safe_close(session)
     return result
 
@@ -1359,7 +1249,7 @@ def Get_Subscriber_Attributes(subscriber_id):
     Session = sessionmaker(bind = engine)
     session = Session()
 
-    DBLogger.debug("Get_Subscriber_Attributes for subscriber_id " + str(subscriber_id))
+    dbLogger.debug("Get_Subscriber_Attributes for subscriber_id " + str(subscriber_id))
     try:
         result = session.query(SUBSCRIBER_ATTRIBUTES).filter_by(subscriber_id=subscriber_id)
     except Exception as E:
@@ -1371,13 +1261,13 @@ def Get_Subscriber_Attributes(subscriber_id):
         result = Sanitize_Datetime(result)
         result.pop('_sa_instance_state')
         final_res.append(result)
-    DBLogger.debug("Got back result: " + str(final_res))
+    dbLogger.debug("Got back result: " + str(final_res))
     safe_close(session)
     return final_res
 
 
 def Get_Served_Subscribers(get_local_users_only=False):
-    DBLogger.debug("Getting all subscribers served by this HSS")
+    dbLogger.debug("Getting all subscribers served by this HSS")
 
     Session = sessionmaker(bind = engine)
     session = Session()
@@ -1387,41 +1277,41 @@ def Get_Served_Subscribers(get_local_users_only=False):
         results = session.query(SUBSCRIBER).filter(SUBSCRIBER.serving_mme.isnot(None))
         for result in results:
             result = result.__dict__
-            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
+            dbLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
 
             if get_local_users_only == True:
-                DBLogger.debug("Filtering to locally served IMS Subs only")
+                dbLogger.debug("Filtering to locally served IMS Subs only")
                 try:
                     serving_hss = result['serving_mme_peer'].split(';')[1]
-                    DBLogger.debug("Serving HSS: " + str(serving_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
+                    dbLogger.debug("Serving HSS: " + str(serving_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
                     if serving_hss == yaml_config['hss']['OriginHost']:
-                        DBLogger.debug("Serving HSS matches local HSS")
+                        dbLogger.debug("Serving HSS matches local HSS")
                         Served_Subs[result['imsi']] = {}
                         Served_Subs[result['imsi']] = result
-                        #DBLogger.debug("Processed result")
+                        #dbLogger.debug("Processed result")
                         continue
                     else:
-                        DBLogger.debug("Sub is served by remote HSS: " + str(serving_hss))
+                        dbLogger.debug("Sub is served by remote HSS: " + str(serving_hss))
                 except Exception as E:
-                    DBLogger.debug("Error in filtering Get_Served_Subscribers to local peer only: " + str(E))
+                    dbLogger.debug("Error in filtering Get_Served_Subscribers to local peer only: " + str(E))
                     continue
             else:
                 Served_Subs[result['imsi']] = result
-                DBLogger.debug("Processed result")
+                dbLogger.debug("Processed result")
 
 
     except Exception as E:
         safe_close(session)
         raise ValueError(E)
-    DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
+    dbLogger.debug("Final Served_Subs: " + str(Served_Subs))
     safe_close(session)
     return Served_Subs
 
 
 def Get_Served_IMS_Subscribers(get_local_users_only=False):
-    DBLogger.debug("Getting all subscribers served by this IMS-HSS")
+    dbLogger.debug("Getting all subscribers served by this IMS-HSS")
     Session = sessionmaker(bind=engine)
     session = Session()
 
@@ -1432,40 +1322,40 @@ def Get_Served_IMS_Subscribers(get_local_users_only=False):
             IMS_SUBSCRIBER.scscf.isnot(None))
         for result in results:
             result = result.__dict__
-            DBLogger.debug("Result: " + str(result) +
+            dbLogger.debug("Result: " + str(result) +
                            " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
             if get_local_users_only == True:
-                DBLogger.debug("Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only")
+                dbLogger.debug("Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only")
                 try:
                     serving_ims_hss = result['scscf_peer'].split(';')[1]
-                    DBLogger.debug("Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
+                    dbLogger.debug("Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
                     if serving_ims_hss == yaml_config['hss']['OriginHost']:
-                        DBLogger.debug("Serving IMS-HSS matches local HSS for " + str(result['imsi']))
+                        dbLogger.debug("Serving IMS-HSS matches local HSS for " + str(result['imsi']))
                         Served_Subs[result['imsi']] = {}
                         Served_Subs[result['imsi']] = result
-                        DBLogger.debug("Processed result")
+                        dbLogger.debug("Processed result")
                         continue
                     else:
-                        DBLogger.debug("Sub is served by remote IMS-HSS: " + str(serving_ims_hss))
+                        dbLogger.debug("Sub is served by remote IMS-HSS: " + str(serving_ims_hss))
                 except Exception as E:
-                    DBLogger.debug("Error in filtering to local peer only: " + str(E))
+                    dbLogger.debug("Error in filtering to local peer only: " + str(E))
                     continue
             else:
                 Served_Subs[result['imsi']] = result
-                DBLogger.debug("Processed result")
+                dbLogger.debug("Processed result")
 
     except Exception as E:
         safe_close(session)
         raise ValueError(E)
-    DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
+    dbLogger.debug("Final Served_Subs: " + str(Served_Subs))
     safe_close(session)
     return Served_Subs
 
 
 def Get_Served_PCRF_Subscribers(get_local_users_only=False):
-    DBLogger.debug("Getting all subscribers served by this PCRF")
+    dbLogger.debug("Getting all subscribers served by this PCRF")
     Session = sessionmaker(bind=engine)
     session = Session()
     Served_Subs = {}
@@ -1473,47 +1363,47 @@ def Get_Served_PCRF_Subscribers(get_local_users_only=False):
         results = session.query(SERVING_APN).all()
         for result in results:
             result = result.__dict__
-            DBLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
+            dbLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
             result = Sanitize_Datetime(result)
             result.pop('_sa_instance_state')
 
             if get_local_users_only == True:
-                DBLogger.debug("Filtering to locally served IMS Subs only")
+                dbLogger.debug("Filtering to locally served IMS Subs only")
                 try:
                     serving_pcrf = result['serving_pgw_peer'].split(';')[1]
-                    DBLogger.debug("Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(yaml_config['hss']['OriginHost']))
+                    dbLogger.debug("Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(yaml_config['hss']['OriginHost']))
                     if serving_pcrf == yaml_config['hss']['OriginHost']:
-                        DBLogger.debug("Serving PCRF matches local PCRF")
-                        DBLogger.debug("Processed result")
+                        dbLogger.debug("Serving PCRF matches local PCRF")
+                        dbLogger.debug("Processed result")
                         
                     else:
-                        DBLogger.debug("Sub is served by remote PCRF: " + str(serving_pcrf))
+                        dbLogger.debug("Sub is served by remote PCRF: " + str(serving_pcrf))
                         continue
                 except Exception as E:
-                    DBLogger.debug("Error in filtering Get_Served_PCRF_Subscribers to local peer only: " + str(E))
+                    dbLogger.debug("Error in filtering Get_Served_PCRF_Subscribers to local peer only: " + str(E))
                     continue
 
             # Get APN Info
             apn_info = GetObj(APN, result['apn'])
-            #DBLogger.debug("Got APN Info: " + str(apn_info))
+            #dbLogger.debug("Got APN Info: " + str(apn_info))
             result['apn_info'] = apn_info
 
             # Get Subscriber Info
             subscriber_info = GetObj(SUBSCRIBER, result['subscriber_id'])
             result['subscriber_info'] = subscriber_info
 
-            #DBLogger.debug("Got Subscriber Info: " + str(subscriber_info))
+            #dbLogger.debug("Got Subscriber Info: " + str(subscriber_info))
 
             Served_Subs[subscriber_info['imsi']] = result
-            DBLogger.debug("Processed result")
+            dbLogger.debug("Processed result")
     except Exception as E:
         raise ValueError(E)
-    #DBLogger.debug("Final SERVING_APN: " + str(Served_Subs))
+    #dbLogger.debug("Final SERVING_APN: " + str(Served_Subs))
     safe_close(session)
     return Served_Subs
 
 def Get_Vectors_AuC(auc_id, action, **kwargs):
-    DBLogger.debug("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
+    dbLogger.debug("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
     key_data = GetObj(AUC, auc_id)
     vector_dict = {}
     
@@ -1530,17 +1420,17 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         return vector_dict
 
     elif action == "sqn_resync":
-        DBLogger.debug("Resync SQN")
+        dbLogger.debug("Resync SQN")
         rand = kwargs['rand']       
         sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
-        DBLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
+        dbLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
         Update_AuC(auc_id, sqn=sqn+100)
         return
     
     elif action == "sip_auth":
         rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
-        DBLogger.debug("RAND is: " + str(rand))
-        DBLogger.debug("AUTN is: " + str(autn))
+        dbLogger.debug("RAND is: " + str(rand))
+        dbLogger.debug("AUTN is: " + str(autn))
         vector_dict['SIP_Authenticate'] = rand + autn
         vector_dict['xres'] = xres
         vector_dict['ck'] = ck
@@ -1549,8 +1439,8 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         return vector_dict
 
     elif action == "Digest-MD5":
-        DBLogger.debug("Generating Digest-MD5 Auth vectors")
-        DBLogger.debug("key_data: " + str(key_data))
+        dbLogger.debug("Generating Digest-MD5 Auth vectors")
+        dbLogger.debug("key_data: " + str(key_data))
         nonce = uuid.uuid4().hex
         #nonce = "beef4d878f2642ed98afe491b943ca60"
         vector_dict['nonce'] = nonce
@@ -1558,7 +1448,7 @@ def Get_Vectors_AuC(auc_id, action, **kwargs):
         return vector_dict
 
 def Get_APN(apn_id):
-    DBLogger.debug("Getting APN " + str(apn_id))
+    dbLogger.debug("Getting APN " + str(apn_id))
     Session = sessionmaker(bind = engine)
     session = Session()
 
@@ -1573,7 +1463,7 @@ def Get_APN(apn_id):
     return result    
 
 def Get_APN_by_Name(apn):
-    DBLogger.debug("Getting APN named " + str(apn_id))
+    dbLogger.debug("Getting APN named " + str(apn_id))
     Session = sessionmaker(bind = engine)
     session = Session()    
     try:
@@ -1587,36 +1477,36 @@ def Get_APN_by_Name(apn):
     return result 
 
 def Update_AuC(auc_id, sqn=1):
-    DBLogger.debug("Updating AuC record for sub " + str(auc_id))
-    DBLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id, True))
+    dbLogger.debug("Updating AuC record for sub " + str(auc_id))
+    dbLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id, True))
     return
 
 def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, propagate=True):
-    DBLogger.debug("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
+    dbLogger.debug("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
     Session = sessionmaker(bind = engine)
     session = Session()
     try:
         result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
         if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
-            DBLogger.debug("Evaluating if we should trigger sending a CLR.")
+            dbLogger.debug("Evaluating if we should trigger sending a CLR.")
             serving_hss = str(result.serving_mme_peer).split(';',1)[1]
             serving_mme_peer = str(result.serving_mme_peer).split(';',1)[0]
-            DBLogger.debug("Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer))
-            DBLogger.debug("Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer))
+            dbLogger.debug("Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer))
+            dbLogger.debug("Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer))
             #Evaluate if we need to send a CLR to the old MME
             if result.serving_mme != None:
                 if str(result.serving_mme) == str(serving_mme):
-                    DBLogger.debug("This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR")
+                    dbLogger.debug("This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR")
                 elif (str(result.serving_mme) != str(serving_mme)):
-                    DBLogger.debug("There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR")
+                    dbLogger.debug("There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR")
                     if serving_hss != yaml_config['hss']['OriginHost']:
-                        DBLogger.debug("This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss))
+                        dbLogger.debug("This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss))
                         URL = 'http://' + serving_hss + '.' + yaml_config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                     else:
-                        DBLogger.debug("This subscriber is served by this HSS we need to send a CLR to old MME from this HSS")
+                        dbLogger.debug("This subscriber is served by this HSS we need to send a CLR to old MME from this HSS")
                     
                     URL = 'http://' + serving_hss + '.' + yaml_config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
-                    DBLogger.debug("Sending CLR to API at " + str(URL))
+                    dbLogger.debug("Sending CLR to API at " + str(URL))
                     json_data = {
                         "DestinationRealm": result.serving_mme_realm,
                         "DestinationHost": result.serving_mme,
@@ -1624,23 +1514,23 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
                         "diameterPeer": serving_mme_peer,
                     }
                     
-                    DBLogger.debug("Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data))
+                    dbLogger.debug("Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data))
                     transaction_id = str(uuid.uuid4())
                     GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, transaction_id, URL))
                     GeoRed_Push_thread.start()
             else:
                 #No currently serving MME - No action to take
-                DBLogger.debug("No currently serving MME - No need to send CLR")
+                dbLogger.debug("No currently serving MME - No need to send CLR")
 
         if type(serving_mme) == str:
-            DBLogger.debug("Updating serving MME & Timestamp")
+            dbLogger.debug("Updating serving MME & Timestamp")
             result.serving_mme = serving_mme
             result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
             result.serving_mme_realm = serving_mme_realm
             result.serving_mme_peer = serving_mme_peer
         else:
             #Clear values
-            DBLogger.debug("Clearing serving MME")
+            dbLogger.debug("Clearing serving MME")
             result.serving_mme = None
             result.serving_mme_timestamp = None
             result.serving_mme_realm = None
@@ -1648,29 +1538,29 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
 
         session.commit()
         objectData = GetObj(SUBSCRIBER, result.subscriber_id)
-        handle_external_webhook(objectData, 'UPDATE')
+        handleWebhook(objectData, 'UPDATE')
 
         #Sync state change with geored
         if propagate == True:
             if 'HSS' in yaml_config['geored'].get('sync_actions', []) and yaml_config['geored'].get('enabled', False) == True:
-                DBLogger.debug("Propagate MME changes to Geographic PyHSS instances")
-                GeoRed_Push_Async({
+                dbLogger.debug("Propagate MME changes to Geographic PyHSS instances")
+                handleGeored({
                     "imsi": str(imsi), 
                     "serving_mme": result.serving_mme, 
                     "serving_mme_realm": str(result.serving_mme_realm), 
                     "serving_mme_peer": str(result.serving_mme_peer)
                     })
             else:
-                DBLogger.debug("Config does not allow sync of HSS events")
+                dbLogger.debug("Config does not allow sync of HSS events")
     except Exception as E:
-        DBLogger.error("Error occurred, rolling back session: " + str(E))
+        dbLogger.error("Error occurred, rolling back session: " + str(E))
         raise
     finally:
         safe_close(session)
 
 
 def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
-    DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer))
+    dbLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer))
     Session = sessionmaker(bind = engine)
     session = Session()
 
@@ -1679,7 +1569,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
         try:
             assert(type(serving_cscf) == str)
             assert(len(serving_cscf) > 0)
-            DBLogger.debug("Setting serving CSCF")
+            dbLogger.debug("Setting serving CSCF")
             #Strip duplicate SIP prefix before storing
             serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
             result.scscf = serving_cscf
@@ -1688,7 +1578,7 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
             result.scscf_peer = str(scscf_peer)
         except:
             #Clear values
-            DBLogger.debug("Clearing serving CSCF")
+            dbLogger.debug("Clearing serving CSCF")
             result.scscf = None
             result.scscf_timestamp = None
             result.scscf_realm = None
@@ -1696,17 +1586,17 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
         
         session.commit()
         objectData = GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
-        handle_external_webhook(objectData, 'UPDATE')
+        handleWebhook(objectData, 'UPDATE')
 
         #Sync state change with geored
         if propagate == True:
             if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                DBLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
-                GeoRed_Push_Async({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
+                dbLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
+                handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
             else:
-                DBLogger.debug("Config does not allow sync of IMS events")
+                dbLogger.debug("Config does not allow sync of IMS events")
     except Exception as E:
-        DBLogger.error("An error occurred, rolling back session: " + str(E))
+        dbLogger.error("An error occurred, rolling back session: " + str(E))
         safe_rollback(session)
         raise
     finally:
@@ -1714,10 +1604,10 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
 
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
-    DBLogger.debug("Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn))
-    DBLogger.debug("PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing))
-    DBLogger.debug("Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer))
-    DBLogger.debug("subscriber_routing: " + str(subscriber_routing))
+    dbLogger.debug("Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn))
+    dbLogger.debug("PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing))
+    dbLogger.debug("Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer))
+    dbLogger.debug("subscriber_routing: " + str(subscriber_routing))
 
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
@@ -1725,12 +1615,12 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
 
     #Split the APN list into a list
     apn_list = subscriber_details['apn_list'].split(',')
-    DBLogger.debug("Current APN List: " + str(apn_list))
+    dbLogger.debug("Current APN List: " + str(apn_list))
     #Remove the default APN from the list
     try:
         apn_list.remove(str(subscriber_details['default_apn']))
     except:
-        DBLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+        dbLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
         pass
     #Add default APN in first position
     apn_list.insert(0, str(subscriber_details['default_apn']))
@@ -1739,11 +1629,11 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
     for apn_id in apn_list:
         #Get each APN in List
         apn_data = Get_APN(apn_id)
-        DBLogger.debug(apn_data)
+        dbLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            DBLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
+            dbLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
             break
-    DBLogger.debug("APN ID is " + str(apn_id))
+    dbLogger.debug("APN ID is " + str(apn_id))
 
     json_data = {
         'apn' : apn_id,
@@ -1758,9 +1648,9 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
 
     try:
     #Check if already a serving APN on record
-        DBLogger.debug("Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id))
+        dbLogger.debug("Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id))
         ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
-        DBLogger.debug("Existing Serving APN ID on record, updating")
+        dbLogger.debug("Existing Serving APN ID on record, updating")
         try:
             assert(type(serving_pgw) == str)
             assert(len(serving_pgw) > 0)
@@ -1768,25 +1658,25 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
             
             UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
             objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            handle_external_webhook(objectData, 'UPDATE')
+            handleWebhook(objectData, 'UPDATE')
         except:
-            DBLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
+            dbLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
             objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            handle_external_webhook(objectData, 'DELETE')
+            handleWebhook(objectData, 'DELETE')
             DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
     except Exception as E:
-        DBLogger.info("Failed to update existing APN " + str(E))
+        dbLogger.info("Failed to update existing APN " + str(E))
         #Create if does not exist
         CreateObj(SERVING_APN, json_data, True)
         objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-        handle_external_webhook(objectData, 'CREATE')
+        handleWebhook(objectData, 'CREATE')
 
     #Sync state change with geored
     if propagate == True:
         try:
             if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                DBLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
-                GeoRed_Push_Async({"imsi": str(imsi),
+                dbLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
+                handleGeored({"imsi": str(imsi),
                                 'serving_apn' : str(apn),
                                 'pcrf_session_id': str(pcrf_session_id),
                                 'serving_pgw': str(serving_pgw),
@@ -1795,22 +1685,22 @@ def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routi
                                 'subscriber_routing': str(subscriber_routing)
                                 })
             else:
-                DBLogger.debug("Config does not allow sync of PCRF events")
+                dbLogger.debug("Config does not allow sync of PCRF events")
         except Exception as E:
-            DBLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
+            dbLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
 
 
         return
 
 def Get_Serving_APN(subscriber_id, apn_id):
-    DBLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
+    dbLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
     Session = sessionmaker(bind = engine)
     session = Session()
 
     try:
         result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).first()
     except Exception as E:
-        DBLogger.debug(E)
+        dbLogger.debug(E)
         safe_close(session)
         raise ValueError(E)
     result = result.__dict__
@@ -1820,7 +1710,7 @@ def Get_Serving_APN(subscriber_id, apn_id):
     return result   
 
 def Get_Charging_Rule(charging_rule_id):
-    DBLogger.debug("Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id))
+    dbLogger.debug("Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id))
     Session = sessionmaker(bind = engine)
     session = Session()
     #Get base Rule
@@ -1840,57 +1730,57 @@ def Get_Charging_Rule(charging_rule_id):
     return ChargingRule
 
 def Get_Charging_Rules(imsi, apn):
-    DBLogger.debug("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
+    dbLogger.debug("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
     #Get Subscriber ID from IMSI
     subscriber_details = Get_Subscriber(imsi=str(imsi))
 
     #Split the APN list into a list
     apn_list = subscriber_details['apn_list'].split(',')
-    DBLogger.debug("Current APN List: " + str(apn_list))
+    dbLogger.debug("Current APN List: " + str(apn_list))
     #Remove the default APN from the list
     try:
         apn_list.remove(str(subscriber_details['default_apn']))
     except:
-        DBLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+        dbLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
         pass
     #Add default APN in first position
     apn_list.insert(0, str(subscriber_details['default_apn']))
 
     #Get APN ID from APN
     for apn_id in apn_list:
-        DBLogger.debug("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
+        dbLogger.debug("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
         #Get each APN in List
         apn_data = Get_APN(apn_id)
-        DBLogger.debug(apn_data)
+        dbLogger.debug(apn_data)
         if str(apn_data['apn']).lower() == str(apn).lower():
-            DBLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
+            dbLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
 
-            DBLogger.debug("Getting charging rule list from " + str(apn_data['charging_rule_list']))
+            dbLogger.debug("Getting charging rule list from " + str(apn_data['charging_rule_list']))
             ChargingRule = {}
             ChargingRule['charging_rule_list'] = str(apn_data['charging_rule_list']).split(',')
             ChargingRule['apn_data'] = apn_data
 
             #Get Charging Rules list
             if apn_data['charging_rule_list'] == None:
-                DBLogger.debug("No Charging Rule associated with this APN")
+                dbLogger.debug("No Charging Rule associated with this APN")
                 ChargingRule['charging_rules'] = None
                 return ChargingRule
 
-            DBLogger.debug("ChargingRule['charging_rule_list'] is: " + str(ChargingRule['charging_rule_list']))
+            dbLogger.debug("ChargingRule['charging_rule_list'] is: " + str(ChargingRule['charging_rule_list']))
             #Empty dict for the Charging Rules to go into
             ChargingRule['charging_rules'] = []
             #Add each of the Charging Rules for the APN
             for individual_charging_rule in ChargingRule['charging_rule_list']:
-                DBLogger.debug("Getting Charging rule " + str(individual_charging_rule))
+                dbLogger.debug("Getting Charging rule " + str(individual_charging_rule))
                 individual_charging_rule_complete = Get_Charging_Rule(individual_charging_rule)
-                DBLogger.debug("Got individual_charging_rule_complete: " + str(individual_charging_rule_complete))
+                dbLogger.debug("Got individual_charging_rule_complete: " + str(individual_charging_rule_complete))
                 ChargingRule['charging_rules'].append(individual_charging_rule_complete)
-            DBLogger.debug("Completed Get_Charging_Rules()")
-            DBLogger.debug(ChargingRule)
+            dbLogger.debug("Completed Get_Charging_Rules()")
+            dbLogger.debug(ChargingRule)
             return ChargingRule
 
 def Get_UE_by_IP(subscriber_routing):   
-    DBLogger.debug("Called Get_UE_by_IP() for IP " + str(subscriber_routing))
+    dbLogger.debug("Called Get_UE_by_IP() for IP " + str(subscriber_routing))
 
     Session = sessionmaker(bind = engine)
     session = Session()    
@@ -1911,9 +1801,9 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #IMSI           14-15 Digits
     #IMEI           15 Digits
     #IMEI-SV        2 Digits
-    DBLogger.debug("Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code))
+    dbLogger.debug("Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code))
     if yaml_config['eir']['imsi_imei_logging'] != True:
-        DBLogger.debug("Skipping storing binding")
+        dbLogger.debug("Skipping storing binding")
         return
     #Concat IMEI + IMSI
     imsi_imei = str(imsi) + "," + str(imei)
@@ -1923,7 +1813,7 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
     #Check if exist already & update
     try:
         session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
-        DBLogger.debug("Entry already present for IMSI/IMEI Combo")   
+        dbLogger.debug("Entry already present for IMSI/IMEI Combo")   
         safe_close(session)     
         return 
     except Exception as E:
@@ -1932,27 +1822,27 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
         try:
             session.commit()
         except Exception as E:
-            DBLogger.error("Failed to commit session, error: " + str(E))
+            dbLogger.error("Failed to commit session, error: " + str(E))
             safe_rollback(session)
             safe_close(session)
             raise ValueError(E)
         safe_close(session)
-        DBLogger.debug("Added new IMSI_IMEI_HISTORY binding")
+        dbLogger.debug("Added new IMSI_IMEI_HISTORY binding")
 
         if 'sim_swap_notify_webhook' in yaml_config['eir']:
-            DBLogger.debug("Sending SIM Swap notification to Webhook")
+            dbLogger.debug("Sending SIM Swap notification to Webhook")
             try:
                 dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
-                Webhook_Push_Async(str(yaml_config['eir']['sim_swap_notify_webhook']), json_data=dictToSend)
+                handleWebhook(dictToSend)
             except Exception as E:
-                DBLogger.debug("Failed to post to Webhook")
-                DBLogger.debug(str(E))
+                dbLogger.debug("Failed to post to Webhook")
+                dbLogger.debug(str(E))
 
         #Lookup Device Info
         if 'tac_database_csv' in yaml_config['eir']:
             try:
                 device_info = get_device_info_from_TAC(imei=str(imei))
-                DBLogger.debug("Got Device Info: " + str(device_info))
+                dbLogger.debug("Got Device Info: " + str(device_info))
                 #@@Fixme
                 # prom_eir_devices.labels(
                 #     imei_prefix=device_info['tac_prefix'],
@@ -1960,35 +1850,35 @@ def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
                 #     device_name=device_info['model']
                 # ).inc()
             except Exception as E:
-                DBLogger.debug("Failed to get device info from TAC")
+                dbLogger.debug("Failed to get device info from TAC")
                 # prom_eir_devices.labels(
                 #     imei_prefix=str(imei)[0:8],
                 #     device_type='Unknown', 
                 #     device_name='Unknown'
                 # ).inc()
         else:
-            DBLogger.debug("No TAC database configured, skipping device info lookup")
+            dbLogger.debug("No TAC database configured, skipping device info lookup")
 
         #Sync state change with geored
         if propagate == True:
             try:
                 if 'EIR' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                    DBLogger.debug("Propagate EIR changes to Geographic PyHSS instances")
-                    GeoRed_Push_Async(
+                    dbLogger.debug("Propagate EIR changes to Geographic PyHSS instances")
+                    handleGeored(
                         {"imsi": str(imsi), 
                         "imei": str(imei), 
                         "match_response_code": str(match_response_code)}
                         )
                 else:
-                    DBLogger.debug("Config does not allow sync of EIR events")
+                    dbLogger.debug("Config does not allow sync of EIR events")
             except Exception as E:
-                DBLogger.debug("Nothing synced to Geographic PyHSS instances for EIR event")
-                DBLogger.debug(E)
+                dbLogger.debug("Nothing synced to Geographic PyHSS instances for EIR event")
+                dbLogger.debug(E)
 
         return
 
 def Get_IMEI_IMSI_History(attribute):
-    DBLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
+    dbLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
     Session = sessionmaker(bind = engine)
     session = Session()
     result_array = []
@@ -2015,11 +1905,11 @@ def Get_IMEI_IMSI_History(attribute):
 
 def Check_EIR(imsi, imei):
     eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
-    DBLogger.debug("Called Check_EIR() for  imsi " + str(imsi) + " and imei: " + str(imei))
+    dbLogger.debug("Called Check_EIR() for  imsi " + str(imsi) + " and imei: " + str(imei))
     Session = sessionmaker(bind = engine)
     session = Session()
     #Check for Exact Matches
-    DBLogger.debug("Looking for exact matches")
+    dbLogger.debug("Looking for exact matches")
     #Check for exact Matches
     try:
         results = session.query(EIR).filter_by(imei=str(imei), regex_mode=0)
@@ -2027,11 +1917,11 @@ def Check_EIR(imsi, imei):
             result = result.__dict__
             match_response_code = result['match_response_code']
             if result['imsi'] == '':
-                DBLogger.debug("No IMSI specified in DB, so matching only on IMEI")
+                dbLogger.debug("No IMSI specified in DB, so matching only on IMEI")
                 Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                 return match_response_code
             elif result['imsi'] == str(imsi):
-                DBLogger.debug("Matched on IMEI and IMSI")
+                dbLogger.debug("Matched on IMEI and IMSI")
                 Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                 return match_response_code
     except Exception as E:
@@ -2039,23 +1929,23 @@ def Check_EIR(imsi, imei):
         safe_close(session)
         raise ValueError(E)
     
-    DBLogger.debug("Did not match any Exact Matches - Checking Regex")   
+    dbLogger.debug("Did not match any Exact Matches - Checking Regex")   
     try:
         results = session.query(EIR).filter_by(regex_mode=1)    #Get all Regex records from DB
         for result in results:
             result = result.__dict__
             match_response_code = result['match_response_code']
             if re.match(result['imei'], imei):
-                DBLogger.debug("IMEI matched " + str(result['imei']))
+                dbLogger.debug("IMEI matched " + str(result['imei']))
                 #Check if IMSI also specified
                 if len(result['imsi']) != 0:
-                    DBLogger.debug("With IMEI matched, now checking if IMSI matches regex")
+                    dbLogger.debug("With IMEI matched, now checking if IMSI matches regex")
                     if re.match(result['imsi'], imsi):
-                        DBLogger.debug("IMSI also matched, so match OK!")
+                        dbLogger.debug("IMSI also matched, so match OK!")
                         Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                         return match_response_code
                 else:
-                    DBLogger.debug("No IMSI specified, so match OK!")
+                    dbLogger.debug("No IMSI specified, so match OK!")
                     Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                     return match_response_code
     except Exception as E:
@@ -2066,17 +1956,17 @@ def Check_EIR(imsi, imei):
     try:
         session.commit()
     except Exception as E:
-        DBLogger.error("Failed to commit session, error: " + str(E))
+        dbLogger.error("Failed to commit session, error: " + str(E))
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
-    DBLogger.debug("No matches at all - Returning default response")
+    dbLogger.debug("No matches at all - Returning default response")
     Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=yaml_config['eir']['no_match_response'])
     safe_close(session)
     return yaml_config['eir']['no_match_response']
 
 def Get_EIR_Rules():
-    DBLogger.debug("Getting all EIR Rules")
+    dbLogger.debug("Getting all EIR Rules")
     Session = sessionmaker(bind = engine)
     session = Session()
     EIR_Rules = []
@@ -2090,7 +1980,7 @@ def Get_EIR_Rules():
         safe_rollback(session)
         safe_close(session)
         raise ValueError(E)
-    DBLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
+    dbLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
     safe_close(session)
     return EIR_Rules 
 
@@ -2103,33 +1993,33 @@ def dict_bytes_to_dict_string(dict_bytes):
 
 
 def get_device_info_from_TAC(imei):
-    DBLogger.debug("Getting Device Info from IMEI: " + str(imei))
+    dbLogger.debug("Getting Device Info from IMEI: " + str(imei))
     #Try 8 digit TAC
     try:
-        DBLogger.debug("Trying to match on 8 Digit IMEI")
+        dbLogger.debug("Trying to match on 8 Digit IMEI")
         #@@Fixme
         # imei_result = logtool.RedisHMGET(str(imei[0:8]))
         # print("Got back: " + str(imei_result))
         # imei_result = dict_bytes_to_dict_string(imei_result)
         # assert(len(imei_result) != 0)
-        # DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        # dbLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
         # return imei_result
         return "0"
     except:
-        DBLogger.debug("Failed to match on 8 digit IMEI")
+        dbLogger.debug("Failed to match on 8 digit IMEI")
     
     try:
-        DBLogger.debug("Trying to match on 6 Digit IMEI")
+        dbLogger.debug("Trying to match on 6 Digit IMEI")
         #@@Fixme
         # imei_result = logtool.RedisHMGET(str(imei[0:6]))
         # print("Got back: " + str(imei_result))
         # imei_result = dict_bytes_to_dict_string(imei_result)
         # assert(len(imei_result) != 0)
-        # DBLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
+        # dbLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
         # return imei_result
         return "0"
     except:
-        DBLogger.debug("Failed to match on 6 digit IMEI")
+        dbLogger.debug("Failed to match on 6 digit IMEI")
 
     raise ValueError("No matching TAC in IMEI Database")
 
@@ -2343,7 +2233,7 @@ if __name__ == "__main__":
     GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
-    #GeoRed_Push_Async({"imsi": "001001000000006", "serving_mme": "abc123"})
+    #handleGeored({"imsi": "001001000000006", "serving_mme": "abc123"})
     
 
     if DeleteAfter == True:

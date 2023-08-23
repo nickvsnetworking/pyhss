@@ -1,7 +1,7 @@
 import os, sys, json, yaml
-import time, logging
+import time, asyncio
 sys.path.append(os.path.realpath('../lib'))
-from messaging import RedisMessaging
+from messagingAsync import RedisMessagingAsync
 from diameter import Diameter
 from banners import Banners
 from logtool import LogTool
@@ -16,7 +16,7 @@ class HssService:
         except:
             print(f"[HSS] Fatal Error - config.yaml not found, exiting.")
             quit()
-        self.redisMessaging = RedisMessaging(host=redisHost, port=redisPort)
+        self.redisMessaging = RedisMessagingAsync(host=redisHost, port=redisPort)
         self.logTool = LogTool()
         self.banners = Banners()
         self.hssLogger = self.logTool.setupLogger(loggerName='HSS', config=self.config)
@@ -28,44 +28,45 @@ class HssService:
         self.diameterLibrary = Diameter(originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
         self.hssLogger.info(self.banners.hssService())
 
+    async def handleRequestQueue(self):
+        while True:
+            try:
+                requestQueue = await(self.redisMessaging.getNextQueue(pattern='diameter-request*'))
+                requestMessage = await(self.redisMessaging.getMessage(queue=requestQueue))
+                assert(len(requestMessage))
+                self.hssLogger.debug(f"[HSS] Inbound Diameter Request Queue: {requestQueue}")
+                self.hssLogger.debug(f"[HSS] Inbound Diameter Request: {requestMessage}")
 
+                requestDict = json.loads(requestMessage)
+                requestBinary = bytes.fromhex(next(iter(requestDict.values())))
+                requestSplit = str(requestQueue).split('-')
+                requestHost = requestSplit[2]
+                requestPort = requestSplit[3]
+                requestTimestamp = requestSplit[4]
 
-    def handleOutboundResponse(self, queue: str, diameterResponse: str):
-        self.redisMessaging.sendMessage(queue=queue, message=diameterResponse, queueExpiry=60)
+                try:
+                    diameterResponse = self.diameterLibrary.generateDiameterResponse(requestBinaryData=requestBinary)
+                except Exception as e:
+                    self.hssLogger.warn(f"[HSS] Failed to generate diameter response: {e}")
+                    continue
+                
+                self.hssLogger.debug(f"[HSS] Generated Diameter Response: {diameterResponse}")
+                if not len(diameterResponse) > 0:
+                    continue
+                
+                outboundResponseQueue = f"diameter-response-{requestHost}-{requestPort}-{requestTimestamp}"
+                outboundResponse = json.dumps({"diameter-response": diameterResponse})
 
-    def handleRequestQueue(self):
-        try:
-            requestQueue = self.redisMessaging.getNextQueue(pattern='diameter-request*')
-            requestMessage = self.redisMessaging.getMessage(queue=requestQueue)
-            assert(len(requestMessage))
-            self.hssLogger.debug(f"[HSS] Inbound Diameter Request Queue: {requestQueue}")
-            self.hssLogger.debug(f"[HSS] Inbound Diameter Request: {requestMessage}")
+                self.hssLogger.debug(f"[HSS] Outbound Diameter Response Queue: {outboundResponseQueue}")
+                self.hssLogger.debug(f"[HSS] Outbound Diameter Response: {outboundResponse}")
 
-            requestDict = json.loads(requestMessage)
-            requestBinary = bytes.fromhex(next(iter(requestDict.values())))
-            requestHost = str(requestQueue).split('-')[2]
-            requestPort = str(requestQueue).split('-')[3]
-            requestTimestamp = str(requestQueue).split('-')[4]
+                asyncio.ensure_future(self.redisMessaging.sendMessage(queue=outboundResponseQueue, message=outboundResponse, queueExpiry=60))
 
-            diameterResponse = self.diameterLibrary.generateDiameterResponse(requestBinaryData=requestBinary)
-            self.hssLogger.debug(f"[HSS] Generated Diameter Response: {diameterResponse}")
-            if not len(diameterResponse) > 0:
-                return False
-            
-            outboundResponseQueue = f"diameter-response-{requestHost}-{requestPort}-{requestTimestamp}"
-            outboundResponse = json.dumps({"diameter-response": diameterResponse})
-
-            self.hssLogger.debug(f"[HSS] Outbound Diameter Response Queue: {outboundResponseQueue}")
-            self.hssLogger.debug(f"[HSS] Outbound Diameter Response: {outboundResponse}")
-
-            self.handleOutboundResponse(queue=outboundResponseQueue, diameterResponse=outboundResponse)
-            time.sleep(0.005)
-
-        except Exception as e:
-            return False
+            except Exception as e:
+                continue
+        
 
 
 if __name__ == '__main__':
     hssService = HssService()
-    while True:
-        hssService.handleRequestQueue()
+    asyncio.run(hssService.handleRequestQueue())

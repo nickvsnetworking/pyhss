@@ -1,4 +1,5 @@
 from redis import Redis
+import time, json
 
 class RedisMessaging:
     """
@@ -22,6 +23,33 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
+    def sendMetric(self, serviceName: str, metricName: str, metricType: str, metricAction: str, metricValue: float, metricHelp: str='', metricLabels: list=[], metricTimestamp: int=time.time_ns(), metricExpiry: int=None) -> str:
+        """
+        Stores a prometheus metric in a format readable by the metric service.
+        """
+        if not metricValue.isdigit():
+            return 'Invalid Argument: metricValue must be a digit'
+        metricValue = float(metricValue)
+        prometheusMetricBody = json.dumps([{
+        'NAME': metricName,
+        'TYPE': metricType,
+        'HELP': metricHelp,
+        'LABELS': metricLabels,
+        'ACTION': metricAction,
+        'VALUE': metricValue,
+        }
+        ])
+
+        metricQueueName = f"metric-{serviceName}-{metricTimestamp}"
+
+        try:
+            self.redisClient.rpush(metricQueueName, prometheusMetricBody)
+            if metricExpiry is not None:
+                self.redisClient.expire(metricQueueName, metricExpiry)
+            return f'Succesfully stored metric called: {metricName}, with value of: {metricType}'
+        except Exception as e:
+            return ''
+    
     def getMessage(self, queue: str) -> str:
         """
         Gets the oldest message from a given Queue (Key), while removing it from the key as well. Deletes the key if the last message is being removed.
