@@ -17,9 +17,10 @@ class RedisMessagingAsync:
         """
         try:
             async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                sendMessageResult = await(redisPipe.rpush(queue, message).execute())
+                await redisPipe.rpush(queue, message)
                 if queueExpiry is not None:
-                    expireKeyResult = await(redisPipe.expire(queue, queueExpiry).execute())
+                    await redisPipe.expire(queue, queueExpiry)
+                sendMessageResult, expireKeyResult = await redisPipe.execute()
             return f'{message} stored in {queue} successfully.'
         except Exception as e:
             return ''
@@ -45,9 +46,10 @@ class RedisMessagingAsync:
         
         try:
             async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                sendMetricResult = await(redisPipe.rpush(metricQueueName, prometheusMetricBody).execute())
-            if metricExpiry is not None:
-                expireKeyResult = await(redisPipe.expire(metricQueueName, metricExpiry).execute())
+                await(redisPipe.rpush(metricQueueName, prometheusMetricBody).execute())
+                if metricExpiry is not None:
+                    await(redisPipe.expire(metricQueueName, metricExpiry).execute())
+                    sendMetricResult, expireKeyResult = await redisPipe.execute()
             return f'Succesfully stored metric called: {metricName}, with value of: {metricType}'
         except Exception as e:
             return ''
@@ -57,8 +59,7 @@ class RedisMessagingAsync:
         Gets the oldest message from a given Queue (Key) asynchronously, while removing it from the key as well. Deletes the key if the last message is being removed.
         """
         try:
-            async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                message = await(redisPipe.lpop(queue).execute())
+                message = await(self.redisClient.lpop(queue))
                 if message is None:
                     message = ''
                 else:
@@ -79,9 +80,9 @@ class RedisMessagingAsync:
         Returns all Queues (Keys) in the database, asynchronously.
         """
         try:
-            async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                allQueues = await(redisPipe.keys(pattern).execute())
-                return [x.decode() for x in allQueues[0]]
+                allQueuesBinary = await(self.redisClient.keys(pattern))
+                allQueues = [x.decode() for x in allQueuesBinary]
+                return allQueues
         except Exception as e:
             return []
     
@@ -90,9 +91,8 @@ class RedisMessagingAsync:
         Returns the next Queue (Key) in the list, asynchronously.
         """
         try:
-            async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                nextQueue = await(redisPipe.keys(pattern).execute())
-                return nextQueue[0][0].decode()
+                nextQueue = await(self.redisClient.keys(pattern))
+                return nextQueue[0].decode()
         except Exception as e:
             return ''
 
@@ -101,8 +101,7 @@ class RedisMessagingAsync:
         Deletes the given Queue (Key) asynchronously.
         """
         try:
-            async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                await(redisPipe.delete(queue).execute())
+            deleteQueueResult = await(self.redisClient.delete(queue))
             return True
         except Exception as e:
             return False

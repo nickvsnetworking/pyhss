@@ -1,18 +1,17 @@
 import asyncio
-import sctp, socket
 import sys, os, json
 import time, yaml, uuid
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
-from diameter import Diameter
+from diameterAsync import DiameterAsync
 from banners import Banners
 from logtool import LogTool
 
 class DiameterService:
     """
     PyHSS Diameter Service
-    A class for handling diameter requests and replies on Port 3868, via TCP or SCTP.
-    Functions in this class are high-performance, please edit with care. Last benchmarked on 23-08-2023.
+    A class for handling diameter inbounds and replies on Port 3868, via TCP.
+    Functions in this class are high-performance, please edit with care. Last benchmarked on 24-08-2023.
     """
 
     def __init__(self, redisHost: str='127.0.0.1', redisPort: int=6379):
@@ -24,114 +23,180 @@ class DiameterService:
             quit()
 
         self.redisMessaging = RedisMessagingAsync(host=redisHost, port=redisPort)
-        self.diameterLibrary = Diameter()
         self.banners = Banners()
         self.logTool = LogTool()
         self.diameterLogger = self.logTool.setupLogger(loggerName='Diameter', config=self.config)
-        self.socketTimeout = int(self.config.get('hss', {}).get('client_socket_timeout', 300))
+        self.diameterLibrary = DiameterAsync(logger=self.diameterLogger)
+        self.activeConnections = set()
 
-    async def validateDiameterRequest(self, requestData) -> bool:
+    async def validateDiameterInbound(self, inboundData) -> bool:
         """
-        Asynchronously validates a given diameter request, and increments the 'Number of Diameter Requests' metric.
+        Asynchronously validates a given diameter inbound, and increments the 'Number of Diameter Inbounds' metric.
         """
         try:
-            packetVars, avps = self.diameterLibrary.decode_diameter_packet(requestData)
-            originHost = self.diameterLibrary.get_avp_data(avps, 264)[0]
+            packetVars, avps = await(self.diameterLibrary.decodeDiameterPacketAsync(inboundData))
+            originHost = (await self.diameterLibrary.getAvpDataAsync(avps, 264))[0]
             originHost = bytes.fromhex(originHost).decode("utf-8")
-            asyncio.ensure_future(self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count',
+            asyncio.ensure_future(self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_inbound_count',
                                                 metricType='counter', metricAction='inc', 
-                                                metricValue=1.0, metricHelp='Number of Diameter Requests',
+                                                metricValue=1.0, metricHelp='Number of Diameter Inbounds',
                                                 metricLabels={
                                                 "diameter_application_id": str(packetVars["ApplicationId"]),
                                                 "diameter_cmd_code": str(packetVars["command_code"]),
                                                 "endpoint": originHost,
-                                                "type": "request"},
+                                                "type": "inbound"},
                                                 metricExpiry=60))
         except Exception as e:
+            print(e)
             return False
         return True
     
-    async def readRequestData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
+    async def logActiveConnections(self):
         """
-        Reads and parses incoming data from a connected client. Terminates the connection if diameter traffic is not received.
+        Logs the number of active connections on a rolling basis.
         """
-        self.diameterLogger.info(f"[Diameter] [readRequestData] [{coroutineUuid}] New connection from {clientAddress} on port {clientPort}")
+        while True:
+            activeConnections = self.activeConnections
+            if not len(activeConnections) > 0:
+                activeConnections = ''
+            self.diameterLogger.info(f"[Diameter] [logActiveConnections] {len(self.activeConnections)} Active Connections {activeConnections}")
+            await(asyncio.sleep(60))
+    
+    async def readInboundData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
+        """
+        Reads and parses incoming data from a connected client. Validated diameter messages are sent to the redis queue for processing.
+        Terminates the connection if diameter traffic is not received, or if the client disconnects.
+        """
+        self.diameterLogger.info(f"[Diameter] [readInboundData] [{coroutineUuid}] New connection from {clientAddress} on port {clientPort}")
         while True:
             try:
-                requestData = await asyncio.wait_for(reader.read(1024), timeout=socketTimeout)
-                if len(requestData) > 0:
-                    self.diameterLogger.debug(f"[Diameter] [readRequestData] [{coroutineUuid}] Received data from {clientAddress} on port {clientPort}")
+
+                inboundData = await(asyncio.wait_for(reader.read(1024), timeout=socketTimeout))
+
+                if reader.at_eof():
+                    return False
+                
+                if len(inboundData) > 0:
+                    self.diameterLogger.debug(f"[Diameter] [readInboundData] [{coroutineUuid}] Received data from {clientAddress} on port {clientPort}")
                     
-                    if not await(self.validateDiameterRequest(requestData)):
-                        self.diameterLogger.debug(f"[Diameter] [readRequestData] [{coroutineUuid}] Invalid Diameter Request, terminating connection.")
+                    if not await(self.validateDiameterInbound(inboundData)):
+                        self.diameterLogger.debug(f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter Inbound, terminating connection.")
                         return False
+                    
+                    diameterMessageType = await(self.diameterLibrary.getDiameterMessageTypeAsync(binaryData=inboundData))
+                    diameterMessageType = diameterMessageType.get('inbound', '')
 
-                    requestQueueName = f"diameter-request-{clientAddress}-{clientPort}-{time.time_ns()}"
-                    requestHexString = json.dumps({f"diameter-request": requestData.hex()})
-                    self.diameterLogger.debug(f"[Diameter] [readRequestData] [{coroutineUuid}] Queueing {requestHexString}")
-                    asyncio.ensure_future(self.redisMessaging.sendMessage(queue=requestQueueName, message=requestHexString, queueExpiry=60))
-            except asyncio.TimeoutError:
-                self.diameterLogger.info(f"[Diameter] [readRequestData] [{coroutineUuid}] Socket Timeout for {clientAddress} on port {clientPort}, closing connection.")
+                    inboundQueueName = f"diameter-inbound-{clientAddress}-{clientPort}-{time.time_ns()}"
+                    inboundHexString = json.dumps({f"diameter-inbound": inboundData.hex()})
+                    self.diameterLogger.debug(f"[Diameter] [readInboundData] [{coroutineUuid}] [{diameterMessageType}] Queueing {inboundHexString}")
+                    asyncio.ensure_future(self.redisMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=60))
+
+            except Exception as e:
+                self.diameterLogger.info(f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Timeout for {clientAddress} on port {clientPort}, closing connection.")
+                self.diameterLogger.debug(e)
                 return False
 
-    async def writeResponseData(self, writer, clientAddress: str, clientPort: str, coroutineUuid: str) -> bool:
-        self.diameterLogger.debug(f"[Diameter] [writeResponseData] [{coroutineUuid}] writeResponseData with host {clientAddress} on port {clientPort}")
+    async def writeOutboundData(self, writer, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
+        """
+        Continually polls the Redis queue for outbound messages. Received messages from the queue are validated against the connected client, and sent.
+        """
+        self.diameterLogger.debug(f"[Diameter] [writeOutboundData] [{coroutineUuid}] writeOutboundData with host {clientAddress} on port {clientPort}")
         while True:
             try:
-                pendingResponseQueues = await(self.redisMessaging.getQueues())
-                if not len(pendingResponseQueues) > 0:
-                    assert()
-                for responseQueue in pendingResponseQueues:
-                    responseQueueSplit = str(responseQueue).split('-')
-                    queuedMessageType = responseQueueSplit[1]
-                    diameterResponseHost = responseQueueSplit[2]
-                    diameterResponsePort = responseQueueSplit[3]
-                    if str(diameterResponseHost) == str(clientAddress) and str(diameterResponsePort) == str(clientPort) and queuedMessageType == 'response':
-                        self.diameterLogger.debug(f"[Diameter] [writeResponseData] [{coroutineUuid}] Matched {responseQueue} to host {clientAddress} on port {clientPort}")
-                        try:
-                            diameterResponse = json.loads(await(self.redisMessaging.getMessage(queue=responseQueue)))
-                            self.diameterLogger.debug(f"[Diameter] [writeResponseData] [{coroutineUuid}] Attempting to send outbound response to {clientAddress} on {clientPort}.")
-                            diameterResponseBinary = bytes.fromhex(next(iter(diameterResponse.values())))
-                            self.diameterLogger.debug(f"[Diameter] [writeResponseData] [{coroutineUuid}] Sending: {diameterResponseBinary.hex()} to to {clientAddress} on {clientPort}.")
-                            writer.write(diameterResponseBinary)
-                            await writer.drain()
-                        except Exception as e:
-                            print(e)
-            except ConnectionError:
-                self.diameterLogger.info(f"[Diameter] [writeResponseData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer.")
+
+                if writer.transport.is_closing():
+                    return False
+                
+                pendingOutboundQueues = await(self.redisMessaging.getQueues(pattern='diameter-outbound*'))
+                if not len(pendingOutboundQueues) > 0:
+                    await(asyncio.sleep(0))
+                    continue
+
+                self.diameterLogger.debug(f"[Diameter] [writeOutboundData] [{coroutineUuid}] Pending Outbound Queues: {pendingOutboundQueues}")
+                for outboundQueue in pendingOutboundQueues:
+                    outboundQueueSplit = str(outboundQueue).split('-')
+                    queuedMessageType = outboundQueueSplit[1]
+                    diameterOutboundHost = outboundQueueSplit[2]
+                    diameterOutboundPort = outboundQueueSplit[3]
+
+                    if str(diameterOutboundHost) == str(clientAddress) and str(diameterOutboundPort) == str(clientPort) and queuedMessageType == 'outbound':
+                        self.diameterLogger.debug(f"[Diameter] [writeOutboundData] [{coroutineUuid}] Matched {outboundQueue} to host {clientAddress} on port {clientPort}")
+                        diameterOutbound = json.loads(await(self.redisMessaging.getMessage(queue=outboundQueue)))
+                        diameterOutboundBinary = bytes.fromhex(next(iter(diameterOutbound.values())))
+                        diameterMessageType = await(self.diameterLibrary.getDiameterMessageTypeAsync(binaryData=diameterOutboundBinary))
+                        diameterMessageType = diameterMessageType.get('outbound', '')
+                        self.diameterLogger.debug(f"[Diameter] [writeOutboundData] [{coroutineUuid}] [{diameterMessageType}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}.")
+                        writer.write(diameterOutboundBinary)
+                        await(writer.drain())
+                        await(asyncio.sleep(0))
+
+            except Exception:
+                self.diameterLogger.info(f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer.")
                 return False
-            except Exception as e:
-                continue
+            await(asyncio.sleep(0))
 
     async def handleConnection(self, reader, writer):
-        (clientAddress, clientPort) = writer.get_extra_info('peername')
-        self.diameterLogger.debug(f"[Diameter] Initial Connection from: {clientAddress} on port {clientPort}")
-        coroutineUuid = uuid.uuid4()
+        """
+        For each new connection on port 3868, create an asynchronous reader and writer. If a reader or writer returns false, ensure that the connection is torn down entirely.
+        """
+        try:
+            (clientAddress, clientPort) = writer.get_extra_info('peername')
+            self.diameterLogger.debug(f"[Diameter] Initial Connection from: {clientAddress} on port {clientPort}")
+            coroutineUuid = str(uuid.uuid4())
+            self.activeConnections.add((clientAddress, clientPort, coroutineUuid))
 
-        if False in await asyncio.gather(self.readRequestData(reader=reader, clientAddress=clientAddress, clientPort=clientPort, socketTimeout=self.socketTimeout, coroutineUuid=coroutineUuid), 
-                                         self.writeResponseData(writer=writer, clientAddress=clientAddress, clientPort=clientPort, coroutineUuid=coroutineUuid)):
-            self.diameterLogger.debug(f"[Diameter] Closing Writer for {clientAddress} on port {clientPort}.")
+            readTask = asyncio.create_task(self.readInboundData(reader=reader, clientAddress=clientAddress, clientPort=clientPort, socketTimeout=self.socketTimeout, coroutineUuid=coroutineUuid))
+            writeTask = asyncio.create_task(self.writeOutboundData(writer=writer, clientAddress=clientAddress, clientPort=clientPort, socketTimeout=self.socketTimeout, coroutineUuid=coroutineUuid))
+
+            completeTasks, pendingTasks =  await(asyncio.wait([readTask, writeTask], return_when=asyncio.FIRST_COMPLETED))
+
+            for pendingTask in pendingTasks:
+                try:
+                    pendingTask.cancel()
+                    await(asyncio.sleep(0))
+                except asyncio.CancelledError:
+                    pass
+      
             writer.close()
-            await writer.wait_closed()
-            self.diameterLogger.debug(f"[Diameter] Closed Writer for {clientAddress} on port {clientPort}.")
+            await(writer.wait_closed())
+            self.activeConnections.discard((clientAddress, clientPort, coroutineUuid))
+
+            return
+        
+        except Exception as e:
+            self.diameterLogger.warning(f"[Diameter] [handleConnection] [{coroutineUuid}] Unhandled exception in diameterService.handleConnection: {e}")
             return
 
-    async def startServer(self, host: str='0.0.0.0', port: int=3868, type: str='TCP'):
+    async def startServer(self, host: str=None, port: int=None, type: str=None):
+        """
+        Start a server with the given parameters and handle new clients with self.handleConnection.
+        Also create a single instance of self.logActiveConnections.
+        """
+
+        if host is None:
+            host=str(self.config.get('hss', {}).get('bind_ip', '0.0.0.0')[0])
+        
+        if port is None:
+            port=int(self.config.get('hss', {}).get('bind_port', 3868))
+        
+        if type is None:
+            type=str(self.config.get('hss', {}).get('transport', 'TCP'))
+
+        self.socketTimeout = int(self.config.get('hss', {}).get('client_socket_timeout', 300))
+
         if type.upper() == 'TCP':
-            server = await asyncio.start_server(self.handleConnection, host, port)
-        elif type.upper() == 'SCTP':
-            sctpSocket = sctp.sctpsocket_tcp(socket.AF_INET)
-            server = await asyncio.start_server(self.handleConnection, host, port, socket=sctpSocket)
+            server = await(asyncio.start_server(self.handleConnection, host, port))
         else:
             return False
         servingAddresses = ', '.join(str(sock.getsockname()) for sock in server.sockets)
         self.diameterLogger.info(self.banners.diameterService())
         self.diameterLogger.info(f'[Diameter] Serving on {servingAddresses}')
-            
+        asyncio.create_task(self.logActiveConnections())
+
         async with server:
-            await server.serve_forever()
+            await(server.serve_forever())
 
 
 if __name__ == '__main__':
     diameterService = DiameterService()
-    asyncio.run(diameterService.startServer())
+    asyncio.run(diameterService.startServer(), debug=True)
