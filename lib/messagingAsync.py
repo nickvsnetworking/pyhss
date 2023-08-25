@@ -54,6 +54,22 @@ class RedisMessagingAsync:
         except Exception as e:
             return ''
 
+    async def sendLogMessage(self, serviceName: str, logLevel: str, logTimestamp: int, message: str, logExpiry: int=None) -> str:
+        """
+        Stores a log message in a given Queue (Key) asynchronously and sets an expiry (in seconds) if provided.
+        """
+        try:
+            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}"
+            logMessage = json.dumps({"message": message})
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                await redisPipe.rpush(logQueueName, logMessage)
+                if logExpiry is not None:
+                    await redisPipe.expire(logQueueName, logExpiry)
+                sendMessageResult, expireKeyResult = await redisPipe.execute()
+            return f'{message} stored in {logQueueName} successfully.'
+        except Exception as e:
+            return ''
+
     async def getMessage(self, queue: str) -> str:
         """
         Gets the oldest message from a given Queue (Key) asynchronously, while removing it from the key as well. Deletes the key if the last message is being removed.

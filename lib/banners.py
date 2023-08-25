@@ -72,3 +72,21 @@ class Banners:
 
 """
         return bannerText
+
+    def logService(self) -> str:
+        bannerText = """
+                                                     
+ ######            ##   ##   #####    #####  
+ ##   ##           ##   ##  ##   ##  ##   ## 
+ ##   ##  ##  ##   ##   ##  ##       ##      
+ ######   ##  ##   #######   #####    #####  
+ ##       ##  ##   ##   ##       ##       ## 
+ ##       ##  ##   ##   ##  ##   ##  ##   ## 
+ ##        #####   ##   ##   #####    #####  
+              ##                             
+           ####                              
+
+                 Log Service
+
+"""
+        return bannerText

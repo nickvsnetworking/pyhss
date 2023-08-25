@@ -4,7 +4,7 @@ import asyncio
 
 class DiameterAsync:
 
-    def __init__(self, logger):
+    def __init__(self):
         self.diameterCommandList = [
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
                 {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCR", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
@@ -24,7 +24,6 @@ class DiameterAsync:
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
             ]
         
-        self.logger = logger
 
     #Generates rounding for calculating padding
     async def myRoundAsync(self, n, base=4):
@@ -121,7 +120,7 @@ class DiameterAsync:
             elif str(e) == "Length of data is too short to be valid AVP":
                 pass
             else:
-                self.logger.warn("[Diameter] [decodeAvpPacketAsync] failed to decode sub-avp - error: " + str(e))
+                #self.logger.warn("[Diameter] [decodeAvpPacketAsync] failed to decode sub-avp - error: " + str(e))
                 pass
 
         remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
@@ -138,7 +137,7 @@ class DiameterAsync:
                 assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
                 response['inbound'] = diameterApplication["requestAcronym"]
                 response['outbound'] = diameterApplication["responseAcronym"]
-                self.logger.debug(f"[Diameter] [getDiameterMessageTypeAsync] Successfully got message type: {response}")
+                #self.logger.debug(f"[Diameter] [getDiameterMessageTypeAsync] Successfully got message type: {response}")
             except Exception as e:
                 continue
         
@@ -150,7 +149,7 @@ class DiameterAsync:
 
         # Drop packet if it's a response packet:
         if packet_vars["flags_bin"][0:1] == "0":
-            self.logger.debug(f"[Diameter] [generateDiameterResponseAsync] Got a Response, not a request - dropping it: {packet_vars}")
+            #self.logger.debug(f"[Diameter] [generateDiameterResponseAsync] Got a Response, not a request - dropping it: {packet_vars}")
             return
         
         for diameterApplication in self.diameterCommandList:
@@ -160,7 +159,7 @@ class DiameterAsync:
                 if 'flags' in diameterApplication:
                     assert(str(packet_vars["flags"]) == str(diameterApplication["flags"]))
                 response = diameterApplication["responseMethod"](packet_vars, avps)
-                self.logger.debug(f"[Diameter] [generateDiameterResponseAsync] Successfully generated response: {response}")
+                #self.logger.debug(f"[Diameter] [generateDiameterResponseAsync] Successfully generated response: {response}")
             except Exception as e:
                 continue
         

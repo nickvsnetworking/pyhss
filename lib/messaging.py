@@ -50,6 +50,20 @@ class RedisMessaging:
         except Exception as e:
             return ''
     
+    def sendLogMessage(self, serviceName: str, logLevel: str, logTimestamp: int, message: str, logExpiry: int=None) -> str:
+        """
+        Stores a message in a given Queue (Key).
+        """
+        try:
+            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}"
+            logMessage = json.dumps({"message": message})
+            self.redisClient.rpush(logQueueName, logMessage)
+            if logExpiry is not None:
+                self.redisClient.expire(logQueueName, logExpiry)
+            return f'{message} stored in {logQueueName} successfully.'
+        except Exception as e:
+            return ''
+
     def getMessage(self, queue: str) -> str:
         """
         Gets the oldest message from a given Queue (Key), while removing it from the key as well. Deletes the key if the last message is being removed.

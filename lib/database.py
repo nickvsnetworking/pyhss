@@ -22,14 +22,15 @@ import S6a_crypt
 import requests
 import threading
 from logtool import LogTool
+import logging
 from messaging import RedisMessaging
 
 import yaml
 with open("../config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-logTool = LogTool()
-dbLogger = logTool.setupLogger(loggerName='Database', config=yaml_config)
+logTool = LogTool(yaml_config)
+dbLogger = logging.getLogger('Database')
 dbLogger.info("DB Log Initialised.")
 redisMessaging = RedisMessaging()
 
