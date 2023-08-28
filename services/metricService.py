@@ -17,16 +17,14 @@ class MetricService:
             with open("../config.yaml", "r") as self.configFile:
                 self.config = yaml.safe_load(self.configFile)
         except:
-            print(f"[HSS] Fatal Error - config.yaml not found, exiting.")
+            print(f"[Metric] Fatal Error - config.yaml not found, exiting.")
             quit()
     
         self.redisMessaging = RedisMessaging(host=redisHost, port=redisPort)
         self.banners = Banners()
-        self.logTool = LogTool()
+        self.logTool = LogTool(config=self.config)
         self.registry = CollectorRegistry(auto_describe=True)
-        self.metricLogger = self.logTool.setupLogger(loggerName='Metric', config=self.config)
-        self.metricLogger.info(self.banners.metricService())
-
+        self.logTool.log(service='Metric', level='info', message=f"{self.banners.metricService()}", redisClient=self.redisMessaging)
     
     def handleMetrics(self):
         try:
@@ -37,10 +35,10 @@ class MetricService:
             metric = self.redisMessaging.getMessage(queue=metricQueue)
             if not (len(metric) > 0):
                 return
-            self.metricLogger.info(f"Received Metric: {metric}")
+            self.logTool.log(service='Metric', level='debug', message=f"Received Metric: {metric}", redisClient=self.redisMessaging)
             prometheusJsonList = json.loads(metric)
             for prometheusJson in prometheusJsonList:
-                self.metricLogger.debug(prometheusJson)
+                self.logTool.log(service='Metric', level='debug', message=f"{prometheusJson}", redisClient=self.redisMessaging)
                 if not all(key in prometheusJson for key in ('NAME', 'TYPE', 'ACTION', 'VALUE')):
                     raise ValueError('All fields are not available for parsing')
                 counterName = prometheusJson['NAME']
@@ -68,14 +66,14 @@ class MetricService:
                         prometheusMethod = getattr(counterRecord, action)
                         prometheusMethod(counterValue)
                     else:
-                        self.metricLogger.debug(f"Invalid action `{counterAction}` in message: {metric}, skipping.")
+                        self.logTool.log(service='Metric', level='warn', message=f"Invalid action '{counterAction}' in message: {metric}, skipping.", redisClient=self.redisMessaging)
                         continue
                 else:
-                    self.metricLogger.debug(f"Invalid type `{counterType}` in message: {metric}, skipping.")
+                    self.logTool.log(service='Metric', level='warn', message=f"Invalid type '{counterType}' in message: {metric}, skipping.", redisClient=self.redisMessaging)
                     continue
 
         except Exception as e:
-            self.metricLogger.error(f"Unable to parse message: {metric}, due to {e}. Skipping.")
+            self.logTool.log(service='Metric', level='error', message=f"Unable to parse message: {metric}, due to {e}. Skipping.", redisClient=self.redisMessaging)
             return
 
 

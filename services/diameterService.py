@@ -1,8 +1,6 @@
 import asyncio
 import sys, os, json
 import time, yaml, uuid
-import concurrent.futures 
-import logging
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync

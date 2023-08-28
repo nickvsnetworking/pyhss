@@ -14,10 +14,8 @@ class GeoredService:
         except:
             print(f"[Geored] Fatal Error - config.yaml not found, exiting.")
             quit()
-        self.logTool = LogTool()
+        self.logTool = LogTool(self.config)
         self.banners = Banners()
-        self.georedLogger = self.logTool.setupLogger(loggerName='Geored', config=self.config)
-        self.georedLogger.info(self.banners.georedService())
         self.redisMessaging = RedisMessaging(host=redisHost, port=redisPort)
         self.remotePeers = self.config.get('geored', {}).get('sync_endpoints', [])
         if not self.config.get('geored', {}).get('enabled'):
@@ -26,6 +24,8 @@ class GeoredService:
         if not (len(self.remotePeers) > 0):
             self.logger.error("[Geored] Fatal Error - no peers defined under geored.sync_endpoints, exiting.")
             quit()
+        self.logTool.log(service='Geored', level='info', message=f"{self.banners.georedService()}", redisClient=self.redisMessaging)
+
 
     def sendGeored(self, url: str, operation: str, body: str, transactionId: str=uuid.uuid4(), retryCount: int=3) -> bool:
             operation = operation.upper()
@@ -46,7 +46,7 @@ class GeoredService:
                     else:
                         response = requestOperations[operation](url, headers=headers)
                         if 200 <= response.status_code <= 299:
-                            self.georedLogger.debug(f"[Geored] Operation {operation} executed successfully on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}")
+                            self.logTool.log(service='Geored', level='debug', message=f"[Geored] [sendGeored] Operation {operation} executed successfully on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}", redisClient=self.redisMessaging)
 
                             self.redisMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
                                                                 metricType='counter', metricAction='inc', 
@@ -70,7 +70,7 @@ class GeoredService:
                                     metricExpiry=60)
                 except requests.exceptions.ConnectionError as e:
                     error_message = str(e)
-                    self.georedLogger.warning(f"[Geored] Operation {operation} failed on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}. Error Message: {e}")
+                    self.logTool.log(service='Geored', level='warning', message=f"[Geored] [sendGeored] Operation {operation} failed on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}. Error Message: {e}", redisClient=self.redisMessaging)
                     if "Name or service not known" in error_message:
                         self.redisMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
                         metricType='counter', metricAction='inc', 
@@ -92,7 +92,7 @@ class GeoredService:
                         "error": "Connection Refused"},
                         metricExpiry=60)
                 except requests.exceptions.Timeout:
-                    self.georedLogger.warning(f"[Geored] Operation {operation} timed out on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}. Error Message: {e}")
+                    self.logTool.log(service='Geored', level='warning', message=f"[Geored] [sendGeored] Operation {operation} timed out on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}. Error Message: {e}", redisClient=self.redisMessaging)
                     self.redisMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
                     metricType='counter', metricAction='inc', 
                     metricValue=1.0, metricHelp='Number of Geored Pushes',
@@ -103,7 +103,7 @@ class GeoredService:
                     "error": "Timeout"},
                     metricExpiry=60)
                 except Exception as e:
-                    self.georedLogger.error(f"[Geored] Operation {operation} encountered unknown error on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}. Error Message: {e}")
+                    self.logTool.log(service='Geored', level='error', message=f"[Geored] [sendGeored] Operation {operation} encountered unknown error on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {response.status_code}. Error Message: {e}", redisClient=self.redisMessaging)
                     self.redisMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
                     metricType='counter', metricAction='inc', 
                     metricValue=1.0, metricHelp='Number of Geored Pushes',
@@ -120,8 +120,8 @@ class GeoredService:
             georedQueue = self.redisMessaging.getNextQueue(pattern='geored-*')
             georedMessage = self.redisMessaging.getMessage(queue=georedQueue)
             assert(len(georedMessage))
-            self.georedLogger.debug(f"[Geored] Queue: {georedQueue}")
-            self.georedLogger.debug(f"[Geored] Message: {georedMessage}")
+            self.logTool.log(service='Geored', level='debug', message=f"[Geored] Queue: {georedQueue}", redisClient=self.redisMessaging)
+            self.logTool.log(service='Geored', level='debug', message=f"[Geored] Message: {georedMessage}", redisClient=self.redisMessaging)
 
             georedDict = json.loads(georedMessage)
             georedOperation = georedDict['operation']

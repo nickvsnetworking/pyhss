@@ -1,47 +1,24 @@
-from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, event, Text, DateTime, Float
+from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
 from sqlalchemy import create_engine
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
-import sys, os
-from functools import wraps
-import json
+from sqlalchemy.ext.declarative import declarative_base
+import  os
 import datetime, time
 from datetime import timezone
 import re
 import binascii
 import uuid
 import socket
-import traceback
-from contextlib import contextmanager
 import pprint
-from construct import Default
 import S6a_crypt
-import requests
 import threading
-from logtool import LogTool
-import logging
 from messaging import RedisMessaging
-
 import yaml
-with open("../config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
 
-logTool = LogTool(yaml_config)
-dbLogger = logging.getLogger('Database')
-dbLogger.info("DB Log Initialised.")
-redisMessaging = RedisMessaging()
-
-db_string = 'mysql://' + str(yaml_config['database']['username']) + ':' + str(yaml_config['database']['password']) + '@' + str(yaml_config['database']['server']) + '/' + str(yaml_config['database']['database'] + "?autocommit=true")
-engine = create_engine(
-    db_string, 
-    echo = yaml_config['logging'].get('sqlalchemy_sql_echo', True), 
-    pool_recycle=yaml_config['logging'].get('sqlalchemy_pool_recycle', 5),
-    pool_size=yaml_config['logging'].get('sqlalchemy_pool_size', 30),
-    max_overflow=yaml_config['logging'].get('sqlalchemy_max_overflow', 0))
-from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 class OPERATION_LOG_BASE(Base):
@@ -278,1755 +255,1776 @@ class SUBSCRIBER_ATTRIBUTES(Base):
     value = Column(String(12000), doc='Arbitrary value')
     operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
 
-# Create database if it does not exist.
-if not database_exists(engine.url):
-    dbLogger.debug("Creating database")
-    create_database(engine.url)
-    Base.metadata.create_all(engine)
-else:
-    dbLogger.debug("Database already created")
+class Database:
 
-def load_IMEI_database_into_Redis():
-    try:
-        dbLogger.info("Reading IMEI TAC database CSV from " + str(yaml_config['eir']['tac_database_csv']))
-        csvfile = open(str(yaml_config['eir']['tac_database_csv']))
-        dbLogger.info("This may take a few seconds to buffer into Redis...")
-    except:
-        dbLogger.error("Failed to read CSV file of IMEI TAC database")
-        return
-    try:
-        count = 0
-        for line in csvfile:
-            line = line.replace('"', '')        #Strip excess invered commas
-            line = line.replace("'", '')        #Strip excess invered commas
-            line = line.rstrip()                #Strip newlines
-            result = line.split(',')
-            tac_prefix = result[0]
-            name = result[1].lstrip()
-            model = result[2].lstrip()
-            if count == 0:
-                dbLogger.info("Checking to see if entries are already present...")
-                redis_imei_result = redisMessaging.getMessage(key=str(tac_prefix))
-                if len(redis_imei_result) != 0:
-                    dbLogger.info("IMEI TAC Database already loaded into Redis - Skipping reading from file...")
-                    break
-                else:
-                    dbLogger.info("No data loaded into Redis, proceeding to load...")
-            imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-            redisMessaging.sendMessage(key=str(tac_prefix), value_dict=imei_result)
-            count = count +1
-        dbLogger.info("Loaded " + str(count) + " IMEI TAC entries into Redis")
-    except Exception as E:
-        dbLogger.error("Failed to load IMEI Database into Redis due to error: " + (str(E)))
-        return
+    def __init__(self, logTool, redisMessaging):
+        with open("../config.yaml", 'r') as stream:
+            self.config = (yaml.safe_load(stream))
 
-#Load IMEI TAC database into Redis if enabled
-if ('tac_database_csv' in yaml_config['eir']) and (yaml_config['redis']['enabled'] == True):
-    load_IMEI_database_into_Redis()
-else:
-    dbLogger.info("Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config")
+        self.logTool = logTool
+        self.redisMessaging = redisMessaging
+
+        db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
+        self.engine = create_engine(
+            db_string, 
+            echo = self.config['logging'].get('sqlalchemy_sql_echo', True), 
+            pool_recycle=self.config['logging'].get('sqlalchemy_pool_recycle', 5),
+            pool_size=self.config['logging'].get('sqlalchemy_pool_size', 30),
+            max_overflow=self.config['logging'].get('sqlalchemy_max_overflow', 0))
+
+        # Create database if it does not exist.
+        if not database_exists(self.engine.url):
+            self.logTool.log(service='Database', level='debug', message="Creating database", redisClient=self.redisMessaging)
+            create_database(self.engine.url)
+            Base.metadata.create_all(self.engine)
+        else:
+            self.logTool.log(service='Database', level='debug', message="Database already created", redisClient=self.redisMessaging)
+
+        #Load IMEI TAC database into Redis if enabled
+        if ('tac_database_csv' in self.config['eir']) and (self.config['redis']['enabled'] == True):
+            self.load_IMEI_database_into_Redis()
+        else:
+            self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
+
+    # Create individual tables if they do not exist.
+        inspector = Inspector.from_engine(self.engine)
+        for table_name in Base.metadata.tables.keys():
+            if table_name not in inspector.get_table_names():
+                self.logTool.log(service='Database', level='debug', message=f"Creating table {table_name}", redisClient=self.redisMessaging)
+                Base.metadata.tables[table_name].create(bind=self.engine)
+            else:
+                self.logTool.log(service='Database', level='debug', message=f"Table {table_name} already exists", redisClient=self.redisMessaging)
 
 
-def safe_rollback(session):
-    try:
-        if session.is_active:
-            session.rollback()
-    except Exception as E:
-        dbLogger.error(f"Failed to rollback session, error: {E}")
-
-def safe_close(session):
-    try:
-        if session.is_active:
-            session.close()
-    except Exception as E:
-        dbLogger.error(f"Failed to run safe_close on session, error: {E}")
-
-def sqlalchemy_type_to_json_schema_type(sqlalchemy_type):
-    """
-    Map SQLAlchemy types to JSON Schema types.
-    """
-    if isinstance(sqlalchemy_type, Integer):
-        return "integer"
-    elif isinstance(sqlalchemy_type, String):
-        return "string"
-    elif isinstance(sqlalchemy_type, Boolean):
-        return "boolean"
-    elif isinstance(sqlalchemy_type, DateTime):
-        return "string"
-    elif isinstance(sqlalchemy_type, Float):
-        return "number"
-    else:
-        return "string"  # Default to string for unsupported types.
-
-def generate_json_schema(model_class, required=None):
-    properties = {}
-    required = required or []
-
-    for column in model_class.__table__.columns:
-        prop_type = sqlalchemy_type_to_json_schema_type(column.type)
-        prop_dict = {
-            "type": prop_type,
-            "description": column.doc
-        }
-        if prop_type == "string":
-            if hasattr(column.type, 'length'):
-                prop_dict["maxLength"] = column.type.length
-        if isinstance(column.type, DateTime):
-            prop_dict["format"] = "date-time"
-        if not column.nullable:
-            required.append(column.name)
-        properties[column.name] = prop_dict
-
-    return {"type": "object", "title" : str(model_class.__name__), "properties": properties, "required": required}
-
-# Create individual tables if they do not exist.
-inspector = Inspector.from_engine(engine)
-for table_name in Base.metadata.tables.keys():
-    if table_name not in inspector.get_table_names():
-        dbLogger.debug(f"Creating table {table_name}")
-        Base.metadata.tables[table_name].create(bind=engine)
-    else:
-        dbLogger.debug(f"Table {table_name} already exists")
-
-def update_old_record(session, operation_log):
-    oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
-    if oldest_log is not None:
-        for attr in class_mapper(oldest_log.__class__).column_attrs:
-            if attr.key != 'id' and hasattr(operation_log, attr.key):
-                setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
-        oldest_log.timestamp = datetime.datetime.now(tz=timezone.utc)
-        session.flush()
-    else:
-        raise ValueError("Unable to find record to update")
-
-def log_change(session, item_id, operation, changes, table_name, operation_id, generated_id=None):
-    # We don't want to log rollback operations
-    if session.info.get("operation") == 'ROLLBACK':
-        return
-    max_records = 1000
-    count = session.query(OPERATION_LOG_BASE).count()
-
-    # Combine all changes into a single string with their types
-    changes_string = '\r\n\r\n'.join(f"{column_name}: [{type(old_value).__name__}] {old_value} ----> [{type(new_value).__name__}] {new_value}" for column_name, old_value, new_value in changes)
-
-    change = OPERATION_LOG_BASE(
-        item_id=item_id or generated_id,
-        operation_id=operation_id,
-        operation=operation,
-        last_modified=datetime.datetime.now(tz=timezone.utc),
-        changes=changes_string,
-        table_name=table_name
-    )
-
-    if count >= max_records:
-        update_old_record(session, change)
-    else:
+    def load_IMEI_database_into_Redis(self):
         try:
-            session.add(change)
-            session.flush()
+            self.logTool.log(service='Database', level='info', message="Reading IMEI TAC database CSV from " + str(self.config['eir']['tac_database_csv']), redisClient=self.redisMessaging)
+            csvfile = open(str(self.config['eir']['tac_database_csv']))
+            self.logTool.log(service='Database', level='info', message="This may take a few seconds to buffer into Redis...", redisClient=self.redisMessaging)
+        except:
+            self.logTool.log(service='Database', level='error', message="Failed to read CSV file of IMEI TAC database", redisClient=self.redisMessaging)
+            return
+        try:
+            count = 0
+            for line in csvfile:
+                line = line.replace('"', '')        #Strip excess invered commas
+                line = line.replace("'", '')        #Strip excess invered commas
+                line = line.rstrip()                #Strip newlines
+                result = line.split(',')
+                tac_prefix = result[0]
+                name = result[1].lstrip()
+                model = result[2].lstrip()
+                if count == 0:
+                    self.logTool.log(service='Database', level='info', message="Checking to see if entries are already present...", redisClient=self.redisMessaging)
+                    redis_imei_result = self.redisMessaging.getMessage(key=str(tac_prefix))
+                    if len(redis_imei_result) != 0:
+                        self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file...", redisClient=self.redisMessaging)
+                        break
+                    else:
+                        self.logTool.log(service='Database', level='info', message="No data loaded into Redis, proceeding to load...", redisClient=self.redisMessaging)
+                imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
+                self.redisMessaging.sendMessage(key=str(tac_prefix), value_dict=imei_result)
+                count = count +1
+            self.logTool.log(service='Database', level='info', message="Loaded " + str(count) + " IMEI TAC entries into Redis", redisClient=self.redisMessaging)
         except Exception as E:
-            dbLogger.error("Failed to commit changelog, error: " + str(E))
-            safe_rollback(session)
-            safe_close(session)
-            raise ValueError(E)
-    return operation_id
+            self.logTool.log(service='Database', level='error', message="Failed to load IMEI Database into Redis due to error: " + (str(E)), redisClient=self.redisMessaging)
+            return
 
+    def safe_rollback(self, session):
+        try:
+            if session.is_active:
+                session.rollback()
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"Failed to rollback session, error: {E}", redisClient=self.redisMessaging)
 
-def log_changes_before_commit(session):
+    def safe_close(self, session):
+        try:
+            if session.is_active:
+                session.close()
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"Failed to run safe_close on session, error: {E}", redisClient=self.redisMessaging)
 
-    operation_id = session.info.get("operation_id", None) or str(uuid.uuid4())
-    if session.info.get("operation") == 'ROLLBACK':
-        return
+    def sqlalchemy_type_to_json_schema_type(self, sqlalchemy_type):
+        """
+        Map SQLAlchemy types to JSON Schema types.
+        """
+        if isinstance(sqlalchemy_type, Integer):
+            return "integer"
+        elif isinstance(sqlalchemy_type, String):
+            return "string"
+        elif isinstance(sqlalchemy_type, Boolean):
+            return "boolean"
+        elif isinstance(sqlalchemy_type, DateTime):
+            return "string"
+        elif isinstance(sqlalchemy_type, Float):
+            return "number"
+        else:
+            return "string"  # Default to string for unsupported types.
 
-    changelog_pending = any(isinstance(obj, OPERATION_LOG_BASE) for obj in session.new)
-    if changelog_pending:
-        return  # Skip if there are pending OPERATION_LOG_BASE objects
+    def generate_json_schema(self, model_class, required=None):
+        properties = {}
+        required = required or []
 
-    for state, operation in [
-        (session.new, 'INSERT'),
-        (session.dirty, 'UPDATE'),
-        (session.deleted, 'DELETE')
-    ]:
-        for obj in state:
-            if isinstance(obj, OPERATION_LOG_BASE):
-                continue  # Skip change log entries
+        for column in model_class.__table__.columns:
+            prop_type = self.sqlalchemy_type_to_json_schema_type(column.type)
+            prop_dict = {
+                "type": prop_type,
+                "description": column.doc
+            }
+            if prop_type == "string":
+                if hasattr(column.type, 'length'):
+                    prop_dict["maxLength"] = column.type.length
+            if isinstance(column.type, DateTime):
+                prop_dict["format"] = "date-time"
+            if not column.nullable:
+                required.append(column.name)
+            properties[column.name] = prop_dict
 
-            item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
-            generated_id = None
+        return {"type": "object", "title" : str(model_class.__name__), "properties": properties, "required": required}
 
-            #Avoid logging rollback operations
-            if operation == 'ROLLBACK':
-                return
+    def update_old_record(self, session, operation_log):
+        oldest_log = session.query(OPERATION_LOG_BASE).order_by(OPERATION_LOG_BASE.timestamp.asc()).first()
+        if oldest_log is not None:
+            for attr in class_mapper(oldest_log.__class__).column_attrs:
+                if attr.key != 'id' and hasattr(operation_log, attr.key):
+                    setattr(oldest_log, attr.key, getattr(operation_log, attr.key))
+            oldest_log.timestamp = datetime.datetime.now(tz=timezone.utc)
+            session.flush()
+        else:
+            raise ValueError("Unable to find record to update")
 
-            # Flush the session to generate primary key for new objects
-            if operation == 'INSERT':
+    def log_change(self, session, item_id, operation, changes, table_name, operation_id, generated_id=None):
+        # We don't want to log rollback operations
+        if session.info.get("operation") == 'ROLLBACK':
+            return
+        max_records = 1000
+        count = session.query(OPERATION_LOG_BASE).count()
+
+        # Combine all changes into a single string with their types
+        changes_string = '\r\n\r\n'.join(f"{column_name}: [{type(old_value).__name__}] {old_value} ----> [{type(new_value).__name__}] {new_value}" for column_name, old_value, new_value in changes)
+
+        change = OPERATION_LOG_BASE(
+            item_id=item_id or generated_id,
+            operation_id=operation_id,
+            operation=operation,
+            last_modified=datetime.datetime.now(tz=timezone.utc),
+            changes=changes_string,
+            table_name=table_name
+        )
+
+        if count >= max_records:
+            self.update_old_record(session, change)
+        else:
+            try:
+                session.add(change)
                 session.flush()
+            except Exception as E:
+                self.logTool.log(service='Database', level='error', message="Failed to commit changelog, error: " + str(E), redisClient=self.redisMessaging)
+                self.safe_rollback(session)
+                self.safe_close(session)
+                raise ValueError(E)
+        return operation_id
 
-            if operation == 'UPDATE':
-                changes = []
-                for attr in class_mapper(obj.__class__).column_attrs:
-                    hist = get_history(obj, attr.key)
-                    dbLogger.info(f"History {hist}")
-                    if hist.has_changes() and hist.added and hist.deleted:
-                        old_value, new_value = hist.deleted[0], hist.added[0]
-                        dbLogger.info(f"Old Value {old_value}")
-                        dbLogger.info(f"New Value {new_value}")
-                        changes.append((attr.key, old_value, new_value))
+
+    def log_changes_before_commit(self, session):
+
+        operation_id = session.info.get("operation_id", None) or str(uuid.uuid4())
+        if session.info.get("operation") == 'ROLLBACK':
+            return
+
+        changelog_pending = any(isinstance(obj, OPERATION_LOG_BASE) for obj in session.new)
+        if changelog_pending:
+            return  # Skip if there are pending OPERATION_LOG_BASE objects
+
+        for state, operation in [
+            (session.new, 'INSERT'),
+            (session.dirty, 'UPDATE'),
+            (session.deleted, 'DELETE')
+        ]:
+            for obj in state:
+                if isinstance(obj, OPERATION_LOG_BASE):
+                    continue  # Skip change log entries
+
+                item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
+                generated_id = None
+
+                #Avoid logging rollback operations
+                if operation == 'ROLLBACK':
+                    return
+
+                # Flush the session to generate primary key for new objects
+                if operation == 'INSERT':
+                    session.flush()
+
+                if operation == 'UPDATE':
+                    changes = []
+                    for attr in class_mapper(obj.__class__).column_attrs:
+                        hist = get_history(obj, attr.key)
+                        self.logTool.log(service='Database', level='info', message=f"History {hist}", redisClient=self.redisMessaging)
+                        if hist.has_changes() and hist.added and hist.deleted:
+                            old_value, new_value = hist.deleted[0], hist.added[0]
+                            self.logTool.log(service='Database', level='info', message=f"Old Value {old_value}", redisClient=self.redisMessaging)
+                            self.logTool.log(service='Database', level='info', message=f"New Value {new_value}", redisClient=self.redisMessaging)
+                            changes.append((attr.key, old_value, new_value))
+                            continue
+
+                    if not changes:
                         continue
 
-                if not changes:
-                    continue
+                    operation_id = self.log_change(session, item_id, operation, changes, obj.__table__.name, operation_id)
 
-                operation_id = log_change(session, item_id, operation, changes, obj.__table__.name, operation_id)
+                elif operation in ['INSERT', 'DELETE']:
+                    changes = []
+                    for column in obj.__table__.columns:
+                        column_name = column.name
+                        value = getattr(obj, column_name)
+                        if operation == 'INSERT':
+                            old_value, new_value = None, value
+                            if item_id is None:
+                                generated_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
+                        elif operation == 'DELETE':
+                            old_value, new_value = value, None
+                        changes.append((column_name, old_value, new_value))
+                    operation_id = self.log_change(session, item_id, operation, changes, obj.__table__.name, operation_id, generated_id)
 
-            elif operation in ['INSERT', 'DELETE']:
-                changes = []
-                for column in obj.__table__.columns:
-                    column_name = column.name
-                    value = getattr(obj, column_name)
-                    if operation == 'INSERT':
-                        old_value, new_value = None, value
-                        if item_id is None:
-                            generated_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
-                    elif operation == 'DELETE':
-                        old_value, new_value = value, None
-                    changes.append((column_name, old_value, new_value))
-                operation_id = log_change(session, item_id, operation, changes, obj.__table__.name, operation_id, generated_id)
+    def get_class_by_tablename(self, base, tablename):
+        """
+        Returns a class object based on the given tablename.
 
-def get_class_by_tablename(base, tablename):
-    """
-    Returns a class object based on the given tablename.
-
-    :param base: Base class of SQLAlchemy models
-    :param tablename: Name of the table to retrieve the class for
-    :return: Class object or None if not found
-    """
-    for mapper in base.registry.mappers:
-        cls = mapper.class_
-        if hasattr(cls, '__tablename__') and cls.__tablename__ == tablename:
-            return cls
-    return None
-
-def str_to_type(type_str, value_str):
-    if type_str == 'int':
-        return int(value_str)
-    elif type_str == 'float':
-        return float(value_str)
-    elif type_str == 'str':
-        return value_str
-    elif type_str == 'bool':
-        return value_str == 'True'
-    elif type_str == 'NoneType':
+        :param base: Base class of SQLAlchemy models
+        :param tablename: Name of the table to retrieve the class for
+        :return: Class object or None if not found
+        """
+        for mapper in base.registry.mappers:
+            cls = mapper.class_
+            if hasattr(cls, '__tablename__') and cls.__tablename__ == tablename:
+                return cls
         return None
-    else:
-        raise ValueError(f'Cannot convert to type: {type_str}')
 
-
-def rollback_last_change(existingSession=None):
-    if not existingSession:
-        Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-    else:
-        session = existingSession
-
-    try:
-        # Get the most recent operation
-        last_operation = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).first()
-
-        if last_operation is None:
-            return "No operations to roll back."
-
-        rollback_messages = []
-        operation_id = str(uuid.uuid4())
-
-        target_class = get_class_by_tablename(Base, last_operation.table_name)
-        if not target_class:
-            return f"Error: Could not find table {last_operation.table_name}"
-
-        primary_key_col = target_class.__mapper__.primary_key[0].key
-        filter_by_kwargs = {primary_key_col: last_operation.item_id}
-        target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
-
-        if last_operation.operation == 'UPDATE':
-            if not target_item:
-                return f"Error: Could not find item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table"
-
-            # Split the changes string into separate changes
-            changes = last_operation.changes.split('\r\n\r\n')
-            for change in changes:
-                column_name, old_new_values = change.split(": ", 1)
-                old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
-
-                # Extract type and value
-                old_type_str, old_value_repr = old_value_str[1:-1].split("] ", 1)
-                old_value = str_to_type(old_type_str, old_value_repr)
-
-                # Revert the change
-                setattr(target_item, column_name, old_value)
-
-            rollback_message = (
-                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Reverted changes"
-            )
-
-        elif last_operation.operation == 'INSERT':
-            if target_item:
-                session.delete(target_item)
-
-            rollback_message = (
-                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Deleted item"
-            )
-
-        elif last_operation.operation == 'DELETE':
-            # Aggregate old values of all columns into a single dictionary
-            old_values_dict = {}
-            # Split the changes string into separate changes
-            changes = last_operation.changes.split('\r\n\r\n')
-            for change in changes:
-                column_name, old_new_values = change.split(": ", 1)
-                old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
-
-                # Extract type and value
-                old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
-                dbLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
-                old_value = str_to_type(old_type_str, old_value_repr)
-
-                old_values_dict[column_name] = old_value
-            dbLogger.error("old_value_dict: " + str(old_values_dict))
-
-            if not target_item:
-                try:
-                    # Create the target item using the aggregated old values
-                    target_item = target_class(**old_values_dict)
-                    session.add(target_item)
-                except Exception as e:
-                    return f"Error: Failed to recreate item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table - {str(e)}"
-
-            rollback_message = (
-                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Re-inserted item"
-            )
-
+    def str_to_type(self, type_str, value_str):
+        if type_str == 'int':
+            return int(value_str)
+        elif type_str == 'float':
+            return float(value_str)
+        elif type_str == 'str':
+            return value_str
+        elif type_str == 'bool':
+            return value_str == 'True'
+        elif type_str == 'NoneType':
+            return None
         else:
-            return f"Error: Unknown operation {last_operation.operation}"
+            raise ValueError(f'Cannot convert to type: {type_str}')
+
+
+    def rollback_last_change(self, existingSession=None):
+        if not existingSession:
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
+        else:
+            session = existingSession
 
         try:
-            session.commit()
-            safe_close(session)
-        except Exception as E:
-            dbLogger.error("rollback_last_change error: " + str(E))
-            safe_rollback(session)
-            safe_close(session)
-            raise ValueError(E)
+            # Get the most recent operation
+            last_operation = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).first()
 
-        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
+            if last_operation is None:
+                return "No operations to roll back."
 
-    except Exception as E:
-        dbLogger.error("rollback_last_change error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
+            rollback_messages = []
+            operation_id = str(uuid.uuid4())
 
-def rollback_change_by_operation_id(operation_id, existingSession=None):
-    if not existingSession:
-        Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-    else:
-        session = existingSession
+            target_class = self.get_class_by_tablename(Base, last_operation.table_name)
+            if not target_class:
+                return f"Error: Could not find table {last_operation.table_name}"
 
-    try:
-        # Get the most recent operation
-        last_operation = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(desc(OPERATION_LOG_BASE.timestamp)).first()
+            primary_key_col = target_class.__mapper__.primary_key[0].key
+            filter_by_kwargs = {primary_key_col: last_operation.item_id}
+            target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
 
-        if last_operation is None:
-            return "No operation to roll back."
+            if last_operation.operation == 'UPDATE':
+                if not target_item:
+                    return f"Error: Could not find item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table"
 
-        rollback_messages = []
-        operation_id = str(uuid.uuid4())
+                # Split the changes string into separate changes
+                changes = last_operation.changes.split('\r\n\r\n')
+                for change in changes:
+                    column_name, old_new_values = change.split(": ", 1)
+                    old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
 
-        target_class = get_class_by_tablename(Base, last_operation.table_name)
-        if not target_class:
-            return f"Error: Could not find table {last_operation.table_name}"
+                    # Extract type and value
+                    old_type_str, old_value_repr = old_value_str[1:-1].split("] ", 1)
+                    old_value = self.str_to_type(old_type_str, old_value_repr)
 
-        primary_key_col = target_class.__mapper__.primary_key[0].key
-        filter_by_kwargs = {primary_key_col: last_operation.item_id}
-        target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
+                    # Revert the change
+                    setattr(target_item, column_name, old_value)
 
-        if last_operation.operation == 'UPDATE':
-            if not target_item:
-                return f"Error: Could not find item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table"
+                rollback_message = (
+                    f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Reverted changes"
+                )
 
-            # Split the changes string into separate changes
-            changes = last_operation.changes.split('\r\n\r\n')
-            for change in changes:
-                column_name, old_new_values = change.split(": ", 1)
-                old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
+            elif last_operation.operation == 'INSERT':
+                if target_item:
+                    session.delete(target_item)
 
-                # Extract type and value
-                old_type_str, old_value_repr = old_value_str[1:-1].split("] ", 1)
-                old_value = str_to_type(old_type_str, old_value_repr)
+                rollback_message = (
+                    f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Deleted item"
+                )
 
-                # Revert the change
-                setattr(target_item, column_name, old_value)
+            elif last_operation.operation == 'DELETE':
+                # Aggregate old values of all columns into a single dictionary
+                old_values_dict = {}
+                # Split the changes string into separate changes
+                changes = last_operation.changes.split('\r\n\r\n')
+                for change in changes:
+                    column_name, old_new_values = change.split(": ", 1)
+                    old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
 
-            rollback_message = (
-                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Reverted changes"
-            )
+                    # Extract type and value
+                    old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
+                    self.logTool.log(service='Database', level='error', message=f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}", redisClient=self.redisMessaging)
+                    old_value = self.str_to_type(old_type_str, old_value_repr)
 
-        elif last_operation.operation == 'INSERT':
-            if target_item:
-                session.delete(target_item)
+                    old_values_dict[column_name] = old_value
+                self.logTool.log(service='Database', level='error', message="old_value_dict: " + str(old_values_dict), redisClient=self.redisMessaging)
 
-            rollback_message = (
-                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Deleted item"
-            )
+                if not target_item:
+                    try:
+                        # Create the target item using the aggregated old values
+                        target_item = target_class(**old_values_dict)
+                        session.add(target_item)
+                    except Exception as e:
+                        return f"Error: Failed to recreate item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table - {str(e)}"
 
-        elif last_operation.operation == 'DELETE':
-            # Aggregate old values of all columns into a single dictionary
-            old_values_dict = {}
-            # Split the changes string into separate changes
-            changes = last_operation.changes.split('\r\n\r\n')
-            for change in changes:
-                column_name, old_new_values = change.split(": ", 1)
-                old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
+                rollback_message = (
+                    f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Re-inserted item"
+                )
 
-                # Extract type and value
-                old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
-                dbLogger.error(f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}")
-                old_value = str_to_type(old_type_str, old_value_repr)
-
-                old_values_dict[column_name] = old_value
-            dbLogger.error("old_value_dict: " + str(old_values_dict))
-
-            if not target_item:
-                try:
-                    # Create the target item using the aggregated old values
-                    target_item = target_class(**old_values_dict)
-                    session.add(target_item)
-                except Exception as e:
-                    return f"Error: Failed to recreate item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table - {str(e)}"
-
-            rollback_message = (
-                f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Re-inserted item"
-            )
-
-        else:
-            return f"Error: Unknown operation {last_operation.operation}"
-
-        try:
-            session.commit()
-            safe_close(session)
-        except Exception as E:
-            dbLogger.error("rollback_last_change error: " + str(E))
-            safe_rollback(session)
-            safe_close(session)
-            raise ValueError(E)
-
-        return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
-
-    except Exception as E:
-        dbLogger.error("rollback_last_change error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-
-def get_all_operation_logs(page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
-    if not existingSession:
-        Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-    else:
-        session = existingSession
-
-    try:
-        # Get all distinct operation_ids ordered by max timestamp (descending order)
-        operation_ids = session.query(OPERATION_LOG_BASE.operation_id).group_by(OPERATION_LOG_BASE.operation_id).order_by(desc(func.max(OPERATION_LOG_BASE.timestamp)))
-
-        operation_ids = operation_ids.limit(page_size).offset(page * page_size)
-
-        operation_ids = operation_ids.all()
-
-        all_operations = []
-
-        for operation_id in operation_ids:
-            operation_log = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).first()
-
-            if operation_log is not None:
-                # Convert the object to dictionary
-                obj_dict = operation_log.__dict__
-                obj_dict.pop('_sa_instance_state')
-                sanitized_obj_dict = Sanitize_Datetime(obj_dict)
-                all_operations.append(sanitized_obj_dict)
-
-        safe_close(session)
-        return all_operations
-    except Exception as E:
-        dbLogger.error(f"get_all_operation_logs error: {E}")
-        dbLogger.error(E)
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-
-def get_all_operation_logs_by_table(table_name, page=0, page_size=yaml_config['api'].get('page_size', 100), existingSession=None):
-    if not existingSession:
-        Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-    else:
-        session = existingSession
-
-    try:
-        # Get all distinct operation_ids ordered by max timestamp (descending order)
-        operation_ids = session.query(OPERATION_LOG_BASE.operation_id).filter(OPERATION_LOG_BASE.table_name == table_name).group_by(OPERATION_LOG_BASE.operation_id).order_by(desc(func.max(OPERATION_LOG_BASE.timestamp)))
-
-        operation_ids = operation_ids.limit(page_size).offset(page * page_size)
-
-        operation_ids = operation_ids.all()
-
-        all_operations = []
-
-        for operation_id in operation_ids:
-            operation_log = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).first()
-
-            if operation_log is not None:
-                # Convert the object to dictionary
-                obj_dict = operation_log.__dict__
-                obj_dict.pop('_sa_instance_state')
-                sanitized_obj_dict = Sanitize_Datetime(obj_dict)
-                all_operations.append(sanitized_obj_dict)
-
-        safe_close(session)
-        return all_operations
-    except Exception as E:
-        dbLogger.error(f"get_all_operation_logs_by_table error: {E}")
-        dbLogger.error(E)
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-
-def get_last_operation_log(existingSession=None):
-    if not existingSession:
-        Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-    else:
-        session = existingSession
-
-    try:
-        # Get the top 100 records ordered by timestamp (descending order)
-        top_100_records = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100)
-
-        # Get the most recent operation_id
-        most_recent_operation_log = top_100_records.first()
-
-        # Convert the object to dictionary
-        if most_recent_operation_log is not None:
-            obj_dict = most_recent_operation_log.__dict__
-            obj_dict.pop('_sa_instance_state')
-            sanitized_obj_dict = Sanitize_Datetime(obj_dict)
-            return sanitized_obj_dict
-
-        safe_close(session)
-        return None
-    except Exception as E:
-        dbLogger.error(f"get_last_operation_log error: {E}")
-        dbLogger.error(E)
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-
-def handleGeored(jsonData):
-    try:
-        if yaml_config.get('geored', {}).get('enabled', False):
-            if yaml_config.get('geored', {}).get('sync_endpoints', []) is not None and len(yaml_config.get('geored', {}).get('sync_endpoints', [])) > 0:
-                transaction_id = str(uuid.uuid4())
-                redisMessaging.sendMessage(queue=f'geored-{time.time_ns()}', message=jsonData, queueExpiry=120)
-    except Exception as E:
-        dbLogger.warning("Failed to send Geored message due to error: " + str(E))
-
-def handleWebhook(objectData, operation):
-    external_webhook_notification_enabled = yaml_config.get('external', {}).get('external_webhook_notification_enabled', False)
-    external_webhook_notification_url = yaml_config.get('external', {}).get('external_webhook_notification_url', '')
-    if not external_webhook_notification_enabled:
-        return False
-    if not external_webhook_notification_url:
-        dbLogger.error("External webhook notification enabled, but external_webhook_notification_url is not defined.")
-
-    externalNotification = Sanitize_Datetime(objectData)
-    externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
-    #@@Fixme
-    redisMessaging.sendMessage(queue=f'webhook-{time.time_ns()}', message=jsonData, queueExpiry=120)
-    return True
-
-def Sanitize_Datetime(result):
-    for keys in result:
-        if "timestamp" in keys:
-            if result[keys] == None:
-                continue
             else:
-                dbLogger.debug("Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String")
-                result[keys] = str(result[keys])
-    return result
+                return f"Error: Unknown operation {last_operation.operation}"
 
-def Sanitize_Keys(result):
-    names_to_strip = ['opc', 'ki', 'des', 'kid', 'psk', 'adm1']
-    for name_to_strip in names_to_strip:
-        try:
-            result.pop(name_to_strip)
-        except:
-            pass
-    return result 
+            try:
+                session.commit()
+                self.safe_close(session)
+            except Exception as E:
+                self.logTool.log(service='Database', level='error', message="rollback_last_change error: " + str(E), redisClient=self.redisMessaging)
+                self.safe_rollback(session)
+                self.safe_close(session)
+                raise ValueError(E)
 
-def GetObj(obj_type, obj_id=None, page=None, page_size=None):
-    dbLogger.debug("Called GetObj for type " + str(obj_type))
+            return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
 
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="rollback_last_change error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
 
-    try:
-        if obj_id is not None:
-            result = session.query(obj_type).get(obj_id)
-            if result is None:
-                raise ValueError(f"No {obj_type} found with id {obj_id}")
-
-            result = result.__dict__
-            result.pop('_sa_instance_state')
-            result = Sanitize_Datetime(result)
-        elif page is not None and page_size is not None:
-            if page < 1 or page_size < 1:
-                raise ValueError("page and page_size should be positive integers")
-
-            offset = (page - 1) * page_size
-            results = (
-                session.query(obj_type)
-                .order_by(obj_type.id)  # Assuming obj_type has an attribute 'id'
-                .offset(offset)
-                .limit(page_size)
-                .all()
-            )
-
-            result = []
-            for item in results:
-                item_dict = item.__dict__
-                item_dict.pop('_sa_instance_state')
-                result.append(Sanitize_Datetime(item_dict))
+    def rollback_change_by_operation_id(self, operation_id, existingSession=None):
+        if not existingSession:
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
         else:
-            raise ValueError("Provide either obj_id or both page and page_size")
+            session = existingSession
 
-    except Exception as E:
-        dbLogger.error("Failed to query, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
+        try:
+            # Get the most recent operation
+            last_operation = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id).order_by(desc(OPERATION_LOG_BASE.timestamp)).first()
 
-    safe_close(session)
-    return result
+            if last_operation is None:
+                return "No operation to roll back."
 
-def GetAll(obj_type):
-    dbLogger.debug("Called GetAll for type " + str(obj_type))
+            rollback_messages = []
+            operation_id = str(uuid.uuid4())
 
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    final_result_list = []
+            target_class = self.get_class_by_tablename(Base, last_operation.table_name)
+            if not target_class:
+                return f"Error: Could not find table {last_operation.table_name}"
 
-    try:
-        result = session.query(obj_type)
-    except Exception as E:
-        dbLogger.error("Failed to query, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)    
-    
-    for record in result:
-        record = record.__dict__
-        record.pop('_sa_instance_state')
-        record = Sanitize_Datetime(record)
-        record = Sanitize_Keys(record)
-        final_result_list.append(record)
+            primary_key_col = target_class.__mapper__.primary_key[0].key
+            filter_by_kwargs = {primary_key_col: last_operation.item_id}
+            target_item = session.query(target_class).filter_by(**filter_by_kwargs).one_or_none()
 
-    safe_close(session)
-    return final_result_list
+            if last_operation.operation == 'UPDATE':
+                if not target_item:
+                    return f"Error: Could not find item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table"
 
-def getAllPaginated(obj_type, page=0, page_size=0, existingSession=None):
-    dbLogger.debug("Called getAllPaginated for type " + str(obj_type))
+                # Split the changes string into separate changes
+                changes = last_operation.changes.split('\r\n\r\n')
+                for change in changes:
+                    column_name, old_new_values = change.split(": ", 1)
+                    old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
 
-    if not existingSession:
-        Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
+                    # Extract type and value
+                    old_type_str, old_value_repr = old_value_str[1:-1].split("] ", 1)
+                    old_value = self.str_to_type(old_type_str, old_value_repr)
+
+                    # Revert the change
+                    setattr(target_item, column_name, old_value)
+
+                rollback_message = (
+                    f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Reverted changes"
+                )
+
+            elif last_operation.operation == 'INSERT':
+                if target_item:
+                    session.delete(target_item)
+
+                rollback_message = (
+                    f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Deleted item"
+                )
+
+            elif last_operation.operation == 'DELETE':
+                # Aggregate old values of all columns into a single dictionary
+                old_values_dict = {}
+                # Split the changes string into separate changes
+                changes = last_operation.changes.split('\r\n\r\n')
+                for change in changes:
+                    column_name, old_new_values = change.split(": ", 1)
+                    old_value_str, new_value_str = old_new_values.split(" ----> ", 1)
+
+                    # Extract type and value
+                    old_type_str, old_value_repr = old_value_str[1:].split("] ", 1)
+                    self.logTool.log(service='Database', level='error', message=f"running str_to_type for: {str(old_type_str)}, {str(old_value_repr)}", redisClient=self.redisMessaging)
+                    old_value = self.str_to_type(old_type_str, old_value_repr)
+
+                    old_values_dict[column_name] = old_value
+                self.logTool.log(service='Database', level='error', message="old_value_dict: " + str(old_values_dict), redisClient=self.redisMessaging)
+
+                if not target_item:
+                    try:
+                        # Create the target item using the aggregated old values
+                        target_item = target_class(**old_values_dict)
+                        session.add(target_item)
+                    except Exception as e:
+                        return f"Error: Failed to recreate item with ID {last_operation.item_id} in {last_operation.table_name.upper()} table - {str(e)}"
+
+                rollback_message = (
+                    f"Rolled back '{last_operation.operation}' operation on {last_operation.table_name.upper()} table (ID: {last_operation.item_id}): Re-inserted item"
+                )
+
+            else:
+                return f"Error: Unknown operation {last_operation.operation}"
+
+            try:
+                session.commit()
+                self.safe_close(session)
+            except Exception as E:
+                self.logTool.log(service='Database', level='error', message="rollback_last_change error: " + str(E), redisClient=self.redisMessaging)
+                self.safe_rollback(session)
+                self.safe_close(session)
+                raise ValueError(E)
+
+            return f"Rolled back operation with operation_id: {operation_id}\n" + "\n".join(rollback_messages)
+
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="rollback_last_change error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+
+    def get_all_operation_logs(self, page=0, page_size=100, existingSession=None):
+        if not existingSession:
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
+        else:
+            session = existingSession
+
+        try:
+            # Get all distinct operation_ids ordered by max timestamp (descending order)
+            operation_ids = session.query(OPERATION_LOG_BASE.operation_id).group_by(OPERATION_LOG_BASE.operation_id).order_by(desc(func.max(OPERATION_LOG_BASE.timestamp)))
+
+            operation_ids = operation_ids.limit(page_size).offset(page * page_size)
+
+            operation_ids = operation_ids.all()
+
+            all_operations = []
+
+            for operation_id in operation_ids:
+                operation_log = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).first()
+
+                if operation_log is not None:
+                    # Convert the object to dictionary
+                    obj_dict = operation_log.__dict__
+                    obj_dict.pop('_sa_instance_state')
+                    sanitized_obj_dict = self.Sanitize_Datetime(obj_dict)
+                    all_operations.append(sanitized_obj_dict)
+
+            self.safe_close(session)
+            return all_operations
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"get_all_operation_logs error: {E}", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message=E, redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+
+    def get_all_operation_logs_by_table(self, table_name, page=0, page_size=100, existingSession=None):
+        if not existingSession:
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
+        else:
+            session = existingSession
+
+        try:
+            # Get all distinct operation_ids ordered by max timestamp (descending order)
+            operation_ids = session.query(OPERATION_LOG_BASE.operation_id).filter(OPERATION_LOG_BASE.table_name == table_name).group_by(OPERATION_LOG_BASE.operation_id).order_by(desc(func.max(OPERATION_LOG_BASE.timestamp)))
+
+            operation_ids = operation_ids.limit(page_size).offset(page * page_size)
+
+            operation_ids = operation_ids.all()
+
+            all_operations = []
+
+            for operation_id in operation_ids:
+                operation_log = session.query(OPERATION_LOG_BASE).filter(OPERATION_LOG_BASE.operation_id == operation_id[0]).order_by(OPERATION_LOG_BASE.id.asc()).first()
+
+                if operation_log is not None:
+                    # Convert the object to dictionary
+                    obj_dict = operation_log.__dict__
+                    obj_dict.pop('_sa_instance_state')
+                    sanitized_obj_dict = self.Sanitize_Datetime(obj_dict)
+                    all_operations.append(sanitized_obj_dict)
+
+            self.safe_close(session)
+            return all_operations
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"get_all_operation_logs_by_table error: {E}", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message=E, redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+
+    def get_last_operation_log(self, existingSession=None):
+        if not existingSession:
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
+        else:
+            session = existingSession
+
+        try:
+            # Get the top 100 records ordered by timestamp (descending order)
+            top_100_records = session.query(OPERATION_LOG_BASE).order_by(desc(OPERATION_LOG_BASE.timestamp)).limit(100)
+
+            # Get the most recent operation_id
+            most_recent_operation_log = top_100_records.first()
+
+            # Convert the object to dictionary
+            if most_recent_operation_log is not None:
+                obj_dict = most_recent_operation_log.__dict__
+                obj_dict.pop('_sa_instance_state')
+                sanitized_obj_dict = self.Sanitize_Datetime(obj_dict)
+                return sanitized_obj_dict
+
+            self.safe_close(session)
+            return None
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"get_last_operation_log error: {E}", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message=E, redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+
+    def handleGeored(self, jsonData):
+        try:
+            if self.config.get('geored', {}).get('enabled', False):
+                if self.config.get('geored', {}).get('sync_endpoints', []) is not None and len(self.config.get('geored', {}).get('sync_endpoints', [])) > 0:
+                    transaction_id = str(uuid.uuid4())
+                    self.logTool.log(service='Database', level='info', message="[Database] Break 1", redisClient=self.redisMessaging)
+                    self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=jsonData, queueExpiry=120)
+                    self.logTool.log(service='Database', level='info', message="[Database] Break 1", redisClient=self.redisMessaging)
+        except Exception as E:
+            self.logTool.log(service='Database', level='warning', message="Failed to send Geored message due to error: " + str(E), redisClient=self.redisMessaging)
+
+    def handleWebhook(self, objectData, operation):
+        external_webhook_notification_enabled = self.config.get('external', {}).get('external_webhook_notification_enabled', False)
+        external_webhook_notification_url = self.config.get('external', {}).get('external_webhook_notification_url', '')
+
+        if not external_webhook_notification_enabled:
+            return False
+        if not external_webhook_notification_url:
+            self.logTool.log(service='Database', level='error', message="External webhook notification enabled, but external_webhook_notification_url is not defined.", redisClient=self.redisMessaging)
+
+        externalNotification = self.Sanitize_Datetime(objectData)
+        externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
+        externalNotification['headers'] = externalNotificationHeaders
+        self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=externalNotification, queueExpiry=120)
+        return True
+
+    def Sanitize_Datetime(self, result):
+        for keys in result:
+            if "timestamp" in keys:
+                if result[keys] == None:
+                    continue
+                else:
+                    self.logTool.log(service='Database', level='debug', message="Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String", redisClient=self.redisMessaging)
+                    result[keys] = str(result[keys])
+        return result
+
+    def Sanitize_Keys(self, result):
+        names_to_strip = ['opc', 'ki', 'des', 'kid', 'psk', 'adm1']
+        for name_to_strip in names_to_strip:
+            try:
+                result.pop(name_to_strip)
+            except:
+                pass
+        return result 
+
+    def GetObj(self, obj_type, obj_id=None, page=None, page_size=None):
+        self.logTool.log(service='Database', level='debug', message="Called GetObj for type " + str(obj_type), redisClient=self.redisMessaging)
+
+        Base.metadata.create_all(self.engine)
+        Session = sessionmaker(bind=self.engine)
         session = Session()
-    else:
-        session = existingSession
 
-    final_result_list = []
+        try:
+            if obj_id is not None:
+                result = session.query(obj_type).get(obj_id)
+                if result is None:
+                    raise ValueError(f"No {obj_type} found with id {obj_id}")
 
-    try:
-        # Query object type
-        result = session.query(obj_type)
+                result = result.__dict__
+                result.pop('_sa_instance_state')
+                result = self.Sanitize_Datetime(result)
+            elif page is not None and page_size is not None:
+                if page < 1 or page_size < 1:
+                    raise ValueError("page and page_size should be positive integers")
 
-        # Apply pagination
-        if page_size != 0:
-            result = result.limit(page_size).offset(page * page_size)
+                offset = (page - 1) * page_size
+                results = (
+                    session.query(obj_type)
+                    .order_by(obj_type.id)  # Assuming obj_type has an attribute 'id'
+                    .offset(offset)
+                    .limit(page_size)
+                    .all()
+                )
+
+                result = []
+                for item in results:
+                    item_dict = item.__dict__
+                    item_dict.pop('_sa_instance_state')
+                    result.append(self.Sanitize_Datetime(item_dict))
+            else:
+                raise ValueError("Provide either obj_id or both page and page_size")
+
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Failed to query, error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+
+        self.safe_close(session)
+        return result
+
+    def GetAll(self, obj_type):
+        self.logTool.log(service='Database', level='debug', message="Called GetAll for type " + str(obj_type), redisClient=self.redisMessaging)
+
+        Base.metadata.create_all(self.engine)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        final_result_list = []
+
+        try:
+            result = session.query(obj_type)
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Failed to query, error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)    
         
-        result = result.all()
-
         for record in result:
             record = record.__dict__
             record.pop('_sa_instance_state')
-            record = Sanitize_Datetime(record)
-            record = Sanitize_Keys(record)
+            record = self.Sanitize_Datetime(record)
+            record = self.Sanitize_Keys(record)
             final_result_list.append(record)
-            
-        safe_close(session)
+
+        self.safe_close(session)
         return final_result_list
 
-    except Exception as E:
-        dbLogger.error("Failed to query, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
+    def getAllPaginated(self, obj_type, page=0, page_size=0, existingSession=None):
+        self.logTool.log(service='Database', level='debug', message="Called getAllPaginated for type " + str(obj_type), redisClient=self.redisMessaging)
+
+        if not existingSession:
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
+        else:
+            session = existingSession
+
+        final_result_list = []
+
+        try:
+            # Query object type
+            result = session.query(obj_type)
+
+            # Apply pagination
+            if page_size != 0:
+                result = result.limit(page_size).offset(page * page_size)
+            
+            result = result.all()
+
+            for record in result:
+                record = record.__dict__
+                record.pop('_sa_instance_state')
+                record = self.Sanitize_Datetime(record)
+                record = self.Sanitize_Keys(record)
+                final_result_list.append(record)
+                
+            self.safe_close(session)
+            return final_result_list
+
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Failed to query, error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
 
 
-def GetAllByTable(obj_type, table):
-    dbLogger.debug(f"Called GetAll for type {str(obj_type)} and table {table}")
+    def GetAllByTable(self, obj_type, table):
+        self.logTool.log(service='Database', level='debug', message=f"Called GetAll for type {str(obj_type)} and table {table}", redisClient=self.redisMessaging)
 
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    final_result_list = []
+        Base.metadata.create_all(self.engine)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        final_result_list = []
 
-    try:
-        result = session.query(obj_type).filter_by(table_name=str(table))
-    except Exception as E:
-        dbLogger.error("Failed to query, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)    
-    
-    for record in result:
-        record = record.__dict__
-        record.pop('_sa_instance_state')
-        record = Sanitize_Datetime(record)
-        record = Sanitize_Keys(record)
-        final_result_list.append(record)
+        try:
+            result = session.query(obj_type).filter_by(table_name=str(table))
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Failed to query, error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)    
+        
+        for record in result:
+            record = record.__dict__
+            record.pop('_sa_instance_state')
+            record = self.Sanitize_Datetime(record)
+            record = self.Sanitize_Keys(record)
+            final_result_list.append(record)
 
-    safe_close(session)
-    return final_result_list
+        self.safe_close(session)
+        return final_result_list
 
-def UpdateObj(obj_type, json_data, obj_id, disable_logging=False, operation_id=None):
-    dbLogger.debug(f"Called UpdateObj() for type {obj_type} id {obj_id} with JSON data: {json_data} and operation_id: {operation_id}")
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    obj_type_str = str(obj_type.__table__.name).upper()
-    dbLogger.debug(f"obj_type_str is {obj_type_str}")
-    filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
-    try:
-        obj = session.query(obj_type).filter(filter_input).one()
-        for key, value in json_data.items():
-            if hasattr(obj, key):
-                setattr(obj, key, value)
-                setattr(obj, "last_modified", datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z')
-    except Exception as E:
-        dbLogger.error(f"Failed to query or update object, error: {E}")
-        raise ValueError(E)
-    try:
+    def UpdateObj(self, obj_type, json_data, obj_id, disable_logging=False, operation_id=None):
+        self.logTool.log(service='Database', level='debug', message=f"Called UpdateObj() for type {obj_type} id {obj_id} with JSON data: {json_data} and operation_id: {operation_id}", redisClient=self.redisMessaging)
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        obj_type_str = str(obj_type.__table__.name).upper()
+        self.logTool.log(service='Database', level='debug', message=f"obj_type_str is {obj_type_str}", redisClient=self.redisMessaging)
+        filter_input = eval(obj_type_str + "." + obj_type_str.lower() + "_id==obj_id")
+        try:
+            obj = session.query(obj_type).filter(filter_input).one()
+            for key, value in json_data.items():
+                if hasattr(obj, key):
+                    setattr(obj, key, value)
+                    setattr(obj, "last_modified", datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z')
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"Failed to query or update object, error: {E}", redisClient=self.redisMessaging)
+            raise ValueError(E)
+        try:
+                session.info["operation_id"] = operation_id  # Pass the operation id
+                try:
+                    if not disable_logging:
+                        self.log_changes_before_commit(session)
+                    objectData = self.GetObj(obj_type, obj_id)
+                    session.commit()
+                    self.handleWebhook(objectData, 'UPDATE')
+                except Exception as E:
+                    self.logTool.log(service='Database', level='error', message=f"Failed to commit session, error: {E}", redisClient=self.redisMessaging)
+                    self.safe_rollback(session)
+                    raise ValueError(E)
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"Exception in UpdateObj, error: {E}", redisClient=self.redisMessaging)
+            raise ValueError(E)
+        finally:
+            self.safe_close(session)
+
+        return self.GetObj(obj_type, obj_id)
+
+    def DeleteObj(self, obj_type, obj_id, disable_logging=False, operation_id=None):
+        self.logTool.log(service='Database', level='debug', message=f"Called DeleteObj for type {obj_type} with id {obj_id}", redisClient=self.redisMessaging)
+
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+
+        try:
+            res = session.query(obj_type).get(obj_id)
+            if res is None:
+                raise ValueError("The specified row does not exist")
+            objectData = self.GetObj(obj_type, obj_id)
+            session.delete(res)
             session.info["operation_id"] = operation_id  # Pass the operation id
             try:
                 if not disable_logging:
-                    log_changes_before_commit(session)
-                objectData = GetObj(obj_type, obj_id)
+                    self.log_changes_before_commit(session)
                 session.commit()
-                handleWebhook(objectData, 'UPDATE')
+                self.handleWebhook(objectData, 'DELETE')
             except Exception as E:
-                dbLogger.error(f"Failed to commit session, error: {E}")
-                safe_rollback(session)
+                self.logTool.log(service='Database', level='error', message=f"Failed to commit session, error: {E}", redisClient=self.redisMessaging)
+                self.safe_rollback(session)
                 raise ValueError(E)
-    except Exception as E:
-        dbLogger.error(f"Exception in UpdateObj, error: {E}")
-        raise ValueError(E)
-    finally:
-        safe_close(session)
 
-    return GetObj(obj_type, obj_id)
-
-def DeleteObj(obj_type, obj_id, disable_logging=False, operation_id=None):
-    dbLogger.debug(f"Called DeleteObj for type {obj_type} with id {obj_id}")
-
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    try:
-        res = session.query(obj_type).get(obj_id)
-        if res is None:
-            raise ValueError("The specified row does not exist")
-        objectData = GetObj(obj_type, obj_id)
-        session.delete(res)
-        session.info["operation_id"] = operation_id  # Pass the operation id
-        try:
-            if not disable_logging:
-                log_changes_before_commit(session)
-            session.commit()
-            handleWebhook(objectData, 'DELETE')
         except Exception as E:
-            dbLogger.error(f"Failed to commit session, error: {E}")
-            safe_rollback(session)
+            self.logTool.log(service='Database', level='error', message=f"Exception in DeleteObj, error: {E}", redisClient=self.redisMessaging)
             raise ValueError(E)
+        finally:
+            self.safe_close(session)
 
-    except Exception as E:
-        dbLogger.error(f"Exception in DeleteObj, error: {E}")
-        raise ValueError(E)
-    finally:
-        safe_close(session)
+        return {'Result': 'OK'}
 
-    return {'Result': 'OK'}
 
+    def CreateObj(self, obj_type, json_data, disable_logging=False, operation_id=None):
+        self.logTool.log(service='Database', level='debug', message="Called CreateObj to create " + str(obj_type) + " with value: " + str(json_data), redisClient=self.redisMessaging)
+        last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
+        json_data["last_modified"] = last_modified_value  # set last_modified value in json_data
+        newObj = obj_type(**json_data)
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
 
-def CreateObj(obj_type, json_data, disable_logging=False, operation_id=None):
-    dbLogger.debug("Called CreateObj to create " + str(obj_type) + " with value: " + str(json_data))
-    last_modified_value = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
-    json_data["last_modified"] = last_modified_value  # set last_modified value in json_data
-    newObj = obj_type(**json_data)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    session.add(newObj)
-    try:
-        session.info["operation_id"] = operation_id  # Pass the operation id
-        try:
-            if not disable_logging:
-                log_changes_before_commit(session)
-            session.commit()
-        except Exception as E:
-            dbLogger.error(f"Failed to commit session, error: {E}")
-            safe_rollback(session)
-            raise ValueError(E)
-        session.refresh(newObj)
-        result = newObj.__dict__
-        result.pop('_sa_instance_state')
-        handleWebhook(result, 'CREATE')
-        return result
-    except Exception as E:
-        dbLogger.error(f"Exception in CreateObj, error: {E}")
-        raise ValueError(E)
-    finally:
-        safe_close(session)
-
-def Generate_JSON_Model_for_Flask(obj_type):
-    dbLogger.debug("Generating JSON model for Flask for object type: " + str(obj_type))
-
-    dictty = dict(generate_json_schema(obj_type))
-    pprint.pprint(dictty)
-
-
-    #dictty['properties'] = dict(dictty['properties'])
-
-    # Exclude 'table_name' column from the properties
-    if 'properties' in dictty:
-        dictty['properties'].pop('discriminator', None)
-        dictty['properties'].pop('last_modified', None)
-        
-
-    # Set the ID Object to not required
-    obj_type_str = str(dictty['title']).lower()
-    dictty['required'].remove(obj_type_str + '_id')
-
-    return dictty
-
-def Get_AuC(**kwargs):
-    #Get AuC data by IMSI or ICCID
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    if 'iccid' in kwargs:
-        dbLogger.debug("Get_AuC for iccid " + str(kwargs['iccid']))
-        try:
-            result = session.query(AUC).filter_by(iccid=str(kwargs['iccid'])).one()
-        except Exception as E:
-            safe_close(session)
-            raise ValueError(E)
-    elif 'imsi' in kwargs:
-        dbLogger.debug("Get_AuC for imsi " + str(kwargs['imsi']))
-        try:
-            result = session.query(AUC).filter_by(imsi=str(kwargs['imsi'])).one()
-        except Exception as E:
-            safe_close(session)
-            raise ValueError(E)
-
-    result = result.__dict__
-    result = Sanitize_Datetime(result)
-    result.pop('_sa_instance_state')
-
-    dbLogger.debug("Got back result: " + str(result))
-    safe_close(session)
-    return result
-
-def Get_IMS_Subscriber(**kwargs):
-    #Get subscriber by IMSI or MSISDN
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    if 'msisdn' in kwargs:
-        dbLogger.debug("Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']))
-        try:
-            result = session.query(IMS_SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
-        except Exception as E:
-            safe_close(session)
-            raise ValueError(E)
-    elif 'imsi' in kwargs:
-        dbLogger.debug("Get_IMS_Subscriber for imsi " + str(kwargs['imsi']))
-        try:
-            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
-        except Exception as E:
-            safe_close(session)
-            raise ValueError(E)
-    dbLogger.debug("Converting result to dict")
-    result = result.__dict__
-    try:
-        result.pop('_sa_instance_state')
-    except:
-        pass
-    result = Sanitize_Datetime(result)
-    dbLogger.debug("Returning IMS Subscriber Data: " + str(result))
-    safe_close(session)
-    return result
-
-def Get_Subscriber(**kwargs):
-    #Get subscriber by IMSI or MSISDN
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    if 'msisdn' in kwargs:
-        dbLogger.debug("Get_Subscriber for msisdn " + str(kwargs['msisdn']))
-        try:
-            result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
-        except Exception as E:
-            safe_close(session)
-            raise ValueError(E)
-    elif 'imsi' in kwargs:
-        dbLogger.debug("Get_Subscriber for imsi " + str(kwargs['imsi']))
-        try:
-            result = session.query(SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
-        except Exception as E:
-            safe_close(session)
-            raise ValueError(E)
-
-    result = result.__dict__
-    result = Sanitize_Datetime(result)
-    result.pop('_sa_instance_state')
-    
-    if 'get_attributes' in kwargs:
-        if kwargs['get_attributes'] == True:
-            attributes = Get_Subscriber_Attributes(result['subscriber_id'])
-            result['attributes'] = attributes
-
-    dbLogger.debug("Got back result: " + str(result))
-    safe_close(session)
-    return result
-
-def Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id):
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    dbLogger.debug("Get_SUBSCRIBER_ROUTING for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id))
-    try:
-        result = session.query(SUBSCRIBER_ROUTING).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-
-    result = result.__dict__
-    result = Sanitize_Datetime(result)
-    result.pop('_sa_instance_state')
-
-    dbLogger.debug("Got back result: " + str(result))
-    safe_close(session)
-    return result
-
-def Get_Subscriber_Attributes(subscriber_id):
-    #Get subscriber attributes
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    dbLogger.debug("Get_Subscriber_Attributes for subscriber_id " + str(subscriber_id))
-    try:
-        result = session.query(SUBSCRIBER_ATTRIBUTES).filter_by(subscriber_id=subscriber_id)
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    final_res = []
-    for record in result:
-        result = record.__dict__
-        result = Sanitize_Datetime(result)
-        result.pop('_sa_instance_state')
-        final_res.append(result)
-    dbLogger.debug("Got back result: " + str(final_res))
-    safe_close(session)
-    return final_res
-
-
-def Get_Served_Subscribers(get_local_users_only=False):
-    dbLogger.debug("Getting all subscribers served by this HSS")
-
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    Served_Subs = {}
-    try:
-        results = session.query(SUBSCRIBER).filter(SUBSCRIBER.serving_mme.isnot(None))
-        for result in results:
-            result = result.__dict__
-            dbLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitize_Datetime(result)
-            result.pop('_sa_instance_state')
-
-            if get_local_users_only == True:
-                dbLogger.debug("Filtering to locally served IMS Subs only")
-                try:
-                    serving_hss = result['serving_mme_peer'].split(';')[1]
-                    dbLogger.debug("Serving HSS: " + str(serving_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
-                    if serving_hss == yaml_config['hss']['OriginHost']:
-                        dbLogger.debug("Serving HSS matches local HSS")
-                        Served_Subs[result['imsi']] = {}
-                        Served_Subs[result['imsi']] = result
-                        #dbLogger.debug("Processed result")
-                        continue
-                    else:
-                        dbLogger.debug("Sub is served by remote HSS: " + str(serving_hss))
-                except Exception as E:
-                    dbLogger.debug("Error in filtering Get_Served_Subscribers to local peer only: " + str(E))
-                    continue
-            else:
-                Served_Subs[result['imsi']] = result
-                dbLogger.debug("Processed result")
-
-
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    dbLogger.debug("Final Served_Subs: " + str(Served_Subs))
-    safe_close(session)
-    return Served_Subs
-
-
-def Get_Served_IMS_Subscribers(get_local_users_only=False):
-    dbLogger.debug("Getting all subscribers served by this IMS-HSS")
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    Served_Subs = {}
-    try:
-        
-        results = session.query(IMS_SUBSCRIBER).filter(
-            IMS_SUBSCRIBER.scscf.isnot(None))
-        for result in results:
-            result = result.__dict__
-            dbLogger.debug("Result: " + str(result) +
-                           " type: " + str(type(result)))
-            result = Sanitize_Datetime(result)
-            result.pop('_sa_instance_state')
-            if get_local_users_only == True:
-                dbLogger.debug("Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only")
-                try:
-                    serving_ims_hss = result['scscf_peer'].split(';')[1]
-                    dbLogger.debug("Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(yaml_config['hss']['OriginHost']))
-                    if serving_ims_hss == yaml_config['hss']['OriginHost']:
-                        dbLogger.debug("Serving IMS-HSS matches local HSS for " + str(result['imsi']))
-                        Served_Subs[result['imsi']] = {}
-                        Served_Subs[result['imsi']] = result
-                        dbLogger.debug("Processed result")
-                        continue
-                    else:
-                        dbLogger.debug("Sub is served by remote IMS-HSS: " + str(serving_ims_hss))
-                except Exception as E:
-                    dbLogger.debug("Error in filtering to local peer only: " + str(E))
-                    continue
-            else:
-                Served_Subs[result['imsi']] = result
-                dbLogger.debug("Processed result")
-
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    dbLogger.debug("Final Served_Subs: " + str(Served_Subs))
-    safe_close(session)
-    return Served_Subs
-
-
-def Get_Served_PCRF_Subscribers(get_local_users_only=False):
-    dbLogger.debug("Getting all subscribers served by this PCRF")
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    Served_Subs = {}
-    try:
-        results = session.query(SERVING_APN).all()
-        for result in results:
-            result = result.__dict__
-            dbLogger.debug("Result: " + str(result) + " type: " + str(type(result)))
-            result = Sanitize_Datetime(result)
-            result.pop('_sa_instance_state')
-
-            if get_local_users_only == True:
-                dbLogger.debug("Filtering to locally served IMS Subs only")
-                try:
-                    serving_pcrf = result['serving_pgw_peer'].split(';')[1]
-                    dbLogger.debug("Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(yaml_config['hss']['OriginHost']))
-                    if serving_pcrf == yaml_config['hss']['OriginHost']:
-                        dbLogger.debug("Serving PCRF matches local PCRF")
-                        dbLogger.debug("Processed result")
-                        
-                    else:
-                        dbLogger.debug("Sub is served by remote PCRF: " + str(serving_pcrf))
-                        continue
-                except Exception as E:
-                    dbLogger.debug("Error in filtering Get_Served_PCRF_Subscribers to local peer only: " + str(E))
-                    continue
-
-            # Get APN Info
-            apn_info = GetObj(APN, result['apn'])
-            #dbLogger.debug("Got APN Info: " + str(apn_info))
-            result['apn_info'] = apn_info
-
-            # Get Subscriber Info
-            subscriber_info = GetObj(SUBSCRIBER, result['subscriber_id'])
-            result['subscriber_info'] = subscriber_info
-
-            #dbLogger.debug("Got Subscriber Info: " + str(subscriber_info))
-
-            Served_Subs[subscriber_info['imsi']] = result
-            dbLogger.debug("Processed result")
-    except Exception as E:
-        raise ValueError(E)
-    #dbLogger.debug("Final SERVING_APN: " + str(Served_Subs))
-    safe_close(session)
-    return Served_Subs
-
-def Get_Vectors_AuC(auc_id, action, **kwargs):
-    dbLogger.debug("Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action))
-    key_data = GetObj(AUC, auc_id)
-    vector_dict = {}
-    
-    if action == "air":
-        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn']) 
-        vector_dict['rand'] = rand
-        vector_dict['xres'] = xres
-        vector_dict['autn'] = autn
-        vector_dict['kasme'] = kasme
-
-        #Incriment SQN
-        Update_AuC(auc_id, sqn=key_data['sqn']+100)
-
-        return vector_dict
-
-    elif action == "sqn_resync":
-        dbLogger.debug("Resync SQN")
-        rand = kwargs['rand']       
-        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
-        dbLogger.debug("SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")")
-        Update_AuC(auc_id, sqn=sqn+100)
-        return
-    
-    elif action == "sip_auth":
-        rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
-        dbLogger.debug("RAND is: " + str(rand))
-        dbLogger.debug("AUTN is: " + str(autn))
-        vector_dict['SIP_Authenticate'] = rand + autn
-        vector_dict['xres'] = xres
-        vector_dict['ck'] = ck
-        vector_dict['ik'] = ik
-        Update_AuC(auc_id, sqn=key_data['sqn']+100)
-        return vector_dict
-
-    elif action == "Digest-MD5":
-        dbLogger.debug("Generating Digest-MD5 Auth vectors")
-        dbLogger.debug("key_data: " + str(key_data))
-        nonce = uuid.uuid4().hex
-        #nonce = "beef4d878f2642ed98afe491b943ca60"
-        vector_dict['nonce'] = nonce
-        vector_dict['SIP_Authenticate'] = key_data['ki']
-        return vector_dict
-
-def Get_APN(apn_id):
-    dbLogger.debug("Getting APN " + str(apn_id))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    try:
-        result = session.query(APN).filter_by(apn_id=apn_id).one()
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    safe_close(session)
-    return result    
-
-def Get_APN_by_Name(apn):
-    dbLogger.debug("Getting APN named " + str(apn_id))
-    Session = sessionmaker(bind = engine)
-    session = Session()    
-    try:
-        result = session.query(APN).filter_by(apn=str(apn)).one()
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    safe_close(session)
-    return result 
-
-def Update_AuC(auc_id, sqn=1):
-    dbLogger.debug("Updating AuC record for sub " + str(auc_id))
-    dbLogger.debug(UpdateObj(AUC, {'sqn': sqn}, auc_id, True))
-    return
-
-def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, propagate=True):
-    dbLogger.debug("Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    try:
-        result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-        if yaml_config['hss']['CancelLocationRequest_Enabled'] == True:
-            dbLogger.debug("Evaluating if we should trigger sending a CLR.")
-            serving_hss = str(result.serving_mme_peer).split(';',1)[1]
-            serving_mme_peer = str(result.serving_mme_peer).split(';',1)[0]
-            dbLogger.debug("Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer))
-            dbLogger.debug("Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer))
-            #Evaluate if we need to send a CLR to the old MME
-            if result.serving_mme != None:
-                if str(result.serving_mme) == str(serving_mme):
-                    dbLogger.debug("This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR")
-                elif (str(result.serving_mme) != str(serving_mme)):
-                    dbLogger.debug("There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR")
-                    if serving_hss != yaml_config['hss']['OriginHost']:
-                        dbLogger.debug("This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss))
-                        URL = 'http://' + serving_hss + '.' + yaml_config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
-                    else:
-                        dbLogger.debug("This subscriber is served by this HSS we need to send a CLR to old MME from this HSS")
-                    
-                    URL = 'http://' + serving_hss + '.' + yaml_config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
-                    dbLogger.debug("Sending CLR to API at " + str(URL))
-                    json_data = {
-                        "DestinationRealm": result.serving_mme_realm,
-                        "DestinationHost": result.serving_mme,
-                        "cancellationType": 2,
-                        "diameterPeer": serving_mme_peer,
-                    }
-                    
-                    dbLogger.debug("Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data))
-                    transaction_id = str(uuid.uuid4())
-                    GeoRed_Push_thread = threading.Thread(target=GeoRed_Push_Request, args=(serving_hss, json_data, transaction_id, URL))
-                    GeoRed_Push_thread.start()
-            else:
-                #No currently serving MME - No action to take
-                dbLogger.debug("No currently serving MME - No need to send CLR")
-
-        if type(serving_mme) == str:
-            dbLogger.debug("Updating serving MME & Timestamp")
-            result.serving_mme = serving_mme
-            result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
-            result.serving_mme_realm = serving_mme_realm
-            result.serving_mme_peer = serving_mme_peer
-        else:
-            #Clear values
-            dbLogger.debug("Clearing serving MME")
-            result.serving_mme = None
-            result.serving_mme_timestamp = None
-            result.serving_mme_realm = None
-            result.serving_mme_peer = None
-
-        session.commit()
-        objectData = GetObj(SUBSCRIBER, result.subscriber_id)
-        handleWebhook(objectData, 'UPDATE')
-
-        #Sync state change with geored
-        if propagate == True:
-            if 'HSS' in yaml_config['geored'].get('sync_actions', []) and yaml_config['geored'].get('enabled', False) == True:
-                dbLogger.debug("Propagate MME changes to Geographic PyHSS instances")
-                handleGeored({
-                    "imsi": str(imsi), 
-                    "serving_mme": result.serving_mme, 
-                    "serving_mme_realm": str(result.serving_mme_realm), 
-                    "serving_mme_peer": str(result.serving_mme_peer)
-                    })
-            else:
-                dbLogger.debug("Config does not allow sync of HSS events")
-    except Exception as E:
-        dbLogger.error("Error occurred, rolling back session: " + str(E))
-        raise
-    finally:
-        safe_close(session)
-
-
-def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
-    dbLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    try:
-        result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
-        try:
-            assert(type(serving_cscf) == str)
-            assert(len(serving_cscf) > 0)
-            dbLogger.debug("Setting serving CSCF")
-            #Strip duplicate SIP prefix before storing
-            serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
-            result.scscf = serving_cscf
-            result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
-            result.scscf_realm = scscf_realm
-            result.scscf_peer = str(scscf_peer)
-        except:
-            #Clear values
-            dbLogger.debug("Clearing serving CSCF")
-            result.scscf = None
-            result.scscf_timestamp = None
-            result.scscf_realm = None
-            result.scscf_peer = None
-        
-        session.commit()
-        objectData = GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
-        handleWebhook(objectData, 'UPDATE')
-
-        #Sync state change with geored
-        if propagate == True:
-            if 'IMS' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                dbLogger.debug("Propagate IMS changes to Geographic PyHSS instances")
-                handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
-            else:
-                dbLogger.debug("Config does not allow sync of IMS events")
-    except Exception as E:
-        dbLogger.error("An error occurred, rolling back session: " + str(E))
-        safe_rollback(session)
-        raise
-    finally:
-        safe_close(session)
-
-
-def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
-    dbLogger.debug("Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn))
-    dbLogger.debug("PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing))
-    dbLogger.debug("Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer))
-    dbLogger.debug("subscriber_routing: " + str(subscriber_routing))
-
-    #Get Subscriber ID from IMSI
-    subscriber_details = Get_Subscriber(imsi=str(imsi))
-    subscriber_id = subscriber_details['subscriber_id']
-
-    #Split the APN list into a list
-    apn_list = subscriber_details['apn_list'].split(',')
-    dbLogger.debug("Current APN List: " + str(apn_list))
-    #Remove the default APN from the list
-    try:
-        apn_list.remove(str(subscriber_details['default_apn']))
-    except:
-        dbLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
-        pass
-    #Add default APN in first position
-    apn_list.insert(0, str(subscriber_details['default_apn']))
-
-    #Get APN ID from APN
-    for apn_id in apn_list:
-        #Get each APN in List
-        apn_data = Get_APN(apn_id)
-        dbLogger.debug(apn_data)
-        if str(apn_data['apn']).lower() == str(apn).lower():
-            dbLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
-            break
-    dbLogger.debug("APN ID is " + str(apn_id))
-
-    json_data = {
-        'apn' : apn_id,
-        'subscriber_id' : subscriber_id,
-        'pcrf_session_id' : str(pcrf_session_id),
-        'serving_pgw' : str(serving_pgw),
-        'serving_pgw_realm' : str(serving_pgw_realm),
-        'serving_pgw_peer' : str(serving_pgw_peer),
-        'serving_pgw_timestamp' : datetime.datetime.now(tz=timezone.utc),
-        'subscriber_routing' : str(subscriber_routing)
-    }
-
-    try:
-    #Check if already a serving APN on record
-        dbLogger.debug("Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id))
-        ServingAPN = Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
-        dbLogger.debug("Existing Serving APN ID on record, updating")
-        try:
-            assert(type(serving_pgw) == str)
-            assert(len(serving_pgw) > 0)
-            assert("None" not in serving_pgw)
-            
-            UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
-            objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            handleWebhook(objectData, 'UPDATE')
-        except:
-            dbLogger.debug("Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']))
-            objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            handleWebhook(objectData, 'DELETE')
-            DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
-    except Exception as E:
-        dbLogger.info("Failed to update existing APN " + str(E))
-        #Create if does not exist
-        CreateObj(SERVING_APN, json_data, True)
-        objectData = GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-        handleWebhook(objectData, 'CREATE')
-
-    #Sync state change with geored
-    if propagate == True:
-        try:
-            if 'PCRF' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                dbLogger.debug("Propagate PCRF changes to Geographic PyHSS instances")
-                handleGeored({"imsi": str(imsi),
-                                'serving_apn' : str(apn),
-                                'pcrf_session_id': str(pcrf_session_id),
-                                'serving_pgw': str(serving_pgw),
-                                'serving_pgw_realm': str(serving_pgw_realm),
-                                'serving_pgw_peer': str(serving_pgw_peer),
-                                'subscriber_routing': str(subscriber_routing)
-                                })
-            else:
-                dbLogger.debug("Config does not allow sync of PCRF events")
-        except Exception as E:
-            dbLogger.debug("Nothing synced to Geographic PyHSS instances for event PCRF")
-
-
-        return
-
-def Get_Serving_APN(subscriber_id, apn_id):
-    dbLogger.debug("Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    try:
-        result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).first()
-    except Exception as E:
-        dbLogger.debug(E)
-        safe_close(session)
-        raise ValueError(E)
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    
-    safe_close(session)
-    return result   
-
-def Get_Charging_Rule(charging_rule_id):
-    dbLogger.debug("Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    #Get base Rule
-    ChargingRule = GetObj(CHARGING_RULE, charging_rule_id)
-    ChargingRule['tft'] = []
-    #Get TFTs
-    try:
-        results = session.query(TFT).filter_by(tft_group_id=ChargingRule['tft_group_id'])
-        for result in results:
-            result = result.__dict__
-            result.pop('_sa_instance_state')
-            ChargingRule['tft'].append(result)
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    safe_close(session)
-    return ChargingRule
-
-def Get_Charging_Rules(imsi, apn):
-    dbLogger.debug("Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn))
-    #Get Subscriber ID from IMSI
-    subscriber_details = Get_Subscriber(imsi=str(imsi))
-
-    #Split the APN list into a list
-    apn_list = subscriber_details['apn_list'].split(',')
-    dbLogger.debug("Current APN List: " + str(apn_list))
-    #Remove the default APN from the list
-    try:
-        apn_list.remove(str(subscriber_details['default_apn']))
-    except:
-        dbLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
-        pass
-    #Add default APN in first position
-    apn_list.insert(0, str(subscriber_details['default_apn']))
-
-    #Get APN ID from APN
-    for apn_id in apn_list:
-        dbLogger.debug("Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn))
-        #Get each APN in List
-        apn_data = Get_APN(apn_id)
-        dbLogger.debug(apn_data)
-        if str(apn_data['apn']).lower() == str(apn).lower():
-            dbLogger.debug("Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id))
-
-            dbLogger.debug("Getting charging rule list from " + str(apn_data['charging_rule_list']))
-            ChargingRule = {}
-            ChargingRule['charging_rule_list'] = str(apn_data['charging_rule_list']).split(',')
-            ChargingRule['apn_data'] = apn_data
-
-            #Get Charging Rules list
-            if apn_data['charging_rule_list'] == None:
-                dbLogger.debug("No Charging Rule associated with this APN")
-                ChargingRule['charging_rules'] = None
-                return ChargingRule
-
-            dbLogger.debug("ChargingRule['charging_rule_list'] is: " + str(ChargingRule['charging_rule_list']))
-            #Empty dict for the Charging Rules to go into
-            ChargingRule['charging_rules'] = []
-            #Add each of the Charging Rules for the APN
-            for individual_charging_rule in ChargingRule['charging_rule_list']:
-                dbLogger.debug("Getting Charging rule " + str(individual_charging_rule))
-                individual_charging_rule_complete = Get_Charging_Rule(individual_charging_rule)
-                dbLogger.debug("Got individual_charging_rule_complete: " + str(individual_charging_rule_complete))
-                ChargingRule['charging_rules'].append(individual_charging_rule_complete)
-            dbLogger.debug("Completed Get_Charging_Rules()")
-            dbLogger.debug(ChargingRule)
-            return ChargingRule
-
-def Get_UE_by_IP(subscriber_routing):   
-    dbLogger.debug("Called Get_UE_by_IP() for IP " + str(subscriber_routing))
-
-    Session = sessionmaker(bind = engine)
-    session = Session()    
-    
-    try:
-        result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriber_routing).one()
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
-    result = result.__dict__
-    result.pop('_sa_instance_state')
-    result = Sanitize_Datetime(result)
-    return result
-    #Get Subscriber ID from IMSI
-    subscriber_details = Get_Subscriber(imsi=str(imsi))
-
-def Store_IMSI_IMEI_Binding(imsi, imei, match_response_code, propagate=True):
-    #IMSI           14-15 Digits
-    #IMEI           15 Digits
-    #IMEI-SV        2 Digits
-    dbLogger.debug("Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code))
-    if yaml_config['eir']['imsi_imei_logging'] != True:
-        dbLogger.debug("Skipping storing binding")
-        return
-    #Concat IMEI + IMSI
-    imsi_imei = str(imsi) + "," + str(imei)
-    Session = sessionmaker(bind = engine)
-    session = Session()
-
-    #Check if exist already & update
-    try:
-        session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
-        dbLogger.debug("Entry already present for IMSI/IMEI Combo")   
-        safe_close(session)     
-        return 
-    except Exception as E:
-        newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now(tz=timezone.utc))
         session.add(newObj)
         try:
-            session.commit()
+            session.info["operation_id"] = operation_id  # Pass the operation id
+            try:
+                if not disable_logging:
+                    self.log_changes_before_commit(session)
+                session.commit()
+            except Exception as E:
+                self.logTool.log(service='Database', level='error', message=f"Failed to commit session, error: {E}", redisClient=self.redisMessaging)
+                self.safe_rollback(session)
+                raise ValueError(E)
+            session.refresh(newObj)
+            result = newObj.__dict__
+            result.pop('_sa_instance_state')
+            self.handleWebhook(result, 'CREATE')
+            return result
         except Exception as E:
-            dbLogger.error("Failed to commit session, error: " + str(E))
-            safe_rollback(session)
-            safe_close(session)
+            self.logTool.log(service='Database', level='error', message=f"Exception in CreateObj, error: {E}", redisClient=self.redisMessaging)
             raise ValueError(E)
-        safe_close(session)
-        dbLogger.debug("Added new IMSI_IMEI_HISTORY binding")
+        finally:
+            self.safe_close(session)
 
-        if 'sim_swap_notify_webhook' in yaml_config['eir']:
-            dbLogger.debug("Sending SIM Swap notification to Webhook")
-            try:
-                dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
-                handleWebhook(dictToSend)
-            except Exception as E:
-                dbLogger.debug("Failed to post to Webhook")
-                dbLogger.debug(str(E))
+    def Generate_JSON_Model_for_Flask(self, obj_type):
+        self.logTool.log(service='Database', level='debug', message="Generating JSON model for Flask for object type: " + str(obj_type), redisClient=self.redisMessaging)
 
-        #Lookup Device Info
-        if 'tac_database_csv' in yaml_config['eir']:
+        dictty = dict(self.generate_json_schema(obj_type))
+        pprint.pprint(dictty)
+
+
+        #dictty['properties'] = dict(dictty['properties'])
+
+        # Exclude 'table_name' column from the properties
+        if 'properties' in dictty:
+            dictty['properties'].pop('discriminator', None)
+            dictty['properties'].pop('last_modified', None)
+            
+
+        # Set the ID Object to not required
+        obj_type_str = str(dictty['title']).lower()
+        dictty['required'].remove(obj_type_str + '_id')
+
+        return dictty
+
+    def Get_AuC(self, **kwargs):
+        #Get AuC data by IMSI or ICCID
+
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        if 'iccid' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_AuC for iccid " + str(kwargs['iccid']), redisClient=self.redisMessaging)
             try:
-                device_info = get_device_info_from_TAC(imei=str(imei))
-                dbLogger.debug("Got Device Info: " + str(device_info))
-                #@@Fixme
-                # prom_eir_devices.labels(
-                #     imei_prefix=device_info['tac_prefix'],
-                #     device_type=device_info['name'], 
-                #     device_name=device_info['model']
-                # ).inc()
+                result = session.query(AUC).filter_by(iccid=str(kwargs['iccid'])).one()
             except Exception as E:
-                dbLogger.debug("Failed to get device info from TAC")
-                # prom_eir_devices.labels(
-                #     imei_prefix=str(imei)[0:8],
-                #     device_type='Unknown', 
-                #     device_name='Unknown'
-                # ).inc()
-        else:
-            dbLogger.debug("No TAC database configured, skipping device info lookup")
+                self.safe_close(session)
+                raise ValueError(E)
+        elif 'imsi' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_AuC for imsi " + str(kwargs['imsi']), redisClient=self.redisMessaging)
+            try:
+                result = session.query(AUC).filter_by(imsi=str(kwargs['imsi'])).one()
+            except Exception as E:
+                self.safe_close(session)
+                raise ValueError(E)
+
+        result = result.__dict__
+        result = self.Sanitize_Datetime(result)
+        result.pop('_sa_instance_state')
+
+        self.logTool.log(service='Database', level='debug', message="Got back result: " + str(result), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return result
+
+    def Get_IMS_Subscriber(self, **kwargs):
+        #Get subscriber by IMSI or MSISDN
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        if 'msisdn' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_IMS_Subscriber for msisdn " + str(kwargs['msisdn']), redisClient=self.redisMessaging)
+            try:
+                result = session.query(IMS_SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
+            except Exception as E:
+                self.safe_close(session)
+                raise ValueError(E)
+        elif 'imsi' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_IMS_Subscriber for imsi " + str(kwargs['imsi']), redisClient=self.redisMessaging)
+            try:
+                result = session.query(IMS_SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
+            except Exception as E:
+                self.safe_close(session)
+                raise ValueError(E)
+        self.logTool.log(service='Database', level='debug', message="Converting result to dict", redisClient=self.redisMessaging)
+        result = result.__dict__
+        try:
+            result.pop('_sa_instance_state')
+        except:
+            pass
+        result = self.Sanitize_Datetime(result)
+        self.logTool.log(service='Database', level='debug', message="Returning IMS Subscriber Data: " + str(result), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return result
+
+    def Get_Subscriber(self, **kwargs):
+        #Get subscriber by IMSI or MSISDN
+
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        if 'msisdn' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_Subscriber for msisdn " + str(kwargs['msisdn']), redisClient=self.redisMessaging)
+            try:
+                result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
+            except Exception as E:
+                self.safe_close(session)
+                raise ValueError(E)
+        elif 'imsi' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_Subscriber for imsi " + str(kwargs['imsi']), redisClient=self.redisMessaging)
+            try:
+                result = session.query(SUBSCRIBER).filter_by(imsi=str(kwargs['imsi'])).one()
+            except Exception as E:
+                self.safe_close(session)
+                raise ValueError(E)
+
+        result = result.__dict__
+        result = self.Sanitize_Datetime(result)
+        result.pop('_sa_instance_state')
+        
+        if 'get_attributes' in kwargs:
+            if kwargs['get_attributes'] == True:
+                attributes = self.Get_Subscriber_Attributes(result['subscriber_id'])
+                result['attributes'] = attributes
+
+        self.logTool.log(service='Database', level='debug', message="Got back result: " + str(result), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return result
+
+    def Get_SUBSCRIBER_ROUTING(self, subscriber_id, apn_id):
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        self.logTool.log(service='Database', level='debug', message="Get_SUBSCRIBER_ROUTING for subscriber_id " + str(subscriber_id) + " and apn_id " + str(apn_id), redisClient=self.redisMessaging)
+        try:
+            result = session.query(SUBSCRIBER_ROUTING).filter_by(subscriber_id=subscriber_id, apn_id=apn_id).one()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+
+        result = result.__dict__
+        result = self.Sanitize_Datetime(result)
+        result.pop('_sa_instance_state')
+
+        self.logTool.log(service='Database', level='debug', message="Got back result: " + str(result), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return result
+
+    def Get_Subscriber_Attributes(self, subscriber_id):
+        #Get subscriber attributes
+
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        self.logTool.log(service='Database', level='debug', message="Get_Subscriber_Attributes for subscriber_id " + str(subscriber_id), redisClient=self.redisMessaging)
+        try:
+            result = session.query(SUBSCRIBER_ATTRIBUTES).filter_by(subscriber_id=subscriber_id)
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        final_res = []
+        for record in result:
+            result = record.__dict__
+            result = self.Sanitize_Datetime(result)
+            result.pop('_sa_instance_state')
+            final_res.append(result)
+        self.logTool.log(service='Database', level='debug', message="Got back result: " + str(final_res), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return final_res
+
+
+    def Get_Served_Subscribers(self, get_local_users_only=False):
+        self.logTool.log(service='Database', level='debug', message="Getting all subscribers served by this HSS", redisClient=self.redisMessaging)
+
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        Served_Subs = {}
+        try:
+            results = session.query(SUBSCRIBER).filter(SUBSCRIBER.serving_mme.isnot(None))
+            for result in results:
+                result = result.__dict__
+                self.logTool.log(service='Database', level='debug', message="Result: " + str(result) + " type: " + str(type(result)), redisClient=self.redisMessaging)
+                result = self.Sanitize_Datetime(result)
+                result.pop('_sa_instance_state')
+
+                if get_local_users_only == True:
+                    self.logTool.log(service='Database', level='debug', message="Filtering to locally served IMS Subs only", redisClient=self.redisMessaging)
+                    try:
+                        serving_hss = result['serving_mme_peer'].split(';')[1]
+                        self.logTool.log(service='Database', level='debug', message="Serving HSS: " + str(serving_hss) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_hss == self.config['hss']['OriginHost']:
+                            self.logTool.log(service='Database', level='debug', message="Serving HSS matches local HSS", redisClient=self.redisMessaging)
+                            Served_Subs[result['imsi']] = {}
+                            Served_Subs[result['imsi']] = result
+                            #self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
+                            continue
+                        else:
+                            self.logTool.log(service='Database', level='debug', message="Sub is served by remote HSS: " + str(serving_hss), redisClient=self.redisMessaging)
+                    except Exception as E:
+                        self.logTool.log(service='Database', level='debug', message="Error in filtering Get_Served_Subscribers to local peer only: " + str(E), redisClient=self.redisMessaging)
+                        continue
+                else:
+                    Served_Subs[result['imsi']] = result
+                    self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
+
+
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        self.logTool.log(service='Database', level='debug', message="Final Served_Subs: " + str(Served_Subs), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return Served_Subs
+
+
+    def Get_Served_IMS_Subscribers(self, get_local_users_only=False):
+        self.logTool.log(service='Database', level='debug', message="Getting all subscribers served by this IMS-HSS", redisClient=self.redisMessaging)
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+
+        Served_Subs = {}
+        try:
+            
+            results = session.query(IMS_SUBSCRIBER).filter(
+                IMS_SUBSCRIBER.scscf.isnot(None))
+            for result in results:
+                result = result.__dict__
+                self.logTool.log(service='Database', level='debug', message="Result: " + str(result, redisClient=self.redisMessaging) +
+                            " type: " + str(type(result)))
+                result = self.Sanitize_Datetime(result)
+                result.pop('_sa_instance_state')
+                if get_local_users_only == True:
+                    self.logTool.log(service='Database', level='debug', message="Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only", redisClient=self.redisMessaging)
+                    try:
+                        serving_ims_hss = result['scscf_peer'].split(';')[1]
+                        self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_ims_hss == self.config['hss']['OriginHost']:
+                            self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS matches local HSS for " + str(result['imsi']), redisClient=self.redisMessaging)
+                            Served_Subs[result['imsi']] = {}
+                            Served_Subs[result['imsi']] = result
+                            self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
+                            continue
+                        else:
+                            self.logTool.log(service='Database', level='debug', message="Sub is served by remote IMS-HSS: " + str(serving_ims_hss), redisClient=self.redisMessaging)
+                    except Exception as E:
+                        self.logTool.log(service='Database', level='debug', message="Error in filtering to local peer only: " + str(E), redisClient=self.redisMessaging)
+                        continue
+                else:
+                    Served_Subs[result['imsi']] = result
+                    self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
+
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        self.logTool.log(service='Database', level='debug', message="Final Served_Subs: " + str(Served_Subs), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return Served_Subs
+
+
+    def Get_Served_PCRF_Subscribers(self, get_local_users_only=False):
+        self.logTool.log(service='Database', level='debug', message="Getting all subscribers served by this PCRF", redisClient=self.redisMessaging)
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        Served_Subs = {}
+        try:
+            results = session.query(SERVING_APN).all()
+            for result in results:
+                result = result.__dict__
+                self.logTool.log(service='Database', level='debug', message="Result: " + str(result) + " type: " + str(type(result)), redisClient=self.redisMessaging)
+                result = self.Sanitize_Datetime(result)
+                result.pop('_sa_instance_state')
+
+                if get_local_users_only == True:
+                    self.logTool.log(service='Database', level='debug', message="Filtering to locally served IMS Subs only", redisClient=self.redisMessaging)
+                    try:
+                        serving_pcrf = result['serving_pgw_peer'].split(';')[1]
+                        self.logTool.log(service='Database', level='debug', message="Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_pcrf == self.config['hss']['OriginHost']:
+                            self.logTool.log(service='Database', level='debug', message="Serving PCRF matches local PCRF", redisClient=self.redisMessaging)
+                            self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
+                            
+                        else:
+                            self.logTool.log(service='Database', level='debug', message="Sub is served by remote PCRF: " + str(serving_pcrf), redisClient=self.redisMessaging)
+                            continue
+                    except Exception as E:
+                        self.logTool.log(service='Database', level='debug', message="Error in filtering Get_Served_PCRF_Subscribers to local peer only: " + str(E), redisClient=self.redisMessaging)
+                        continue
+
+                # Get APN Info
+                apn_info = self.GetObj(APN, result['apn'])
+                #self.logTool.log(service='Database', level='debug', message="Got APN Info: " + str(apn_info), redisClient=self.redisMessaging)
+                result['apn_info'] = apn_info
+
+                # Get Subscriber Info
+                subscriber_info = self.GetObj(SUBSCRIBER, result['subscriber_id'])
+                result['subscriber_info'] = subscriber_info
+
+                #self.logTool.log(service='Database', level='debug', message="Got Subscriber Info: " + str(subscriber_info), redisClient=self.redisMessaging)
+
+                Served_Subs[subscriber_info['imsi']] = result
+                self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
+        except Exception as E:
+            raise ValueError(E)
+        #self.logTool.log(service='Database', level='debug', message="Final SERVING_APN: " + str(Served_Subs), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return Served_Subs
+
+    def Get_Vectors_AuC(self, auc_id, action, **kwargs):
+        self.logTool.log(service='Database', level='debug', message="Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action), redisClient=self.redisMessaging)
+        key_data = self.GetObj(AUC, auc_id)
+        vector_dict = {}
+        
+        if action == "air":
+            rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn']) 
+            vector_dict['rand'] = rand
+            vector_dict['xres'] = xres
+            vector_dict['autn'] = autn
+            vector_dict['kasme'] = kasme
+
+            #Incriment SQN
+            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
+
+            return vector_dict
+
+        elif action == "sqn_resync":
+            self.logTool.log(service='Database', level='debug', message="Resync SQN", redisClient=self.redisMessaging)
+            rand = kwargs['rand']       
+            sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
+            self.logTool.log(service='Database', level='debug', message="SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")", redisClient=self.redisMessaging)
+            self.Update_AuC(auc_id, sqn=sqn+100)
+            return
+        
+        elif action == "sip_auth":
+            rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+            self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
+            vector_dict['SIP_Authenticate'] = rand + autn
+            vector_dict['xres'] = xres
+            vector_dict['ck'] = ck
+            vector_dict['ik'] = ik
+            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
+            return vector_dict
+
+        elif action == "Digest-MD5":
+            self.logTool.log(service='Database', level='debug', message="Generating Digest-MD5 Auth vectors", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='debug', message="key_data: " + str(key_data), redisClient=self.redisMessaging)
+            nonce = uuid.uuid4().hex
+            #nonce = "beef4d878f2642ed98afe491b943ca60"
+            vector_dict['nonce'] = nonce
+            vector_dict['SIP_Authenticate'] = key_data['ki']
+            return vector_dict
+
+    def Get_APN(self, apn_id):
+        self.logTool.log(service='Database', level='debug', message="Getting APN " + str(apn_id), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        try:
+            result = session.query(APN).filter_by(apn_id=apn_id).one()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        self.safe_close(session)
+        return result    
+
+    def Get_APN_by_Name(self, apn):
+        self.logTool.log(service='Database', level='debug', message="Getting APN named " + str(apn_id), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()    
+        try:
+            result = session.query(APN).filter_by(apn=str(apn)).one()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        self.safe_close(session)
+        return result 
+
+    def Update_AuC(self, auc_id, sqn=1):
+        self.logTool.log(service='Database', level='debug', message="Updating AuC record for sub " + str(auc_id), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message=self.UpdateObj(AUC, {'sqn': sqn}, auc_id, True), redisClient=self.redisMessaging)
+        return
+
+    def Update_Serving_MME(self, imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, propagate=True):
+        self.logTool.log(service='Database', level='debug', message="Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        try:
+            result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
+            if self.config['hss']['CancelLocationRequest_Enabled'] == True:
+                self.logTool.log(service='Database', level='debug', message="Evaluating if we should trigger sending a CLR.", redisClient=self.redisMessaging)
+                serving_hss = str(result.serving_mme_peer).split(';',1)[1]
+                serving_mme_peer = str(result.serving_mme_peer).split(';',1)[0]
+                self.logTool.log(service='Database', level='debug', message="Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer), redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message="Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer), redisClient=self.redisMessaging)
+                #Evaluate if we need to send a CLR to the old MME
+                if result.serving_mme != None:
+                    if str(result.serving_mme) == str(serving_mme):
+                        self.logTool.log(service='Database', level='debug', message="This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR", redisClient=self.redisMessaging)
+                    elif (str(result.serving_mme) != str(serving_mme)):
+                        self.logTool.log(service='Database', level='debug', message="There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR", redisClient=self.redisMessaging)
+                        if serving_hss != self.config['hss']['OriginHost']:
+                            self.logTool.log(service='Database', level='debug', message="This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss), redisClient=self.redisMessaging)
+                            URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                        else:
+                            self.logTool.log(service='Database', level='debug', message="This subscriber is served by this HSS we need to send a CLR to old MME from this HSS", redisClient=self.redisMessaging)
+                        
+                        URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                        self.logTool.log(service='Database', level='debug', message="Sending CLR to API at " + str(URL), redisClient=self.redisMessaging)
+                        json_data = {
+                            "DestinationRealm": result.serving_mme_realm,
+                            "DestinationHost": result.serving_mme,
+                            "cancellationType": 2,
+                            "diameterPeer": serving_mme_peer,
+                        }
+                        
+                        self.logTool.log(service='Database', level='debug', message="Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data), redisClient=self.redisMessaging)
+                        transaction_id = str(uuid.uuid4())
+                        GeoRed_Push_thread = threading.Thread(target=self.GeoRed_Push_Request, args=(serving_hss, json_data, transaction_id, URL))
+                        GeoRed_Push_thread.start()
+                else:
+                    #No currently serving MME - No action to take
+                    self.logTool.log(service='Database', level='debug', message="No currently serving MME - No need to send CLR", redisClient=self.redisMessaging)
+
+            if type(serving_mme) == str:
+                self.logTool.log(service='Database', level='debug', message="Updating serving MME & Timestamp", redisClient=self.redisMessaging)
+                result.serving_mme = serving_mme
+                result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
+                result.serving_mme_realm = serving_mme_realm
+                result.serving_mme_peer = serving_mme_peer
+            else:
+                #Clear values
+                self.logTool.log(service='Database', level='debug', message="Clearing serving MME", redisClient=self.redisMessaging)
+                result.serving_mme = None
+                result.serving_mme_timestamp = None
+                result.serving_mme_realm = None
+                result.serving_mme_peer = None
+
+            session.commit()
+            objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
+            self.handleWebhook(objectData, 'UPDATE')
+
+            #Sync state change with geored
+            if propagate == True:
+                if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
+                    self.logTool.log(service='Database', level='debug', message="Propagate MME changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored({
+                        "imsi": str(imsi), 
+                        "serving_mme": result.serving_mme, 
+                        "serving_mme_realm": str(result.serving_mme_realm), 
+                        "serving_mme_peer": str(result.serving_mme_peer)
+                        })
+                else:
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of HSS events", redisClient=self.redisMessaging)
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Error occurred, rolling back session: " + str(E), redisClient=self.redisMessaging)
+            raise
+        finally:
+            self.safe_close(session)
+
+
+    def Update_Serving_CSCF(self, imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
+        self.logTool.log(service='Database', level='debug', message="Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        try:
+            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
+            try:
+                assert(type(serving_cscf) == str)
+                assert(len(serving_cscf) > 0)
+                self.logTool.log(service='Database', level='debug', message="Setting serving CSCF", redisClient=self.redisMessaging)
+                #Strip duplicate SIP prefix before storing
+                serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
+                result.scscf = serving_cscf
+                result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                result.scscf_realm = scscf_realm
+                result.scscf_peer = str(scscf_peer)
+            except:
+                #Clear values
+                self.logTool.log(service='Database', level='debug', message="Clearing serving CSCF", redisClient=self.redisMessaging)
+                result.scscf = None
+                result.scscf_timestamp = None
+                result.scscf_realm = None
+                result.scscf_peer = None
+            
+            session.commit()
+            objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
+            self.handleWebhook(objectData, 'UPDATE')
+
+            #Sync state change with geored
+            if propagate == True:
+                if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                    self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
+                else:
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="An error occurred, rolling back session: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            raise
+        finally:
+            self.safe_close(session)
+
+
+    def Update_Serving_APN(self, imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
+        self.logTool.log(service='Database', level='debug', message="Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="subscriber_routing: " + str(subscriber_routing), redisClient=self.redisMessaging)
+
+        #Get Subscriber ID from IMSI
+        subscriber_details = self.Get_Subscriber(imsi=str(imsi))
+        subscriber_id = subscriber_details['subscriber_id']
+
+        #Split the APN list into a list
+        apn_list = subscriber_details['apn_list'].split(',')
+        self.logTool.log(service='Database', level='debug', message="Current APN List: " + str(apn_list), redisClient=self.redisMessaging)
+        #Remove the default APN from the list
+        try:
+            apn_list.remove(str(subscriber_details['default_apn']))
+        except:
+            self.logTool.log(service='Database', level='debug', message="Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List", redisClient=self.redisMessaging)
+            pass
+        #Add default APN in first position
+        apn_list.insert(0, str(subscriber_details['default_apn']))
+
+        #Get APN ID from APN
+        for apn_id in apn_list:
+            #Get each APN in List
+            apn_data = self.Get_APN(apn_id)
+            self.logTool.log(service='Database', level='debug', message=apn_data, redisClient=self.redisMessaging)
+            if str(apn_data['apn']).lower() == str(apn).lower():
+                self.logTool.log(service='Database', level='debug', message="Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id), redisClient=self.redisMessaging)
+                break
+        self.logTool.log(service='Database', level='debug', message="APN ID is " + str(apn_id), redisClient=self.redisMessaging)
+
+        json_data = {
+            'apn' : apn_id,
+            'subscriber_id' : subscriber_id,
+            'pcrf_session_id' : str(pcrf_session_id),
+            'serving_pgw' : str(serving_pgw),
+            'serving_pgw_realm' : str(serving_pgw_realm),
+            'serving_pgw_peer' : str(serving_pgw_peer),
+            'serving_pgw_timestamp' : datetime.datetime.now(tz=timezone.utc),
+            'subscriber_routing' : str(subscriber_routing)
+        }
+
+        try:
+        #Check if already a serving APN on record
+            self.logTool.log(service='Database', level='debug', message="Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id), redisClient=self.redisMessaging)
+            ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
+            self.logTool.log(service='Database', level='debug', message="Existing Serving APN ID on record, updating", redisClient=self.redisMessaging)
+            try:
+                assert(type(serving_pgw) == str)
+                assert(len(serving_pgw) > 0)
+                assert("None" not in serving_pgw)
+                
+                self.UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
+                objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+                self.handleWebhook(objectData, 'UPDATE')
+            except:
+                self.logTool.log(service='Database', level='debug', message="Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']), redisClient=self.redisMessaging)
+                objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+                self.handleWebhook(objectData, 'DELETE')
+                self.DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
+        except Exception as E:
+            self.logTool.log(service='Database', level='info', message="Failed to update existing APN " + str(E), redisClient=self.redisMessaging)
+            #Create if does not exist
+            self.CreateObj(SERVING_APN, json_data, True)
+            objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+            self.handleWebhook(objectData, 'CREATE')
 
         #Sync state change with geored
         if propagate == True:
             try:
-                if 'EIR' in yaml_config['geored']['sync_actions'] and yaml_config['geored']['enabled'] == True:
-                    dbLogger.debug("Propagate EIR changes to Geographic PyHSS instances")
-                    handleGeored(
-                        {"imsi": str(imsi), 
-                        "imei": str(imei), 
-                        "match_response_code": str(match_response_code)}
-                        )
+                if 'PCRF' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                    self.logTool.log(service='Database', level='debug', message="Propagate PCRF changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored({"imsi": str(imsi),
+                                    'serving_apn' : str(apn),
+                                    'pcrf_session_id': str(pcrf_session_id),
+                                    'serving_pgw': str(serving_pgw),
+                                    'serving_pgw_realm': str(serving_pgw_realm),
+                                    'serving_pgw_peer': str(serving_pgw_peer),
+                                    'subscriber_routing': str(subscriber_routing)
+                                    })
                 else:
-                    dbLogger.debug("Config does not allow sync of EIR events")
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of PCRF events", redisClient=self.redisMessaging)
             except Exception as E:
-                dbLogger.debug("Nothing synced to Geographic PyHSS instances for EIR event")
-                dbLogger.debug(E)
+                self.logTool.log(service='Database', level='debug', message="Nothing synced to Geographic PyHSS instances for event PCRF", redisClient=self.redisMessaging)
 
-        return
 
-def Get_IMEI_IMSI_History(attribute):
-    dbLogger.debug("Called Get_IMEI_IMSI_History() for entry matching " + str(Get_IMEI_IMSI_History))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    result_array = []
-    try:
-        results = session.query(IMSI_IMEI_HISTORY).filter(IMSI_IMEI_HISTORY.imsi_imei.ilike("%" + str(attribute) + "%")).all()
-        for result in results:
-            result = result.__dict__
-            result.pop('_sa_instance_state')
-            result = Sanitize_Datetime(result)
+            return
+
+    def Get_Serving_APN(self, subscriber_id, apn_id):
+        self.logTool.log(service='Database', level='debug', message="Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        try:
+            result = session.query(SERVING_APN).filter_by(subscriber_id=subscriber_id, apn=apn_id).first()
+        except Exception as E:
+            self.logTool.log(service='Database', level='debug', message=E, redisClient=self.redisMessaging)
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        
+        self.safe_close(session)
+        return result   
+
+    def Get_Charging_Rule(self, charging_rule_id):
+        self.logTool.log(service='Database', level='debug', message="Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        #Get base Rule
+        ChargingRule = self.GetObj(CHARGING_RULE, charging_rule_id)
+        ChargingRule['tft'] = []
+        #Get TFTs
+        try:
+            results = session.query(TFT).filter_by(tft_group_id=ChargingRule['tft_group_id'])
+            for result in results:
+                result = result.__dict__
+                result.pop('_sa_instance_state')
+                ChargingRule['tft'].append(result)
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        self.safe_close(session)
+        return ChargingRule
+
+    def Get_Charging_Rules(self, imsi, apn):
+        self.logTool.log(service='Database', level='debug', message="Called Get_Charging_Rules() for IMSI " + str(imsi) + " and APN " + str(apn), redisClient=self.redisMessaging)
+        #Get Subscriber ID from IMSI
+        subscriber_details = self.Get_Subscriber(imsi=str(imsi))
+
+        #Split the APN list into a list
+        apn_list = subscriber_details['apn_list'].split(',')
+        self.logTool.log(service='Database', level='debug', message="Current APN List: " + str(apn_list), redisClient=self.redisMessaging)
+        #Remove the default APN from the list
+        try:
+            apn_list.remove(str(subscriber_details['default_apn']))
+        except:
+            self.logTool.log(service='Database', level='debug', message="Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List", redisClient=self.redisMessaging)
+            pass
+        #Add default APN in first position
+        apn_list.insert(0, str(subscriber_details['default_apn']))
+
+        #Get APN ID from APN
+        for apn_id in apn_list:
+            self.logTool.log(service='Database', level='debug', message="Getting APN ID " + str(apn_id) + " to see if it matches APN " + str(apn), redisClient=self.redisMessaging)
+            #Get each APN in List
+            apn_data = self.Get_APN(apn_id)
+            self.logTool.log(service='Database', level='debug', message=apn_data, redisClient=self.redisMessaging)
+            if str(apn_data['apn']).lower() == str(apn).lower():
+                self.logTool.log(service='Database', level='debug', message="Matched named APN " + str(apn_data['apn']) + " with APN ID " + str(apn_id), redisClient=self.redisMessaging)
+
+                self.logTool.log(service='Database', level='debug', message="Getting charging rule list from " + str(apn_data['charging_rule_list']), redisClient=self.redisMessaging)
+                ChargingRule = {}
+                ChargingRule['charging_rule_list'] = str(apn_data['charging_rule_list']).split(',')
+                ChargingRule['apn_data'] = apn_data
+
+                #Get Charging Rules list
+                if apn_data['charging_rule_list'] == None:
+                    self.logTool.log(service='Database', level='debug', message="No Charging Rule associated with this APN", redisClient=self.redisMessaging)
+                    ChargingRule['charging_rules'] = None
+                    return ChargingRule
+
+                self.logTool.log(service='Database', level='debug', message="ChargingRule['charging_rule_list'] is: " + str(ChargingRule['charging_rule_list']), redisClient=self.redisMessaging)
+                #Empty dict for the Charging Rules to go into
+                ChargingRule['charging_rules'] = []
+                #Add each of the Charging Rules for the APN
+                for individual_charging_rule in ChargingRule['charging_rule_list']:
+                    self.logTool.log(service='Database', level='debug', message="Getting Charging rule " + str(individual_charging_rule), redisClient=self.redisMessaging)
+                    individual_charging_rule_complete = self.Get_Charging_Rule(individual_charging_rule)
+                    self.logTool.log(service='Database', level='debug', message="Got individual_charging_rule_complete: " + str(individual_charging_rule_complete), redisClient=self.redisMessaging)
+                    ChargingRule['charging_rules'].append(individual_charging_rule_complete)
+                self.logTool.log(service='Database', level='debug', message="Completed Get_Charging_Rules()", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=ChargingRule, redisClient=self.redisMessaging)
+                return ChargingRule
+
+    def Get_UE_by_IP(self, subscriber_routing):   
+        self.logTool.log(service='Database', level='debug', message="Called Get_UE_by_IP() for IP " + str(subscriber_routing), redisClient=self.redisMessaging)
+
+        Session = sessionmaker(bind = self.engine)
+        session = Session()    
+        
+        try:
+            result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriber_routing).one()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        result = self.Sanitize_Datetime(result)
+        return result
+        #Get Subscriber ID from IMSI
+        subscriber_details = Get_Subscriber(imsi=str(imsi))
+
+    def Store_IMSI_IMEI_Binding(self, imsi, imei, match_response_code, propagate=True):
+        #IMSI           14-15 Digits
+        #IMEI           15 Digits
+        #IMEI-SV        2 Digits
+        self.logTool.log(service='Database', level='debug', message="Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code), redisClient=self.redisMessaging)
+        if self.config['eir']['imsi_imei_logging'] != True:
+            self.logTool.log(service='Database', level='debug', message="Skipping storing binding", redisClient=self.redisMessaging)
+            return
+        #Concat IMEI + IMSI
+        imsi_imei = str(imsi) + "," + str(imei)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        #Check if exist already & update
+        try:
+            session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
+            self.logTool.log(service='Database', level='debug', message="Entry already present for IMSI/IMEI Combo", redisClient=self.redisMessaging)   
+            self.safe_close(session)     
+            return 
+        except Exception as E:
+            newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now(tz=timezone.utc))
+            session.add(newObj)
             try:
-                result['imsi'] = result['imsi_imei'].split(",")[0]
-            except:
-                continue
-            try:
-                result['imei'] = result['imsi_imei'].split(",")[1]
-            except:
-                continue                
-            result_array.append(result)
-        safe_close(session)
-        return result_array
-    except Exception as E:
-        safe_close(session)
-        raise ValueError(E)
+                session.commit()
+            except Exception as E:
+                self.logTool.log(service='Database', level='error', message="Failed to commit session, error: " + str(E), redisClient=self.redisMessaging)
+                self.safe_rollback(session)
+                self.safe_close(session)
+                raise ValueError(E)
+            self.safe_close(session)
+            self.logTool.log(service='Database', level='debug', message="Added new IMSI_IMEI_HISTORY binding", redisClient=self.redisMessaging)
 
-def Check_EIR(imsi, imei):
-    eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
-    dbLogger.debug("Called Check_EIR() for  imsi " + str(imsi) + " and imei: " + str(imei))
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    #Check for Exact Matches
-    dbLogger.debug("Looking for exact matches")
-    #Check for exact Matches
-    try:
-        results = session.query(EIR).filter_by(imei=str(imei), regex_mode=0)
-        for result in results:
-            result = result.__dict__
-            match_response_code = result['match_response_code']
-            if result['imsi'] == '':
-                dbLogger.debug("No IMSI specified in DB, so matching only on IMEI")
-                Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
-                return match_response_code
-            elif result['imsi'] == str(imsi):
-                dbLogger.debug("Matched on IMEI and IMSI")
-                Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
-                return match_response_code
-    except Exception as E:
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-    
-    dbLogger.debug("Did not match any Exact Matches - Checking Regex")   
-    try:
-        results = session.query(EIR).filter_by(regex_mode=1)    #Get all Regex records from DB
-        for result in results:
-            result = result.__dict__
-            match_response_code = result['match_response_code']
-            if re.match(result['imei'], imei):
-                dbLogger.debug("IMEI matched " + str(result['imei']))
-                #Check if IMSI also specified
-                if len(result['imsi']) != 0:
-                    dbLogger.debug("With IMEI matched, now checking if IMSI matches regex")
-                    if re.match(result['imsi'], imsi):
-                        dbLogger.debug("IMSI also matched, so match OK!")
-                        Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
-                        return match_response_code
-                else:
-                    dbLogger.debug("No IMSI specified, so match OK!")
-                    Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+            if 'sim_swap_notify_webhook' in self.config['eir']:
+                self.logTool.log(service='Database', level='debug', message="Sending SIM Swap notification to Webhook", redisClient=self.redisMessaging)
+                try:
+                    dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
+                    self.handleWebhook(dictToSend)
+                except Exception as E:
+                    self.logTool.log(service='Database', level='debug', message="Failed to post to Webhook", redisClient=self.redisMessaging)
+                    self.logTool.log(service='Database', level='debug', message=str(E), redisClient=self.redisMessaging)
+
+            #Lookup Device Info
+            if 'tac_database_csv' in self.config['eir']:
+                try:
+                    device_info = self.get_device_info_from_TAC(imei=str(imei))
+                    self.logTool.log(service='Database', level='debug', message="Got Device Info: " + str(device_info), redisClient=self.redisMessaging)
+                    #@@Fixme
+                    # prom_eir_devices.labels(
+                    #     imei_prefix=device_info['tac_prefix'],
+                    #     device_type=device_info['name'], 
+                    #     device_name=device_info['model']
+                    # ).inc()
+                except Exception as E:
+                    self.logTool.log(service='Database', level='debug', message="Failed to get device info from TAC", redisClient=self.redisMessaging)
+                    # prom_eir_devices.labels(
+                    #     imei_prefix=str(imei)[0:8],
+                    #     device_type='Unknown', 
+                    #     device_name='Unknown'
+                    # ).inc()
+            else:
+                self.logTool.log(service='Database', level='debug', message="No TAC database configured, skipping device info lookup", redisClient=self.redisMessaging)
+
+            #Sync state change with geored
+            if propagate == True:
+                try:
+                    if 'EIR' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                        self.logTool.log(service='Database', level='debug', message="Propagate EIR changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                        self.handleGeored(
+                            {"imsi": str(imsi), 
+                            "imei": str(imei), 
+                            "match_response_code": str(match_response_code)}
+                            )
+                    else:
+                        self.logTool.log(service='Database', level='debug', message="Config does not allow sync of EIR events", redisClient=self.redisMessaging)
+                except Exception as E:
+                    self.logTool.log(service='Database', level='debug', message="Nothing synced to Geographic PyHSS instances for EIR event", redisClient=self.redisMessaging)
+                    self.logTool.log(service='Database', level='debug', message=E, redisClient=self.redisMessaging)
+
+            return
+
+    def Get_IMEI_IMSI_History(self, attribute):
+        self.logTool.log(service='Database', level='debug', message="Called Get_IMEI_IMSI_History() for entry matching " + str(self.Get_IMEI_IMSI_History), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        result_array = []
+        try:
+            results = session.query(IMSI_IMEI_HISTORY).filter(IMSI_IMEI_HISTORY.imsi_imei.ilike("%" + str(attribute) + "%")).all()
+            for result in results:
+                result = result.__dict__
+                result.pop('_sa_instance_state')
+                result = self.Sanitize_Datetime(result)
+                try:
+                    result['imsi'] = result['imsi_imei'].split(",")[0]
+                except:
+                    continue
+                try:
+                    result['imei'] = result['imsi_imei'].split(",")[1]
+                except:
+                    continue                
+                result_array.append(result)
+            self.safe_close(session)
+            return result_array
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+
+    def Check_EIR(self, imsi, imei):
+        eir_response_code_table = {0 : 'Whitelist', 1: 'Blacklist', 2: 'Greylist'}
+        self.logTool.log(service='Database', level='debug', message="Called Check_EIR() for  imsi " + str(imsi) + " and imei: " + str(imei), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        #Check for Exact Matches
+        self.logTool.log(service='Database', level='debug', message="Looking for exact matches", redisClient=self.redisMessaging)
+        #Check for exact Matches
+        try:
+            results = session.query(EIR).filter_by(imei=str(imei), regex_mode=0)
+            for result in results:
+                result = result.__dict__
+                match_response_code = result['match_response_code']
+                if result['imsi'] == '':
+                    self.logTool.log(service='Database', level='debug', message="No IMSI specified in DB, so matching only on IMEI", redisClient=self.redisMessaging)
+                    self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
                     return match_response_code
-    except Exception as E:
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
+                elif result['imsi'] == str(imsi):
+                    self.logTool.log(service='Database', level='debug', message="Matched on IMEI and IMSI", redisClient=self.redisMessaging)
+                    self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                    return match_response_code
+        except Exception as E:
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+        
+        self.logTool.log(service='Database', level='debug', message="Did not match any Exact Matches - Checking Regex", redisClient=self.redisMessaging)   
+        try:
+            results = session.query(EIR).filter_by(regex_mode=1)    #Get all Regex records from DB
+            for result in results:
+                result = result.__dict__
+                match_response_code = result['match_response_code']
+                if re.match(result['imei'], imei):
+                    self.logTool.log(service='Database', level='debug', message="IMEI matched " + str(result['imei']), redisClient=self.redisMessaging)
+                    #Check if IMSI also specified
+                    if len(result['imsi']) != 0:
+                        self.logTool.log(service='Database', level='debug', message="With IMEI matched, now checking if IMSI matches regex", redisClient=self.redisMessaging)
+                        if re.match(result['imsi'], imsi):
+                            self.logTool.log(service='Database', level='debug', message="IMSI also matched, so match OK!", redisClient=self.redisMessaging)
+                            self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                            return match_response_code
+                    else:
+                        self.logTool.log(service='Database', level='debug', message="No IMSI specified, so match OK!", redisClient=self.redisMessaging)
+                        self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                        return match_response_code
+        except Exception as E:
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
 
-    try:
-        session.commit()
-    except Exception as E:
-        dbLogger.error("Failed to commit session, error: " + str(E))
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-    dbLogger.debug("No matches at all - Returning default response")
-    Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=yaml_config['eir']['no_match_response'])
-    safe_close(session)
-    return yaml_config['eir']['no_match_response']
+        try:
+            session.commit()
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Failed to commit session, error: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+        self.logTool.log(service='Database', level='debug', message="No matches at all - Returning default response", redisClient=self.redisMessaging)
+        self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=self.config['eir']['no_match_response'])
+        self.safe_close(session)
+        return self.config['eir']['no_match_response']
 
-def Get_EIR_Rules():
-    dbLogger.debug("Getting all EIR Rules")
-    Session = sessionmaker(bind = engine)
-    session = Session()
-    EIR_Rules = []
-    try:
-        results = session.query(EIR)
-        for result in results:
-            result = result.__dict__
-            result.pop('_sa_instance_state')
-            EIR_Rules.append(result)
-    except Exception as E:
-        safe_rollback(session)
-        safe_close(session)
-        raise ValueError(E)
-    dbLogger.debug("Final EIR_Rules: " + str(EIR_Rules))
-    safe_close(session)
-    return EIR_Rules 
-
-
-def dict_bytes_to_dict_string(dict_bytes):
-    dict_string = {}
-    for key, value in dict_bytes.items():
-        dict_string[key.decode()] = value.decode()
-    return dict_string
+    def Get_EIR_Rules(self):
+        self.logTool.log(service='Database', level='debug', message="Getting all EIR Rules", redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        EIR_Rules = []
+        try:
+            results = session.query(EIR)
+            for result in results:
+                result = result.__dict__
+                result.pop('_sa_instance_state')
+                EIR_Rules.append(result)
+        except Exception as E:
+            self.safe_rollback(session)
+            self.safe_close(session)
+            raise ValueError(E)
+        self.logTool.log(service='Database', level='debug', message="Final EIR_Rules: " + str(EIR_Rules), redisClient=self.redisMessaging)
+        self.safe_close(session)
+        return EIR_Rules 
 
 
-def get_device_info_from_TAC(imei):
-    dbLogger.debug("Getting Device Info from IMEI: " + str(imei))
-    #Try 8 digit TAC
-    try:
-        dbLogger.debug("Trying to match on 8 Digit IMEI")
-        #@@Fixme
-        # imei_result = logtool.RedisHMGET(str(imei[0:8]))
-        # print("Got back: " + str(imei_result))
-        # imei_result = dict_bytes_to_dict_string(imei_result)
-        # assert(len(imei_result) != 0)
-        # dbLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
-        # return imei_result
-        return "0"
-    except:
-        dbLogger.debug("Failed to match on 8 digit IMEI")
-    
-    try:
-        dbLogger.debug("Trying to match on 6 Digit IMEI")
-        #@@Fixme
-        # imei_result = logtool.RedisHMGET(str(imei[0:6]))
-        # print("Got back: " + str(imei_result))
-        # imei_result = dict_bytes_to_dict_string(imei_result)
-        # assert(len(imei_result) != 0)
-        # dbLogger.debug("Found match for IMEI " + str(imei) + " with result " + str(imei_result))
-        # return imei_result
-        return "0"
-    except:
-        dbLogger.debug("Failed to match on 6 digit IMEI")
+    def dict_bytes_to_dict_string(self, dict_bytes):
+        dict_string = {}
+        for key, value in dict_bytes.items():
+            dict_string[key.decode()] = value.decode()
+        return dict_string
 
-    raise ValueError("No matching TAC in IMEI Database")
+
+    def get_device_info_from_TAC(self, imei):
+        self.logTool.log(service='Database', level='debug', message="Getting Device Info from IMEI: " + str(imei), redisClient=self.redisMessaging)
+        #Try 8 digit TAC
+        try:
+            self.logTool.log(service='Database', level='debug', message="Trying to match on 8 Digit IMEI", redisClient=self.redisMessaging)
+            #@@Fixme
+            # imei_result = logtool.RedisHMGET(str(imei[0:8]))
+            # print("Got back: " + str(imei_result))
+            # imei_result = dict_bytes_to_dict_string(imei_result)
+            # assert(len(imei_result) != 0)
+            # self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
+            # return imei_result
+            return "0"
+        except:
+            self.logTool.log(service='Database', level='debug', message="Failed to match on 8 digit IMEI", redisClient=self.redisMessaging)
+        
+        try:
+            self.logTool.log(service='Database', level='debug', message="Trying to match on 6 Digit IMEI", redisClient=self.redisMessaging)
+            #@@Fixme
+            # imei_result = logtool.RedisHMGET(str(imei[0:6]))
+            # print("Got back: " + str(imei_result))
+            # imei_result = dict_bytes_to_dict_string(imei_result)
+            # assert(len(imei_result) != 0)
+            # self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
+            # return imei_result
+            return "0"
+        except:
+            self.logTool.log(service='Database', level='debug', message="Failed to match on 6 digit IMEI", redisClient=self.redisMessaging)
+
+        raise ValueError("No matching TAC in IMEI Database")
 
 if __name__ == "__main__":
     import binascii,os,pprint
     DeleteAfter = True
+    database = Database()
 
     #Define Charging Rule
     charging_rule = {
@@ -2044,12 +2042,12 @@ if __name__ == "__main__":
         'rating_group' : 20000
         }
     print("Creating Charging Rule A")
-    ChargingRule_newObj_A = CreateObj(CHARGING_RULE, charging_rule)
+    ChargingRule_newObj_A = database.CreateObj(CHARGING_RULE, charging_rule)
     print("ChargingRule_newObj A: " + str(ChargingRule_newObj_A))
     charging_rule['gbr_ul'], charging_rule['gbr_dl'], charging_rule['mbr_ul'], charging_rule['mbr_dl'] = 256000, 256000, 256000, 256000
     print("Creating Charging Rule B")
     charging_rule['rule_name'], charging_rule['precedence'], charging_rule['tft_group_id'] = 'charging_rule_B', 80, 2
-    ChargingRule_newObj_B = CreateObj(CHARGING_RULE, charging_rule)
+    ChargingRule_newObj_B = database.CreateObj(CHARGING_RULE, charging_rule)
     print("ChargingRule_newObj B: " + str(ChargingRule_newObj_B))
 
     #Define TFTs
@@ -2064,8 +2062,8 @@ if __name__ == "__main__":
         'direction' : 2
     }
     print("Creating TFT")
-    CreateObj(TFT, tft_template1)
-    CreateObj(TFT, tft_template2)
+    database.CreateObj(TFT, tft_template1)
+    database.CreateObj(TFT, tft_template2)
 
     tft_template3 = {
         'tft_group_id' : 2,
@@ -2078,8 +2076,8 @@ if __name__ == "__main__":
         'direction' : 2
     }
     print("Creating TFT")
-    CreateObj(TFT, tft_template3)
-    CreateObj(TFT, tft_template4)
+    database.CreateObj(TFT, tft_template3)
+    database.CreateObj(TFT, tft_template4)
 
 
     apn2 = {
@@ -2092,17 +2090,17 @@ if __name__ == "__main__":
         'charging_rule_list' : str(ChargingRule_newObj_A['charging_rule_id']) + "," + str(ChargingRule_newObj_B['charging_rule_id'])
         }
     print("Creating APN " + str(apn2['apn']))
-    newObj = CreateObj(APN, apn2)
+    newObj = database.CreateObj(APN, apn2)
     print(newObj)
 
     print("Getting APN " + str(apn2['apn']))
-    print(GetObj(APN, newObj['apn_id']))
+    print(database.GetObj(APN, newObj['apn_id']))
     apn_id = newObj['apn_id']
     UpdatedObj = newObj
     UpdatedObj['apn'] = 'UpdatedInUnitTest'
     
     print("Updating APN " + str(apn2['apn']))
-    newObj = UpdateObj(APN, UpdatedObj, newObj['apn_id'])
+    newObj = database.UpdateObj(APN, UpdatedObj, newObj['apn_id'])
     print(newObj)
 
     #Create AuC
@@ -2114,28 +2112,28 @@ if __name__ == "__main__":
     }
     print(auc_json)
     print("Creating AuC entry")
-    newObj = CreateObj(AUC, auc_json)
+    newObj = database.CreateObj(AUC, auc_json)
     print(newObj)
 
     #Get AuC
     print("Getting AuC entry")
-    newObj = GetObj(AUC, newObj['auc_id'])
+    newObj = database.GetObj(AUC, newObj['auc_id'])
     auc_id = newObj['auc_id']
     print(newObj)
 
     #Update AuC
     print("Updating AuC entry")
     newObj['sqn'] = newObj['sqn'] + 10
-    newObj = UpdateObj(AUC, newObj, auc_id)
+    newObj = database.UpdateObj(AUC, newObj, auc_id)
 
     #Generate Vectors
     print("Generating Vectors")
-    Get_Vectors_AuC(auc_id, "air", plmn='12ff')
-    print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
+    database.Get_Vectors_AuC(auc_id, "air", plmn='12ff')
+    print(database.Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
 
 
     #Update AuC
-    Update_AuC(auc_id, sqn=100)
+    database.Update_AuC(auc_id, sqn=100)
 
     #New Subscriber
     subscriber_json = {
@@ -2153,37 +2151,37 @@ if __name__ == "__main__":
 
     #Delete IMSI if already exists
     try:
-        existing_sub_data = Get_Subscriber(imsi=subscriber_json['imsi'])
-        DeleteObj(SUBSCRIBER, existing_sub_data['subscriber_id'])
+        existing_sub_data = database.Get_Subscriber(imsi=subscriber_json['imsi'])
+        database.DeleteObj(SUBSCRIBER, existing_sub_data['subscriber_id'])
     except:
         print("Did not find old sub to delete")
 
     print("Creating new Subscriber")
     print(subscriber_json)
-    newObj = CreateObj(SUBSCRIBER, subscriber_json)
+    newObj = database.CreateObj(SUBSCRIBER, subscriber_json)
     print(newObj)
     subscriber_id = newObj['subscriber_id']
 
     #Get SUBSCRIBER
     print("Getting Subscriber")
-    newObj = GetObj(SUBSCRIBER, subscriber_id)
+    newObj = database.GetObj(SUBSCRIBER, subscriber_id)
     print(newObj)
 
     #Update SUBSCRIBER
     print("Updating Subscriber")
     newObj['ue_ambr_ul'] = 999995
-    newObj = UpdateObj(SUBSCRIBER, newObj, subscriber_id)
+    newObj = database.UpdateObj(SUBSCRIBER, newObj, subscriber_id)
 
     #Set MME Location for Subscriber
     print("Updating Serving MME for Subscriber")
-    Update_Serving_MME(imsi=newObj['imsi'], serving_mme="Test123", serving_mme_peer="Test123", serving_mme_realm="TestRealm")
+    database.Update_Serving_MME(imsi=newObj['imsi'], serving_mme="Test123", serving_mme_peer="Test123", serving_mme_realm="TestRealm")
 
     #Update Serving APN for Subscriber
     print("Updating Serving APN for Subscriber")
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', subscriber_routing='1.2.3.4')
+    database.Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', subscriber_routing='1.2.3.4')
 
     print("Getting Charging Rule for Subscriber / APN Combo")
-    ChargingRule = Get_Charging_Rules(imsi=newObj['imsi'], apn=apn2['apn'])
+    ChargingRule = database.Get_Charging_Rules(imsi=newObj['imsi'], apn=apn2['apn'])
     pprint.pprint(ChargingRule)
 
     #New IMS Subscriber
@@ -2195,43 +2193,43 @@ if __name__ == "__main__":
         "sh_profile" : "default_sh_user_data.xml"
     }
     print(ims_subscriber_json)
-    newObj = CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
+    newObj = database.CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
     print(newObj)
     ims_subscriber_id = newObj['ims_subscriber_id']
 
 
     #Test Get Subscriber
     print("Test Getting Subscriber")
-    GetSubscriber_Result = Get_Subscriber(imsi=subscriber_json['imsi'])
+    GetSubscriber_Result = database.Get_Subscriber(imsi=subscriber_json['imsi'])
     print(GetSubscriber_Result)
 
     #Test IMS Get Subscriber
     print("Getting IMS Subscribers")
-    print(Get_IMS_Subscriber(imsi='001001000000006'))
-    print(Get_IMS_Subscriber(msisdn='12345678'))
+    print(database.Get_IMS_Subscriber(imsi='001001000000006'))
+    print(database.Get_IMS_Subscriber(msisdn='12345678'))
 
     #Set SCSCF for Subscriber
-    Update_Serving_CSCF(newObj['imsi'], "NickTestCSCF")
+    database.Update_Serving_CSCF(newObj['imsi'], "NickTestCSCF")
     #Get Served Subscriber List
-    print(Get_Served_IMS_Subscribers())
+    print(database.Get_Served_IMS_Subscribers())
 
     #Clear Serving PGW for PCRF Subscriber
     print("Clear Serving PGW for PCRF Subscriber")
-    Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, subscriber_routing=None)
+    database.Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, subscriber_routing=None)
 
     #Clear MME Location for Subscriber    
     print("Clear MME Location for Subscriber")
-    Update_Serving_MME(newObj['imsi'], None)
+    database.Update_Serving_MME(newObj['imsi'], None)
 
     #Generate Vectors for IMS Subscriber
     print("Generating Vectors for IMS Subscriber")
-    print(Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
+    print(database.Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
 
     #print("Generating Resync for IMS Subscriber")
     #print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='7964347dfdfe432289522183fcfb', rand='1bc9f096002d3716c65e4e1f4c1c0d17'))
     
     #Test getting APNs
-    GetAPN_Result = Get_APN(GetSubscriber_Result['default_apn'])
+    GetAPN_Result = database.Get_APN(GetSubscriber_Result['default_apn'])
     print(GetAPN_Result)
 
     #handleGeored({"imsi": "001001000000006", "serving_mme": "abc123"})
@@ -2239,51 +2237,51 @@ if __name__ == "__main__":
 
     if DeleteAfter == True:
         #Delete IMS Subscriber
-        print(DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
+        print(database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
         #Delete Subscriber
-        print(DeleteObj(SUBSCRIBER, subscriber_id))
+        print(database.DeleteObj(SUBSCRIBER, subscriber_id))
         #Delete AuC
-        print(DeleteObj(AUC, auc_id))
+        print(database.DeleteObj(AUC, auc_id))
         #Delete APN
-        print(DeleteObj(APN, apn_id))
+        print(database.DeleteObj(APN, apn_id))
 
     #Whitelist IMEI / IMSI Binding
     eir_template = {'imei': '1234', 'imsi': '567', 'regex_mode': 0, 'match_response_code': 0}
-    CreateObj(EIR, eir_template)
+    database.CreateObj(EIR, eir_template)
 
     #Blacklist Example
     eir_template = {'imei': '99881232', 'imsi': '', 'regex_mode': 0, 'match_response_code': 1}
-    CreateObj(EIR, eir_template)
+    database.CreateObj(EIR, eir_template)
 
     #IMEI Prefix Regex Example (Blacklist all IMEIs starting with 666)
     eir_template = {'imei': '^666.*', 'imsi': '', 'regex_mode': 1, 'match_response_code': 1}
-    CreateObj(EIR, eir_template)
+    database.CreateObj(EIR, eir_template)
 
     #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
     eir_template = {'imei': '^777.*', 'imsi': '^1234123412341234$', 'regex_mode': 1, 'match_response_code': 2}
-    CreateObj(EIR, eir_template)
+    database.CreateObj(EIR, eir_template)
 
     print("\n\n\n\n")
     #Check Whitelist (No Match)
-    assert Check_EIR(imei='1234', imsi='') == 2
+    assert database.Check_EIR(imei='1234', imsi='') == 2
 
     print("\n\n\n\n")
     #Check Whitelist (Matched)
-    assert Check_EIR(imei='1234', imsi='567') == 0
+    assert database.Check_EIR(imei='1234', imsi='567') == 0
 
     print("\n\n\n\n")
     #Check Blacklist (Match)
-    assert Check_EIR(imei='99881232', imsi='567') == 1
+    assert database.Check_EIR(imei='99881232', imsi='567') == 1
 
     print("\n\n\n\n")
     #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
-    assert Check_EIR(imei='7771234', imsi='1234123412341234') == 2
+    assert database.Check_EIR(imei='7771234', imsi='1234123412341234') == 2
     
-    print(Get_IMEI_IMSI_History('1234123412'))
+    print(database.Get_IMEI_IMSI_History('1234123412'))
 
 
     print("\n\n\n")
-    print(Generate_JSON_Model_for_Flask(SUBSCRIBER))
+    print(database.Generate_JSON_Model_for_Flask(SUBSCRIBER))
 
 
 

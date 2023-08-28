@@ -1,6 +1,6 @@
 import asyncio
 import redis.asyncio as redis
-import time, json
+import time, json, uuid
 
 class RedisMessagingAsync:
     """
@@ -42,7 +42,7 @@ class RedisMessagingAsync:
         }
         ])
 
-        metricQueueName = f"metric-{serviceName}-{metricTimestamp}"
+        metricQueueName = f"metric-{serviceName}-{metricTimestamp}-{uuid.uuid4()}"
         
         try:
             async with self.redisClient.pipeline(transaction=True) as redisPipe:
@@ -59,7 +59,7 @@ class RedisMessagingAsync:
         Stores a log message in a given Queue (Key) asynchronously and sets an expiry (in seconds) if provided.
         """
         try:
-            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}"
+            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}-{uuid.uuid4()}"
             logMessage = json.dumps({"message": message})
             async with self.redisClient.pipeline(transaction=True) as redisPipe:
                 await redisPipe.rpush(logQueueName, logMessage)

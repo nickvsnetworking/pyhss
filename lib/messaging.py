@@ -1,5 +1,5 @@
 from redis import Redis
-import time, json
+import time, json, uuid
 
 class RedisMessaging:
     """
@@ -27,7 +27,7 @@ class RedisMessaging:
         """
         Stores a prometheus metric in a format readable by the metric service.
         """
-        if not metricValue.isdigit():
+        if not isinstance(metricValue, (int, float)):
             return 'Invalid Argument: metricValue must be a digit'
         metricValue = float(metricValue)
         prometheusMetricBody = json.dumps([{
@@ -40,7 +40,7 @@ class RedisMessaging:
         }
         ])
 
-        metricQueueName = f"metric-{serviceName}-{metricTimestamp}"
+        metricQueueName = f"metric-{serviceName}-{metricTimestamp}-{uuid.uuid4()}"
 
         try:
             self.redisClient.rpush(metricQueueName, prometheusMetricBody)
@@ -55,7 +55,7 @@ class RedisMessaging:
         Stores a message in a given Queue (Key).
         """
         try:
-            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}"
+            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}-{uuid.uuid4()}"
             logMessage = json.dumps({"message": message})
             self.redisClient.rpush(logQueueName, logMessage)
             if logExpiry is not None:

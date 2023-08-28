@@ -23,8 +23,8 @@ class HssService:
         self.originRealm = self.config.get('hss', {}).get('OriginRealm', f'mnc{self.mnc}.mcc{self.mcc}.3gppnetwork.org')
         self.originHost = self.config.get('hss', {}).get('OriginHost', f'hss01')
         self.productName = self.config.get('hss', {}).get('ProductName', f'PyHSS')
-        self.diameterLibrary = Diameter(originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
         self.logTool.log(service='HSS', level='info', message=f"{self.banners.hssService()}", redisClient=self.redisMessaging)
+        self.diameterLibrary = Diameter(redisMessaging=self.redisMessaging, logTool=self.logTool, originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
 
     def handleQueue(self):
         """
@@ -49,11 +49,11 @@ class HssService:
                     diameterMessageTypeInbound = diameterMessageTypeDict.get('inbound', '')
                     diameterMessageTypeOutbound = diameterMessageTypeDict.get('outbound', '')
                 except Exception as e:
-                    self.hssLogger.warn(f"[HSS] [handleInboundQueue] Failed to generate diameter outbound: {e}")
+                    self.logTool.log(service='HSS', level='warning', message=f"[HSS] [handleQueue] Failed to generate diameter outbound: {e}", redisClient=self.redisMessaging)
                     continue
 
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleInboundQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound Queue: {inboundQueue}", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleInboundQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound: {inboundMessage}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound Queue: {inboundQueue}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound: {inboundMessage}", redisClient=self.redisMessaging)
 
                 if not len(diameterOutbound) > 0:
                     continue
@@ -61,9 +61,9 @@ class HssService:
                 outboundQueue = f"diameter-outbound-{inboundHost}-{inboundPort}-{inboundTimestamp}"
                 outboundMessage = json.dumps({"diameter-outbound": diameterOutbound})
 
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleInboundQueue] [{diameterMessageTypeOutbound}] Generated Diameter Outbound: {diameterOutbound}", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleInboundQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound Queue: {outboundQueue}", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleInboundQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound: {outboundMessage}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Generated Diameter Outbound: {diameterOutbound}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound Queue: {outboundQueue}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound: {outboundMessage}", redisClient=self.redisMessaging)
 
                 self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60)
 

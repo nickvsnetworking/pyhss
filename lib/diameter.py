@@ -1,8 +1,5 @@
 #Diameter Packet Decoder / Encoder & Tools
-from multiprocessing.sharedctypes import Value
 import socket
-import logging
-import sys
 import binascii
 import math
 import uuid
@@ -10,14 +7,12 @@ import os
 import random
 import ipaddress
 import jinja2
-import traceback
-import database
+from database import Database
 import yaml
-from typing import Literal
 
 class Diameter:
 
-    def __init__(self, originHost: str="hss01", originRealm: str="epc.mnc999.mcc999.3gppnetwork.org", productName: str="PyHSS", mcc: str="999", mnc: str="999"):
+    def __init__(self, redisMessaging, logTool, originHost: str="hss01", originRealm: str="epc.mnc999.mcc999.3gppnetwork.org", productName: str="PyHSS", mcc: str="999", mnc: str="999"):
         with open("../config.yaml", 'r') as stream:
             self.yaml_config = (yaml.safe_load(stream))
 
@@ -26,10 +21,15 @@ class Diameter:
         self.ProductName = self.string_to_hex(productName)
         self.MNC = str(mnc)
         self.MCC = str(mcc)
-        self.diameterLibLogger = logging.getLogger('DiameterLibLogger')
+        self.logTool = logTool
+        self.redisMessaging=redisMessaging
+        self.database = Database(logTool=logTool, redisMessaging=redisMessaging)
 
-        self.diameterLibLogger.info("Initialized Diameter for " + str(self.OriginHost) + " at Realm " + str(self.OriginRealm) + " serving as Product Name " + str(self.ProductName))
-        self.diameterLibLogger.info("PLMN is " + str(self.MCC) + "/" + str(self.MNC))
+        self.logTool.log(service='HSS', level='info', message=f"Initialized Diameter Library", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='info', message=f"Origin Host: {str(originHost)}", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='info', message=f"Realm: {str(originRealm)}", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='info', message=f"Product Name: {str(productName)}", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='info', message=f"PLMN: {str(self.MCC)}/{str(self.MNC)}", redisClient=self.redisMessaging)
 
         self.diameterCommandList = [
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
@@ -72,7 +72,7 @@ class Diameter:
         else:
             ip_hex = "0002"         #IPv6
             ip_hex += format(ipaddress.IPv6Address(ip), 'X')
-        #self.diameterLibLogger.debug("Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex))
+        #self.logTool.log(service='HSS', level='debug', message="Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex), redisClient=self.redisMessaging)
         return ip_hex
     
     def hex_to_int(self, hex):
@@ -122,12 +122,12 @@ class Diameter:
         return (slicedString)
 
     def DecodePLMN(self, plmn):
-        self.diameterLibLogger.debug("Decoded PLMN: " + str(plmn))
+        self.logTool.log(service='HSS', level='debug', message="Decoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
         mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
-        self.diameterLibLogger.debug("Decoded MCC: " + mcc)
+        self.logTool.log(service='HSS', level='debug', message="Decoded MCC: " + mcc, redisClient=self.redisMessaging)
 
         mnc = self.Reverse(plmn[4:6])
-        self.diameterLibLogger.debug("Decoded MNC: " + mnc)
+        self.logTool.log(service='HSS', level='debug', message="Decoded MNC: " + mnc, redisClient=self.redisMessaging)
         return mcc, mnc
 
     def EncodePLMN(self, mcc, mnc):
@@ -142,50 +142,50 @@ class Diameter:
         plmn = ''
         for bits in plmn_list:
             plmn = plmn + bits
-        self.diameterLibLogger.debug("Encoded PLMN: " + str(plmn))
+        self.logTool.log(service='HSS', level='debug', message="Encoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
         return plmn
 
     def TBCD_special_chars(self, input):
-        self.diameterLibLogger.debug("Special character possible in " + str(input))
+        self.logTool.log(service='HSS', level='debug', message="Special character possible in " + str(input), redisClient=self.redisMessaging)
         if input == "*":
-            self.diameterLibLogger.debug("Found * - Returning 1010")
+            self.logTool.log(service='HSS', level='debug', message="Found * - Returning 1010", redisClient=self.redisMessaging)
             return "1010"
         elif input == "#":
-            self.diameterLibLogger.debug("Found # - Returning 1011")
+            self.logTool.log(service='HSS', level='debug', message="Found # - Returning 1011", redisClient=self.redisMessaging)
             return "1011"
         elif input == "a":
-            self.diameterLibLogger.debug("Found a - Returning 1100")
+            self.logTool.log(service='HSS', level='debug', message="Found a - Returning 1100", redisClient=self.redisMessaging)
             return "1100"
         elif input == "b":
-            self.diameterLibLogger.debug("Found b - Returning 1101")
+            self.logTool.log(service='HSS', level='debug', message="Found b - Returning 1101", redisClient=self.redisMessaging)
             return "1101"
         elif input == "c":
-            self.diameterLibLogger.debug("Found c - Returning 1100")
+            self.logTool.log(service='HSS', level='debug', message="Found c - Returning 1100", redisClient=self.redisMessaging)
             return "1100"      
         else:
             binform = "{:04b}".format(int(input))
-            self.diameterLibLogger.debug("input " + str(input) + " is not a special char, converted to bin: " + str(binform))
+            self.logTool.log(service='HSS', level='debug', message="input " + str(input) + " is not a special char, converted to bin: " + str(binform), redisClient=self.redisMessaging)
             return (binform)
 
     def TBCD_encode(self, input):
-        self.diameterLibLogger.debug("TBCD_encode input value is " + str(input))
+        self.logTool.log(service='HSS', level='debug', message="TBCD_encode input value is " + str(input), redisClient=self.redisMessaging)
         offset = 0
         output = ''
         matches = ['*', '#', 'a', 'b', 'c']
         while offset < len(input):
             if len(input[offset:offset+2]) == 2:
-                self.diameterLibLogger.debug("processing bits " + str(input[offset:offset+2]) + " at position offset " + str(offset))
+                self.logTool.log(service='HSS', level='debug', message="processing bits " + str(input[offset:offset+2]) + " at position offset " + str(offset), redisClient=self.redisMessaging)
                 bit = input[offset:offset+2]    #Get two digits at a time
                 bit = bit[::-1]                 #Reverse them
                 #Check if *, #, a, b or c
                 if any(x in bit for x in matches):
-                    self.diameterLibLogger.debug("Special char in bit " + str(bit))
+                    self.logTool.log(service='HSS', level='debug', message="Special char in bit " + str(bit), redisClient=self.redisMessaging)
                     new_bit = ''
                     new_bit = new_bit + str(self.TBCD_special_chars(bit[0]))
                     new_bit = new_bit + str(self.TBCD_special_chars(bit[1]))
-                    self.diameterLibLogger.debug("Final bin output of new_bit is " + str(new_bit))
+                    self.logTool.log(service='HSS', level='debug', message="Final bin output of new_bit is " + str(new_bit), redisClient=self.redisMessaging)
                     bit = hex(int(new_bit, 2))[2:]      #Get Hex value
-                    self.diameterLibLogger.debug("Formatted as Hex this is " + str(bit))
+                    self.logTool.log(service='HSS', level='debug', message="Formatted as Hex this is " + str(bit), redisClient=self.redisMessaging)
                 output = output + bit
                 offset = offset + 2
             else:
@@ -193,23 +193,23 @@ class Diameter:
                 last_digit = str(input[offset:offset+2])
                 #Check if *, #, a, b or c
                 if any(x in last_digit for x in matches):
-                    self.diameterLibLogger.debug("Special char in bit " + str(bit))
+                    self.logTool.log(service='HSS', level='debug', message="Special char in bit " + str(bit), redisClient=self.redisMessaging)
                     new_bit = ''
                     new_bit = new_bit + '1111'      #Add the F first
                     #Encode the symbol into binary and append it to the new_bit var
                     new_bit = new_bit + str(self.TBCD_special_chars(last_digit))
-                    self.diameterLibLogger.debug("Final bin output of new_bit is " + str(new_bit)) 
+                    self.logTool.log(service='HSS', level='debug', message="Final bin output of new_bit is " + str(new_bit), redisClient=self.redisMessaging) 
                     bit = hex(int(new_bit, 2))[2:]      #Get Hex value
-                    self.diameterLibLogger.debug("Formatted as Hex this is " + str(bit))
+                    self.logTool.log(service='HSS', level='debug', message="Formatted as Hex this is " + str(bit), redisClient=self.redisMessaging)
                 else:
                     bit = "f" + last_digit
                 offset = offset + 2
                 output = output + bit
-        self.diameterLibLogger.debug("TBCD_encode final output value is " + str(output))
+        self.logTool.log(service='HSS', level='debug', message="TBCD_encode final output value is " + str(output), redisClient=self.redisMessaging)
         return output
 
     def TBCD_decode(self, input):
-        self.diameterLibLogger.debug("TBCD_decode Input value is " + str(input))
+        self.logTool.log(service='HSS', level='debug', message="TBCD_decode Input value is " + str(input), redisClient=self.redisMessaging)
         offset = 0
         output = ''
         while offset < len(input):
@@ -221,7 +221,7 @@ class Diameter:
             else:   #If f in bit strip it
                 bit = input[offset:offset+2]
                 output = output + bit[1]
-                self.diameterLibLogger.debug("TBCD_decode output value is " + str(output))
+                self.logTool.log(service='HSS', level='debug', message="TBCD_decode output value is " + str(output), redisClient=self.redisMessaging)
                 return output
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
@@ -261,8 +261,8 @@ class Diameter:
             avp_padding = ''
         else:                       #Not multiple of 4 - Padding needed
             rounded_value = self.myround(avp_length)
-            self.diameterLibLogger.debug("Rounded value is " + str(rounded_value))
-            self.diameterLibLogger.debug("Has " + str( int( rounded_value - avp_length)) + " bytes of padding")
+            self.logTool.log(service='HSS', level='debug', message="Rounded value is " + str(rounded_value), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Has " + str( int( rounded_value - avp_length)) + " bytes of padding", redisClient=self.redisMessaging)
             avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
 
 
@@ -363,13 +363,11 @@ class Diameter:
               
         except Exception as e:
             if str(e) == "invalid literal for int() with base 16: ''":
-                logging.debug("AVP length 0 error")
                 pass
             elif str(e) == "Length of data is too short to be valid AVP":
-                logging.debug("AVP length 0 error v2")
                 pass
             else:
-                self.diameterLibLogger.debug("failed to decode sub-avp - error: " + str(e))
+                self.logTool.log(service='HSS', level='debug', message="failed to decode sub-avp - error: " + str(e), redisClient=self.redisMessaging)
                 pass
 
 
@@ -404,38 +402,49 @@ class Diameter:
                     assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
                     response['inbound'] = diameterApplication["requestAcronym"]
                     response['outbound'] = diameterApplication["responseAcronym"]
-                    self.diameterLibLogger.debug(f"[diameter.py] Successfully generated response: {response}")
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Successfully generated response: {response}", redisClient=self.redisMessaging)
                 except Exception as e:
                     continue
             
             return response
 
     def generateDiameterResponse(self, binaryData: str) -> str:
-            packet_vars, avps = self.decode_diameter_packet(binaryData)
-            origin_host = self.get_avp_data(avps, 264)[0]
-            origin_host = binascii.unhexlify(origin_host).decode("utf-8")
-            response = ''
+            try:
+                packet_vars, avps = self.decode_diameter_packet(binaryData)
+                origin_host = self.get_avp_data(avps, 264)[0]
+                origin_host = binascii.unhexlify(origin_host).decode("utf-8")
+                response = ''
 
-            self.diameterLibLogger.debug(f"Generating a diameter response")
+                self.logTool.log(service='HSS', level='debug', message=f"Generating a diameter response", redisClient=self.redisMessaging)
 
-            # Drop packet if it's a response packet:
-            if packet_vars["flags_bin"][0:1] == "0":
-                self.diameterLibLogger.debug("Got a Response, not a request - dropping it.")
-                self.diameterLibLogger.debug(packet_vars)
-                return
-            
-            for diameterApplication in self.diameterCommandList:
-                try:
-                    assert(packet_vars["command_code"] == diameterApplication["commandCode"])
-                    assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
-                    if 'flags' in diameterApplication:
-                        assert(str(packet_vars["flags"]) == str(diameterApplication["flags"]))
-                    response = diameterApplication["responseMethod"](packet_vars, avps)
-                    self.diameterLibLogger.debug(f"[diameter.py] Successfully generated response: {response}")
-                except Exception as e:
-                    continue
-            
-            return response
+                # Drop packet if it's a response packet:
+                if packet_vars["flags_bin"][0:1] == "0":
+                    self.logTool.log(service='HSS', level='debug', message="Got a Response, not a request - dropping it.", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message=packet_vars, redisClient=self.redisMessaging)
+                    return
+                
+                for diameterApplication in self.diameterCommandList:
+                    try:
+                        assert(packet_vars["command_code"] == diameterApplication["commandCode"])
+                        assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
+                        if 'flags' in diameterApplication:
+                            assert(str(packet_vars["flags"]) == str(diameterApplication["flags"]))
+                        response = diameterApplication["responseMethod"](packet_vars, avps)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Successfully generated response: {response}", redisClient=self.redisMessaging)
+                    except Exception as e:
+                        continue
+
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_successful',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Successful Diameter Responses',
+                                    metricExpiry=60)
+                return response
+            except Exception as e:
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_fail',
+                                                metricType='counter', metricAction='inc', 
+                                                metricValue=1.0, metricHelp='Number of Failed Diameter Responses',
+                                                metricExpiry=60)
+                return ''
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
@@ -446,23 +455,23 @@ class Diameter:
                 return origin_state_incriment_hex
 
     def Charging_Rule_Generator(self, ChargingRules, ue_ip):
-        self.diameterLibLogger.debug("Called Charging_Rule_Generator")
+        self.logTool.log(service='HSS', level='debug', message="Called Charging_Rule_Generator", redisClient=self.redisMessaging)
         #Install Charging Rules
-        self.diameterLibLogger.info("Naming Charging Rule")
+        self.logTool.log(service='HSS', level='info', message="Naming Charging Rule", redisClient=self.redisMessaging)
         Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
-        self.diameterLibLogger.info("Named Charging Rule")
+        self.logTool.log(service='HSS', level='info', message="Named Charging Rule", redisClient=self.redisMessaging)
 
         #Populate all Flow Information AVPs
         Flow_Information = ''
         for tft in ChargingRules['tft']:
-            self.diameterLibLogger.info(tft)
+            self.logTool.log(service='HSS', level='info', message=tft, redisClient=self.redisMessaging)
             #If {{ UE_IP }} in TFT splice in the real UE IP Value
             try:
                 tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
                 tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
-                self.diameterLibLogger.info("Spliced in UE IP into TFT: " + str(tft['tft_string']))
+                self.logTool.log(service='HSS', level='info', message="Spliced in UE IP into TFT: " + str(tft['tft_string']), redisClient=self.redisMessaging)
             except Exception as E:
-                self.diameterLibLogger.error("Failed to splice in UE IP into flow description")
+                self.logTool.log(service='HSS', level='error', message="Failed to splice in UE IP into flow description", redisClient=self.redisMessaging)
             
             #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
             Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
@@ -470,91 +479,96 @@ class Diameter:
             Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
 
         Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
-        self.diameterLibLogger.info("Defined Flow_Status: " + str(Flow_Status))
+        self.logTool.log(service='HSS', level='info', message="Defined Flow_Status: " + str(Flow_Status), redisClient=self.redisMessaging)
 
-        self.diameterLibLogger.info("Defining QoS information")
+        self.logTool.log(service='HSS', level='info', message="Defining QoS information", redisClient=self.redisMessaging)
         #QCI 
         QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
 
         #ARP
-        self.diameterLibLogger.info("Defining ARP information")
+        self.logTool.log(service='HSS', level='info', message="Defining ARP information", redisClient=self.redisMessaging)
         AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
         AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
         AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
         ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
 
-        self.diameterLibLogger.info("Defining MBR information")
+        self.logTool.log(service='HSS', level='info', message="Defining MBR information", redisClient=self.redisMessaging)
         #Max Requested Bandwidth
         Bandwidth_info = ''
         Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
         Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
 
-        self.diameterLibLogger.info("Defining GBR information")
+        self.logTool.log(service='HSS', level='info', message="Defining GBR information", redisClient=self.redisMessaging)
         #GBR
         if int(ChargingRules['gbr_ul']) != 0:
             Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
         if int(ChargingRules['gbr_dl']) != 0:                
             Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
-        self.diameterLibLogger.info("Defined Bandwith Info: " + str(Bandwidth_info))
+        self.logTool.log(service='HSS', level='info', message="Defined Bandwith Info: " + str(Bandwidth_info), redisClient=self.redisMessaging)
 
         #Populate QoS Information
         QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
-        self.diameterLibLogger.info("Defined QoS_Information: " + str(QoS_Information))
+        self.logTool.log(service='HSS', level='info', message="Defined QoS_Information: " + str(QoS_Information), redisClient=self.redisMessaging)
         
         #Precedence
-        self.diameterLibLogger.info("Defining Precedence information")
+        self.logTool.log(service='HSS', level='info', message="Defining Precedence information", redisClient=self.redisMessaging)
         Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
-        self.diameterLibLogger.info("Defined Precedence " + str(Precedence))
+        self.logTool.log(service='HSS', level='info', message="Defined Precedence " + str(Precedence), redisClient=self.redisMessaging)
 
         #Rating Group
-        self.diameterLibLogger.info("Defining Rating Group information")
+        self.logTool.log(service='HSS', level='info', message="Defining Rating Group information", redisClient=self.redisMessaging)
         if ChargingRules['rating_group'] != None:
             RatingGroup = self.generate_avp(432, 40, format(int(ChargingRules['rating_group']),"x").zfill(8))                   #Rating-Group-ID
         else:
             RatingGroup = ''
-        self.diameterLibLogger.info("Defined Rating Group " + str(ChargingRules['rating_group']))
+        self.logTool.log(service='HSS', level='info', message="Defined Rating Group " + str(ChargingRules['rating_group']), redisClient=self.redisMessaging)
         
 
         #Complete Charging Rule Defintion
-        self.diameterLibLogger.info("Collating ChargingRuleDef")
+        self.logTool.log(service='HSS', level='info', message="Collating ChargingRuleDef", redisClient=self.redisMessaging)
         ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence + RatingGroup
         ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
 
         #Charging Rule Install
-        self.diameterLibLogger.info("Collating ChargingRuleDef")
+        self.logTool.log(service='HSS', level='info', message="Collating ChargingRuleDef", redisClient=self.redisMessaging)
         return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
 
     def Get_IMS_Subscriber_Details_from_AVP(self, username):
         #Feed the Username AVP with Tel URI, SIP URI and either MSISDN or IMSI and this returns user data
         username = binascii.unhexlify(username).decode('utf-8')
-        self.diameterLibLogger.info("Username AVP is present, value is " + str(username))
+        self.logTool.log(service='HSS', level='info', message="Username AVP is present, value is " + str(username), redisClient=self.redisMessaging)
         username = username.split('@')[0]   #Strip Domain to get User part
         username = username[4:]             #Strip tel: or sip: prefix
         #Determine if dealing with IMSI or MSISDN
         if (len(username) == 15) or (len(username) == 16):
-            self.diameterLibLogger.debug("We have an IMSI: " + str(username))
-            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=username)
+            self.logTool.log(service='HSS', level='debug', message="We have an IMSI: " + str(username), redisClient=self.redisMessaging)
+            ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=username)
         else:
-            self.diameterLibLogger.debug("We have an msisdn: " + str(username))
-            ims_subscriber_details = database.Get_IMS_Subscriber(msisdn=username)
-        self.diameterLibLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+            self.logTool.log(service='HSS', level='debug', message="We have an msisdn: " + str(username), redisClient=self.redisMessaging)
+            ims_subscriber_details = self.database.Get_IMS_Subscriber(msisdn=username)
+        self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(ims_subscriber_details), redisClient=self.redisMessaging)
         return ims_subscriber_details
 
 
     def Generate_Prom_Stats(self):
-        self.diameterLibLogger.debug("Called Generate_Prom_Stats")
-        #@@ Fixme
-        # try:
-        #     prom_ims_subs_value = len(database.Get_Served_IMS_Subscribers(get_local_users_only=True))
-        #     prom_ims_subs.set(prom_ims_subs_value)
-        #     prom_mme_subs_value = len(database.Get_Served_Subscribers(get_local_users_only=True))
-        #     prom_mme_subs.set(prom_mme_subs_value)
-        #     prom_pcrf_subs_value = len(database.Get_Served_PCRF_Subscribers(get_local_users_only=True))
-        #     prom_pcrf_subs.set(prom_pcrf_subs_value)
-        # except Exception as e:
-        #     self.diameterLibLogger.debug("Failed to generate Prometheus Stats for IMS Subscribers")
-        #     self.diameterLibLogger.debug(e)
-        # self.diameterLibLogger.debug("Generated Prometheus Stats for IMS Subscribers")
+        self.logTool.log(service='HSS', level='debug', message="Called Generate_Prom_Stats", redisClient=self.redisMessaging)
+        try:
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_ims_subs',
+                                            metricType='gauge', metricAction='set', 
+                                            metricValue=len(self.database.Get_Served_IMS_Subscribers(get_local_users_only=True)), metricHelp='Number of attached IMS Subscribers',
+                                            metricExpiry=60)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_mme_subs',
+                                            metricType='gauge', metricAction='set', 
+                                            metricValue=len(self.database.Get_Served_Subscribers(get_local_users_only=True)), metricHelp='Number of attached MME Subscribers',
+                                            metricExpiry=60)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_pcrf_subs',
+                                            metricType='gauge', metricAction='set', 
+                                            metricValue=len(self.database.Get_Served_PCRF_Subscribers(get_local_users_only=True)), metricHelp='Number of attached PCRF Subscribers',
+                                            metricExpiry=60)
+        except Exception as e:
+            self.logTool.log(service='HSS', level='debug', message="Failed to generate Prometheus Stats for IMS Subscribers", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=e, redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Generated Prometheus Stats for IMS Subscribers", redisClient=self.redisMessaging)
 
         return
 
@@ -597,7 +611,7 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
 
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
-        self.diameterLibLogger.debug("Successfully Generated CEA")
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated CEA", redisClient=self.redisMessaging)
         return response
 
     #Device Watchdog Answer                                                 
@@ -611,7 +625,7 @@ class Diameter:
             if avps_to_check['avp_code'] == 278:                                
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet      
-        self.diameterLibLogger.debug("Successfully Generated DWA")
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated DWA", redisClient=self.redisMessaging)
         orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
         orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
         return response
@@ -623,7 +637,7 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(268, 40, "000007d1")                                                    #Result Code (DIAMETER_SUCCESS (2001))
         response = self.generate_diameter_packet("01", "00", 282, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet
-        self.diameterLibLogger.debug("Successfully Generated DPA")
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated DPA", redisClient=self.redisMessaging)
         return response
 
     #3GPP S6a/S6d Update Location Answer
@@ -654,21 +668,21 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
-            self.diameterLibLogger.debug("Got back subscriber_details: " + str(subscriber_details))
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            self.logTool.log(service='HSS', level='debug', message="Got back subscriber_details: " + str(subscriber_details), redisClient=self.redisMessaging)
         except ValueError as e:
-            self.diameterLibLogger.error("failed to get data backfrom database for imsi " + str(imsi))
-            self.diameterLibLogger.error("Error is " + str(e))
-            self.diameterLibLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            self.logTool.log(service='HSS', level='error', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="Error is " + str(e), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="Responding with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            self.diameterLibLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
+            self.logTool.log(service='HSS', level='info', message="Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             return response
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
-            self.diameterLibLogger.critical(message)
-            self.diameterLibLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
+            self.logTool.critical(message)
+            self.logTool.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
         #Store MME Location into Database
@@ -676,7 +690,7 @@ class Diameter:
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
         OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
         OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
-        self.diameterLibLogger.debug("Subscriber is served by MME " + str(OriginHost) + " at realm " + str(OriginRealm))
+        self.logTool.log(service='HSS', level='debug', message="Subscriber is served by MME " + str(OriginHost) + " at realm " + str(OriginRealm), redisClient=self.redisMessaging)
 
         #Find Remote Peer we need to address CLRs through
         try:        #Check if we have a record-route set as that's where we'll need to send the response
@@ -685,9 +699,9 @@ class Diameter:
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
         remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
-        self.diameterLibLogger.debug("Remote Peer is " + str(remote_peer))
+        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
-        database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
+        self.database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
 
 
         #Boilerplate AVPs
@@ -721,34 +735,34 @@ class Diameter:
 
         #Split the APN list into a list
         apn_list = subscriber_details['apn_list'].split(',')
-        self.diameterLibLogger.debug("Current APN List: " + str(apn_list))
+        self.logTool.log(service='HSS', level='debug', message="Current APN List: " + str(apn_list), redisClient=self.redisMessaging)
         #Remove the default APN from the list
         try:
             apn_list.remove(str(subscriber_details['default_apn']))
         except:
-            self.diameterLibLogger.debug("Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List")
+            self.logTool.log(service='HSS', level='debug', message="Failed to remove default APN (" + str(subscriber_details['default_apn']) + " from APN List", redisClient=self.redisMessaging)
             pass
         #Add default APN in first position
         apn_list.insert(0, str(subscriber_details['default_apn']))
 
-        self.diameterLibLogger.debug("APN list: " + str(apn_list))
+        self.logTool.log(service='HSS', level='debug', message="APN list: " + str(apn_list), redisClient=self.redisMessaging)
         APN_context_identifer_count = 1
         for apn_id in apn_list:
             #Per APN Setup
-            self.diameterLibLogger.debug("Processing APN ID " + str(apn_id))
+            self.logTool.log(service='HSS', level='debug', message="Processing APN ID " + str(apn_id), redisClient=self.redisMessaging)
             try:
-                apn_data = database.Get_APN(apn_id)
+                apn_data = self.database.Get_APN(apn_id)
             except:
-                self.diameterLibLogger.error("Failed to get APN " + str(apn_id))
+                self.logTool.log(service='HSS', level='error', message="Failed to get APN " + str(apn_id), redisClient=self.redisMessaging)
                 continue
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_data['apn'])))
 
-            self.diameterLibLogger.debug("Setting APN Configuration Profile")
+            self.logTool.log(service='HSS', level='debug', message="Setting APN Configuration Profile", redisClient=self.redisMessaging)
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(int(apn_data['ip_version']), 4))
             
-            self.diameterLibLogger.debug("Setting APN AMBR")
+            self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
             #AMBR
             AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
             apn_ambr_ul = int(apn_data['apn_ambr_ul'])
@@ -757,7 +771,7 @@ class Diameter:
             AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-            self.diameterLibLogger.debug("Setting APN Allocation-Retention-Priority")
+            self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
             #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
             AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
             AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
@@ -768,25 +782,25 @@ class Diameter:
 
             #Try static IP allocation
             try:
-                subscriber_routing_dict = database.Get_SUBSCRIBER_ROUTING(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
-                self.diameterLibLogger.info("Got static UE IP " + str(subscriber_routing_dict))
-                self.diameterLibLogger.debug("Found static IP for UE " + str(subscriber_routing_dict['ip_address']))
+                subscriber_routing_dict = self.database.Get_SUBSCRIBER_ROUTING(subscriber_id=subscriber_details['subscriber_id'], apn_id=apn_id)                                               #Get subscriber details
+                self.logTool.log(service='HSS', level='info', message="Got static UE IP " + str(subscriber_routing_dict), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Found static IP for UE " + str(subscriber_routing_dict['ip_address']), redisClient=self.redisMessaging)
                 Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(subscriber_routing_dict['ip_address']))
             except Exception as E:
-                self.diameterLibLogger.debug("Error getting static UE IP: " + str(E))
+                self.logTool.log(service='HSS', level='debug', message="Error getting static UE IP: " + str(E), redisClient=self.redisMessaging)
                 Served_Party_Address = ""
 
 
             #if 'PDN_GW_Allocation_Type' in apn_profile:
-            #     self.diameterLibLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
+            #     self.logTool.log(service='HSS', level='info', message="PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']), redisClient=self.redisMessaging)
             #     PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
-            #     self.diameterLibLogger.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
+            #     self.logTool.log(service='HSS', level='info', message="PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type), redisClient=self.redisMessaging)
             # else:
             #     PDN_GW_Allocation_Type = ''
             # if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
-            #     self.diameterLibLogger.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
+            #     self.logTool.log(service='HSS', level='info', message="VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']), redisClient=self.redisMessaging)
             #     VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
-            #     self.diameterLibLogger.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
+            #     self.logTool.log(service='HSS', level='info', message="VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed), redisClient=self.redisMessaging)
             # else:
             #     VPLMN_Dynamic_Address_Allowed = ''            
             PDN_GW_Allocation_Type = ''
@@ -794,7 +808,7 @@ class Diameter:
 
             #If static SMF / PGW-C defined
             if apn_data['pgw_address'] is not None:
-                self.diameterLibLogger.info("MIP6-Agent-Info present (Static SMF/PGW-C), value " + str(apn_data['pgw_address']))
+                self.logTool.log(service='HSS', level='info', message="MIP6-Agent-Info present (Static SMF/PGW-C), value " + str(apn_data['pgw_address']), redisClient=self.redisMessaging)
                 MIP_Home_Agent_Address = self.generate_avp(334, '40', self.ip_to_hex(apn_data['pgw_address']))
                 MIP6_Agent_Info = self.generate_avp(486, '40', MIP_Home_Agent_Address)
             else:
@@ -807,40 +821,40 @@ class Diameter:
             
             #Incriment Context Identifier Count to keep track of how many APN Profiles returned
             APN_context_identifer_count = APN_context_identifer_count + 1  
-            self.diameterLibLogger.debug("Completed processing APN ID " + str(apn_id))
+            self.logTool.log(service='HSS', level='debug', message="Completed processing APN ID " + str(apn_id), redisClient=self.redisMessaging)
         
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_Configuration_Profile + APN_Configuration)
 
         try:
-            self.diameterLibLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA", redisClient=self.redisMessaging)
             msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(subscriber_details['msisdn'])))                     #MSISDN
-            self.diameterLibLogger.debug(msisdn_avp)
+            self.logTool.log(service='HSS', level='debug', message=msisdn_avp, redisClient=self.redisMessaging)
             subscription_data += msisdn_avp
         except Exception as E:
-            self.diameterLibLogger.error("Failed to populate MSISDN in ULA due to error " + str(E))
+            self.logTool.log(service='HSS', level='error', message="Failed to populate MSISDN in ULA due to error " + str(E), redisClient=self.redisMessaging)
 
         if 'RAT_freq_priorityID' in subscriber_details:
-            self.diameterLibLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA", redisClient=self.redisMessaging)
             rat_freq_priorityID = self.generate_vendor_avp(1440, "C0", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
-            self.diameterLibLogger.debug("Adding rat_freq_priorityID: " + str(rat_freq_priorityID))
+            self.logTool.log(service='HSS', level='debug', message="Adding rat_freq_priorityID: " + str(rat_freq_priorityID), redisClient=self.redisMessaging)
             subscription_data += rat_freq_priorityID
 
         if 'charging_characteristics' in subscriber_details:
-            self.diameterLibLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['charging_characteristics']) + " - Adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="3gpp-charging-characteristics " + str(subscriber_details['charging_characteristics']) + " - Adding in ULA", redisClient=self.redisMessaging)
             _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, str(subscriber_details['charging_characteristics']))
             subscription_data += _3gpp_charging_characteristics
-            self.diameterLibLogger.debug("Adding _3gpp_charging_characteristics: " + str(_3gpp_charging_characteristics))
+            self.logTool.log(service='HSS', level='debug', message="Adding _3gpp_charging_characteristics: " + str(_3gpp_charging_characteristics), redisClient=self.redisMessaging)
 
         #ToDo - Fix this  
         # if 'APN_OI_replacement' in subscriber_details:
-        #     self.diameterLibLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
+        #     self.logTool.log(service='HSS', level='debug', message="APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA", redisClient=self.redisMessaging)
         #     subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
         avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
         response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
 
-        self.diameterLibLogger.debug("Successfully Generated ULA")
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated ULA", redisClient=self.redisMessaging)
         return response
 
     #3GPP S6a/S6d Authentication Information Answer
@@ -850,20 +864,22 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
-            self.diameterLibLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
-            self.diameterLibLogger.info(e)
+            self.logTool.log(service='HSS', level='info', message="Minor getting subscriber details for IMSI " + str(imsi), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='info', message=e, redisClient=self.redisMessaging)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=1.0, 
+                                            metricLabels={
+                                                        "diameter_application_id": 16777251,
+                                                        "diameter_cmd_code": 318,
+                                                        "event": "Unknown User",
+                                                        "imsi_prefix": str(imsi[0:6])},
+                                            metricHelp='Diameter Authentication related Counters',
+                                            metricExpiry=60)
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            #@@Fixme
-            # prom_diam_auth_event_count.labels(
-            #     diameter_application_id = 16777251,
-            #     diameter_cmd_code = 318,
-            #     event='Unknown User',
-            #     imsi_prefix = str(imsi[0:6]),
-            # ).inc()
-
-            self.diameterLibLogger.info("Subscriber " + str(imsi) + " is unknown in database")
+            self.logTool.log(service='HSS', level='info', message="Subscriber " + str(imsi) + " is unknown in database", redisClient=self.redisMessaging)
             avp = ''
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -883,8 +899,8 @@ class Diameter:
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
-            self.diameterLibLogger.critical(message)
-            self.diameterLibLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
+            self.logTool.critical(message)
+            self.logTool.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
             
@@ -892,40 +908,43 @@ class Diameter:
         requested_vectors = 1
         for avp in avps:
             if avp['avp_code'] == 1408:
-                self.diameterLibLogger.debug("AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP")
+                self.logTool.log(service='HSS', level='debug', message="AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP", redisClient=self.redisMessaging)
                 EUTRAN_Authentication_Info = avp['misc_data']
-                self.diameterLibLogger.debug("EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info))
+                self.logTool.log(service='HSS', level='debug', message="EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info), redisClient=self.redisMessaging)
                 for sub_avp in EUTRAN_Authentication_Info:
                     #If resync request
                     if sub_avp['avp_code'] == 1411:
-                        self.diameterLibLogger.debug("Re-Synchronization required - SQN is out of sync")
-                        #@@Fixme
-                        # prom_diam_auth_event_count.labels(
-                        #     diameter_application_id = 16777251,
-                        #     diameter_cmd_code = 318,
-                        #     event='Resync',
-                        #     imsi_prefix = str(imsi[0:6]),
-                        # ).inc()
+                        self.logTool.log(service='HSS', level='debug', message="Re-Synchronization required - SQN is out of sync", redisClient=self.redisMessaging)
+                        self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                                        metricType='counter', metricAction='inc', 
+                                                        metricValue=1.0, 
+                                                        metricLabels={
+                                                                    "diameter_application_id": 16777251,
+                                                                    "diameter_cmd_code": 318,
+                                                                    "event": "Resync",
+                                                                    "imsi_prefix": str(imsi[0:6])},
+                                                        metricHelp='Diameter Authentication related Counters',
+                                                        metricExpiry=60)
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
-                        database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                        self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
 
                     #Get number of requested vectors
                     if sub_avp['avp_code'] == 1410:
-                        self.diameterLibLogger.debug("Raw value of requested vectors is " + str(sub_avp['misc_data']))
+                        self.logTool.log(service='HSS', level='debug', message="Raw value of requested vectors is " + str(sub_avp['misc_data']), redisClient=self.redisMessaging)
                         requested_vectors = int(sub_avp['misc_data'], 16)
                         if requested_vectors >= 32:
-                            self.diameterLibLogger.info("Client has requested " + str(requested_vectors) + " vectors, limiting this to 32")
+                            self.logTool.log(service='HSS', level='info', message="Client has requested " + str(requested_vectors) + " vectors, limiting this to 32", redisClient=self.redisMessaging)
                             requested_vectors = 32
 
-        self.diameterLibLogger.debug("Generating " + str(requested_vectors) + " vectors as requested")
+        self.logTool.log(service='HSS', level='debug', message="Generating " + str(requested_vectors) + " vectors as requested", redisClient=self.redisMessaging)
         eutranvector_complete = ''
         while requested_vectors != 0:
-            self.diameterLibLogger.debug("Generating vector number " + str(requested_vectors))
+            self.logTool.log(service='HSS', level='debug', message="Generating vector number " + str(requested_vectors), redisClient=self.redisMessaging)
             plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-            vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
+            vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
             eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
             eutranvector += self.generate_vendor_avp(1419, "c0", 10415, self.int_to_hex(requested_vectors, 4))
             eutranvector += self.generate_vendor_avp(1447, "c0", 10415, vector_dict['rand'])                                #And is made up of other AVPs joined together with RAND
@@ -948,8 +967,8 @@ class Diameter:
         #avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
         
         response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.diameterLibLogger.debug("Successfully Generated AIA")
-        self.diameterLibLogger.debug(response)
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated AIA", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message=response, redisClient=self.redisMessaging)
         return response
 
     #Purge UE Answer (PUA)
@@ -982,8 +1001,8 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         
 
-        database.Update_Serving_MME(imsi, None)
-        self.diameterLibLogger.debug("Successfully Generated PUA")
+        self.database.Update_Serving_MME(imsi, None)
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated PUA", redisClient=self.redisMessaging)
         return response
 
     #Notify Answer (NOA)
@@ -1004,7 +1023,7 @@ class Diameter:
         SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.diameterLibLogger.debug("Successfully Generated PUA")
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated PUA", redisClient=self.redisMessaging)
         return response
 
     #3GPP Gx Credit Control Answer
@@ -1012,9 +1031,9 @@ class Diameter:
         CC_Request_Type = self.get_avp_data(avps, 416)[0]
         CC_Request_Number = self.get_avp_data(avps, 415)[0]
         #Called Station ID
-        self.diameterLibLogger.debug("Attempting to find APN in CCR")
+        self.logTool.log(service='HSS', level='debug', message="Attempting to find APN in CCR", redisClient=self.redisMessaging)
         apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
-        self.diameterLibLogger.debug("CCR for APN " + str(apn))
+        self.logTool.log(service='HSS', level='debug', message="CCR for APN " + str(apn), redisClient=self.redisMessaging)
 
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
@@ -1027,7 +1046,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        self.diameterLibLogger.debug("Remote Peer is " + str(remote_peer))
+        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
         remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
 
         avp = ''                                                                                    #Initiate empty var AVP
@@ -1041,37 +1060,37 @@ class Diameter:
         #Get Subscriber info from Subscription ID
         for SubscriptionIdentifier in self.get_avp_data(avps, 443):
             for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
-                self.diameterLibLogger.debug("Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI")
+                self.logTool.log(service='HSS', level='debug', message="Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI", redisClient=self.redisMessaging)
                 if UniqueSubscriptionIdentifier['avp_code'] == 444:
                     imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
-                    self.diameterLibLogger.debug("Found IMSI " + str(imsi))
+                    self.logTool.log(service='HSS', level='debug', message="Found IMSI " + str(imsi), redisClient=self.redisMessaging)
 
-        self.diameterLibLogger.info("SubscriptionID: " + str(self.get_avp_data(avps, 443)))
+        self.logTool.log(service='HSS', level='info', message="SubscriptionID: " + str(self.get_avp_data(avps, 443)), redisClient=self.redisMessaging)
         try:
-            self.diameterLibLogger.info("Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database")                                            #Get subscriber details
-            ChargingRules = database.Get_Charging_Rules(imsi=imsi, apn=apn)
-            self.diameterLibLogger.info("Got Charging Rules: " + str(ChargingRules))
+            self.logTool.log(service='HSS', level='info', message="Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database", redisClient=self.redisMessaging)                                            #Get subscriber details
+            ChargingRules = self.database.Get_Charging_Rules(imsi=imsi, apn=apn)
+            self.logTool.log(service='HSS', level='info', message="Got Charging Rules: " + str(ChargingRules), redisClient=self.redisMessaging)
         except Exception as E:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            self.diameterLibLogger.debug(E)
-            self.diameterLibLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists")
+            self.logTool.log(service='HSS', level='debug', message=E, redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists", redisClient=self.redisMessaging)
 
 
         if int(CC_Request_Type) == 1:
-            self.diameterLibLogger.info("Request type for CCA is 1 - Initial")
+            self.logTool.log(service='HSS', level='info', message="Request type for CCA is 1 - Initial", redisClient=self.redisMessaging)
 
             #Get UE IP            
             try:
                 ue_ip = self.get_avp_data(avps, 8)[0]
                 ue_ip = str(self.hex_to_ip(ue_ip))
             except Exception as E:
-                self.diameterLibLogger.error("Failed to get UE IP")
-                self.diameterLibLogger.error(E)
+                self.logTool.log(service='HSS', level='error', message="Failed to get UE IP", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
             remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
+            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
 
             #Supported-Features(628) (Gx feature list)
             avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
@@ -1079,7 +1098,7 @@ class Diameter:
             #Default EPS Beaerer QoS (From database with fallback source CCR-I)
             try:
                 apn_data = ChargingRules['apn_data']
-                self.diameterLibLogger.debug("Setting APN AMBR")
+                self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
                 #AMBR
                 AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
                 apn_ambr_ul = int(apn_data['apn_ambr_ul'])
@@ -1088,7 +1107,7 @@ class Diameter:
                 AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
                 APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-                self.diameterLibLogger.debug("Setting APN Allocation-Retention-Priority")
+                self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
                 #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
                 AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
                 AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
@@ -1097,13 +1116,13 @@ class Diameter:
                 AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
                 avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
             except Exception as E:
-                self.diameterLibLogger.error(E)
-                self.diameterLibLogger.error("Failed to populate default_EPS_QoS from DB for sub " + str(imsi))
+                self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='error', message="Failed to populate default_EPS_QoS from DB for sub " + str(imsi), redisClient=self.redisMessaging)
                 default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
                 avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
 
     
-            self.diameterLibLogger.info("Creating QoS Information")
+            self.logTool.log(service='HSS', level='info', message="Creating QoS Information", redisClient=self.redisMessaging)
             #QoS-Information
             try:
                 apn_data = ChargingRules['apn_data']
@@ -1111,39 +1130,39 @@ class Diameter:
                 apn_ambr_dl = int(apn_data['apn_ambr_dl'])
                 QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
                 QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
-                self.diameterLibLogger.info("Created both QoS AVPs from data from Database")
-                self.diameterLibLogger.info("Populated QoS_Information")
+                self.logTool.log(service='HSS', level='info', message="Created both QoS AVPs from data from Database", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message="Populated QoS_Information", redisClient=self.redisMessaging)
                 avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
             except Exception as E:
-                self.diameterLibLogger.error("Failed to get QoS information dynamically for sub " + str(imsi))
-                self.diameterLibLogger.error(E)
+                self.logTool.log(service='HSS', level='error', message="Failed to get QoS information dynamically for sub " + str(imsi), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
 
                 QoS_Information = ''
                 for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
-                    self.diameterLibLogger.debug(AMBR_Part)
+                    self.logTool.log(service='HSS', level='debug', message=AMBR_Part, redisClient=self.redisMessaging)
                     AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'][8:])
                     QoS_Information += AMBR_AVP
-                    self.diameterLibLogger.debug("QoS_Information added " + str(AMBR_AVP))
+                    self.logTool.log(service='HSS', level='debug', message="QoS_Information added " + str(AMBR_AVP), redisClient=self.redisMessaging)
                 avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
-                self.diameterLibLogger.debug("QoS information set statically")
+                self.logTool.log(service='HSS', level='debug', message="QoS information set statically", redisClient=self.redisMessaging)
                 
-            self.diameterLibLogger.info("Added to AVP List")
-            self.diameterLibLogger.debug("QoS Information: " + str(QoS_Information))                                                                                 
+            self.logTool.log(service='HSS', level='info', message="Added to AVP List", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="QoS Information: " + str(QoS_Information), redisClient=self.redisMessaging)                                                                                 
             
             #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
             if ChargingRules and ChargingRules['charging_rules'] is not None:
                 try:
-                    self.diameterLibLogger.debug(ChargingRules)
+                    self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
                     for individual_charging_rule in ChargingRules['charging_rules']:
-                        self.diameterLibLogger.debug("Processing Charging Rule: " + str(individual_charging_rule))
+                        self.logTool.log(service='HSS', level='debug', message="Processing Charging Rule: " + str(individual_charging_rule), redisClient=self.redisMessaging)
                         avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
 
                 except Exception as E:
-                    self.diameterLibLogger.debug("Error in populating dynamic charging rules: " + str(E))
+                    self.logTool.log(service='HSS', level='debug', message="Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
 
         elif int(CC_Request_Type) == 3:
-            self.diameterLibLogger.info("Request type for CCA is 3 - Termination")
-            database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
+            self.logTool.log(service='HSS', level='info', message="Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
+            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
         
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -1173,27 +1192,30 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        self.diameterLibLogger.debug("Remote Peer is " + str(remote_peer))
+        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         try:
-            self.diameterLibLogger.info("Checking if username present")
+            self.logTool.log(service='HSS', level='info', message="Checking if username present", redisClient=self.redisMessaging)
             username = self.get_avp_data(avps, 1)[0]                                                     
             username = binascii.unhexlify(username).decode('utf-8')
-            self.diameterLibLogger.info("Username AVP is present, value is " + str(username))
+            self.logTool.log(service='HSS', level='info', message="Username AVP is present, value is " + str(username), redisClient=self.redisMessaging)
             imsi = username.split('@')[0]   #Strip Domain
             domain = username.split('@')[1] #Get Domain Part
-            self.diameterLibLogger.debug("Extracted imsi: " + str(imsi) + " now checking backend for this IMSI")
-            ims_subscriber_details = database.Get_IMS_Subscriber(imsi=imsi)
+            self.logTool.log(service='HSS', level='debug', message="Extracted imsi: " + str(imsi) + " now checking backend for this IMSI", redisClient=self.redisMessaging)
+            ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=imsi)
         except Exception as E:
-            self.diameterLibLogger.error("Threw Exception: " + str(E))
-            self.diameterLibLogger.error("No known MSISDN or IMSI in Answer_16777216_300() input")
-            #@@Fixme
-            # prom_diam_auth_event_count.labels(
-            #     diameter_application_id = 16777216,
-            #     diameter_cmd_code = 300,
-            #     event='Unknown User',
-            #     imsi_prefix = str(imsi[0:6]),
-            # ).inc()
+            self.logTool.log(service='HSS', level='error', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="No known MSISDN or IMSI in Answer_16777216_300() input", redisClient=self.redisMessaging)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=1.0, 
+                                            metricLabels={
+                                                        "diameter_application_id": 16777216,
+                                                        "diameter_cmd_code": 300,
+                                                        "event": "Unknown User",
+                                                        "imsi_prefix": str(imsi[0:6])},
+                                            metricHelp='Diameter Authentication related Counters',
+                                            metricExpiry=60)
             result_code = 5001          #IMS User Unknown
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -1208,10 +1230,10 @@ class Diameter:
         if user_authorization_type_avp_data:
             try:
                 User_Authorization_Type = int(user_authorization_type_avp_data[0])
-                self.diameterLibLogger.debug("User_Authorization_Type is: " + str(User_Authorization_Type))
+                self.logTool.log(service='HSS', level='debug', message="User_Authorization_Type is: " + str(User_Authorization_Type), redisClient=self.redisMessaging)
                 if (User_Authorization_Type == 1):
-                    self.diameterLibLogger.debug("This is Deregister")
-                    database.Update_Serving_CSCF(imsi, serving_cscf=None)
+                    self.logTool.log(service='HSS', level='debug', message="This is Deregister", redisClient=self.redisMessaging)
+                    self.database.Update_Serving_CSCF(imsi, serving_cscf=None)
                     #Populate S-CSCF Address
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(ims_subscriber_details['scscf'])),'ascii'))
                     avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
@@ -1219,28 +1241,28 @@ class Diameter:
                     return response
                     
             except Exception as E:
-                self.diameterLibLogger.debug("Failed to get User_Authorization_Type AVP & Update_Serving_CSCF error: " + str(E))
-        self.diameterLibLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+                self.logTool.log(service='HSS', level='debug', message="Failed to get User_Authorization_Type AVP & Update_Serving_CSCF error: " + str(E), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(ims_subscriber_details), redisClient=self.redisMessaging)
         if ims_subscriber_details['scscf'] != None:
-            self.diameterLibLogger.debug("Already has SCSCF Assigned from DB: " + str(ims_subscriber_details['scscf']))
+            self.logTool.log(service='HSS', level='debug', message="Already has SCSCF Assigned from DB: " + str(ims_subscriber_details['scscf']), redisClient=self.redisMessaging)
             avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(ims_subscriber_details['scscf'])),'ascii'))
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2002),"x").zfill(8))            #DIAMETER_SUBSEQUENT_REGISTRATION (2002)
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
         else:
-            self.diameterLibLogger.debug("No SCSCF Assigned from DB")
+            self.logTool.log(service='HSS', level='debug', message="No SCSCF Assigned from DB", redisClient=self.redisMessaging)
             if 'scscf_pool' in self.yaml_config['hss']:
                 try:
                     scscf = random.choice(self.yaml_config['hss']['scscf_pool'])
-                    self.diameterLibLogger.debug("Randomly picked SCSCF address " + str(scscf) + " from pool")
+                    self.logTool.log(service='HSS', level='debug', message="Randomly picked SCSCF address " + str(scscf) + " from pool", redisClient=self.redisMessaging)
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
                 except Exception as E:
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                    self.diameterLibLogger.info("Using generated S-CSCF Address as failed to source from list due to " + str(E))
+                    self.logTool.log(service='HSS', level='info', message="Using generated S-CSCF Address as failed to source from list due to " + str(E), redisClient=self.redisMessaging)
             else:                        
                 avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                self.diameterLibLogger.info("Using generated S-CSCF Address as none set in scscf_pool in config")
+                self.logTool.log(service='HSS', level='info', message="Using generated S-CSCF Address as none set in scscf_pool in config", redisClient=self.redisMessaging)
             experimental_avp = ''
             experimental_avp += experimental_avp + self.generate_avp(266, 40, format(int(10415),"x").zfill(8))          #3GPP Vendor ID            
             experimental_avp = experimental_avp + self.generate_avp(298, 40, format(int(2001),"x").zfill(8))            #DIAMETER_FIRST_REGISTRATION (2001) 
@@ -1273,18 +1295,18 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        self.diameterLibLogger.debug("Remote Peer is " + str(remote_peer))
+        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         try:
-            self.diameterLibLogger.info("Checking if username present")
+            self.logTool.log(service='HSS', level='info', message="Checking if username present", redisClient=self.redisMessaging)
             username = self.get_avp_data(avps, 601)[0]                                                     
             ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username) 
-            self.diameterLibLogger.debug("Got subscriber details: " + str(ims_subscriber_details))
+            self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(ims_subscriber_details), redisClient=self.redisMessaging)
             imsi = ims_subscriber_details['imsi']
             domain = "ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org"
         except Exception as E:
-            self.diameterLibLogger.error("Threw Exception: " + str(E))
-            self.diameterLibLogger.error("No known MSISDN or IMSI in Answer_16777216_301() input")
+            self.logTool.log(service='HSS', level='error', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="No known MSISDN or IMSI in Answer_16777216_301() input", redisClient=self.redisMessaging)
             result_code = 5005
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -1300,7 +1322,7 @@ class Diameter:
         #This loads a Jinja XML template as the default iFC
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        self.diameterLibLogger.debug("Loading iFC from path " + str(ims_subscriber_details['ifc_path']))
+        self.logTool.log(service='HSS', level='debug', message="Loading iFC from path " + str(ims_subscriber_details['ifc_path']), redisClient=self.redisMessaging)
         template = templateEnv.get_template(ims_subscriber_details['ifc_path'])
         
         #These variables are passed to the template for use
@@ -1317,17 +1339,17 @@ class Diameter:
         #Determine SAR Type & Store
         Server_Assignment_Type_Hex = self.get_avp_data(avps, 614)[0]
         Server_Assignment_Type = self.hex_to_int(Server_Assignment_Type_Hex)
-        self.diameterLibLogger.debug("Server-Assignment-Type is: " + str(Server_Assignment_Type))
+        self.logTool.log(service='HSS', level='debug', message="Server-Assignment-Type is: " + str(Server_Assignment_Type), redisClient=self.redisMessaging)
         ServingCSCF = self.get_avp_data(avps, 602)[0]                          #Get OriginHost from AVP
         ServingCSCF = binascii.unhexlify(ServingCSCF).decode('utf-8')      #Format it
-        self.diameterLibLogger.debug("Subscriber is served by S-CSCF " + str(ServingCSCF))
+        self.logTool.log(service='HSS', level='debug', message="Subscriber is served by S-CSCF " + str(ServingCSCF), redisClient=self.redisMessaging)
         if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
-            self.diameterLibLogger.debug("SAR is Register / Re-Restister")
+            self.logTool.log(service='HSS', level='debug', message="SAR is Register / Re-Restister", redisClient=self.redisMessaging)
             remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
-            database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
+            self.database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
         else:
-            self.diameterLibLogger.debug("SAR is not Register")
-            database.Update_Serving_CSCF(imsi, serving_cscf=None)
+            self.logTool.log(service='HSS', level='debug', message="SAR is not Register", redisClient=self.redisMessaging)
+            self.database.Update_Serving_CSCF(imsi, serving_cscf=None)
 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
 
@@ -1347,37 +1369,40 @@ class Diameter:
 
 
         try:
-            self.diameterLibLogger.info("Checking if username present")
+            self.logTool.log(service='HSS', level='info', message="Checking if username present", redisClient=self.redisMessaging)
             username = self.get_avp_data(avps, 601)[0] 
             ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username)                                                    
             if ims_subscriber_details['scscf'] != None:
-                self.diameterLibLogger.debug("Got SCSCF on record for Sub")
+                self.logTool.log(service='HSS', level='debug', message="Got SCSCF on record for Sub", redisClient=self.redisMessaging)
                 #Strip double sip prefix
                 avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(str(ims_subscriber_details['scscf']))),'ascii'))
             else:
-                self.diameterLibLogger.debug("No SCSF assigned - Using SCSCF Pool")
+                self.logTool.log(service='HSS', level='debug', message="No SCSF assigned - Using SCSCF Pool", redisClient=self.redisMessaging)
                 if 'scscf_pool' in self.yaml_config['hss']:
                     try:
                         scscf = random.choice(self.yaml_config['hss']['scscf_pool'])
-                        self.diameterLibLogger.debug("Randomly picked SCSCF address " + str(scscf) + " from pool")
+                        self.logTool.log(service='HSS', level='debug', message="Randomly picked SCSCF address " + str(scscf) + " from pool", redisClient=self.redisMessaging)
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
                     except Exception as E:
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                        self.diameterLibLogger.info("Using generated iFC as failed to source from list due to " + str(E))
+                        self.logTool.log(service='HSS', level='info', message="Using generated iFC as failed to source from list due to " + str(E), redisClient=self.redisMessaging)
                 else:                        
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
-                    self.diameterLibLogger.info("Using generated iFC")
+                    self.logTool.log(service='HSS', level='info', message="Using generated iFC", redisClient=self.redisMessaging)
         except Exception as E:
-            self.diameterLibLogger.error("Threw Exception: " + str(E))
-            self.diameterLibLogger.error("No known MSISDN or IMSI in Answer_16777216_302() input")
+            self.logTool.log(service='HSS', level='error', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="No known MSISDN or IMSI in Answer_16777216_302() input", redisClient=self.redisMessaging)
             result_code = 5001
-            #@@Fixme
-            # prom_diam_auth_event_count.labels(
-            #     diameter_application_id = 16777216,
-            #     diameter_cmd_code = 302,
-            #     event='Unknown User',
-            #     imsi_prefix = str(username[0:6]),
-            # ).inc()
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=1.0, 
+                                            metricLabels={
+                                                        "diameter_application_id": 16777216,
+                                                        "diameter_cmd_code": 302,
+                                                        "event": "Unknown User",
+                                                        "imsi_prefix": str(username[0:6])},
+                                            metricHelp='Diameter Authentication related Counters',
+                                            metricExpiry=60)
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
@@ -1395,12 +1420,12 @@ class Diameter:
     def Answer_16777216_303(self, packet_vars, avps):
         public_identity = self.get_avp_data(avps, 601)[0]
         public_identity = binascii.unhexlify(public_identity).decode('utf-8')
-        self.diameterLibLogger.debug("Got MAR for public_identity : " + str(public_identity))
+        self.logTool.log(service='HSS', level='debug', message="Got MAR for public_identity : " + str(public_identity), redisClient=self.redisMessaging)
         username = self.get_avp_data(avps, 1)[0]
         username = binascii.unhexlify(username).decode('utf-8')
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
-        self.diameterLibLogger.debug("Got MAR username: " + str(username))
+        self.logTool.log(service='HSS', level='debug', message="Got MAR username: " + str(username), redisClient=self.redisMessaging)
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -1411,17 +1436,20 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            self.diameterLibLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for MAA")
-            #@@Fixme
-            # prom_diam_auth_event_count.labels(
-            #     diameter_application_id = 16777216,
-            #     diameter_cmd_code = 303,
-            #     event='Unknown User',
-            #     imsi_prefix = str(username[0:6]),
-            # ).inc()
+            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for MAA", redisClient=self.redisMessaging)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=1.0, 
+                                            metricLabels={
+                                                        "diameter_application_id": 16777216,
+                                                        "diameter_cmd_code": 303,
+                                                        "event": "Unknown User",
+                                                        "imsi_prefix": str(imsi[0:6])},
+                                            metricHelp='Diameter Authentication related Counters',
+                                            metricExpiry=60)
             experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
             #Experimental Result (297)
@@ -1429,7 +1457,7 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 303, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
-        self.diameterLibLogger.debug("Got subscriber data for MAA OK")
+        self.logTool.log(service='HSS', level='debug', message="Got subscriber data for MAA OK", redisClient=self.redisMessaging)
         
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
@@ -1437,33 +1465,36 @@ class Diameter:
         #Determine if SQN Resync is required & auth type to use
         for sub_avp_612 in self.get_avp_data(avps, 612)[0]:
             if sub_avp_612['avp_code'] == 610:
-                self.diameterLibLogger.info("SQN in HSS is out of sync - Performing resync")
+                self.logTool.log(service='HSS', level='info', message="SQN in HSS is out of sync - Performing resync", redisClient=self.redisMessaging)
                 auts = str(sub_avp_612['misc_data'])[32:]
                 rand = str(sub_avp_612['misc_data'])[:32]
                 rand = binascii.unhexlify(rand)
-                database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
-                self.diameterLibLogger.debug("Resynced SQN in DB")
-                #@@Fixme
-                # prom_diam_auth_event_count.labels(
-                #     diameter_application_id = 16777216,
-                #     diameter_cmd_code = 302,
-                #     event='ReAuth',
-                #     imsi_prefix = str(imsi[0:6]),
-                # ).inc()
+                self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                self.logTool.log(service='HSS', level='debug', message="Resynced SQN in DB", redisClient=self.redisMessaging)
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                                metricType='counter', metricAction='inc', 
+                                                metricValue=1.0, 
+                                                metricLabels={
+                                                            "diameter_application_id": 16777216,
+                                                            "diameter_cmd_code": 302,
+                                                            "event": "ReAuth",
+                                                            "imsi_prefix": str(imsi[0:6])},
+                                                metricHelp='Diameter Authentication related Counters',
+                                                metricExpiry=60)
             if sub_avp_612['avp_code'] == 608:
-                self.diameterLibLogger.info("Auth mechansim requested: " + str(sub_avp_612['misc_data']))
+                self.logTool.log(service='HSS', level='info', message="Auth mechansim requested: " + str(sub_avp_612['misc_data']), redisClient=self.redisMessaging)
                 auth_scheme = binascii.unhexlify(sub_avp_612['misc_data']).decode('utf-8')
-                self.diameterLibLogger.info("Auth mechansim requested: " + str(auth_scheme))
+                self.logTool.log(service='HSS', level='info', message="Auth mechansim requested: " + str(auth_scheme), redisClient=self.redisMessaging)
 
-        self.diameterLibLogger.debug("IMSI is " + str(imsi))        
+        self.logTool.log(service='HSS', level='debug', message="IMSI is " + str(imsi), redisClient=self.redisMessaging)        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(public_identity)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi + "@" + domain)),'ascii'))                                    #Username
         
 
         #Determine Vectors to Generate
         if auth_scheme == "Digest-MD5":
-            self.diameterLibLogger.debug("Generating MD5 Challenge")
-            vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "Digest-MD5", username=imsi, plmn=plmn)
+            self.logTool.log(service='HSS', level='debug', message="Generating MD5 Challenge", redisClient=self.redisMessaging)
+            vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "Digest-MD5", username=imsi, plmn=plmn)
             avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
             avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-MD5'),'ascii'))
             #Nonce
@@ -1472,8 +1503,8 @@ class Diameter:
             avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415,  str(binascii.hexlify(str.encode(vector_dict['SIP_Authenticate'])),'ascii'))
             auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization
         else:
-            self.diameterLibLogger.debug("Generating AKA-MD5 Auth Challenge")
-            vector_dict = database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
+            self.logTool.log(service='HSS', level='debug', message="Generating AKA-MD5 Auth Challenge", redisClient=self.redisMessaging)
+            vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
         
 
             #diameter.3GPP-SIP-Auth-Data-Items:
@@ -1504,7 +1535,7 @@ class Diameter:
 
     #Generate a Generic error handler with Result Code as input
     def Respond_ResultCode(self, packet_vars, avps, result_code):
-        logging.error("Responding with result code " + str(result_code) + " to request with command code " + str(packet_vars['command_code']))
+        self.logTool.log(service='HSS', level='error', message="Responding with result code " + str(result_code) + " to request with command code " + str(packet_vars['command_code']), redisClient=self.redisMessaging)
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -1512,7 +1543,7 @@ class Diameter:
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         except:
-            self.diameterLibLogger.info("Failed to add SessionID into error")
+            self.logTool.log(service='HSS', level='info', message="Failed to add SessionID into error", redisClient=self.redisMessaging)
         for avps_to_check in avps:                                                                  #Only include AVP 260 (Vendor-Specific-Application-ID) if inital request included it
             if avps_to_check['avp_code'] == 260:
                 concat_subavp = ''
@@ -1536,9 +1567,9 @@ class Diameter:
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
         vendor_id = self.generate_avp(266, 40, str(binascii.hexlify('10415'),'ascii'))
-        self.diameterLibLogger.debug("vendor_id avp: " + str(vendor_id))
+        self.logTool.log(service='HSS', level='debug', message="vendor_id avp: " + str(vendor_id), redisClient=self.redisMessaging)
         auth_application_id = self.generate_avp(248, 40, self.int_to_hex(16777252, 8))
-        self.diameterLibLogger.debug("auth_application_id: " + auth_application_id)
+        self.logTool.log(service='HSS', level='debug', message="auth_application_id: " + auth_application_id, redisClient=self.redisMessaging)
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         avp += self.generate_avp(268, 40, "000007d1")                                                   #Result Code - DIAMETER_SUCCESS
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State        
@@ -1564,30 +1595,37 @@ class Diameter:
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
-            self.diameterLibLogger.info("Got raw MSISDN with value " + str(msisdn))
+            self.logTool.log(service='HSS', level='info', message="Got raw MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
             msisdn = self.TBCD_decode(msisdn)
-            self.diameterLibLogger.info("Got MSISDN with value " + str(msisdn))
+            self.logTool.log(service='HSS', level='info', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
         except:
-            self.diameterLibLogger.error("No MSISDN")
+            self.logTool.log(service='HSS', level='error', message="No MSISDN", redisClient=self.redisMessaging)
+        try:
+            username = self.get_avp_data(avps, 601)[0]
+        except: 
+            self.logTool.log(service='HSS', level='error', message="No Username", redisClient=self.redisMessaging)
 
         if msisdn is not None:
-                self.diameterLibLogger.debug("Getting susbcriber IMS info based on MSISDN")
-                subscriber_ims_details = database.Get_IMS_Subscriber(msisdn=msisdn)
-                self.diameterLibLogger.debug("Got subscriber IMS details: " + str(subscriber_ims_details))
-                self.diameterLibLogger.debug("Getting susbcriber info based on MSISDN")
-                subscriber_details = database.Get_Subscriber(msisdn=msisdn)
-                self.diameterLibLogger.debug("Got subscriber details: " + str(subscriber_details))
+                self.logTool.log(service='HSS', level='debug', message="Getting susbcriber IMS info based on MSISDN", redisClient=self.redisMessaging)
+                subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+                self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Getting susbcriber info based on MSISDN", redisClient=self.redisMessaging)
+                subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
+                self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
                 subscriber_details = {**subscriber_details, **subscriber_ims_details}
-                self.diameterLibLogger.debug("Merged subscriber details: " + str(subscriber_details))
+                self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
         else:
-            self.diameterLibLogger.error("No MSISDN or IMSI in Answer_16777217_306() input")
-            #@@Fixme
-            # prom_diam_auth_event_count.labels(
-            #     diameter_application_id = 16777216,
-            #     diameter_cmd_code = 306,
-            #     event='Unknown User',
-            #     imsi_prefix = str(username[0:6]),
-            # ).inc()
+            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI in Answer_16777217_306() input", redisClient=self.redisMessaging)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=1.0, 
+                                            metricLabels={
+                                                        "diameter_application_id": 16777216,
+                                                        "diameter_cmd_code": 306,
+                                                        "event": "Unknown User",
+                                                        "imsi_prefix": str(username[0:6])},
+                                            metricHelp='Diameter Authentication related Counters',
+                                            metricExpiry=60)
             result_code = 5005
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -1610,13 +1648,13 @@ class Diameter:
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
         sh_userdata_template = self.yaml_config['hss']['Default_Sh_UserData']
-        self.diameterLibLogger.info("Using template " + str(sh_userdata_template) + " for SH user data")
+        self.logTool.log(service='HSS', level='info', message="Using template " + str(sh_userdata_template) + " for SH user data", redisClient=self.redisMessaging)
         template = templateEnv.get_template(sh_userdata_template)
         #These variables are passed to the template for use
         subscriber_details['mnc'] = self.MNC.zfill(3)
         subscriber_details['mcc'] = self.MCC.zfill(3)
 
-        self.diameterLibLogger.debug("Rendering template with values: " + str(subscriber_details))
+        self.logTool.log(service='HSS', level='debug', message="Rendering template with values: " + str(subscriber_details), redisClient=self.redisMessaging)
         xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
@@ -1638,12 +1676,12 @@ class Diameter:
         sh_user_data = self.get_avp_data(avps, 702)[0]                                                        #Get IMSI from User-Name AVP in request
         sh_user_data = binascii.unhexlify(sh_user_data).decode('utf-8')
 
-        self.diameterLibLogger.debug("Got Sh User data: " + str(sh_user_data))
+        self.logTool.log(service='HSS', level='debug', message="Got Sh User data: " + str(sh_user_data), redisClient=self.redisMessaging)
 
         #Push updated User Data into IMS Backend
         #Start with the Current User Data
-        subscriber_ims_details = database.Get_IMS_Subscriber(imsi=imsi)
-        database.UpdateObj(database.IMS_SUBSCRIBER, {'sh_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
+        subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
+        self.database.UpdateObj(self.database.IMS_SUBSCRIBER, {'sh_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
 
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -1669,17 +1707,17 @@ class Diameter:
             imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
             imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
             #avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                      #Username (IMSI)
-            self.diameterLibLogger.info("Got IMSI with value " + str(imsi))
+            self.logTool.log(service='HSS', level='info', message="Got IMSI with value " + str(imsi), redisClient=self.redisMessaging)
         except Exception as e:
-            self.diameterLibLogger.debug("Failed to get IMSI from LCS-Routing-Info-Request")
-            self.diameterLibLogger.debug("Error was: " + str(e))
+            self.logTool.log(service='HSS', level='debug', message="Failed to get IMSI from LCS-Routing-Info-Request", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Error was: " + str(e), redisClient=self.redisMessaging)
 
         #Get IMEI
         for sub_avp in self.get_avp_data(avps, 1401)[0]:
-            self.diameterLibLogger.debug("Evaluating sub_avp AVP " + str(sub_avp) + " to find IMSI")
+            self.logTool.log(service='HSS', level='debug', message="Evaluating sub_avp AVP " + str(sub_avp) + " to find IMSI", redisClient=self.redisMessaging)
             if sub_avp['avp_code'] == 1402:
                 imei = binascii.unhexlify(sub_avp['misc_data']).decode('utf-8')
-                self.diameterLibLogger.debug("Found IMEI " + str(imei))
+                self.logTool.log(service='HSS', level='debug', message="Found IMEI " + str(imei), redisClient=self.redisMessaging)
 
         avp = ''                                                                                        #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
@@ -1695,10 +1733,15 @@ class Diameter:
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
 
         #Equipment-Status
-        EquipmentStatus = database.Check_EIR(imsi=imsi, imei=imei)
+        EquipmentStatus = self.database.Check_EIR(imsi=imsi, imei=imei)
         avp += self.generate_vendor_avp(1445, 'c0', 10415, self.int_to_hex(EquipmentStatus, 4))
-        # @@Fixme
-        # prom_diam_eir_event_count.labels(response=EquipmentStatus).inc()
+        self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_eir_event_count',
+                                metricType='counter', metricAction='inc', 
+                                metricValue=1.0, 
+                                metricLabels={
+                                            "response": EquipmentStatus},
+                                metricHelp='Diameter EIR event related Counters',
+                                metricExpiry=60)
 
         response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -1728,56 +1771,56 @@ class Diameter:
 
         #Try and get IMSI if present
         if 1 in present_avps:
-            self.diameterLibLogger.info("IMSI AVP is present")
+            self.logTool.log(service='HSS', level='info', message="IMSI AVP is present", redisClient=self.redisMessaging)
             try:
                 imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
                 imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
                 avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                       #Username (IMSI)
-                self.diameterLibLogger.info("Got IMSI with value " + str(imsi))
+                self.logTool.log(service='HSS', level='info', message="Got IMSI with value " + str(imsi), redisClient=self.redisMessaging)
             except Exception as e:
-                self.diameterLibLogger.debug("Failed to get IMSI from LCS-Routing-Info-Request")
-                self.diameterLibLogger.debug("Error was: " + str(e))
+                self.logTool.log(service='HSS', level='debug', message="Failed to get IMSI from LCS-Routing-Info-Request", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Error was: " + str(e), redisClient=self.redisMessaging)
         elif 701 in present_avps:
             #Try and get MSISDN if present
             try:
                 msisdn = self.get_avp_data(avps, 701)[0]                                                          #Get MSISDN from AVP in request
-                self.diameterLibLogger.info("Got MSISDN with value " + str(msisdn))
+                self.logTool.log(service='HSS', level='info', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
                 avp += self.generate_vendor_avp(701, 'c0', 10415, self.get_avp_data(avps, 701)[0])                     #MSISDN
-                self.diameterLibLogger.info("Got MSISDN with encoded value " + str(msisdn))
+                self.logTool.log(service='HSS', level='info', message="Got MSISDN with encoded value " + str(msisdn), redisClient=self.redisMessaging)
                 msisdn = self.TBCD_decode(msisdn)
-                self.diameterLibLogger.info("Got MSISDN with decoded value " + str(msisdn))
+                self.logTool.log(service='HSS', level='info', message="Got MSISDN with decoded value " + str(msisdn), redisClient=self.redisMessaging)
             except Exception as e:
-                self.diameterLibLogger.debug("Failed to get MSISDN from LCS-Routing-Info-Request")
-                self.diameterLibLogger.debug("Error was: " + str(e))
+                self.logTool.log(service='HSS', level='debug', message="Failed to get MSISDN from LCS-Routing-Info-Request", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Error was: " + str(e), redisClient=self.redisMessaging)
         else:
-            self.diameterLibLogger.error("No MSISDN or IMSI")
+            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI", redisClient=self.redisMessaging)
 
         try:
             if imsi is not None:
-                    self.diameterLibLogger.debug("Getting susbcriber location based on IMSI")
-                    subscriber_details = database.Get_Subscriber(imsi=imsi)
-                    self.diameterLibLogger.debug("Got subscriber_details from IMSI: " + str(subscriber_details))
+                    self.logTool.log(service='HSS', level='debug', message="Getting susbcriber location based on IMSI", redisClient=self.redisMessaging)
+                    subscriber_details = self.database.Get_Subscriber(imsi=imsi)
+                    self.logTool.log(service='HSS', level='debug', message="Got subscriber_details from IMSI: " + str(subscriber_details), redisClient=self.redisMessaging)
             elif msisdn is not None:
-                    self.diameterLibLogger.debug("Getting susbcriber location based on MSISDN")
-                    subscriber_details = database.Get_Subscriber(msisdn=msisdn)
-                    self.diameterLibLogger.debug("Got subscriber_details from MSISDN: " + str(subscriber_details))
+                    self.logTool.log(service='HSS', level='debug', message="Getting susbcriber location based on MSISDN", redisClient=self.redisMessaging)
+                    subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
+                    self.logTool.log(service='HSS', level='debug', message="Got subscriber_details from MSISDN: " + str(subscriber_details), redisClient=self.redisMessaging)
         except Exception as E:
-            self.diameterLibLogger.error("No MSISDN or IMSI returned in Answer_16777291_8388622 input")
-            self.diameterLibLogger.error("Error is " + str(E))
-            self.diameterLibLogger.error("Responding with DIAMETER_ERROR_USER_UNKNOWN")
+            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI returned in Answer_16777291_8388622 input", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="Error is " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="Responding with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            self.diameterLibLogger.info("Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN")
+            self.logTool.log(service='HSS', level='info', message="Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             return response
 
 
         
-        self.diameterLibLogger.info("Got subscriber_details for subscriber: " + str(subscriber_details))
+        self.logTool.log(service='HSS', level='info', message="Got subscriber_details for subscriber: " + str(subscriber_details), redisClient=self.redisMessaging)
 
         
         if subscriber_details['serving_mme'] == None:
             #DB has no location on record for subscriber
-            self.diameterLibLogger.info("No location on record for Subscriber")
+            self.logTool.log(service='HSS', level='info', message="No location on record for Subscriber", redisClient=self.redisMessaging)
             result_code = 4201
             #DIAMETER_ERROR_ABSENT_USER (4201)
             #This result code shall be sent by the HSS to indicate that the location of the targeted user is not known at this time to
@@ -1957,7 +2000,7 @@ class Diameter:
         SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
         SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
         if 'GetLocation' in kwargs:
-            self.diameterLibLogger.debug("Requsted Get Location ISD")
+            self.logTool.log(service='HSS', level='debug', message="Requsted Get Location ISD", redisClient=self.redisMessaging)
             #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
             SupportedFeatures = ''
             SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
@@ -1968,23 +2011,23 @@ class Diameter:
 
             try:
                 user_identity_avp = self.get_avp_data(avps, 700)[0]
-                self.diameterLibLogger.info(user_identity_avp)
+                self.logTool.log(service='HSS', level='info', message=user_identity_avp, redisClient=self.redisMessaging)
                 msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
                 msisdn = self.TBCD_decode(msisdn)
-                self.diameterLibLogger.info("Got MSISDN with value " + str(msisdn))
+                self.logTool.log(service='HSS', level='info', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
             except:
-                self.diameterLibLogger.error("No MSISDN present")
+                self.logTool.log(service='HSS', level='error', message="No MSISDN present", redisClient=self.redisMessaging)
                 return
             #Get Subscriber Location from Database
-            subscriber_location = database.GetSubscriberLocation(msisdn=msisdn)
-            self.diameterLibLogger.debug("Got subscriber location: " + subscriber_location)
+            subscriber_location = self.database.GetSubscriberLocation(msisdn=msisdn)
+            self.logTool.log(service='HSS', level='debug', message="Got subscriber location: " + subscriber_location, redisClient=self.redisMessaging)
 
 
-            self.diameterLibLogger.info("Getting IMSI for MSISDN " + str(msisdn))
-            imsi = database.Get_IMSI_from_MSISDN(msisdn)
+            self.logTool.log(service='HSS', level='info', message="Getting IMSI for MSISDN " + str(msisdn), redisClient=self.redisMessaging)
+            imsi = self.database.Get_IMSI_from_MSISDN(msisdn)
             avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
 
-            self.diameterLibLogger.info("Got back location data: " + str(subscriber_location))
+            self.logTool.log(service='HSS', level='info', message="Got back location data: " + str(subscriber_location), redisClient=self.redisMessaging)
 
             #Populate Destination Host & Realm
             avp += self.generate_avp(293, 40, self.string_to_hex(subscriber_location))      #Destination Host                                                      #Destination-Host
@@ -2000,26 +2043,26 @@ class Diameter:
 
             destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
             destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
-            self.diameterLibLogger.debug("Received originHost to use as destinationHost is " + str(destinationHost))
+            self.logTool.log(service='HSS', level='debug', message="Received originHost to use as destinationHost is " + str(destinationHost), redisClient=self.redisMessaging)
             destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
             destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
-            self.diameterLibLogger.debug("Received originRealm to use as destinationRealm is " + str(destinationRealm))
+            self.logTool.log(service='HSS', level='debug', message="Received originRealm to use as destinationRealm is " + str(destinationRealm), redisClient=self.redisMessaging)
             avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
             avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))
 
         APN_Configuration = ''
 
         try:
-            subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
-            self.diameterLibLogger.error("failed to get data backfrom database for imsi " + str(imsi))
-            self.diameterLibLogger.error("Error is " + str(e))
+            self.logTool.log(service='HSS', level='error', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="Error is " + str(e), redisClient=self.redisMessaging)
             raise
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
-            self.diameterLibLogger.critical(message)
-            self.diameterLibLogger.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
+            self.logTool.critical(message)
+            self.logTool.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
 
@@ -2056,18 +2099,18 @@ class Diameter:
 
 
         apn_list = subscriber_details['pdn']
-        self.diameterLibLogger.debug("APN list: " + str(apn_list))
+        self.logTool.log(service='HSS', level='debug', message="APN list: " + str(apn_list), redisClient=self.redisMessaging)
         APN_context_identifer_count = 1
         for apn_profile in apn_list:
-            self.diameterLibLogger.debug("Processing APN profile " + str(apn_profile))
+            self.logTool.log(service='HSS', level='debug', message="Processing APN profile " + str(apn_profile), redisClient=self.redisMessaging)
             APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
 
-            self.diameterLibLogger.debug("Setting APN Configuration Profile")
+            self.logTool.log(service='HSS', level='debug', message="Setting APN Configuration Profile", redisClient=self.redisMessaging)
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
             
-            self.diameterLibLogger.debug("Setting APN AMBR")
+            self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
             #AMBR
             AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
             if 'AMBR' in apn_profile:
@@ -2082,7 +2125,7 @@ class Diameter:
             AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
             APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-            self.diameterLibLogger.debug("Setting APN Allocation-Retention-Priority")
+            self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
             #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
             AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
             AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
@@ -2095,32 +2138,32 @@ class Diameter:
             #If static UE IP is specified
             try:
                 apn_ip = apn_profile['ue']['addr']
-                self.diameterLibLogger.debug("Found static IP for UE " + str(apn_ip))
+                self.logTool.log(service='HSS', level='debug', message="Found static IP for UE " + str(apn_ip), redisClient=self.redisMessaging)
                 Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
             except:
                 Served_Party_Address = ""
 
             if 'MIP6-Agent-Info' in apn_profile:
-                self.diameterLibLogger.info("MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']))
+                self.logTool.log(service='HSS', level='info', message="MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']), redisClient=self.redisMessaging)
                 MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
                 MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
                 MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
                 MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-                self.diameterLibLogger.info("MIP6 value is " + str(MIP6_Agent_Info))
+                self.logTool.log(service='HSS', level='info', message="MIP6 value is " + str(MIP6_Agent_Info), redisClient=self.redisMessaging)
             else:
                 MIP6_Agent_Info = ''
 
             if 'PDN_GW_Allocation_Type' in apn_profile:
-                self.diameterLibLogger.info("PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']))
+                self.logTool.log(service='HSS', level='info', message="PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']), redisClient=self.redisMessaging)
                 PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
-                self.diameterLibLogger.info("PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type))
+                self.logTool.log(service='HSS', level='info', message="PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type), redisClient=self.redisMessaging)
             else:
                 PDN_GW_Allocation_Type = ''
 
             if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
-                self.diameterLibLogger.info("VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']))
+                self.logTool.log(service='HSS', level='info', message="VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']), redisClient=self.redisMessaging)
                 VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
-                self.diameterLibLogger.info("VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed))
+                self.logTool.log(service='HSS', level='info', message="VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed), redisClient=self.redisMessaging)
             else:
                 VPLMN_Dynamic_Address_Allowed = ''
 
@@ -2131,7 +2174,7 @@ class Diameter:
             
             #Incriment Context Identifier Count to keep track of how many APN Profiles returned
             APN_context_identifer_count = APN_context_identifer_count + 1  
-            self.diameterLibLogger.debug("Processed APN profile " + str(apn_profile['apn']))
+            self.logTool.log(service='HSS', level='debug', message="Processed APN profile " + str(apn_profile['apn']), redisClient=self.redisMessaging)
         
         subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
         subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
@@ -2139,26 +2182,26 @@ class Diameter:
 
         #If MSISDN is present include it in Subscription Data
         if 'msisdn' in subscriber_details:
-            self.diameterLibLogger.debug("MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA", redisClient=self.redisMessaging)
             msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
-            self.diameterLibLogger.debug(msisdn_avp)
+            self.logTool.log(service='HSS', level='debug', message=msisdn_avp, redisClient=self.redisMessaging)
             subscription_data += msisdn_avp
 
         if 'RAT_freq_priorityID' in subscriber_details:
-            self.diameterLibLogger.debug("RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA", redisClient=self.redisMessaging)
             rat_freq_priorityID = self.generate_vendor_avp(1440, "C0", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
-            self.diameterLibLogger.debug(rat_freq_priorityID)
+            self.logTool.log(service='HSS', level='debug', message=rat_freq_priorityID, redisClient=self.redisMessaging)
             subscription_data += rat_freq_priorityID
 
         if '3gpp-charging-characteristics' in subscriber_details:
-            self.diameterLibLogger.debug("3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA", redisClient=self.redisMessaging)
             _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['3gpp-charging-characteristics'])))
             subscription_data += _3gpp_charging_characteristics
-            self.diameterLibLogger.debug(_3gpp_charging_characteristics)
+            self.logTool.log(service='HSS', level='debug', message=_3gpp_charging_characteristics, redisClient=self.redisMessaging)
 
             
         if 'APN_OI_replacement' in subscriber_details:
-            self.diameterLibLogger.debug("APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA")
+            self.logTool.log(service='HSS', level='debug', message="APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA", redisClient=self.redisMessaging)
             subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
 
@@ -2440,7 +2483,7 @@ class Diameter:
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session-Id set AVP
 
         #Setup Charging Rule
-        self.diameterLibLogger.debug(ChargingRules)
+        self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
         avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
 
 
@@ -2534,14 +2577,14 @@ class Diameter:
         avp += self.generate_avp(283, 40, self.OriginRealm)                                              #Destination Realm
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
 
-        self.diameterLibLogger.debug("Getting susbcriber IMS info based on MSISDN")
-        subscriber_ims_details = database.Get_IMS_Subscriber(msisdn=msisdn)
-        self.diameterLibLogger.debug("Got subscriber IMS details: " + str(subscriber_ims_details))
-        self.diameterLibLogger.debug("Getting susbcriber info based on MSISDN")
-        subscriber_details = database.Get_Subscriber(msisdn=msisdn)
-        self.diameterLibLogger.debug("Got subscriber details: " + str(subscriber_details))
+        self.logTool.log(service='HSS', level='debug', message="Getting susbcriber IMS info based on MSISDN", redisClient=self.redisMessaging)
+        subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+        self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Getting susbcriber info based on MSISDN", redisClient=self.redisMessaging)
+        subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
+        self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
         subscriber_details = {**subscriber_details, **subscriber_ims_details}
-        self.diameterLibLogger.debug("Merged subscriber details: " + str(subscriber_details))
+        self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
 
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(subscriber_details['imsi'])),'ascii'))                 #Username AVP
 
@@ -2551,13 +2594,13 @@ class Diameter:
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
         sh_userdata_template = self.yaml_config['hss']['Default_Sh_UserData']
-        self.diameterLibLogger.info("Using template " + str(sh_userdata_template) + " for SH user data")
+        self.logTool.log(service='HSS', level='info', message="Using template " + str(sh_userdata_template) + " for SH user data", redisClient=self.redisMessaging)
         template = templateEnv.get_template(sh_userdata_template)
         #These variables are passed to the template for use
         subscriber_details['mnc'] = self.MNC.zfill(3)
         subscriber_details['mcc'] = self.MCC.zfill(3)
 
-        self.diameterLibLogger.debug("Rendering template with values: " + str(subscriber_details))
+        self.logTool.log(service='HSS', level='debug', message="Rendering template with values: " + str(subscriber_details), redisClient=self.redisMessaging)
         xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
