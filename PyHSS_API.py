@@ -4,33 +4,22 @@ from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
+sys.path.append(os.path.realpath('lib'))
 import datetime
 import traceback
 import sqlalchemy
 import socket
-
-
+import logtool
+from diameter import Diameter
+import database
 import logging
 import yaml
+import os
 
 with open("config.yaml", 'r') as stream:
     yaml_config = (yaml.safe_load(stream))
 
-import os
-import sys
-sys.path.append(os.path.realpath('lib'))
-
-#Setup Logging
-import logtool
-
-
-import database
-
-from prometheus_flask_exporter import PrometheusMetrics
 app = Flask(__name__)
-metrics = PrometheusMetrics.for_app_factory()
-metrics.init_app(app)
-from logtool import prom_flask_http_geored_endpoints
 
 APN = database.APN
 Serving_APN = database.SERVING_APN
@@ -48,6 +37,14 @@ SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
 
 site_name = yaml_config.get("hss", {}).get("site_name", "")
 origin_host_name = socket.gethostname()
+
+diameterClient = Diameter(
+                    OriginHost=yaml_config['hss']['OriginHost'], 
+                    OriginRealm=yaml_config['hss']['OriginRealm'], 
+                    MNC=yaml_config['hss']['MNC'],
+                    MCC=yaml_config['hss']['MCC'],
+                    ProductName='PyHSS-client-API'
+                )
 
 app.wsgi_app = ProxyFix(app.wsgi_app)
 api = Api(app, version='1.0', title=f'{site_name + " - " if site_name else ""}{origin_host_name} - PyHSS OAM API',
@@ -1037,9 +1034,11 @@ class PyHSS_OAM_Peers(Resource):
     def get(self):
         '''Get all Diameter Peers'''
         try:
-            logObj = logtool.LogTool()
-            DiameterPeers = logObj.GetDiameterPeers()
-            return DiameterPeers, 200
+            #@@Fixme
+            # logObj = logtool.LogTool()
+            # DiameterPeers = logObj.GetDiameterPeers()
+            # return DiameterPeers, 200
+            return ''
         except Exception as E:
             print(E)
             return handle_exception(E)
@@ -1279,12 +1278,11 @@ class PyHSS_PCRF(Resource):
         DestinationRealm = OriginRealm
         mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
         mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
-        import diameter
-        diameter = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
-        diam_hex = diameter.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['subscriber_routing'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
+        diam_hex = diameterClient.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['subscriber_routing'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
         import time
-        logObj = logtool.LogTool()
-        logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
+        # @@Fixme
+        # logObj = logtool.LogTool()
+        # logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
         return diam_hex, 200
 
 @ns_pcrf.route('/<string:charging_rule_id>')
@@ -1327,7 +1325,8 @@ class PyHSS_Geored(Resource):
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
                 response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='HSS', geored_host=request.remote_addr).inc()
+                #@@Fixme
+                # prom_flask_http_geored_endpoints.labels(endpoint='HSS', geored_host=request.remote_addr).inc()
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
                 if 'serving_pgw_realm' not in json_data:
@@ -1343,7 +1342,8 @@ class PyHSS_Geored(Resource):
                     serving_pgw_realm=json_data['serving_pgw_realm'],
                     serving_pgw_peer=json_data['serving_pgw_peer'],
                     propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='PCRF', geored_host=request.remote_addr).inc()
+                #@@Fixme
+                # prom_flask_http_geored_endpoints.labels(endpoint='PCRF', geored_host=request.remote_addr).inc()
             if 'scscf' in json_data:
                 print("Updating serving SCSCF")
                 if 'scscf_realm' not in json_data:
@@ -1351,11 +1351,13 @@ class PyHSS_Geored(Resource):
                 if 'scscf_peer' not in json_data:
                     json_data['scscf_peer'] = None
                 response_data.append(database.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='IMS', geored_host=request.remote_addr).inc()
+                #@@Fixme
+                # prom_flask_http_geored_endpoints.labels(endpoint='IMS', geored_host=request.remote_addr).inc()
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
+                #@@Fixme
+                # prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
@@ -1384,22 +1386,12 @@ class PyHSS_Push_CLR(Resource):
         print("JSON Data sent: " + str(json_data))
         if 'DestinationHost' not in json_data:
             json_data['DestinationHost'] = None
-        import diameter
-        diameter = diameter.Diameter(
-            OriginHost=yaml_config['hss']['OriginHost'], 
-            OriginRealm=yaml_config['hss']['OriginRealm'], 
-            MNC=yaml_config['hss']['MNC'],
-            MCC=yaml_config['hss']['MCC'],
-            ProductName='PyHSS-client-API'
-        )
-        diam_hex = diameter.Request_16777251_317(
+        diam_hex = diameterClient.sendDiameterRequest(
             imsi=imsi, 
             DestinationHost=json_data['DestinationHost'], 
             DestinationRealm=json_data['DestinationRealm'], 
             CancellationType=json_data['cancellationType']
         )
-        logObj = logtool.LogTool()
-        logObj.Async_SendRequest(diam_hex, str(json_data['diameterPeer']))
         return diam_hex, 200
 
 if __name__ == '__main__':

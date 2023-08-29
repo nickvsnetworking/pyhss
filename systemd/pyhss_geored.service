@@ -1,0 +1,13 @@
+[Unit]
+Description=PyHSS Geored Service
+PartOf=pyhss.service
+
+
+[Service]
+User=root
+WorkingDirectory=/etc/pyhss/services/
+ExecStart=python3 georedService.py
+Restart=always
+
+[Install]
+WantedBy=pyhss.service

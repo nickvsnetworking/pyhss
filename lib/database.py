@@ -18,6 +18,7 @@ import S6a_crypt
 import threading
 from messaging import RedisMessaging
 import yaml
+import json
 
 Base = declarative_base()
 
@@ -831,12 +832,12 @@ class Database:
 
     def handleGeored(self, jsonData):
         try:
+            georedDict = {}
             if self.config.get('geored', {}).get('enabled', False):
                 if self.config.get('geored', {}).get('sync_endpoints', []) is not None and len(self.config.get('geored', {}).get('sync_endpoints', [])) > 0:
-                    transaction_id = str(uuid.uuid4())
-                    self.logTool.log(service='Database', level='info', message="[Database] Break 1", redisClient=self.redisMessaging)
-                    self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=jsonData, queueExpiry=120)
-                    self.logTool.log(service='Database', level='info', message="[Database] Break 1", redisClient=self.redisMessaging)
+                    georedDict['body'] = jsonData
+                    georedDict['operation'] = 'PATCH'
+                    self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
         except Exception as E:
             self.logTool.log(service='Database', level='warning', message="Failed to send Geored message due to error: " + str(E), redisClient=self.redisMessaging)
 
@@ -852,7 +853,7 @@ class Database:
         externalNotification = self.Sanitize_Datetime(objectData)
         externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
         externalNotification['headers'] = externalNotificationHeaders
-        self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=externalNotification, queueExpiry=120)
+        self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(externalNotification), queueExpiry=120)
         return True
 
     def Sanitize_Datetime(self, result):
@@ -1841,19 +1842,22 @@ class Database:
                 try:
                     device_info = self.get_device_info_from_TAC(imei=str(imei))
                     self.logTool.log(service='Database', level='debug', message="Got Device Info: " + str(device_info), redisClient=self.redisMessaging)
-                    #@@Fixme
-                    # prom_eir_devices.labels(
-                    #     imei_prefix=device_info['tac_prefix'],
-                    #     device_type=device_info['name'], 
-                    #     device_name=device_info['model']
-                    # ).inc()
+                    self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
+                                                    metricType='counter', metricAction='inc', 
+                                                    metricValue=1, metricHelp='Profile of attached devices',
+                                                    metricLabels={'imei_prefix': device_info['tac_prefix'],
+                                                                  'device_type': device_info['name'],
+                                                                  'device_name': device_info['model']},
+                                                    metricExpiry=60)
                 except Exception as E:
                     self.logTool.log(service='Database', level='debug', message="Failed to get device info from TAC", redisClient=self.redisMessaging)
-                    # prom_eir_devices.labels(
-                    #     imei_prefix=str(imei)[0:8],
-                    #     device_type='Unknown', 
-                    #     device_name='Unknown'
-                    # ).inc()
+                    self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
+                                metricType='counter', metricAction='inc', 
+                                metricValue=1, metricHelp='Profile of attached devices',
+                                metricLabels={'imei_prefix': str(imei)[0:8],
+                                                'device_type': 'Unknown',
+                                                'device_name': 'Unknown'},
+                                metricExpiry=60)
             else:
                 self.logTool.log(service='Database', level='debug', message="No TAC database configured, skipping device info lookup", redisClient=self.redisMessaging)
 
@@ -1995,27 +1999,21 @@ class Database:
         #Try 8 digit TAC
         try:
             self.logTool.log(service='Database', level='debug', message="Trying to match on 8 Digit IMEI", redisClient=self.redisMessaging)
-            #@@Fixme
-            # imei_result = logtool.RedisHMGET(str(imei[0:8]))
-            # print("Got back: " + str(imei_result))
-            # imei_result = dict_bytes_to_dict_string(imei_result)
-            # assert(len(imei_result) != 0)
-            # self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
-            # return imei_result
-            return "0"
+            imei_result = self.redisMessaging.RedisHGetAll(str(imei[0:8]))
+            imei_result = self.dict_bytes_to_dict_string(imei_result)
+            assert(len(imei_result) != 0)
+            self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
+            return imei_result
         except:
             self.logTool.log(service='Database', level='debug', message="Failed to match on 8 digit IMEI", redisClient=self.redisMessaging)
         
         try:
             self.logTool.log(service='Database', level='debug', message="Trying to match on 6 Digit IMEI", redisClient=self.redisMessaging)
-            #@@Fixme
-            # imei_result = logtool.RedisHMGET(str(imei[0:6]))
-            # print("Got back: " + str(imei_result))
-            # imei_result = dict_bytes_to_dict_string(imei_result)
-            # assert(len(imei_result) != 0)
-            # self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
-            # return imei_result
-            return "0"
+            imei_result = self.redisMessaging.RedisHGetAll(str(imei[0:6]))
+            imei_result = self.dict_bytes_to_dict_string(imei_result)
+            assert(len(imei_result) != 0)
+            self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
+            return imei_result
         except:
             self.logTool.log(service='Database', level='debug', message="Failed to match on 6 digit IMEI", redisClient=self.redisMessaging)
 

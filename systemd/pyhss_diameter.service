@@ -1,0 +1,13 @@
+[Unit]
+Description=PyHSS Diameter Service
+PartOf=pyhss.service
+
+
+[Service]
+User=root
+WorkingDirectory=/etc/pyhss/services/
+ExecStart=python3 diameterService.py
+Restart=always
+
+[Install]
+WantedBy=pyhss.service

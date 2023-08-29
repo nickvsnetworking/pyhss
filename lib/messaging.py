@@ -111,6 +111,14 @@ class RedisMessaging:
         except Exception as e:
             return False
 
+    def RedisHGetAll(self, key: str):
+            """
+            Wrapper for Redis HGETALL"""
+            try:
+                data = self.redisClient.hgetall(key)
+                return data
+            except Exception as e:
+                return ''
 
 if __name__ == '__main__':
     redisMessaging = RedisMessaging()

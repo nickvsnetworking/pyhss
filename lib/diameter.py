@@ -31,7 +31,7 @@ class Diameter:
         self.logTool.log(service='HSS', level='info', message=f"Product Name: {str(productName)}", redisClient=self.redisMessaging)
         self.logTool.log(service='HSS', level='info', message=f"PLMN: {str(self.MCC)}/{str(self.MNC)}", redisClient=self.redisMessaging)
 
-        self.diameterCommandList = [
+        self.diameterResponseList = [
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
                 {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCR", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 280, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_280, "failureResultCode": 5012 ,"requestAcronym": "DWR", "responseAcronym": "DWA", "requestName": "Device Watchdog Request", "responseName": "Device Watchdog Answer"},
@@ -49,6 +49,11 @@ class Diameter:
                 {"commandCode": 324, "applicationId": 16777252, "responseMethod": self.Answer_16777252_324, "failureResultCode": 4100 ,"requestAcronym": "ECR", "responseAcronym": "ECA", "requestName": "ME Identity Check Request", "responseName": "ME Identity Check Answer"},
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
             ]
+
+        self.diameterRequestList = [
+                {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
+                {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
+        ]
 
     #Generates rounding for calculating padding
     def myround(self, n, base=4):
@@ -72,7 +77,6 @@ class Diameter:
         else:
             ip_hex = "0002"         #IPv6
             ip_hex += format(ipaddress.IPv6Address(ip), 'X')
-        #self.logTool.log(service='HSS', level='debug', message="Converted IP to hex - Input: " + str(ip) + " output: " + str(ip_hex), redisClient=self.redisMessaging)
         return ip_hex
     
     def hex_to_int(self, hex):
@@ -381,7 +385,6 @@ class Diameter:
                 misc_data.append(keys['misc_data'])
         return misc_data
 
-
     def decode_diameter_packet_length(self, data):
         packet_vars = {}
         data = data.hex()
@@ -396,7 +399,7 @@ class Diameter:
             packet_vars, avps = self.decode_diameter_packet(binaryData)
             response = {}
             
-            for diameterApplication in self.diameterCommandList:
+            for diameterApplication in self.diameterResponseList:
                 try:
                     assert(packet_vars["command_code"] == diameterApplication["commandCode"])
                     assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
@@ -405,8 +408,23 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Successfully generated response: {response}", redisClient=self.redisMessaging)
                 except Exception as e:
                     continue
-            
             return response
+
+    def generateDiameterRequest(self, requestType: str, **kwargs) -> str:
+            try:
+                request = ''
+                self.logTool.log(service='HSS', level='debug', message=f"Generating a diameter outbound request", redisClient=self.redisMessaging)
+                
+                for diameterApplication in self.diameterRequestList:
+                    try:
+                        assert(requestType == diameterApplication["requestAcronym"])
+                        request = diameterApplication["requestMethod"](kwargs)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                    except Exception as e:
+                        continue
+                return request
+            except Exception as e:
+                return ''
 
     def generateDiameterResponse(self, binaryData: str) -> str:
             try:
@@ -423,7 +441,7 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=packet_vars, redisClient=self.redisMessaging)
                     return
                 
-                for diameterApplication in self.diameterCommandList:
+                for diameterApplication in self.diameterResponseList:
                     try:
                         assert(packet_vars["command_code"] == diameterApplication["commandCode"])
                         assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])

@@ -1,11 +1,13 @@
 import asyncio
 import sys, os, json
 import time, yaml, uuid
+from datetime import datetime
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync
 from banners import Banners
 from logtool import LogTool
+import traceback
 
 class DiameterService:
     """
@@ -26,16 +28,20 @@ class DiameterService:
         self.banners = Banners()
         self.logTool = LogTool(config=self.config)
         self.diameterLibrary = DiameterAsync()
-        self.activeConnections = set()
+        self.activeConnections = {}
     
-    async def validateDiameterInbound(self, inboundData) -> bool:
+    async def validateDiameterInbound(self, clientAddress: str, clientPort: str, inboundData) -> bool:
         """
         Asynchronously validates a given diameter inbound, and increments the 'Number of Diameter Inbounds' metric.
         """
         try:
             packetVars, avps = await(self.diameterLibrary.decodeDiameterPacketAsync(inboundData))
+            messageType = await(self.diameterLibrary.getDiameterMessageTypeAsync(inboundData))
             originHost = (await self.diameterLibrary.getAvpDataAsync(avps, 264))[0]
             originHost = bytes.fromhex(originHost).decode("utf-8")
+            self.activeConnections[f"{clientAddress}-{clientPort}"].update({'last_dwr_timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S") if messageType['inbound'] == 'DWR' else self.activeConnections[f"{clientAddress}:{clientPort}"]['last_dwr_timestamp'], 
+                                                              'DiameterHostname': originHost,
+                                                              })
             asyncio.ensure_future(self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_inbound_count',
                                                 metricType='counter', metricAction='inc', 
                                                 metricValue=1.0, metricHelp='Number of Diameter Inbounds',
@@ -49,7 +55,32 @@ class DiameterService:
             print(e)
             return False
         return True
-    
+
+    async def handleActiveDiameterPeers(self):
+        """
+        Prunes stale connection entries from self.activeConnections.
+        """
+        while True:
+            try:
+                if not len(self.activeConnections) > 0:
+                    await(asyncio.sleep(1))
+                    continue
+
+                activeDiameterPeersTimeout = self.config.get('hss', {}).get('active_diameter_peers_timeout', 86400)
+
+                for key, connection in self.activeConnections.items():
+                    if connection.get('connection_status', '') == 'disconnected':
+                        if (datetime.now() - datetime.strptime(connection['connect_timestamp'], "%Y-%m-%d %H:%M:%S")).seconds > activeDiameterPeersTimeout:
+                            del self.activeConnections[key]
+                
+                await(self.redisMessaging.sendMessage(queue='ActiveDiameterPeers', message=json.dumps(self.activeConnections)))
+
+                await(asyncio.sleep(1))
+            except Exception as e:
+                print(e)
+                await(asyncio.sleep(1))
+                continue
+
     async def logActiveConnections(self):
         """
         Logs the number of active connections on a rolling basis.
@@ -58,7 +89,7 @@ class DiameterService:
         if not len(activeConnections) > 0:
             activeConnections = ''
         await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActiveConnections] {len(self.activeConnections)} Active Connections {activeConnections}", redisClient=self.redisMessaging))
-    
+
     async def readInboundData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
         Reads and parses incoming data from a connected client. Validated diameter messages are sent to the redis queue for processing.
@@ -77,7 +108,7 @@ class DiameterService:
                 if len(inboundData) > 0:
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Received data from {clientAddress} on port {clientPort}", redisClient=self.redisMessaging))
                     
-                    if not await(self.validateDiameterInbound(inboundData)):
+                    if not await(self.validateDiameterInbound(clientAddress, clientPort, inboundData)):
                         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter Inbound, terminating connection.", redisClient=self.redisMessaging))
                         return False
                     
@@ -139,7 +170,14 @@ class DiameterService:
             coroutineUuid = str(uuid.uuid4())
             (clientAddress, clientPort) = writer.get_extra_info('peername')
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] New Connection from: {clientAddress} on port {clientPort}", redisClient=self.redisMessaging))
-            self.activeConnections.add((clientAddress, clientPort, coroutineUuid))
+            if f"{clientAddress}-{clientPort}" not in self.activeConnections:
+                self.activeConnections[f"{clientAddress}-{clientPort}"] = {}
+            self.activeConnections[f"{clientAddress}-{clientPort}"].update({                
+                                                                    "connect_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                                                    "recv_ip_address":clientAddress,
+                                                                    "recv_ip_port":clientAddress,
+                                                                    "connection_status": 'connected',
+                                                                    })
             await(self.logActiveConnections())
 
             readTask = asyncio.create_task(self.readInboundData(reader=reader, clientAddress=clientAddress, clientPort=clientPort, socketTimeout=self.socketTimeout, coroutineUuid=coroutineUuid))
@@ -156,21 +194,21 @@ class DiameterService:
       
             writer.close()
             await(writer.wait_closed())
-            self.activeConnections.discard((clientAddress, clientPort, coroutineUuid))
+            self.activeConnections[f"{clientAddress}-{clientPort}"].update({
+                                                                    "connection_status": 'disconnected',
+                                                                    })
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [handleConnection] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}.", redisClient=self.redisMessaging))
             await(self.logActiveConnections())
-
-
             return
         
         except Exception as e:
-            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [handleConnection] [{coroutineUuid}] Unhandled exception in diameterService.handleConnection: {e}", redisClient=self.redisMessaging))
+            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [handleConnection] [{coroutineUuid}] Unhandled exception in diameterService.handleConnection: {e}\n{traceback.format_exc()}", redisClient=self.redisMessaging))
             return
 
     async def startServer(self, host: str=None, port: int=None, type: str=None):
         """
         Start a server with the given parameters and handle new clients with self.handleConnection.
-        Also create a single instance of self.logActiveConnections.
+        Also create a single instance of self.handleActiveDiameterPeers.
         """
 
         if host is None:
@@ -190,6 +228,7 @@ class DiameterService:
             return False
         servingAddresses = ', '.join(str(sock.getsockname()) for sock in server.sockets)
         await(self.logTool.logAsync(service='Diameter', level='info', message=f"{self.banners.diameterService()}\n[Diameter] Serving on {servingAddresses}", redisClient=self.redisMessaging))
+        handleActiveDiameterPeerTask = asyncio.create_task(self.handleActiveDiameterPeers())
 
         async with server:
             await(server.serve_forever())

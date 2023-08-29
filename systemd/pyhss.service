@@ -1,0 +1,17 @@
+[Unit]
+Description=PyHSS
+After=network-online.target mysql.service
+Wants=pyhss_diameter.service
+Wants=pyhss_geored.service
+Wants=pyhss_hss.service
+Wants=pyhss_log.service
+Wants=pyhss_metric.service
+
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
