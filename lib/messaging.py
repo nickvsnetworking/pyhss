@@ -111,14 +111,41 @@ class RedisMessaging:
         except Exception as e:
             return False
 
+    def setValue(self, key: str, value: str, keyExpiry: int=None) -> str:
+        """
+        Stores a value under a given key and sets an expiry (in seconds) if provided.
+        """
+        try:
+            self.redisClient.set(key, value)
+            if keyExpiry is not None:
+                self.redisClient.expire(key, keyExpiry)
+            return f'{value} stored in {key} successfully.'
+        except Exception as e:
+            return ''
+
+    def getValue(self, key: str) -> str:
+        """
+        Gets the value stored under a given key.
+        """
+        try:
+                message = self.redisClient.get(key)
+                if message is None:
+                    message = ''
+                else:
+                    return message
+        except Exception as e:
+            return ''
+
     def RedisHGetAll(self, key: str):
-            """
-            Wrapper for Redis HGETALL"""
-            try:
-                data = self.redisClient.hgetall(key)
-                return data
-            except Exception as e:
-                return ''
+        """
+        Wrapper for Redis HGETALL
+        *Deprecated: will be removed upon completed database cleanup.
+        """
+        try:
+            data = self.redisClient.hgetall(key)
+            return data
+        except Exception as e:
+            return ''
 
 if __name__ == '__main__':
     redisMessaging = RedisMessaging()

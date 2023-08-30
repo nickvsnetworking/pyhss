@@ -27,18 +27,24 @@ class MetricService:
         self.logTool.log(service='Metric', level='info', message=f"{self.banners.metricService()}", redisClient=self.redisMessaging)
     
     def handleMetrics(self):
+        """
+        Collects queued metrics from redis, and exposes them using prometheus_client.
+        """
         try:
             actions = {'inc': 'inc', 'dec': 'dec', 'set':'set'}
             prometheusTypes = {'counter': Counter, 'gauge': Gauge, 'histogram': Histogram, 'summary': Summary}
 
             metricQueue = self.redisMessaging.getNextQueue(pattern='metric-*')
             metric = self.redisMessaging.getMessage(queue=metricQueue)
+
             if not (len(metric) > 0):
                 return
-            self.logTool.log(service='Metric', level='debug', message=f"Received Metric: {metric}", redisClient=self.redisMessaging)
+            
+            self.logTool.log(service='Metric', level='debug', message=f"[Metric] [handleMetrics] Received Metric: {metric}", redisClient=self.redisMessaging)
             prometheusJsonList = json.loads(metric)
+
             for prometheusJson in prometheusJsonList:
-                self.logTool.log(service='Metric', level='debug', message=f"{prometheusJson}", redisClient=self.redisMessaging)
+                self.logTool.log(service='Metric', level='debug', message=f"[Metric] [handleMetrics] {prometheusJson}", redisClient=self.redisMessaging)
                 if not all(key in prometheusJson for key in ('NAME', 'TYPE', 'ACTION', 'VALUE')):
                     raise ValueError('All fields are not available for parsing')
                 counterName = prometheusJson['NAME']
@@ -62,18 +68,17 @@ class MetricService:
                             counterRecord = counterRecord.labels(*counterLabels.values())
                     action = actions.get(counterAction)
                     if action is not None:
-                        # Here we dynamically lookup the class from prometheus_client, and grab the matched function name called 'action'.
                         prometheusMethod = getattr(counterRecord, action)
                         prometheusMethod(counterValue)
                     else:
-                        self.logTool.log(service='Metric', level='warn', message=f"Invalid action '{counterAction}' in message: {metric}, skipping.", redisClient=self.redisMessaging)
+                        self.logTool.log(service='Metric', level='warn', message=f"[Metric] [handleMetrics] Invalid action '{counterAction}' in message: {metric}, skipping.", redisClient=self.redisMessaging)
                         continue
                 else:
-                    self.logTool.log(service='Metric', level='warn', message=f"Invalid type '{counterType}' in message: {metric}, skipping.", redisClient=self.redisMessaging)
+                    self.logTool.log(service='Metric', level='warn', message=f"[Metric] [handleMetrics] Invalid type '{counterType}' in message: {metric}, skipping.", redisClient=self.redisMessaging)
                     continue
 
         except Exception as e:
-            self.logTool.log(service='Metric', level='error', message=f"Unable to parse message: {metric}, due to {e}. Skipping.", redisClient=self.redisMessaging)
+            self.logTool.log(service='Metric', level='error', message=f"[Metric] [handleMetrics] Unable to parse message: {metric}, due to {e}. Skipping.", redisClient=self.redisMessaging)
             return
 
 

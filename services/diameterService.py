@@ -7,7 +7,6 @@ from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync
 from banners import Banners
 from logtool import LogTool
-import traceback
 
 class DiameterService:
     """
@@ -28,7 +27,9 @@ class DiameterService:
         self.banners = Banners()
         self.logTool = LogTool(config=self.config)
         self.diameterLibrary = DiameterAsync()
-        self.activeConnections = {}
+        self.activePeers = {}
+        self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
+        self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
     
     async def validateDiameterInbound(self, clientAddress: str, clientPort: str, inboundData) -> bool:
         """
@@ -39,9 +40,11 @@ class DiameterService:
             messageType = await(self.diameterLibrary.getDiameterMessageTypeAsync(inboundData))
             originHost = (await self.diameterLibrary.getAvpDataAsync(avps, 264))[0]
             originHost = bytes.fromhex(originHost).decode("utf-8")
-            self.activeConnections[f"{clientAddress}-{clientPort}"].update({'last_dwr_timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S") if messageType['inbound'] == 'DWR' else self.activeConnections[f"{clientAddress}:{clientPort}"]['last_dwr_timestamp'], 
-                                                              'DiameterHostname': originHost,
-                                                              })
+            peerType = await(self.diameterLibrary.getPeerType(originHost))
+            self.activePeers[f"{clientAddress}-{clientPort}"].update({'lastDwrTimestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S") if messageType['inbound'] == 'DWR' else self.activePeers[f"{clientAddress}-{clientPort}"]['lastDwrTimestamp'], 
+                                                                    'diameterHostname': originHost,
+                                                                    'peerType': peerType,
+                                                                    })
             asyncio.ensure_future(self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_inbound_count',
                                                 metricType='counter', metricAction='inc', 
                                                 metricValue=1.0, metricHelp='Number of Diameter Inbounds',
@@ -52,28 +55,37 @@ class DiameterService:
                                                 "type": "inbound"},
                                                 metricExpiry=60))
         except Exception as e:
-            print(e)
+            await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] Exception: {e}", redisClient=self.redisMessaging))
             return False
-        return True
+        return TruediameterHostname
 
     async def handleActiveDiameterPeers(self):
         """
-        Prunes stale connection entries from self.activeConnections.
+        Prunes stale entries from self.activePeers, and
+        keeps the ActiveDiameterPeers key in Redis current.
         """
         while True:
             try:
-                if not len(self.activeConnections) > 0:
-                    await(asyncio.sleep(1))
+                if not len(self.activePeers) > 0:
+                    await(asyncio.sleep(0))
                     continue
 
-                activeDiameterPeersTimeout = self.config.get('hss', {}).get('active_diameter_peers_timeout', 86400)
+                activeDiameterPeersTimeout = self.config.get('hss', {}).get('active_diameter_peers_timeout', 3600)
 
-                for key, connection in self.activeConnections.items():
-                    if connection.get('connection_status', '') == 'disconnected':
-                        if (datetime.now() - datetime.strptime(connection['connect_timestamp'], "%Y-%m-%d %H:%M:%S")).seconds > activeDiameterPeersTimeout:
-                            del self.activeConnections[key]
+                stalePeers = []
+
+                for key, connection in self.activePeers.items():
+                    if connection.get('connectionStatus', '') == 'disconnected': 
+                        if (datetime.now() - datetime.strptime(connection['disconnectTimestamp'], "%Y-%m-%d %H:%M:%S")).seconds > activeDiameterPeersTimeout:
+                            stalePeers.append(key)
                 
-                await(self.redisMessaging.sendMessage(queue='ActiveDiameterPeers', message=json.dumps(self.activeConnections)))
+                if len(stalePeers) > 0:
+                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [handleActiveDiameterPeers] Pruning disconnected peers: {stalePeers}", redisClient=self.redisMessaging))
+                    for key in stalePeers:
+                        del self.activePeers[key]
+                    await(self.logActivePeers())
+                
+                await(self.redisMessaging.setValue(key='ActiveDiameterPeers', value=json.dumps(self.activePeers), keyExpiry=86400))
 
                 await(asyncio.sleep(1))
             except Exception as e:
@@ -81,14 +93,14 @@ class DiameterService:
                 await(asyncio.sleep(1))
                 continue
 
-    async def logActiveConnections(self):
+    async def logActivePeers(self):
         """
         Logs the number of active connections on a rolling basis.
         """
-        activeConnections = self.activeConnections
-        if not len(activeConnections) > 0:
-            activeConnections = ''
-        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActiveConnections] {len(self.activeConnections)} Active Connections {activeConnections}", redisClient=self.redisMessaging))
+        activePeers = self.activePeers
+        if not len(activePeers) > 0:
+            activePeers = ''
+        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActivePeers] {len(self.activePeers)} Active Peers {activePeers}", redisClient=self.redisMessaging))
 
     async def readInboundData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
@@ -99,7 +111,10 @@ class DiameterService:
         while True:
             try:
 
-                inboundData = await(asyncio.wait_for(reader.read(1024), timeout=socketTimeout))
+                inboundData = await(asyncio.wait_for(reader.read(8192), timeout=socketTimeout))
+
+                if self.benchmarking:
+                    startTime = time.perf_counter()
 
                 if reader.at_eof():
                     await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Timeout for {clientAddress} on port {clientPort}, closing connection.", redisClient=self.redisMessaging))
@@ -118,7 +133,10 @@ class DiameterService:
                     inboundQueueName = f"diameter-inbound-{clientAddress}-{clientPort}-{time.time_ns()}"
                     inboundHexString = json.dumps({f"diameter-inbound": inboundData.hex()})
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] [{diameterMessageType}] Queueing {inboundHexString}", redisClient=self.redisMessaging))
-                    asyncio.ensure_future(self.redisMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=60))
+                    asyncio.ensure_future(self.redisMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=self.diameterRequestTimeout))
+                    if self.benchmarking:
+                        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging))
+
 
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Exception for {clientAddress} on port {clientPort}, closing connection.\n{e}", redisClient=self.redisMessaging))
@@ -131,6 +149,8 @@ class DiameterService:
         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] writeOutboundData with host {clientAddress} on port {clientPort}", redisClient=self.redisMessaging))
         while True:
             try:
+                if self.benchmarking:
+                    startTime = time.perf_counter()
 
                 if writer.transport.is_closing():
                     return False
@@ -139,6 +159,7 @@ class DiameterService:
                 if not len(pendingOutboundQueues) > 0:
                     await(asyncio.sleep(0))
                     continue
+
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Pending Outbound Queues: {pendingOutboundQueues}", redisClient=self.redisMessaging))
                 for outboundQueue in pendingOutboundQueues:
                     outboundQueueSplit = str(outboundQueue).split('-')
@@ -156,6 +177,9 @@ class DiameterService:
                         writer.write(diameterOutboundBinary)
                         await(writer.drain())
                         await(asyncio.sleep(0))
+                        if self.benchmarking:
+                            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Time taken to write response: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging))
+
 
             except Exception:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer.", redisClient=self.redisMessaging))
@@ -164,21 +188,39 @@ class DiameterService:
 
     async def handleConnection(self, reader, writer):
         """
-        For each new connection on port 3868, create an asynchronous reader and writer. If a reader or writer returns false, ensure that the connection is torn down entirely.
+        For each new connection on port 3868, create an asynchronous reader and writer, and handle adding and updating self.activePeers.
+        If a reader or writer returns false, ensure that the connection is torn down entirely.
         """
         try:
             coroutineUuid = str(uuid.uuid4())
             (clientAddress, clientPort) = writer.get_extra_info('peername')
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] New Connection from: {clientAddress} on port {clientPort}", redisClient=self.redisMessaging))
-            if f"{clientAddress}-{clientPort}" not in self.activeConnections:
-                self.activeConnections[f"{clientAddress}-{clientPort}"] = {}
-            self.activeConnections[f"{clientAddress}-{clientPort}"].update({                
-                                                                    "connect_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                                                    "recv_ip_address":clientAddress,
-                                                                    "recv_ip_port":clientAddress,
-                                                                    "connection_status": 'connected',
+            if f"{clientAddress}-{clientPort}" not in self.activePeers:
+                self.activePeers[f"{clientAddress}-{clientPort}"] = {
+                                                                        "connectTimestamp": '',
+                                                                        "disconnectTimestamp": '',
+                                                                        "reconnectionCount": 0,
+                                                                        "ipAddress":'',
+                                                                        "port":'',
+                                                                        "connectionStatus": '',
+                                                                        "lastDwrTimestamp": '',
+                                                                        "diameterHostname": '',
+                                                                        "peerType": '',
+                                                                        }
+            else:
+                reconnectionCount = self.activePeers.get(f"{clientAddress}-{clientPort}", {}).get('reconnectionCount', 0)
+                reconnectionCount += 1
+                self.activePeers[f"{clientAddress}-{clientPort}"].update({
+                                                                        "reconnectionCount": reconnectionCount
+                                                                        })
+
+            self.activePeers[f"{clientAddress}-{clientPort}"].update({                
+                                                                    "connectTimestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                                                    "ipAddress":clientAddress,
+                                                                    "port": clientPort,
+                                                                    "connectionStatus": 'connected',
                                                                     })
-            await(self.logActiveConnections())
+            await(self.logActivePeers())
 
             readTask = asyncio.create_task(self.readInboundData(reader=reader, clientAddress=clientAddress, clientPort=clientPort, socketTimeout=self.socketTimeout, coroutineUuid=coroutineUuid))
             writeTask = asyncio.create_task(self.writeOutboundData(writer=writer, clientAddress=clientAddress, clientPort=clientPort, socketTimeout=self.socketTimeout, coroutineUuid=coroutineUuid))
@@ -194,15 +236,16 @@ class DiameterService:
       
             writer.close()
             await(writer.wait_closed())
-            self.activeConnections[f"{clientAddress}-{clientPort}"].update({
-                                                                    "connection_status": 'disconnected',
+            self.activePeers[f"{clientAddress}-{clientPort}"].update({
+                                                                    "connectionStatus": 'disconnected',
+                                                                    "disconnectTimestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                                                     })
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [handleConnection] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}.", redisClient=self.redisMessaging))
-            await(self.logActiveConnections())
+            await(self.logActivePeers())
             return
         
         except Exception as e:
-            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [handleConnection] [{coroutineUuid}] Unhandled exception in diameterService.handleConnection: {e}\n{traceback.format_exc()}", redisClient=self.redisMessaging))
+            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [handleConnection] [{coroutineUuid}] Unhandled exception in diameterService.handleConnection: {e}", redisClient=self.redisMessaging))
             return
 
     async def startServer(self, host: str=None, port: int=None, type: str=None):
@@ -236,4 +279,4 @@ class DiameterService:
 
 if __name__ == '__main__':
     diameterService = DiameterService()
-    asyncio.run(diameterService.startServer(), debug=True)
+    asyncio.run(diameterService.startServer())

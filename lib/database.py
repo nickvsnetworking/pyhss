@@ -282,7 +282,7 @@ class Database:
             self.logTool.log(service='Database', level='debug', message="Database already created", redisClient=self.redisMessaging)
 
         #Load IMEI TAC database into Redis if enabled
-        if ('tac_database_csv' in self.config['eir']) and (self.config['redis']['enabled'] == True):
+        if ('tac_database_csv' in self.config['eir']):
             self.load_IMEI_database_into_Redis()
         else:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
@@ -834,26 +834,31 @@ class Database:
         try:
             georedDict = {}
             if self.config.get('geored', {}).get('enabled', False):
-                if self.config.get('geored', {}).get('sync_endpoints', []) is not None and len(self.config.get('geored', {}).get('sync_endpoints', [])) > 0:
+                if self.config.get('geored', {}).get('endpoints', []) is not None and len(self.config.get('geored', {}).get('endpoints', [])) > 0:
                     georedDict['body'] = jsonData
                     georedDict['operation'] = 'PATCH'
                     self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
         except Exception as E:
             self.logTool.log(service='Database', level='warning', message="Failed to send Geored message due to error: " + str(E), redisClient=self.redisMessaging)
 
-    def handleWebhook(self, objectData, operation):
-        external_webhook_notification_enabled = self.config.get('external', {}).get('external_webhook_notification_enabled', False)
-        external_webhook_notification_url = self.config.get('external', {}).get('external_webhook_notification_url', '')
+    def handleWebhook(self, objectData, operation: str="PATCH"):
+        webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
+        endpointList = self.config.get('webhooks', {}).get('endpoints', [])
+        webhook = {}
 
-        if not external_webhook_notification_enabled:
+        if not webhooksEnabled:
             return False
-        if not external_webhook_notification_url:
-            self.logTool.log(service='Database', level='error', message="External webhook notification enabled, but external_webhook_notification_url is not defined.", redisClient=self.redisMessaging)
+        
+        if not len (endpointList) > 0:
+            self.logTool.log(service='Database', level='error', message="Webhooks enabled, but endpoints are missing.", redisClient=self.redisMessaging)
+            return False
 
-        externalNotification = self.Sanitize_Datetime(objectData)
-        externalNotificationHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
-        externalNotification['headers'] = externalNotificationHeaders
-        self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(externalNotification), queueExpiry=120)
+        webhookHeaders = {'Content-Type': 'application/json', 'Referer': socket.gethostname()}
+
+        webhook['body'] = self.Sanitize_Datetime(objectData)
+        webhook['headers'] = webhookHeaders
+        webhook['operation'] = "POST"
+        self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(webhook), queueExpiry=120)
         return True
 
     def Sanitize_Datetime(self, result):
@@ -1035,7 +1040,7 @@ class Database:
                         self.log_changes_before_commit(session)
                     objectData = self.GetObj(obj_type, obj_id)
                     session.commit()
-                    self.handleWebhook(objectData, 'UPDATE')
+                    self.handleWebhook(objectData, 'PATCH')
                 except Exception as E:
                     self.logTool.log(service='Database', level='error', message=f"Failed to commit session, error: {E}", redisClient=self.redisMessaging)
                     self.safe_rollback(session)
@@ -1102,7 +1107,7 @@ class Database:
             session.refresh(newObj)
             result = newObj.__dict__
             result.pop('_sa_instance_state')
-            self.handleWebhook(result, 'CREATE')
+            self.handleWebhook(result, 'PUT')
             return result
         except Exception as E:
             self.logTool.log(service='Database', level='error', message=f"Exception in CreateObj, error: {E}", redisClient=self.redisMessaging)
@@ -1537,7 +1542,7 @@ class Database:
 
             session.commit()
             objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
-            self.handleWebhook(objectData, 'UPDATE')
+            self.handleWebhook(objectData, 'PATCH')
 
             #Sync state change with geored
             if propagate == True:
@@ -1585,7 +1590,7 @@ class Database:
             
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
-            self.handleWebhook(objectData, 'UPDATE')
+            self.handleWebhook(objectData, 'PATCH')
 
             #Sync state change with geored
             if propagate == True:
@@ -1657,7 +1662,7 @@ class Database:
                 
                 self.UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
                 objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-                self.handleWebhook(objectData, 'UPDATE')
+                self.handleWebhook(objectData, 'PATCH')
             except:
                 self.logTool.log(service='Database', level='debug', message="Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']), redisClient=self.redisMessaging)
                 objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
@@ -1668,7 +1673,7 @@ class Database:
             #Create if does not exist
             self.CreateObj(SERVING_APN, json_data, True)
             objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            self.handleWebhook(objectData, 'CREATE')
+            self.handleWebhook(objectData, 'PUT')
 
         #Sync state change with geored
         if propagate == True:

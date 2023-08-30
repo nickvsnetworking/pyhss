@@ -1,4 +1,4 @@
-import os, sys, json, yaml
+import os, sys, json, yaml, time
 sys.path.append(os.path.realpath('../lib'))
 from messaging import RedisMessaging
 from diameter import Diameter
@@ -25,6 +25,8 @@ class HssService:
         self.productName = self.config.get('hss', {}).get('ProductName', f'PyHSS')
         self.logTool.log(service='HSS', level='info', message=f"{self.banners.hssService()}", redisClient=self.redisMessaging)
         self.diameterLibrary = Diameter(redisMessaging=self.redisMessaging, logTool=self.logTool, originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
+        self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
+
 
     def handleQueue(self):
         """
@@ -32,6 +34,8 @@ class HssService:
         """
         while True:
             try:
+                if self.benchmarking:
+                    startTime = time.perf_counter()
                 inboundQueue = self.redisMessaging.getNextQueue(pattern='diameter-inbound*')
                 inboundMessage = self.redisMessaging.getMessage(queue=inboundQueue)
                 assert(len(inboundMessage))
@@ -66,6 +70,9 @@ class HssService:
                 self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound: {outboundMessage}", redisClient=self.redisMessaging)
 
                 self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60)
+                if self.benchmarking:
+                    self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
+
 
             except Exception as e:
                 continue

@@ -53,6 +53,7 @@ class Diameter:
         self.diameterRequestList = [
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
+                {"commandCode": 258, "applicationId": 16777238, "requestMethod": self.Request_16777238_258, "failureResultCode": 5012 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
         ]
 
     #Generates rounding for calculating padding
@@ -394,6 +395,36 @@ class Diameter:
             return packet_vars['length']
         else:
             return False
+
+    def getPeerType(self, originHost: str) -> str:
+            try:
+                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs']
+
+                for peer in peerTypes:
+                    if peer in originHost.lower():
+                        return peer
+                
+            except Exception as e:
+                return ''
+
+    def getConnectedPeersByType(self, peerType: str) -> list:
+            try:
+                peerType = peerType.lower()
+                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs']
+
+                if peerType not in peerTypes:
+                    return []
+                filteredConnectedPeers = []
+                activePeers = self.redisMessaging.getValue(key="ActiveDiameterPeers")
+
+                for key, value in activePeers.items():
+                    if activePeers.get(key, {}).get('peerType', '') == 'pgw' and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
+                        filteredConnectedPeers.append(activePeers.get(key, {}))
+                
+                return filteredConnectedPeers
+
+            except Exception as e:
+                return []
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
             packet_vars, avps = self.decode_diameter_packet(binaryData)

@@ -88,7 +88,6 @@ class RedisMessagingAsync:
                         pass
                 return message
         except Exception as e:
-            print(e)
             return ''
 
     async def getQueues(self, pattern: str='*') -> list:
@@ -121,7 +120,34 @@ class RedisMessagingAsync:
             return True
         except Exception as e:
             return False
-        
+
+    async def setValue(self, key: str, value: str, keyExpiry: int=None) -> str:
+        """
+        Stores a value under a given key asynchronously and sets an expiry (in seconds) if provided.
+        """
+        try:
+            async with self.redisClient.pipeline(transaction=True) as redisPipe:
+                await redisPipe.set(key, value)
+                if keyExpiry is not None:
+                    await redisPipe.expire(key, value)
+                setValueResult, expireValueResult = await redisPipe.execute()
+            return f'{value} stored in {key} successfully.'
+        except Exception as e:
+            return ''
+
+    async def getValue(self, key: str) -> str:
+        """
+        Gets the value stored under a given key asynchronously.
+        """
+        try:
+                message = await(self.redisClient.get(key))
+                if message is None:
+                    message = ''
+                else:
+                    return message
+        except Exception as e:
+            return ''
+
     async def closeConnection(self) -> bool:
         await self.redisClient.close()
         return True
