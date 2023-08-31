@@ -8,11 +8,12 @@ import random
 import ipaddress
 import jinja2
 from database import Database
+from messaging import RedisMessaging
 import yaml
 
 class Diameter:
 
-    def __init__(self, redisMessaging, logTool, originHost: str="hss01", originRealm: str="epc.mnc999.mcc999.3gppnetwork.org", productName: str="PyHSS", mcc: str="999", mnc: str="999"):
+    def __init__(self, logTool, originHost: str="hss01", originRealm: str="epc.mnc999.mcc999.3gppnetwork.org", productName: str="PyHSS", mcc: str="999", mnc: str="999", redisMessaging=None):
         with open("../config.yaml", 'r') as stream:
             self.yaml_config = (yaml.safe_load(stream))
 
@@ -22,8 +23,11 @@ class Diameter:
         self.MNC = str(mnc)
         self.MCC = str(mcc)
         self.logTool = logTool
-        self.redisMessaging=redisMessaging
-        self.database = Database(logTool=logTool, redisMessaging=redisMessaging)
+        if redisMessaging:
+            self.redisMessaging=redisMessaging
+        else:
+            self.redisMessaging=RedisMessaging()
+        self.database = Database(logTool=logTool)
 
         self.logTool.log(service='HSS', level='info', message=f"Initialized Diameter Library", redisClient=self.redisMessaging)
         self.logTool.log(service='HSS', level='info', message=f"Origin Host: {str(originHost)}", redisClient=self.redisMessaging)
@@ -276,20 +280,23 @@ class Diameter:
         return avp
 
     def generate_diameter_packet(self, packet_version, packet_flags, packet_command_code, packet_application_id, packet_hop_by_hop_id, packet_end_to_end_id, avp):
-        #Placeholder that is updated later on
-        packet_length = 228
-        packet_length = format(packet_length,"x").zfill(6)
-       
-        packet_command_code = format(packet_command_code,"x").zfill(6)
+        try:
+            packet_length = 228
+            packet_length = format(packet_length,"x").zfill(6)
         
-        packet_application_id = format(packet_application_id,"x").zfill(8)
-        
-        packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
-        packet_length = int(round(len(packet_hex))/2)
-        packet_length = format(packet_length,"x").zfill(6)
-        
-        packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
-        return packet_hex
+            packet_command_code = format(packet_command_code,"x").zfill(6)
+            
+            packet_application_id = format(packet_application_id,"x").zfill(8)
+            
+            packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
+            packet_length = int(round(len(packet_hex))/2)
+            packet_length = format(packet_length,"x").zfill(6)
+            
+            packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
+            return packet_hex
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [generate_diameter_packet] Exception: {e}", redisClient=self.redisMessaging)
+
 
 
     def decode_diameter_packet(self, data):
@@ -479,7 +486,8 @@ class Diameter:
                         if 'flags' in diameterApplication:
                             assert(str(packet_vars["flags"]) == str(diameterApplication["flags"]))
                         response = diameterApplication["responseMethod"](packet_vars, avps)
-                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Successfully generated response: {response}", redisClient=self.redisMessaging)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Successfully generated response: {response}", redisClient=self.redisMessaging)
+                        break
                     except Exception as e:
                         continue
 
@@ -748,7 +756,7 @@ class Diameter:
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
         remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
-        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         self.database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
 
@@ -1095,7 +1103,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
         remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
 
         avp = ''                                                                                    #Initiate empty var AVP
@@ -1241,7 +1249,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777216_300] [UAR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         try:
             self.logTool.log(service='HSS', level='info', message="Checking if username present", redisClient=self.redisMessaging)
@@ -1318,7 +1326,6 @@ class Diameter:
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
 
         response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-
         return response
 
     #3GPP Cx Server Assignment Answer
@@ -1344,7 +1351,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        self.logTool.log(service='HSS', level='debug', message="Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777216_301] [SAR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         try:
             self.logTool.log(service='HSS', level='info', message="Checking if username present", redisClient=self.redisMessaging)
@@ -1369,7 +1376,7 @@ class Diameter:
         #Cx-User-Data (XML)
         
         #This loads a Jinja XML template as the default iFC
-        templateLoader = jinja2.FileSystemLoader(searchpath="./")
+        templateLoader = jinja2.FileSystemLoader(searchpath="../")
         templateEnv = jinja2.Environment(loader=templateLoader)
         self.logTool.log(service='HSS', level='debug', message="Loading iFC from path " + str(ims_subscriber_details['ifc_path']), redisClient=self.redisMessaging)
         template = templateEnv.get_template(ims_subscriber_details['ifc_path'])

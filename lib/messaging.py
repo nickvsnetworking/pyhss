@@ -8,7 +8,7 @@ class RedisMessaging:
     """
 
     def __init__(self, host: str='localhost', port: int=6379):
-        self.redisClient = Redis(host=host, port=port)
+        self.redisClient = Redis(unix_socket_path='/var/run/redis/redis-server.sock')
         pass
 
     def sendMessage(self, queue: str, message: str, queueExpiry: int=None) -> str:

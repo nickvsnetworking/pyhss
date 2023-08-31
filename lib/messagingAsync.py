@@ -9,7 +9,7 @@ class RedisMessagingAsync:
     """
 
     def __init__(self, host: str='localhost', port: int=6379):
-        self.redisClient = redis.Redis(host=host, port=port)
+        self.redisClient = redis.Redis(unix_socket_path='/var/run/redis/redis-server.sock')
 
     async def sendMessage(self, queue: str, message: str, queueExpiry: int=None) -> str:
         """
@@ -106,9 +106,12 @@ class RedisMessagingAsync:
         Returns the next Queue (Key) in the list, asynchronously.
         """
         try:
-                nextQueue = await(self.redisClient.keys(pattern))
-                return nextQueue[0].decode()
+            result = []
+            async for nextQueue in self.redisClient.scan_iter(match=pattern):
+                result.append(nextQueue)
+            return next(iter(result), '') if result else ''
         except Exception as e:
+            print(e)
             return ''
 
     async def deleteQueue(self, queue: str) -> bool:

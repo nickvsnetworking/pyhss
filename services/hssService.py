@@ -24,7 +24,7 @@ class HssService:
         self.originHost = self.config.get('hss', {}).get('OriginHost', f'hss01')
         self.productName = self.config.get('hss', {}).get('ProductName', f'PyHSS')
         self.logTool.log(service='HSS', level='info', message=f"{self.banners.hssService()}", redisClient=self.redisMessaging)
-        self.diameterLibrary = Diameter(redisMessaging=self.redisMessaging, logTool=self.logTool, originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
+        self.diameterLibrary = Diameter(logTool=self.logTool, originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
 
 

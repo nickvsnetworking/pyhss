@@ -33,6 +33,18 @@ hss:
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: 120
 
+  #Enable benchmarking log output for response times - set to False in production.
+  enable_benchmarking: False
+
+  #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
+  client_socket_timeout: 300
+
+  #The maximum time to wait, in seconds, before discarding a diameter request.
+  diameter_request_timeout: 3
+
+  #The amount of time, in seconds, before purging a disconnected client from the Active Diameter Peers key in redis.
+  active_diameter_peers_timeout: 10
+
   #Prevent updates from being performed without a valid 'Provisioning-Key' in the header
   lock_provisioning: False
 
@@ -59,22 +71,18 @@ hss:
 api:
   page_size: 200
 
-external:
-  external_webhook_notification_enabled: False
-  external_webhook_notification_url: https://api.example.com/webhook
-
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
-  sim_swap_notify_webhook:  http://localhost:5000/webhooks/sim_swap_notify/
   no_match_response: 2       #Greylist
   tac_database_csv: '/etc/pyhss/tac_database_Nov2022.csv'
 
 logging:
-  level: DEBUG
+  level: INFO
   logfiles:
-    hss_logging_file: log/hss.log
-    diameter_logging_file: log/diameter.log
-    database_logging_file: log/db.log
+    hss_logging_file: /var/log/pyhss_hss.log
+    diameter_logging_file: /var/log/pyhss_diameter.log
+    geored_logging_file: /var/log/pyhss_geored.log
+    metric_logging_file: /var/log/pyhss_metrics.log
   log_to_terminal: True
   sqlalchemy_sql_echo: True
   sqlalchemy_pool_recycle: 15
@@ -89,18 +97,22 @@ database:
   password: password
   database: hss2
 
+## External Webhook Notifications
+webhooks:
+  enabled: True
+  endpoints:
+  - http://10.5.5.66:8080
+
 ## Geographic Redundancy Parameters
 geored:
   enabled: False
   sync_actions: ['HSS', 'IMS', 'PCRF', 'EIR']    #What event actions should be synced
-  sync_endpoints:                         #List of PyHSS API Endpoints to update
+  endpoints:                         #List of PyHSS API Endpoints to update
     - 'http://hss01.mnc001.mcc001.3gppnetwork.org:8080'
     - 'http://hss02.mnc001.mcc001.3gppnetwork.org:8080'
 
-## Stats Parameters
+#Redis is required to run PyHSS. A locally running instance is recommended for production.
 redis:
-  enabled: False
-  clear_stats_on_boot: True
   host: localhost
   port: 6379
 

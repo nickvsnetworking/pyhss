@@ -258,12 +258,15 @@ class SUBSCRIBER_ATTRIBUTES(Base):
 
 class Database:
 
-    def __init__(self, logTool, redisMessaging):
+    def __init__(self, logTool, redisMessaging=None):
         with open("../config.yaml", 'r') as stream:
             self.config = (yaml.safe_load(stream))
 
         self.logTool = logTool
-        self.redisMessaging = redisMessaging
+        if redisMessaging:
+            self.redisMessaging = redisMessaging
+        else:
+            self.redisMessaging = RedisMessaging()
 
         db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
         self.engine = create_engine(
