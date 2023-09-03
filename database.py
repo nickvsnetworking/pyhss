@@ -1325,6 +1325,11 @@ def Get_Subscriber(**kwargs):
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
     
+    #If subscriber enabled is set to false then return error
+    if result['enabled'] == False:
+        safe_close(session)
+        raise ValueError("Subscriber is disabled")
+
     if 'get_attributes' in kwargs:
         if kwargs['get_attributes'] == True:
             attributes = Get_Subscriber_Attributes(result['subscriber_id'])
@@ -1375,7 +1380,6 @@ def Get_Subscriber_Attributes(subscriber_id):
     safe_close(session)
     return final_res
 
-
 def Get_Served_Subscribers(get_local_users_only=False):
     DBLogger.debug("Getting all subscribers served by this HSS")
 
@@ -1419,7 +1423,6 @@ def Get_Served_Subscribers(get_local_users_only=False):
     safe_close(session)
     return Served_Subs
 
-
 def Get_Served_IMS_Subscribers(get_local_users_only=False):
     DBLogger.debug("Getting all subscribers served by this IMS-HSS")
     Session = sessionmaker(bind=engine)
@@ -1462,7 +1465,6 @@ def Get_Served_IMS_Subscribers(get_local_users_only=False):
     DBLogger.debug("Final Served_Subs: " + str(Served_Subs))
     safe_close(session)
     return Served_Subs
-
 
 def Get_Served_PCRF_Subscribers(get_local_users_only=False):
     DBLogger.debug("Getting all subscribers served by this PCRF")
@@ -1668,7 +1670,6 @@ def Update_Serving_MME(imsi, serving_mme, serving_mme_realm=None, serving_mme_pe
     finally:
         safe_close(session)
 
-
 def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
     DBLogger.debug("Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer))
     Session = sessionmaker(bind = engine)
@@ -1711,7 +1712,6 @@ def Update_Serving_CSCF(imsi, serving_cscf, scscf_realm=None, scscf_peer=None, p
         raise
     finally:
         safe_close(session)
-
 
 def Update_Serving_APN(imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
     DBLogger.debug("Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn))
