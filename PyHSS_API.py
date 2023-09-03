@@ -460,7 +460,9 @@ class PyHSS_SUBSCRIBER_Get(Resource):
                         CancellationType=1
                     )
                     logObj = logtool.LogTool()
-                    logObj.Async_SendRequest(diam_hex, str(json_data['serving_mme_peer'].split(';')[1]))
+                    serving_hss = str(json_data['serving_mme_peer'].split(';')[1]
+                    logObj.Async_SendRequest(diam_hex, serving_hss))
+                    print("Sent CLR via Peer " + str(serving_hss))
                 else:
                     print("No serving MME set - Not sending CLR")
             print("Updated object")
