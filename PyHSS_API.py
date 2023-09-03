@@ -438,6 +438,31 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             operation_id = args.get('operation_id', None)
             data = database.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
 
+
+            #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
+            if 'enabled' in json_data and json_data['enabled'] == False:
+                print("Subscriber is now disabled, checking to see if we need to trigger a CLR")
+                #See if we have a serving MME set
+                if json_data['serving_mme']:
+                    print("Serving MME set - Sending CLR")
+                    import diameter
+                    diameter = diameter.Diameter(
+                        OriginHost=yaml_config['hss']['OriginHost'], 
+                        OriginRealm=yaml_config['hss']['OriginRealm'], 
+                        MNC=yaml_config['hss']['MNC'],
+                        MCC=yaml_config['hss']['MCC'],
+                        ProductName='PyHSS-API-Disabled-CLR'
+                    )
+                    diam_hex = diameter.Request_16777251_317(
+                        imsi=json_data['imsi'], 
+                        DestinationHost=json_data['serving_mme'], 
+                        DestinationRealm=json_data['serving_mme_realm'], 
+                        CancellationType=1
+                    )
+                    logObj = logtool.LogTool()
+                    logObj.Async_SendRequest(diam_hex, str(json_data['serving_mme_peer'].split(';')[1]))
+                else:
+                    print("No serving MME set - Not sending CLR")
             print("Updated object")
             print(data)
             return data, 200
