@@ -1325,11 +1325,6 @@ def Get_Subscriber(**kwargs):
     result = Sanitize_Datetime(result)
     result.pop('_sa_instance_state')
     
-    #If subscriber enabled is set to false then return error
-    if result['enabled'] == False:
-        safe_close(session)
-        raise ValueError("Subscriber is disabled")
-
     if 'get_attributes' in kwargs:
         if kwargs['get_attributes'] == True:
             attributes = Get_Subscriber_Attributes(result['subscriber_id'])

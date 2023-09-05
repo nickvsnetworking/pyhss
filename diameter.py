@@ -634,6 +634,23 @@ class Diameter:
         try:
             subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
             DiameterLogger.debug("Got back subscriber_details: " + str(subscriber_details))
+
+            if subscriber_details['enabled'] == 0:
+                DiameterLogger.info("Subscriber is disabled")
+
+
+
+                #Experimental Result AVP(Response Code for Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                
+                avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+                DiameterLogger.debug("Successfully Generated ULA for disabled Sub")
+                response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)
+                return response
+
         except ValueError as e:
             DiameterLogger.error("failed to get data backfrom database for imsi " + str(imsi))
             DiameterLogger.error("Error is " + str(e))
@@ -826,9 +843,37 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
-
+        avp = ''
         try:
             subscriber_details = database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+
+            if subscriber_details['enabled'] == 0:
+                DiameterLogger.info("Subscriber is disabled")
+                avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                                 #Result Code
+                prom_diam_auth_event_count.labels(
+                    diameter_application_id = 16777251,
+                    diameter_cmd_code = 318,
+                    event='Disabled User',
+                    imsi_prefix = str(imsi[0:6]),
+                ).inc()
+                session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+                avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+                avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+                avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+
+                #Experimental Result AVP(Response Code for Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                
+                avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+                avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+                response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                DiameterLogger.debug("Successfully Generated AIA for disabled Sub")
+                DiameterLogger.debug(response)
+                return response
+
         except ValueError as e:
             DiameterLogger.info("Minor getting subscriber details for IMSI " + str(imsi))
             DiameterLogger.info(e)
@@ -841,7 +886,6 @@ class Diameter:
             ).inc()
 
             DiameterLogger.info("Subscriber " + str(imsi) + " is unknown in database")
-            avp = ''
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
             avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -1031,7 +1075,6 @@ class Diameter:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             DiameterLogger.debug(E)
             DiameterLogger.debug("Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists")
-
 
         if int(CC_Request_Type) == 1:
             DiameterLogger.info("Request type for CCA is 1 - Initial")
