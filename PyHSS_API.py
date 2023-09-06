@@ -443,7 +443,8 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             if 'enabled' in json_data and json_data['enabled'] == False:
                 print("Subscriber is now disabled, checking to see if we need to trigger a CLR")
                 #See if we have a serving MME set
-                if json_data['serving_mme']:
+                try:
+                    assert(json_data['serving_mme'])
                     print("Serving MME set - Sending CLR")
                     import diameter
                     diameter = diameter.Diameter(
@@ -463,7 +464,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
                     diameter_next_hop = str(json_data['serving_mme_peer']).split(';')[0]
                     logObj.Async_SendRequest(diam_hex, diameter_next_hop)
                     print("Sent CLR via Peer " + str(diameter_next_hop))
-                else:
+                except:
                     print("No serving MME set - Not sending CLR")
             print("Updated object")
             print(data)
