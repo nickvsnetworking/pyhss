@@ -10,6 +10,8 @@ import jinja2
 from database import Database
 from messaging import RedisMessaging
 import yaml
+import json
+import time
 
 class Diameter:
 
@@ -28,6 +30,7 @@ class Diameter:
         else:
             self.redisMessaging=RedisMessaging()
         self.database = Database(logTool=logTool)
+        self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
 
         self.logTool.log(service='HSS', level='info', message=f"Initialized Diameter Library", redisClient=self.redisMessaging)
         self.logTool.log(service='HSS', level='info', message=f"Origin Host: {str(originHost)}", redisClient=self.redisMessaging)
@@ -55,8 +58,8 @@ class Diameter:
             ]
 
         self.diameterRequestList = [
-                {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
-                {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
+                {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer", "validPeerTypes": ['MME']},
+                {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer", "validPeerTypes": ['MME']},
                 {"commandCode": 258, "applicationId": 16777238, "requestMethod": self.Request_16777238_258, "failureResultCode": 5012 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
         ]
 
@@ -425,13 +428,25 @@ class Diameter:
                 activePeers = self.redisMessaging.getValue(key="ActiveDiameterPeers")
 
                 for key, value in activePeers.items():
-                    if activePeers.get(key, {}).get('peerType', '') == 'pgw' and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
+                    if activePeers.get(key, {}).get('peerType', '') == peerType and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
                         filteredConnectedPeers.append(activePeers.get(key, {}))
                 
                 return filteredConnectedPeers
 
             except Exception as e:
                 return []
+
+    def getPeerByHostname(self, hostname: str) -> dict:
+            try:
+                hostname = hostname.lower()
+                activePeers = self.redisMessaging.getValue(key="ActiveDiameterPeers")
+
+                for key, value in activePeers.items():
+                    if activePeers.get(key, {}).get('diameterHostname', '').lower() == hostname and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
+                        return(activePeers.get(key, {}))
+
+            except Exception as e:
+                return {}
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
             packet_vars, avps = self.decode_diameter_packet(binaryData)
@@ -448,7 +463,7 @@ class Diameter:
                     continue
             return response
 
-    def generateDiameterRequest(self, requestType: str, **kwargs) -> str:
+    def generateDiameterRequest(self, requestType: str, hostname: str, **kwargs) -> str:
             try:
                 request = ''
                 self.logTool.log(service='HSS', level='debug', message=f"Generating a diameter outbound request", redisClient=self.redisMessaging)
@@ -456,10 +471,17 @@ class Diameter:
                 for diameterApplication in self.diameterRequestList:
                     try:
                         assert(requestType == diameterApplication["requestAcronym"])
-                        request = diameterApplication["requestMethod"](kwargs)
-                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] Successfully generated request: {request}", redisClient=self.redisMessaging)
                     except Exception as e:
                         continue
+                    connectedPeer = self.getPeerByHostname(hostname=hostname)
+                    peerIp = connectedPeer['ipAddress']
+                    peerPort = connectedPeer['port']
+                    request = diameterApplication["requestMethod"](kwargs)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                    outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}-{time.time_ns()}"
+                    outboundMessage = {'diameter-outbound': json.dumps(request)}
+                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
                 return request
             except Exception as e:
                 return ''
@@ -727,6 +749,21 @@ class Diameter:
         try:
             subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
             self.logTool.log(service='HSS', level='debug', message="Got back subscriber_details: " + str(subscriber_details), redisClient=self.redisMessaging)
+
+            if subscriber_details['enabled'] == 0:
+                self.logTool.log(service='HSS', level='debug', message=f"Subscriber {imsi} is disabled", redisClient=self.redisMessaging)
+
+                #Experimental Result AVP(Response Code for Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                
+                avp += self.generate_avp(277, 40, "00000001")                                                   #Auth-Session-State
+                self.logTool.log(service='HSS', level='debug', message=f"Successfully Generated ULA for disabled Subscriber: {imsi}", redisClient=self.redisMessaging)
+                response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)
+                return response
+
         except ValueError as e:
             self.logTool.log(service='HSS', level='error', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='error', message="Error is " + str(e), redisClient=self.redisMessaging)
@@ -922,6 +959,36 @@ class Diameter:
 
         try:
             subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            if subscriber_details['enabled'] == 0:
+                self.logTool.log(service='HSS', level='debug', message=f"Subscriber {imsi} is disabled", redisClient=self.redisMessaging)
+                avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)  #Result Code
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                metricType='counter', metricAction='inc', 
+                                metricValue=1.0, 
+                                metricLabels={
+                                            "diameter_application_id": 16777251,
+                                            "diameter_cmd_code": 318,
+                                            "event": "Disabled User",
+                                            "imsi_prefix": str(imsi[0:6])},
+                                metricHelp='Diameter Authentication related Counters',
+                                metricExpiry=60)
+                session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+                avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+                avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+                avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+
+                #Experimental Result AVP(Response Code for Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                
+                avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+                avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+                response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                self.logTool.log(service='HSS', level='debug', message=f"Successfully Generated ULA for disabled Subscriber: {imsi}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"{response}", redisClient=self.redisMessaging)
+                return response
         except ValueError as e:
             self.logTool.log(service='HSS', level='info', message="Minor getting subscriber details for IMSI " + str(imsi), redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='info', message=e, redisClient=self.redisMessaging)

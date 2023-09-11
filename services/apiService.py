@@ -448,6 +448,24 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
 
+            #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
+            if 'enabled' in json_data and json_data['enabled'] == False:
+                print("Subscriber is now disabled, checking to see if we need to trigger a CLR")
+                #See if we have a serving MME set
+                try:
+                    assert(json_data['serving_mme'])
+                    print("Serving MME set - Sending CLR")
+                    diameterClient.generateDiameterRequest(
+                        requestType='CLR',
+                        imsi=json_data['imsi'], 
+                        DestinationHost=json_data['serving_mme'], 
+                        DestinationRealm=json_data['serving_mme_realm'], 
+                        CancellationType=1
+                    )
+                    print("Sent CLR via Peer " + str(json_data['serving_mme']))
+                except:
+                    print("No serving MME set - Not sending CLR")
+
             print("Updated object")
             print(data)
             return data, 200
@@ -1414,6 +1432,7 @@ class PyHSS_Push_CLR(Resource):
         if 'DestinationHost' not in json_data:
             json_data['DestinationHost'] = None
         diam_hex = diameterClient.sendDiameterRequest(
+            requestType='CLR',
             imsi=imsi, 
             DestinationHost=json_data['DestinationHost'], 
             DestinationRealm=json_data['DestinationRealm'], 

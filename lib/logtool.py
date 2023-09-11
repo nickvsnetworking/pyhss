@@ -4,6 +4,8 @@ import os, sys, time
 from datetime import datetime
 sys.path.append(os.path.realpath('../'))
 import asyncio
+from messagingAsync import RedisMessagingAsync
+from messaging import RedisMessaging
 
 class TimestampFilter (logging.Filter):
     """
@@ -31,11 +33,15 @@ class LogTool:
         'NOTSET': {'verbosity': 6, 'logging':  logging.NOTSET},
         }
         self.logLevel = config.get('logging', {}).get('level', 'INFO')
+        self.redisMessagingAsync = RedisMessagingAsync()
+        self.redisMessaging = RedisMessaging()
     
-    async def logAsync(self, service: str, level: str, message: str, redisClient) -> bool:
+    async def logAsync(self, service: str, level: str, message: str, redisClient=None) -> bool:
         """
         Tests loglevel, prints to console and queues a log message to an asynchronous redis messaging client.
         """
+        if redisClient == None:
+            redisClient = self.redisMessagingAsync
         configLogLevelVerbosity = self.logLevels.get(self.logLevel.upper(), {}).get('verbosity', 4)
         messageLogLevelVerbosity = self.logLevels.get(level.upper(), {}).get('verbosity', 4)
         if not messageLogLevelVerbosity <= configLogLevelVerbosity:
@@ -46,10 +52,12 @@ class LogTool:
         asyncio.ensure_future(redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60))
         return True
     
-    def log(self, service: str, level: str, message: str, redisClient) -> bool:
+    def log(self, service: str, level: str, message: str, redisClient=None) -> bool:
         """
         Tests loglevel, prints to console and queues a log message to a synchronous redis messaging client.
         """
+        if redisClient == None:
+            redisClient = self.redisMessaging
         configLogLevelVerbosity = self.logLevels.get(self.logLevel.upper(), {}).get('verbosity', 4)
         messageLogLevelVerbosity = self.logLevels.get(level.upper(), {}).get('verbosity', 4)
         if not messageLogLevelVerbosity <= configLogLevelVerbosity:

@@ -1,10 +1,12 @@
 #Diameter Packet Decoder / Encoder & Tools
 import math
 import asyncio
+from messagingAsync import RedisMessagingAsync
+
 
 class DiameterAsync:
 
-    def __init__(self, redisMessaging, logTool):
+    def __init__(self, logTool):
         self.diameterCommandList = [
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
                 {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCR", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
@@ -24,7 +26,7 @@ class DiameterAsync:
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
             ]
         
-        self.redisMessaging = redisMessaging
+        self.redisMessaging = RedisMessagingAsync()
         self.logTool = logTool
         
 
