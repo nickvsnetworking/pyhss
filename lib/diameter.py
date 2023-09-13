@@ -17,7 +17,7 @@ class Diameter:
 
     def __init__(self, logTool, originHost: str="hss01", originRealm: str="epc.mnc999.mcc999.3gppnetwork.org", productName: str="PyHSS", mcc: str="999", mnc: str="999", redisMessaging=None):
         with open("../config.yaml", 'r') as stream:
-            self.yaml_config = (yaml.safe_load(stream))
+            self.config = (yaml.safe_load(stream))
 
         self.OriginHost = self.string_to_hex(originHost)
         self.OriginRealm = self.string_to_hex(originRealm)
@@ -663,7 +663,7 @@ class Diameter:
         for avps_to_check in avps:                                                                  #Only include AVP 278 (Origin State) if inital request included it
             if avps_to_check['avp_code'] == 278:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))        #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
-        for host in self.yaml_config['hss']['bind_ip']:                                                  #Loop through all IPs from Config and add to response
+        for host in self.config['hss']['bind_ip']:                                                  #Loop through all IPs from Config and add to response
             avp += self.generate_avp(257, 40, self.ip_to_hex(host))                                 #Host-IP-Address (For this to work on Linux this is the IP defined in the hostsfile for localhost)
         avp += self.generate_avp(266, 40, "00000000")                                               #Vendor-Id
         avp += self.generate_avp(269, "00", self.ProductName)                                       #Product-Name
@@ -792,7 +792,7 @@ class Diameter:
             remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
-        remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
+        remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
         self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         self.database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
@@ -1171,7 +1171,7 @@ class Diameter:
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
         self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
-        remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
+        remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -1213,7 +1213,7 @@ class Diameter:
                 ue_ip = 'Failed to Decode / Get UE IP'
 
             #Store PGW location into Database
-            remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
+            remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
             self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
 
             #Supported-Features(628) (Gx feature list)
@@ -1376,9 +1376,9 @@ class Diameter:
             avp += self.generate_avp(297, 40, experimental_avp)                                                         #Expermental-Result
         else:
             self.logTool.log(service='HSS', level='debug', message="No SCSCF Assigned from DB", redisClient=self.redisMessaging)
-            if 'scscf_pool' in self.yaml_config['hss']:
+            if 'scscf_pool' in self.config['hss']:
                 try:
-                    scscf = random.choice(self.yaml_config['hss']['scscf_pool'])
+                    scscf = random.choice(self.config['hss']['scscf_pool'])
                     self.logTool.log(service='HSS', level='debug', message="Randomly picked SCSCF address " + str(scscf) + " from pool", redisClient=self.redisMessaging)
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
                 except Exception as E:
@@ -1468,7 +1468,7 @@ class Diameter:
         self.logTool.log(service='HSS', level='debug', message="Subscriber is served by S-CSCF " + str(ServingCSCF), redisClient=self.redisMessaging)
         if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
             self.logTool.log(service='HSS', level='debug', message="SAR is Register / Re-Restister", redisClient=self.redisMessaging)
-            remote_peer = remote_peer + ";" + str(self.yaml_config['hss']['OriginHost'])
+            remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
             self.database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
         else:
             self.logTool.log(service='HSS', level='debug', message="SAR is not Register", redisClient=self.redisMessaging)
@@ -1501,9 +1501,9 @@ class Diameter:
                 avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(str(ims_subscriber_details['scscf']))),'ascii'))
             else:
                 self.logTool.log(service='HSS', level='debug', message="No SCSF assigned - Using SCSCF Pool", redisClient=self.redisMessaging)
-                if 'scscf_pool' in self.yaml_config['hss']:
+                if 'scscf_pool' in self.config['hss']:
                     try:
-                        scscf = random.choice(self.yaml_config['hss']['scscf_pool'])
+                        scscf = random.choice(self.config['hss']['scscf_pool'])
                         self.logTool.log(service='HSS', level='debug', message="Randomly picked SCSCF address " + str(scscf) + " from pool", redisClient=self.redisMessaging)
                         avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode(scscf)),'ascii'))
                     except Exception as E:
@@ -1770,7 +1770,7 @@ class Diameter:
         #This loads a Jinja XML template containing the Sh-User-Data
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        sh_userdata_template = self.yaml_config['hss']['Default_Sh_UserData']
+        sh_userdata_template = self.config['hss']['Default_Sh_UserData']
         self.logTool.log(service='HSS', level='info', message="Using template " + str(sh_userdata_template) + " for SH user data", redisClient=self.redisMessaging)
         template = templateEnv.get_template(sh_userdata_template)
         #These variables are passed to the template for use
@@ -1963,7 +1963,7 @@ class Diameter:
         avp_serving_node = ''
         avp_serving_node += self.generate_vendor_avp(2402, "c0", 10415, self.string_to_hex(subscriber_details['serving_mme']))            #MME-Name
         avp_serving_node += self.generate_vendor_avp(2408, "c0", 10415, self.OriginRealm)                                   #MME-Realm
-        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex(self.yaml_config['hss']['bind_ip'][0]))                        #GMLC-Address
+        avp_serving_node += self.generate_vendor_avp(2405, "c0", 10415, self.ip_to_hex(self.config['hss']['bind_ip'][0]))                        #GMLC-Address
         avp += self.generate_vendor_avp(2401, "c0", 10415, avp_serving_node)                                                #Serving-Node  AVP
 
         #Set Result-Code
@@ -2042,7 +2042,7 @@ class Diameter:
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-        avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + self.yaml_config['hss']['OriginHost'])),'ascii'))          
+        avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + self.config['hss']['OriginHost'])),'ascii'))          
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))                                                   #Destination Realm
         avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                             #Username (IMSI)
@@ -2377,7 +2377,7 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session Session ID
-        avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + self.yaml_config['hss']['OriginHost'])),'ascii'))                                                              #Origin Host
+        avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + self.config['hss']['OriginHost'])),'ascii'))                                                              #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
         avp += self.generate_avp(283, 40, str(binascii.hexlify(b'localdomain'),'ascii'))                 #Destination Realm
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
@@ -2716,7 +2716,7 @@ class Diameter:
         #This loads a Jinja XML template containing the Sh-User-Data
         templateLoader = jinja2.FileSystemLoader(searchpath="./")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        sh_userdata_template = self.yaml_config['hss']['Default_Sh_UserData']
+        sh_userdata_template = self.config['hss']['Default_Sh_UserData']
         self.logTool.log(service='HSS', level='info', message="Using template " + str(sh_userdata_template) + " for SH user data", redisClient=self.redisMessaging)
         template = templateEnv.get_template(sh_userdata_template)
         #These variables are passed to the template for use
