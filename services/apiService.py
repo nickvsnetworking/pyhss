@@ -1421,6 +1421,36 @@ class PyHSS_Geored(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
             return response_json
 
+@ns_geored.route('/peers')
+class PyHSS_Geored_Peers(Resource):
+    def get(self):
+        '''Return the configured geored peers'''
+        try:
+            georedEnabled = config.get('geored', {}).get('enabled', False)
+            if not georedEnabled:
+                return {'result': 'Failed', 'Reason' : "Geored not enabled"}
+            georedPeers = config.get('geored', {}).get('endpoints', [])
+            return {'peers': georedPeers}, 200
+        except Exception as E:
+            print("Exception when returning geored peers: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored peers: " + str(E)}
+            return response_json
+
+@ns_geored.route('/webhooks')
+class PyHSS_Geored_Webhooks(Resource):
+    def get(self):
+        '''Return the configured geored webhooks'''
+        try:
+            georedEnabled = config.get('webhooks', {}).get('enabled', False)
+            if not georedEnabled:
+                return {'result': 'Failed', 'Reason' : "Webhooks not enabled"}
+            georedWebhooks = config.get('webhooks', {}).get('endpoints', [])
+            return {'endpoints': georedWebhooks}, 200
+        except Exception as E:
+            print("Exception when returning geored webhooks: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored webhooks: " + str(E)}
+            return response_json
+
 @ns_push.route('/clr/<string:imsi>')
 class PyHSS_Push_CLR(Resource):
     @ns_push.expect(Push_CLR_Model)
