@@ -172,7 +172,7 @@ class GeoredService:
 
                         asyncio.ensure_future(self.redisWebhookMessaging.sendMetric(serviceName='webhook', metricName='prom_http_webhook',
                                                             metricType='counter', metricAction='inc', 
-                                                            metricValue=1.0, metricHelp='Number of Geored Pushes',
+                                                            metricValue=1.0, metricHelp='Number of Webhook Pushes',
                                                             metricLabels={
                                                             "webhook_host": str(url.replace('https://', '').replace('http://', '')),
                                                             "endpoint": "webhook",

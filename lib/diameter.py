@@ -32,6 +32,9 @@ class Diameter:
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
 
+        self.templateLoader = jinja2.FileSystemLoader(searchpath="../")
+        self.templateEnv = jinja2.Environment(loader=self.templateLoader)
+
         self.logTool.log(service='HSS', level='info', message=f"Initialized Diameter Library", redisClient=self.redisMessaging)
         self.logTool.log(service='HSS', level='info', message=f"Origin Host: {str(originHost)}", redisClient=self.redisMessaging)
         self.logTool.log(service='HSS', level='info', message=f"Realm: {str(originRealm)}", redisClient=self.redisMessaging)
@@ -40,7 +43,7 @@ class Diameter:
 
         self.diameterResponseList = [
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
-                {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCR", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
+                {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 280, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_280, "failureResultCode": 5012 ,"requestAcronym": "DWR", "responseAcronym": "DWA", "requestName": "Device Watchdog Request", "responseName": "Device Watchdog Answer"},
                 {"commandCode": 282, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_282, "failureResultCode": 5012 ,"requestAcronym": "DPR", "responseAcronym": "DPA", "requestName": "Disconnect Peer Request", "responseName": "Disconnect Peer Answer"},
                 {"commandCode": 318, "applicationId": 16777251, "flags": "c0", "responseMethod": self.Answer_16777251_318, "failureResultCode": 4100 ,"requestAcronym": "AIR", "responseAcronym": "AIA", "requestName": "Authentication Information Request", "responseName": "Authentication Information Answer"},
@@ -1147,7 +1150,7 @@ class Diameter:
         SupportedFeatures += self.generate_avp(258, 40, format(int(16777251),"x").zfill(8))   #Auth-Application-ID Relay
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
         response = self.generate_diameter_packet("01", "40", 323, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.logTool.log(service='HSS', level='debug', message="Successfully Generated PUA", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Successfully Generated NOA", redisClient=self.redisMessaging)
         return response
 
     #3GPP Gx Credit Control Answer
@@ -1725,7 +1728,7 @@ class Diameter:
             self.logTool.log(service='HSS', level='error', message="No MSISDN", redisClient=self.redisMessaging)
         try:
             username = self.get_avp_data(avps, 601)[0]
-        except: 
+        except Exception as e: 
             self.logTool.log(service='HSS', level='error', message="No Username", redisClient=self.redisMessaging)
 
         if msisdn is not None:
@@ -1768,11 +1771,9 @@ class Diameter:
 
         #Sh-User-Data (XML)
         #This loads a Jinja XML template containing the Sh-User-Data
-        templateLoader = jinja2.FileSystemLoader(searchpath="./")
-        templateEnv = jinja2.Environment(loader=templateLoader)
         sh_userdata_template = self.config['hss']['Default_Sh_UserData']
         self.logTool.log(service='HSS', level='info', message="Using template " + str(sh_userdata_template) + " for SH user data", redisClient=self.redisMessaging)
-        template = templateEnv.get_template(sh_userdata_template)
+        template = self.templateEnv.get_template(sh_userdata_template)
         #These variables are passed to the template for use
         subscriber_details['mnc'] = self.MNC.zfill(3)
         subscriber_details['mcc'] = self.MCC.zfill(3)

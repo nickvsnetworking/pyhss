@@ -320,14 +320,14 @@ class Database:
                 model = result[2].lstrip()
                 if count == 0:
                     self.logTool.log(service='Database', level='info', message="Checking to see if entries are already present...", redisClient=self.redisMessaging)
-                    redis_imei_result = self.redisMessaging.getMessage(key=str(tac_prefix))
+                    redis_imei_result = self.redisMessaging.getMessage(queue=str(tac_prefix))
                     if len(redis_imei_result) != 0:
                         self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file...", redisClient=self.redisMessaging)
                         break
                     else:
                         self.logTool.log(service='Database', level='info', message="No data loaded into Redis, proceeding to load...", redisClient=self.redisMessaging)
                 imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-                self.redisMessaging.sendMessage(key=str(tac_prefix), value_dict=imei_result)
+                self.redisMessaging.sendMessage(queue=str(tac_prefix), message=imei_result)
                 count = count +1
             self.logTool.log(service='Database', level='info', message="Loaded " + str(count) + " IMEI TAC entries into Redis", redisClient=self.redisMessaging)
         except Exception as E:
