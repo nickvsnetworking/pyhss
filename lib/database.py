@@ -1674,6 +1674,7 @@ class Database:
             self.logTool.log(service='Database', level='info', message="Failed to update existing APN " + str(E), redisClient=self.redisMessaging)
             #Create if does not exist
             self.CreateObj(SERVING_APN, json_data, True)
+            ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
             objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
             self.handleWebhook(objectData, 'PUT')
 

@@ -1133,38 +1133,39 @@ class Diameter:
             
         try:
             requested_vectors = 1
-            for avp in avps:
-                if avp['avp_code'] == 1408:
-                    self.logTool.log(service='HSS', level='debug', message="AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP", redisClient=self.redisMessaging)
-                    EUTRAN_Authentication_Info = avp['misc_data']
-                    self.logTool.log(service='HSS', level='debug', message="EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info), redisClient=self.redisMessaging)
-                    for sub_avp in EUTRAN_Authentication_Info:
-                        #If resync request
-                        if sub_avp['avp_code'] == 1411:
-                            self.logTool.log(service='HSS', level='debug', message="Re-Synchronization required - SQN is out of sync", redisClient=self.redisMessaging)
-                            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
-                                                            metricType='counter', metricAction='inc', 
-                                                            metricValue=1.0, 
-                                                            metricLabels={
-                                                                        "diameter_application_id": 16777251,
-                                                                        "diameter_cmd_code": 318,
-                                                                        "event": "Resync",
-                                                                        "imsi_prefix": str(imsi[0:6])},
-                                                            metricHelp='Diameter Authentication related Counters',
-                                                            metricExpiry=60)
-                            auts = str(sub_avp['misc_data'])[32:]
-                            rand = str(sub_avp['misc_data'])[:32]
-                            rand = binascii.unhexlify(rand)
-                            #Calculate correct SQN
-                            self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+            EUTRAN_Authentication_Info = self.get_avp_data(avps, 1408)
+            self.logTool.log(service='HSS', level='debug', message=f"authInfo: {EUTRAN_Authentication_Info}", redisClient=self.redisMessaging)
+            if len(EUTRAN_Authentication_Info) > 0:
+                EUTRAN_Authentication_Info = EUTRAN_Authentication_Info[0]
+                self.logTool.log(service='HSS', level='debug', message="AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info), redisClient=self.redisMessaging)
+                for sub_avp in EUTRAN_Authentication_Info:
+                    #If resync request
+                    if sub_avp['avp_code'] == 1411:
+                        self.logTool.log(service='HSS', level='debug', message="Re-Synchronization required - SQN is out of sync", redisClient=self.redisMessaging)
+                        self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                                        metricType='counter', metricAction='inc', 
+                                                        metricValue=1.0, 
+                                                        metricLabels={
+                                                                    "diameter_application_id": 16777251,
+                                                                    "diameter_cmd_code": 318,
+                                                                    "event": "Resync",
+                                                                    "imsi_prefix": str(imsi[0:6])},
+                                                        metricHelp='Diameter Authentication related Counters',
+                                                        metricExpiry=60)
+                        auts = str(sub_avp['misc_data'])[32:]
+                        rand = str(sub_avp['misc_data'])[:32]
+                        rand = binascii.unhexlify(rand)
+                        #Calculate correct SQN
+                        self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
 
-                        #Get number of requested vectors
-                        if sub_avp['avp_code'] == 1410:
-                            self.logTool.log(service='HSS', level='debug', message="Raw value of requested vectors is " + str(sub_avp['misc_data']), redisClient=self.redisMessaging)
-                            requested_vectors = int(sub_avp['misc_data'], 16)
-                            if requested_vectors >= 32:
-                                self.logTool.log(service='HSS', level='info', message="Client has requested " + str(requested_vectors) + " vectors, limiting this to 32", redisClient=self.redisMessaging)
-                                requested_vectors = 32
+                    #Get number of requested vectors
+                    if sub_avp['avp_code'] == 1410:
+                        self.logTool.log(service='HSS', level='debug', message="Raw value of requested vectors is " + str(sub_avp['misc_data']), redisClient=self.redisMessaging)
+                        requested_vectors = int(sub_avp['misc_data'], 16)
+                        if requested_vectors >= 32:
+                            self.logTool.log(service='HSS', level='info', message="Client has requested " + str(requested_vectors) + " vectors, limiting this to 32", redisClient=self.redisMessaging)
+                            requested_vectors = 32
 
             self.logTool.log(service='HSS', level='debug', message="Generating " + str(requested_vectors) + " vectors as requested", redisClient=self.redisMessaging)
             eutranvector_complete = ''
@@ -1403,6 +1404,8 @@ class Diameter:
         except Exception as e:                                             #Get subscriber details
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=traceback.format_exc(), redisClient=self.redisMessaging)
+
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                             metricType='counter', metricAction='inc', 
                                             metricValue=1.0, 
@@ -1413,10 +1416,9 @@ class Diameter:
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
                                             metricExpiry=60)
-            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
-            experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
-            #Experimental Result (297)
-            avp += self.generate_avp(297, 40, experimental_result)
+            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
