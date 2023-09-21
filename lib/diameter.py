@@ -12,6 +12,7 @@ from messaging import RedisMessaging
 import yaml
 import json
 import time
+import traceback
 
 class Diameter:
 
@@ -305,98 +306,200 @@ class Diameter:
 
 
 
+    def roundUpToMultiple(self, n, multiple):
+        return ((n + multiple - 1) // multiple) * multiple
+
+
+    def validateSingleAvp(self, data) -> bool:
+        """
+        Attempts to validate a single hex string diameter AVP as being an AVP.
+        """
+        try:
+            avpCode = int(data[0:8], 16)
+            # The next byte contains the AVP Flags
+            avpFlags = data[8:10]
+            # The next 3 bytes contain the AVP Length
+            avpLength = int(data[10:16], 16)
+            if avpFlags not in ['80', '40', '20', '00', 'c0']:
+                return False
+            if int(len(data[16:]) / 2) < ((avpLength - 8)):
+                return False
+            return True
+        except Exception as e:
+            return False
+
+
     def decode_diameter_packet(self, data):
+        """
+        Handles decoding of a full diameter packet.
+        """
         packet_vars = {}
         avps = []
-        
+
         if type(data) is bytes:
             data = data.hex()
-
-
+        # One byte is 2 hex characters
+        # First Byte is the Diameter Packet Version
         packet_vars['packet_version'] = data[0:2]
+        # Next 3 Bytes are the length of the entire Diameter packet
         packet_vars['length'] = int(data[2:8], 16)
+        # Next Byte is the Diameter Flags
         packet_vars['flags'] = data[8:10]
         packet_vars['flags_bin'] = bin(int(data[8:10], 16))[2:].zfill(8)
+        # Next 3 Bytes are the Diameter Command Code
         packet_vars['command_code'] = int(data[10:16], 16)
+        # Next 4 Bytes are the Application Id
         packet_vars['ApplicationId'] = int(data[16:24], 16)
+        # Next 4 Bytes are the Hop By Hop Identifier
         packet_vars['hop-by-hop-identifier'] = data[24:32]
+        # Next 4 Bytes are the End to End Identifier
         packet_vars['end-to-end-identifier'] = data[32:40]
 
-        avp_sum = data[40:]
 
-        avp_vars, remaining_avps = self.decode_avp_packet(avp_sum)
-        avps.append(avp_vars)
-        
-        while len(remaining_avps) > 0:
-            avp_vars, remaining_avps = self.decode_avp_packet(remaining_avps)
-            avps.append(avp_vars)
-        else:
-            pass
+        lengthOfDiameterVars = int(len(data[:40]) / 2)
+
+        #Length of all AVPs, in bytes
+        avpLength = int(packet_vars['length'] - lengthOfDiameterVars)
+        avpCharLength = int((avpLength * 2))
+        remaining_avps = data[40:]
+
+        avps = self.decodeAvpPacket(remaining_avps)
+
         return packet_vars, avps
 
-
-    def decode_avp_packet(self, data):                   
-
-        if len(data) <= 8:
-            #if length is less than 8 it is too short to be an AVP and is most likely the data from the last AVP being attempted to be parsed as another AVP
-            raise ValueError("Length of data is too short to be valid AVP")
-
-        avp_vars = {}
-        avp_vars['avp_code'] = int(data[0:8], 16)
-        
-        avp_vars['avp_flags'] = data[8:10]
-        avp_vars['avp_length'] = int(data[10:16], 16)
-        if avp_vars['avp_flags'] == "c0":
-            #If c0 is present AVP is Vendor AVP
-            avp_vars['vendor_id'] = int(data[16:24], 16)
-            avp_vars['misc_data'] = data[24:(avp_vars['avp_length']*2)]
-        else:
-            #if is not a vendor AVP
-            avp_vars['misc_data'] = data[16:(avp_vars['avp_length']*2)]
-
-        if avp_vars['avp_length'] % 4  == 0:
-            #Multiple of 4 - No Padding needed
-            avp_vars['padding'] = 0
-        else:
-            #Not multiple of 4 - Padding needed
-            rounded_value = self.myround(avp_vars['avp_length'])
-            avp_vars['padding'] = int( rounded_value - avp_vars['avp_length']) * 2
-        avp_vars['padded_data'] = data[(avp_vars['avp_length']*2):(avp_vars['avp_length']*2)+avp_vars['padding']]
+    def decodeAvpPacket(self, data):
+        """
+        Returns a list of decoded AVP Packet dictionaries.
+        This function is called at a high frequency, decoding methods should stick to iteration and not recursion, to avoid a memory leak.
+        """
+        # Note: After spending hours on this, I'm leaving the following technical debt:
+        # Subavps and all their descendents are lifted up, flat, side by side into the parent's sub_avps list.
+        # It's definitely possible to keep the nested tree structure, if anyone wants to improve this function. But I can't figure out a simple way to do so, without invoking recursion.
 
 
-        #If body of avp_vars['misc_data'] contains AVPs, then decode each of them as a list of dicts like avp_vars['misc_data'] = [avp_vars, avp_vars]
-        try:
-            sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(avp_vars['misc_data'])
-            #Sanity check - If the avp code is greater than 9999 it's probably not an AVP after all...
-            if int(sub_avp_vars['avp_code']) > 9999:
-                pass
-            else:
-                #If the decoded AVP is valid store it
-                avp_vars['misc_data'] = []
-                avp_vars['misc_data'].append(sub_avp_vars)
-                #While there are more AVPs to be decoded, decode them:
-                while len(sub_remaining_avps) > 0:
-                    sub_avp_vars, sub_remaining_avps = self.decode_avp_packet(sub_remaining_avps)
-                    avp_vars['misc_data'].append(sub_avp_vars)
-              
-        except Exception as e:
-            if str(e) == "invalid literal for int() with base 16: ''":
-                pass
-            elif str(e) == "Length of data is too short to be valid AVP":
-                pass
-            else:
-                self.logTool.log(service='HSS', level='debug', message="failed to decode sub-avp - error: " + str(e), redisClient=self.redisMessaging)
-                pass
+        # Our final list of AVP Dictionaries, which will be returned once processing is complete.
+        processed_avps = []
+        # Initialize a failsafe counter, to prevent packets that pass validation but aren't AVPs from causing an infinite loop
+        failsafeCounter = 0
 
+        # If the avp data is 8 bytes (16 chars) or less, it's invalid.
+        if len(data) < 16:
+            return []
 
-        remaining_avps = data[(avp_vars['avp_length']*2)+avp_vars['padding']:]  #returns remaining data in avp string back for processing again
-        return avp_vars, remaining_avps
+        # Working stack to aid in iterative processing of sub-avps.
+        subAvpUnprocessedStack = []
+
+        # Keep processing AVPs until they're all dealt with
+        while len(data) > 16:
+            try:
+                failsafeCounter += 1
+
+                if failsafeCounter > 100:
+                    break
+                avp_vars = {}
+                # The first 4 bytes contains the AVP code
+                avp_vars['avp_code'] = int(data[0:8], 16)
+                # The next byte contains the AVP Flags
+                avp_vars['avp_flags'] = data[8:10]
+                # The next 3 bytes contains the AVP Length
+                avp_vars['avp_length'] = int(data[10:16], 16)
+                # The remaining bytes (until the end, defined by avp_length) is the AVP payload.
+                # Padding is excluded from avp_length. It's calculated separately, and unknown by the AVP itself.
+                # We calculate the avp payload length (in bytes) by subtracting 8, because the avp headers are always 8 bytes long. 
+                # The result is then multiplied by 2 to give us chars.
+                avpPayloadLength = int((avp_vars['avp_length'])*2)
+
+                # Work out our vendor id and add the payload itself (misc_data)
+                if avp_vars['avp_flags'] == 'c0' or avp_vars['avp_flags'] == '80':
+                    avp_vars['vendor_id'] = int(data[16:24], 16)
+                    avp_vars['misc_data'] = data[24:avpPayloadLength]
+                else:
+                    avp_vars['vendor_id'] = ''
+                    avp_vars['misc_data'] = data[16:avpPayloadLength]
+
+                payloadContainsSubAvps = self.validateSingleAvp(avp_vars['misc_data'])
+                if payloadContainsSubAvps:
+                    # If the payload contains sub or grouped AVPs, append misc_data to the subAvpUnprocessedStack to start working through one or more subavp
+                    subAvpUnprocessedStack.append(avp_vars["misc_data"])
+                    avp_vars["misc_data"] = ''
+
+                # Rounds up the length to the nearest multiple of 4, which we can differential against the avp length to give us the padding length (if required)
+                avp_padded_length = int((self.roundUpToMultiple(avp_vars['avp_length'], 4)))
+                avpPaddingLength = ((avp_padded_length - avp_vars['avp_length']) * 2)
+
+                # Initialize a blank sub_avps list, regardless of whether or not we have any sub avps.
+                avp_vars['sub_avps'] = []
+
+                while payloadContainsSubAvps:
+                    # Increment our failsafe counter, which will fail after 100 tries. This prevents a rare validation error from causing the function to hang permanently.
+                    failsafeCounter += 1
+
+                    if failsafeCounter > 100:
+                        break
+                    
+                    # Pop the sub avp data from the list (remove from the end)
+                    sub_avp_data = subAvpUnprocessedStack.pop()
+
+                    # Initialize our sub avp dictionary, and grab the usual values
+                    sub_avp = {}
+                    sub_avp['avp_code'] = int(sub_avp_data[0:8], 16)
+                    sub_avp['avp_flags'] = sub_avp_data[8:10]
+                    sub_avp['avp_length'] = int(sub_avp_data[10:16], 16)
+                    sub_avpPayloadLength = int((sub_avp['avp_length'])*2)
+
+                    if sub_avp['avp_flags'] == 'c0' or sub_avp['avp_flags'] == '80':
+                        sub_avp['vendor_id'] = int(sub_avp_data[16:24], 16)
+                        sub_avp['misc_data'] = sub_avp_data[24:sub_avpPayloadLength]
+                    else:
+                        sub_avp['vendor_id'] = ''
+                        sub_avp['misc_data'] = sub_avp_data[16:sub_avpPayloadLength]
+
+                    containsSubAvps = self.validateSingleAvp(sub_avp["misc_data"])
+                    if containsSubAvps:
+                        subAvpUnprocessedStack.append(sub_avp["misc_data"])
+                        sub_avp["misc_data"] = ''
+                    
+                    avp_vars['sub_avps'].append(sub_avp)
+
+                    sub_avp_padded_length = int((self.roundUpToMultiple(sub_avp['avp_length'], 4)))
+                    subAvpPaddingLength = ((sub_avp_padded_length - sub_avp['avp_length']) * 2)
+
+                    sub_avp_data = sub_avp_data[sub_avpPayloadLength+subAvpPaddingLength:]
+                    containsNestedSubAvps = self.validateSingleAvp(sub_avp_data)
+
+                    # Check for nested sub avps and bring them to the top of the stack, for further processing.
+                    if containsNestedSubAvps:
+                        subAvpUnprocessedStack.append(sub_avp_data)
+                    
+                    if containsSubAvps or containsNestedSubAvps:
+                        payloadContainsSubAvps = True
+                    else:
+                        payloadContainsSubAvps = False
+
+                if avpPaddingLength > 0:
+                    processed_avps.append(avp_vars)
+                    data = data[avpPayloadLength+avpPaddingLength:]
+                else:
+                    processed_avps.append(avp_vars)
+                    data = data[avpPayloadLength:]
+            except Exception as e:
+                print(e)
+                continue
+
+        return processed_avps
 
     def get_avp_data(self, avps, avp_code):               #Loops through list of dicts generated by the packet decoder, and returns the data for a specific AVP code in list (May be more than one AVP with same code but different data)
         misc_data = []
-        for keys in avps:
-            if keys['avp_code'] == avp_code:
-                misc_data.append(keys['misc_data'])
+        for avpObject in avps:
+            if int(avpObject['avp_code']) == int(avp_code):
+                if len(avpObject['misc_data']) == 0:
+                    misc_data.append(avpObject['sub_avps'])
+                else:
+                    misc_data.append(avpObject['misc_data'])
+            if 'sub_avps' in avpObject:
+                for sub_avp in avpObject['sub_avps']:
+                    if int(sub_avp['avp_code']) == int(avp_code):
+                        misc_data.append(sub_avp['misc_data'])
         return misc_data
 
     def decode_diameter_packet_length(self, data):
@@ -461,7 +564,7 @@ class Diameter:
                     assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
                     response['inbound'] = diameterApplication["requestAcronym"]
                     response['outbound'] = diameterApplication["responseAcronym"]
-                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Successfully generated response: {response}", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Matched message types: {response}", redisClient=self.redisMessaging)
                 except Exception as e:
                     continue
             return response
@@ -778,8 +881,6 @@ class Diameter:
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
-            self.logTool.critical(message)
-            self.logTool.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
         #Store MME Location into Database
@@ -884,7 +985,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message="Found static IP for UE " + str(subscriber_routing_dict['ip_address']), redisClient=self.redisMessaging)
                 Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(subscriber_routing_dict['ip_address']))
             except Exception as E:
-                self.logTool.log(service='HSS', level='debug', message="Error getting static UE IP: " + str(E), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="No static UE IP found: " + str(E), redisClient=self.redisMessaging)
                 Served_Party_Address = ""
 
 
@@ -956,6 +1057,7 @@ class Diameter:
 
     #3GPP S6a/S6d Authentication Information Answer
     def Answer_16777251_318(self, packet_vars, avps):
+        self.logTool.log(service='HSS', level='debug', message=f"AIA AVPS: {avps}", redisClient=self.redisMessaging)
         imsi = self.get_avp_data(avps, 1)[0]                                                             #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
@@ -1026,77 +1128,78 @@ class Diameter:
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
-            self.logTool.critical(message)
-            self.logTool.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
             
+        try:
+            requested_vectors = 1
+            for avp in avps:
+                if avp['avp_code'] == 1408:
+                    self.logTool.log(service='HSS', level='debug', message="AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP", redisClient=self.redisMessaging)
+                    EUTRAN_Authentication_Info = avp['misc_data']
+                    self.logTool.log(service='HSS', level='debug', message="EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info), redisClient=self.redisMessaging)
+                    for sub_avp in EUTRAN_Authentication_Info:
+                        #If resync request
+                        if sub_avp['avp_code'] == 1411:
+                            self.logTool.log(service='HSS', level='debug', message="Re-Synchronization required - SQN is out of sync", redisClient=self.redisMessaging)
+                            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                                            metricType='counter', metricAction='inc', 
+                                                            metricValue=1.0, 
+                                                            metricLabels={
+                                                                        "diameter_application_id": 16777251,
+                                                                        "diameter_cmd_code": 318,
+                                                                        "event": "Resync",
+                                                                        "imsi_prefix": str(imsi[0:6])},
+                                                            metricHelp='Diameter Authentication related Counters',
+                                                            metricExpiry=60)
+                            auts = str(sub_avp['misc_data'])[32:]
+                            rand = str(sub_avp['misc_data'])[:32]
+                            rand = binascii.unhexlify(rand)
+                            #Calculate correct SQN
+                            self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
 
-        requested_vectors = 1
-        for avp in avps:
-            if avp['avp_code'] == 1408:
-                self.logTool.log(service='HSS', level='debug', message="AVP: Requested-EUTRAN-Authentication-Info(1408) l=44 f=VM- vnd=TGPP", redisClient=self.redisMessaging)
-                EUTRAN_Authentication_Info = avp['misc_data']
-                self.logTool.log(service='HSS', level='debug', message="EUTRAN_Authentication_Info is " + str(EUTRAN_Authentication_Info), redisClient=self.redisMessaging)
-                for sub_avp in EUTRAN_Authentication_Info:
-                    #If resync request
-                    if sub_avp['avp_code'] == 1411:
-                        self.logTool.log(service='HSS', level='debug', message="Re-Synchronization required - SQN is out of sync", redisClient=self.redisMessaging)
-                        self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
-                                                        metricType='counter', metricAction='inc', 
-                                                        metricValue=1.0, 
-                                                        metricLabels={
-                                                                    "diameter_application_id": 16777251,
-                                                                    "diameter_cmd_code": 318,
-                                                                    "event": "Resync",
-                                                                    "imsi_prefix": str(imsi[0:6])},
-                                                        metricHelp='Diameter Authentication related Counters',
-                                                        metricExpiry=60)
-                        auts = str(sub_avp['misc_data'])[32:]
-                        rand = str(sub_avp['misc_data'])[:32]
-                        rand = binascii.unhexlify(rand)
-                        #Calculate correct SQN
-                        self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                        #Get number of requested vectors
+                        if sub_avp['avp_code'] == 1410:
+                            self.logTool.log(service='HSS', level='debug', message="Raw value of requested vectors is " + str(sub_avp['misc_data']), redisClient=self.redisMessaging)
+                            requested_vectors = int(sub_avp['misc_data'], 16)
+                            if requested_vectors >= 32:
+                                self.logTool.log(service='HSS', level='info', message="Client has requested " + str(requested_vectors) + " vectors, limiting this to 32", redisClient=self.redisMessaging)
+                                requested_vectors = 32
 
-                    #Get number of requested vectors
-                    if sub_avp['avp_code'] == 1410:
-                        self.logTool.log(service='HSS', level='debug', message="Raw value of requested vectors is " + str(sub_avp['misc_data']), redisClient=self.redisMessaging)
-                        requested_vectors = int(sub_avp['misc_data'], 16)
-                        if requested_vectors >= 32:
-                            self.logTool.log(service='HSS', level='info', message="Client has requested " + str(requested_vectors) + " vectors, limiting this to 32", redisClient=self.redisMessaging)
-                            requested_vectors = 32
+            self.logTool.log(service='HSS', level='debug', message="Generating " + str(requested_vectors) + " vectors as requested", redisClient=self.redisMessaging)
+            eutranvector_complete = ''
+            while requested_vectors != 0:
+                self.logTool.log(service='HSS', level='debug', message="Generating vector number " + str(requested_vectors), redisClient=self.redisMessaging)
+                plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
+                vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
+                eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
+                eutranvector += self.generate_vendor_avp(1419, "c0", 10415, self.int_to_hex(requested_vectors, 4))
+                eutranvector += self.generate_vendor_avp(1447, "c0", 10415, vector_dict['rand'])                                #And is made up of other AVPs joined together with RAND
+                eutranvector += self.generate_vendor_avp(1448, "c0", 10415, vector_dict['xres'])                                #XRes
+                eutranvector += self.generate_vendor_avp(1449, "c0", 10415, vector_dict['autn'])                                #AUTN
+                eutranvector += self.generate_vendor_avp(1450, "c0", 10415, vector_dict['kasme'])                               #And KASME
 
-        self.logTool.log(service='HSS', level='debug', message="Generating " + str(requested_vectors) + " vectors as requested", redisClient=self.redisMessaging)
-        eutranvector_complete = ''
-        while requested_vectors != 0:
-            self.logTool.log(service='HSS', level='debug', message="Generating vector number " + str(requested_vectors), redisClient=self.redisMessaging)
-            plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-            vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
-            eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
-            eutranvector += self.generate_vendor_avp(1419, "c0", 10415, self.int_to_hex(requested_vectors, 4))
-            eutranvector += self.generate_vendor_avp(1447, "c0", 10415, vector_dict['rand'])                                #And is made up of other AVPs joined together with RAND
-            eutranvector += self.generate_vendor_avp(1448, "c0", 10415, vector_dict['xres'])                                #XRes
-            eutranvector += self.generate_vendor_avp(1449, "c0", 10415, vector_dict['autn'])                                #AUTN
-            eutranvector += self.generate_vendor_avp(1450, "c0", 10415, vector_dict['kasme'])                               #And KASME
+                requested_vectors = requested_vectors - 1
+                eutranvector_complete += self.generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
 
-            requested_vectors = requested_vectors - 1
-            eutranvector_complete += self.generate_vendor_avp(1414, "c0", 10415, eutranvector)                         #Put EUTRAN vectors in E-UTRAN-Vector AVP
+            avp = ''                                                                                    #Initiate empty var AVP
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+            avp += self.generate_vendor_avp(1413, "c0", 10415, eutranvector_complete)                                 #Authentication-Info (3GPP)                                      
+            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+            avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+            avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")
+            #avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+            
+            response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            self.logTool.log(service='HSS', level='debug', message="Successfully Generated AIA", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=response, redisClient=self.redisMessaging)
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=traceback.format_exc(), redisClient=self.redisMessaging)
 
-        avp = ''                                                                                    #Initiate empty var AVP
-        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_vendor_avp(1413, "c0", 10415, eutranvector_complete)                                 #Authentication-Info (3GPP)                                      
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
-        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000023")
-        #avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
-        
-        response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-        self.logTool.log(service='HSS', level='debug', message="Successfully Generated AIA", redisClient=self.redisMessaging)
-        self.logTool.log(service='HSS', level='debug', message=response, redisClient=self.redisMessaging)
-        return response
 
     #Purge UE Answer (PUA)
     def Answer_16777251_321(self, packet_vars, avps):
@@ -1155,146 +1258,166 @@ class Diameter:
 
     #3GPP Gx Credit Control Answer
     def Answer_16777238_272(self, packet_vars, avps):
-        CC_Request_Type = self.get_avp_data(avps, 416)[0]
-        CC_Request_Number = self.get_avp_data(avps, 415)[0]
-        #Called Station ID
-        self.logTool.log(service='HSS', level='debug', message="Attempting to find APN in CCR", redisClient=self.redisMessaging)
-        apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
-        self.logTool.log(service='HSS', level='debug', message="CCR for APN " + str(apn), redisClient=self.redisMessaging)
-
-        OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
-        OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
-
-        OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
-        OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
-
-        try:        #Check if we have a record-route set as that's where we'll need to send the response
-            remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
-            remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
-        except:     #If we don't have a record-route set, we'll send the response to the OriginHost
-            remote_peer = OriginHost
-        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
-        remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
-
-        avp = ''                                                                                    #Initiate empty var AVP
-        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-        avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
-        avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
-        avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
-        
-
-        #Get Subscriber info from Subscription ID
-        for SubscriptionIdentifier in self.get_avp_data(avps, 443):
-            for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
-                self.logTool.log(service='HSS', level='debug', message="Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI", redisClient=self.redisMessaging)
-                if UniqueSubscriptionIdentifier['avp_code'] == 444:
-                    imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
-                    self.logTool.log(service='HSS', level='debug', message="Found IMSI " + str(imsi), redisClient=self.redisMessaging)
-
-        self.logTool.log(service='HSS', level='info', message="SubscriptionID: " + str(self.get_avp_data(avps, 443)), redisClient=self.redisMessaging)
         try:
-            self.logTool.log(service='HSS', level='info', message="Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database", redisClient=self.redisMessaging)                                            #Get subscriber details
-            ChargingRules = self.database.Get_Charging_Rules(imsi=imsi, apn=apn)
-            self.logTool.log(service='HSS', level='info', message="Got Charging Rules: " + str(ChargingRules), redisClient=self.redisMessaging)
-        except Exception as E:
-            #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            self.logTool.log(service='HSS', level='debug', message=E, redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists", redisClient=self.redisMessaging)
+            CC_Request_Type = self.get_avp_data(avps, 416)[0]
+            CC_Request_Number = self.get_avp_data(avps, 415)[0]
+            #Called Station ID
+            self.logTool.log(service='HSS', level='debug', message="Attempting to find APN in CCR", redisClient=self.redisMessaging)
+            apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
+            self.logTool.log(service='HSS', level='debug', message="CCR for APN " + str(apn), redisClient=self.redisMessaging)
 
+            OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+            OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
 
-        if int(CC_Request_Type) == 1:
-            self.logTool.log(service='HSS', level='info', message="Request type for CCA is 1 - Initial", redisClient=self.redisMessaging)
+            OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
+            OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
 
-            #Get UE IP            
-            try:
-                ue_ip = self.get_avp_data(avps, 8)[0]
-                ue_ip = str(self.hex_to_ip(ue_ip))
-            except Exception as E:
-                self.logTool.log(service='HSS', level='error', message="Failed to get UE IP", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
-                ue_ip = 'Failed to Decode / Get UE IP'
-
-            #Store PGW location into Database
+            try:        #Check if we have a record-route set as that's where we'll need to send the response
+                remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
+                remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
+            except:     #If we don't have a record-route set, we'll send the response to the OriginHost
+                remote_peer = OriginHost
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
             remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
-            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
 
-            #Supported-Features(628) (Gx feature list)
-            avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
-
-            #Default EPS Beaerer QoS (From database with fallback source CCR-I)
-            try:
-                apn_data = ChargingRules['apn_data']
-                self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
-                #AMBR
-                AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-                apn_ambr_ul = int(apn_data['apn_ambr_ul'])
-                apn_ambr_dl = int(apn_data['apn_ambr_dl'])
-                AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
-                AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
-                APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
-
-                self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
-                #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
-                AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
-                AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
-                AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
-                AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-                AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
-                avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
-            except Exception as E:
-                self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='error', message="Failed to populate default_EPS_QoS from DB for sub " + str(imsi), redisClient=self.redisMessaging)
-                default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
-                avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
-
-    
-            self.logTool.log(service='HSS', level='info', message="Creating QoS Information", redisClient=self.redisMessaging)
-            #QoS-Information
-            try:
-                apn_data = ChargingRules['apn_data']
-                apn_ambr_ul = int(apn_data['apn_ambr_ul'])
-                apn_ambr_dl = int(apn_data['apn_ambr_dl'])
-                QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
-                QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
-                self.logTool.log(service='HSS', level='info', message="Created both QoS AVPs from data from Database", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='info', message="Populated QoS_Information", redisClient=self.redisMessaging)
-                avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
-            except Exception as E:
-                self.logTool.log(service='HSS', level='error', message="Failed to get QoS information dynamically for sub " + str(imsi), redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
-
-                QoS_Information = ''
-                for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
-                    self.logTool.log(service='HSS', level='debug', message=AMBR_Part, redisClient=self.redisMessaging)
-                    AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'][8:])
-                    QoS_Information += AMBR_AVP
-                    self.logTool.log(service='HSS', level='debug', message="QoS_Information added " + str(AMBR_AVP), redisClient=self.redisMessaging)
-                avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
-                self.logTool.log(service='HSS', level='debug', message="QoS information set statically", redisClient=self.redisMessaging)
-                
-            self.logTool.log(service='HSS', level='info', message="Added to AVP List", redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='debug', message="QoS Information: " + str(QoS_Information), redisClient=self.redisMessaging)                                                                                 
+            avp = ''                                                                                    #Initiate empty var AVP
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
+            avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+            avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
+            avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
+            avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
             
-            #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
-            if ChargingRules and ChargingRules['charging_rules'] is not None:
+
+            #Get Subscriber info from Subscription ID
+            for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+                for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                    self.logTool.log(service='HSS', level='debug', message="Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI", redisClient=self.redisMessaging)
+                    if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                        imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                        self.logTool.log(service='HSS', level='debug', message="Found IMSI " + str(imsi), redisClient=self.redisMessaging)
+
+            self.logTool.log(service='HSS', level='info', message="SubscriptionID: " + str(self.get_avp_data(avps, 443)), redisClient=self.redisMessaging)
+            try:
+                self.logTool.log(service='HSS', level='info', message="Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database", redisClient=self.redisMessaging)                                            #Get subscriber details
+                ChargingRules = self.database.Get_Charging_Rules(imsi=imsi, apn=apn)
+                self.logTool.log(service='HSS', level='info', message="Got Charging Rules: " + str(ChargingRules), redisClient=self.redisMessaging)
+            except Exception as E:
+                #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+                self.logTool.log(service='HSS', level='debug', message=E, redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists", redisClient=self.redisMessaging)
+
+
+            if int(CC_Request_Type) == 1:
+                self.logTool.log(service='HSS', level='info', message="Request type for CCA is 1 - Initial", redisClient=self.redisMessaging)
+
+                #Get UE IP            
                 try:
-                    self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
-                    for individual_charging_rule in ChargingRules['charging_rules']:
-                        self.logTool.log(service='HSS', level='debug', message="Processing Charging Rule: " + str(individual_charging_rule), redisClient=self.redisMessaging)
-                        avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
-
+                    ue_ip = self.get_avp_data(avps, 8)[0]
+                    ue_ip = str(self.hex_to_ip(ue_ip))
                 except Exception as E:
-                    self.logTool.log(service='HSS', level='debug', message="Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message="Failed to get UE IP", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
+                    ue_ip = 'Failed to Decode / Get UE IP'
 
-        elif int(CC_Request_Type) == 3:
-            self.logTool.log(service='HSS', level='info', message="Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
-            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
+                #Store PGW location into Database
+                remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
+                self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
+
+                #Supported-Features(628) (Gx feature list)
+                avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
+
+                #Default EPS Beaerer QoS (From database with fallback source CCR-I)
+                try:
+                    apn_data = ChargingRules['apn_data']
+                    self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
+                    #AMBR
+                    AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                    apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+                    apn_ambr_dl = int(apn_data['apn_ambr_dl'])
+                    AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                    AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                    APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+                    self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
+                    #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+                    AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
+                    AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
+                    AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
+                    AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                    AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
+                    avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+                except Exception as E:
+                    self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message="Failed to populate default_EPS_QoS from DB for sub " + str(imsi), redisClient=self.redisMessaging)
+                    default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
+                    avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
+
         
-        avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
-        response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                self.logTool.log(service='HSS', level='info', message="Creating QoS Information", redisClient=self.redisMessaging)
+                #QoS-Information
+                try:
+                    apn_data = ChargingRules['apn_data']
+                    apn_ambr_ul = int(apn_data['apn_ambr_ul'])
+                    apn_ambr_dl = int(apn_data['apn_ambr_dl'])
+                    QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
+                    QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
+                    self.logTool.log(service='HSS', level='info', message="Created both QoS AVPs from data from Database", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='info', message="Populated QoS_Information", redisClient=self.redisMessaging)
+                    avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+                except Exception as E:
+                    self.logTool.log(service='HSS', level='error', message="Failed to get QoS information dynamically for sub " + str(imsi), redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
+
+                    QoS_Information = ''
+                    for AMBR_Part in self.get_avp_data(avps, 1016)[0]:
+                        self.logTool.log(service='HSS', level='debug', message=AMBR_Part, redisClient=self.redisMessaging)
+                        AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'][8:])
+                        QoS_Information += AMBR_AVP
+                        self.logTool.log(service='HSS', level='debug', message="QoS_Information added " + str(AMBR_AVP), redisClient=self.redisMessaging)
+                    avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
+                    self.logTool.log(service='HSS', level='debug', message="QoS information set statically", redisClient=self.redisMessaging)
+                    
+                self.logTool.log(service='HSS', level='info', message="Added to AVP List", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="QoS Information: " + str(QoS_Information), redisClient=self.redisMessaging)                                                                                 
+                
+                #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+                if ChargingRules and ChargingRules['charging_rules'] is not None:
+                    try:
+                        self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
+                        for individual_charging_rule in ChargingRules['charging_rules']:
+                            self.logTool.log(service='HSS', level='debug', message="Processing Charging Rule: " + str(individual_charging_rule), redisClient=self.redisMessaging)
+                            avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
+
+                    except Exception as E:
+                        self.logTool.log(service='HSS', level='debug', message="Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
+
+            elif int(CC_Request_Type) == 3:
+                self.logTool.log(service='HSS', level='info', message="Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
+                self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
+            
+            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+            response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        except Exception as e:                                             #Get subscriber details
+            #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR", redisClient=self.redisMessaging)
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=1.0, 
+                                            metricLabels={
+                                                        "diameter_application_id": 16777238,
+                                                        "diameter_cmd_code": 272,
+                                                        "event": "Unknown User",
+                                                        "imsi_prefix": str(imsi[0:6])},
+                                            metricHelp='Diameter Authentication related Counters',
+                                            metricExpiry=60)
+            experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
+            experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
+            #Experimental Result (297)
+            avp += self.generate_avp(297, 40, experimental_result)
+            response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
     #3GPP Cx User Authorization Answer
@@ -1349,7 +1472,7 @@ class Diameter:
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
             avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
-            response = self.generate_diameter_packet("01", "40", 300, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            response = self.generate_diameter_packet("01", "40", 300, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
 
         #Determine SAR Type & Store
@@ -1534,7 +1657,7 @@ class Diameter:
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
             avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
-            response = self.generate_diameter_packet("01", "40", 302, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            response = self.generate_diameter_packet("01", "40", 302, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -1552,6 +1675,7 @@ class Diameter:
         imsi = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
         self.logTool.log(service='HSS', level='debug', message="Got MAR username: " + str(username), redisClient=self.redisMessaging)
+        auth_scheme = ''
 
         avp = ''                                                                                    #Initiate empty var AVP
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -1615,7 +1739,8 @@ class Diameter:
         self.logTool.log(service='HSS', level='debug', message="IMSI is " + str(imsi), redisClient=self.redisMessaging)        
         avp += self.generate_vendor_avp(601, "c0", 10415, str(binascii.hexlify(str.encode(public_identity)),'ascii'))               #Public Identity (IMSI)
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(imsi + "@" + domain)),'ascii'))                                    #Username
-        
+
+    
 
         #Determine Vectors to Generate
         if auth_scheme == "Digest-MD5":
@@ -1828,6 +1953,7 @@ class Diameter:
 
         #Get IMSI
         try:
+            imei = ''
             imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
             imsi = binascii.unhexlify(imsi).decode('utf-8')                                                 #Convert IMSI
             #avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                      #Username (IMSI)
@@ -1836,36 +1962,40 @@ class Diameter:
             self.logTool.log(service='HSS', level='debug', message="Failed to get IMSI from LCS-Routing-Info-Request", redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='debug', message="Error was: " + str(e), redisClient=self.redisMessaging)
 
-        #Get IMEI
-        for sub_avp in self.get_avp_data(avps, 1401)[0]:
-            self.logTool.log(service='HSS', level='debug', message="Evaluating sub_avp AVP " + str(sub_avp) + " to find IMSI", redisClient=self.redisMessaging)
-            if sub_avp['avp_code'] == 1402:
-                imei = binascii.unhexlify(sub_avp['misc_data']).decode('utf-8')
-                self.logTool.log(service='HSS', level='debug', message="Found IMEI " + str(imei), redisClient=self.redisMessaging)
+        try:
+            #Get IMEI
+            for sub_avp in self.get_avp_data(avps, 1401)[0]:
+                self.logTool.log(service='HSS', level='debug', message="Evaluating sub_avp AVP " + str(sub_avp) + " to find IMSI", redisClient=self.redisMessaging)
+                if sub_avp['avp_code'] == 1402:
+                    imei = binascii.unhexlify(sub_avp['misc_data']).decode('utf-8')
+                    self.logTool.log(service='HSS', level='debug', message="Found IMEI " + str(imei), redisClient=self.redisMessaging)
 
-        avp = ''                                                                                        #Initiate empty var AVP
-        session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to received session ID
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
-        avp += self.generate_avp(277, 40, "00000001")                                                   #Auth Session State        
-        avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
-        #Experimental Result AVP(Response Code for Failure)
-        avp_experimental_result = ''
-        avp_experimental_result += self.generate_vendor_avp(266, 'c0', 10415, '')                         #AVP Vendor ID
-        avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
-        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
+            avp = ''                                                                                        #Initiate empty var AVP
+            session_id = self.get_avp_data(avps, 263)[0]                                                    #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                   #Set session ID to received session ID
+            avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000024")           #Vendor-Specific-Application-ID for S13
+            avp += self.generate_avp(277, 40, "00000001")                                                   #Auth Session State        
+            avp += self.generate_avp(264, 40, self.OriginHost)                                              #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                             #Origin Realm
+            #Experimental Result AVP(Response Code for Failure)
+            avp_experimental_result = ''
+            avp_experimental_result += self.generate_vendor_avp(266, 'c0', 10415, '')                         #AVP Vendor ID
+            avp_experimental_result += self.generate_avp(298, 'c0', self.int_to_hex(2001, 4))                 #AVP Experimental-Result-Code: SUCESS (2001)
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
 
-        #Equipment-Status
-        EquipmentStatus = self.database.Check_EIR(imsi=imsi, imei=imei)
-        avp += self.generate_vendor_avp(1445, 'c0', 10415, self.int_to_hex(EquipmentStatus, 4))
-        self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_eir_event_count',
-                                metricType='counter', metricAction='inc', 
-                                metricValue=1.0, 
-                                metricLabels={
-                                            "response": EquipmentStatus},
-                                metricHelp='Diameter EIR event related Counters',
-                                metricExpiry=60)
+            #Equipment-Status
+            EquipmentStatus = self.database.Check_EIR(imsi=imsi, imei=imei)
+            avp += self.generate_vendor_avp(1445, 'c0', 10415, self.int_to_hex(EquipmentStatus, 4))
+            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_eir_event_count',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, 
+                                    metricLabels={
+                                                "response": EquipmentStatus},
+                                    metricHelp='Diameter EIR event related Counters',
+                                    metricExpiry=60)
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=traceback.format_exc(), redisClient=self.redisMessaging)
+
 
         response = self.generate_diameter_packet("01", "40", 324, 16777252, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -2185,8 +2315,6 @@ class Diameter:
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
-            self.logTool.critical(message)
-            self.logTool.critical("Unhandled general exception when getting subscriber details for IMSI " + str(imsi))
             raise
 
 

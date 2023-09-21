@@ -106,13 +106,12 @@ class RedisMessagingAsync:
         Returns the next Queue (Key) in the list, asynchronously.
         """
         try:
-            result = []
             async for nextQueue in self.redisClient.scan_iter(match=pattern):
-                result.append(nextQueue)
-            return next(iter(result), '') if result else ''
+                if nextQueue is not None:
+                    return nextQueue.decode('utf-8')
         except Exception as e:
             print(e)
-            return ''
+        return ''
 
     async def deleteQueue(self, queue: str) -> bool:
         """

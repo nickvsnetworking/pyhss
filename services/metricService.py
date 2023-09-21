@@ -38,6 +38,7 @@ class MetricService:
             metric = self.redisMessaging.getMessage(queue=metricQueue)
 
             if not (len(metric) > 0):
+                time.sleep(0.001)
                 return
             
             self.logTool.log(service='Metric', level='debug', message=f"[Metric] [handleMetrics] Received Metric: {metric}", redisClient=self.redisMessaging)

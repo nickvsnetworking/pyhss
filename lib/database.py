@@ -1560,8 +1560,7 @@ class Database:
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of HSS events", redisClient=self.redisMessaging)
         except Exception as E:
-            self.logTool.log(service='Database', level='error', message="Error occurred, rolling back session: " + str(E), redisClient=self.redisMessaging)
-            raise
+            self.logTool.log(service='Database', level='error', message="Error occurred in Update_Serving_MME: " + str(E), redisClient=self.redisMessaging)
         finally:
             self.safe_close(session)
 

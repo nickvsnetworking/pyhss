@@ -74,6 +74,7 @@ class HssService:
                     self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
 
             except Exception as e:
+                time.sleep(0.001)
                 continue
         
 

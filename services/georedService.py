@@ -250,27 +250,32 @@ class GeoredService:
                     if self.benchmarking:
                         startTime = time.perf_counter()
                     georedQueue = await(self.redisGeoredMessaging.getNextQueue(pattern='geored-*'))
+                    if not len(georedQueue) > 0:
+                        await(asyncio.sleep(0.01))
+                        continue
                     georedMessage = await(self.redisGeoredMessaging.getMessage(queue=georedQueue))
-                    if len(georedMessage) > 0:
-                        await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Queue: {georedQueue}"))
-                        await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Message: {georedMessage}"))
+                    if not len(georedMessage) > 0:
+                        await(asyncio.sleep(0.01))
+                        continue
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Queue: {georedQueue}"))
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Message: {georedMessage}"))
 
-                        georedDict = json.loads(georedMessage)
-                        georedOperation = georedDict['operation']
-                        georedBody = georedDict['body']
-                        georedTasks = []
+                    georedDict = json.loads(georedMessage)
+                    georedOperation = georedDict['operation']
+                    georedBody = georedDict['body']
+                    georedTasks = []
 
-                        for remotePeer in self.georedPeers:
-                                georedTasks.append(self.sendGeored(asyncSession=session, url=remotePeer+'/geored/', operation=georedOperation, body=georedBody))
-                        await asyncio.gather(*georedTasks)
-                        if self.benchmarking:
-                            await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleGeoredQueue] Time taken to send geored message to all geored peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
+                    for remotePeer in self.georedPeers:
+                            georedTasks.append(self.sendGeored(asyncSession=session, url=remotePeer+'/geored/', operation=georedOperation, body=georedBody))
+                    await asyncio.gather(*georedTasks)
+                    if self.benchmarking:
+                        await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleGeoredQueue] Time taken to send geored message to all geored peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
-                        await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.001))
 
                 except Exception as e:
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Error handling geored queue: {e}"))
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.001))
                     continue
     
     async def handleWebhookQueue(self):
@@ -283,28 +288,33 @@ class GeoredService:
                     if self.benchmarking:
                         startTime = time.perf_counter()
                     webhookQueue = await(self.redisWebhookMessaging.getNextQueue(pattern='webhook-*'))
+                    if not len(webhookQueue) > 0:
+                        await(asyncio.sleep(0.01))
+                        continue
                     webhookMessage = await(self.redisWebhookMessaging.getMessage(queue=webhookQueue))
-                    if len(webhookMessage) > 0:
-                        await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Queue: {webhookQueue}"))
-                        await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Message: {webhookMessage}"))
+                    if not len(webhookMessage) > 0:
+                        await(asyncio.sleep(0.001))
+                        continue
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Queue: {webhookQueue}"))
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Message: {webhookMessage}"))
 
-                        webhookDict = json.loads(webhookMessage)
-                        webhookHeaders = webhookDict['headers']
-                        webhookOperation = webhookDict['operation']
-                        webhookBody = webhookDict['body']
-                        webhookTasks = []
+                    webhookDict = json.loads(webhookMessage)
+                    webhookHeaders = webhookDict['headers']
+                    webhookOperation = webhookDict['operation']
+                    webhookBody = webhookDict['body']
+                    webhookTasks = []
 
-                        for remotePeer in self.webhookPeers:
-                                webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
-                        await asyncio.gather(*webhookTasks)
-                        if self.benchmarking:
-                            await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleWebhookQueue] Time taken to send webhook to all geored peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
+                    for remotePeer in self.webhookPeers:
+                            webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
+                    await asyncio.gather(*webhookTasks)
+                    if self.benchmarking:
+                        await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleWebhookQueue] Time taken to send webhook to all geored peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
-                        await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.001))
 
                 except Exception as e:
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Error handling webhook queue: {e}"))
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.001))
                     continue
 
     async def startService(self):
@@ -343,7 +353,7 @@ class GeoredService:
                 for pendingTask in pendingTasks:
                     try:
                         pendingTask.cancel()
-                        await(asyncio.sleep(0))
+                        await(asyncio.sleep(0.001))
                     except asyncio.CancelledError:
                         pass
 

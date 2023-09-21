@@ -13,7 +13,7 @@ class DiameterService:
     """
     PyHSS Diameter Service
     A class for handling diameter inbounds and replies on Port 3868, via TCP.
-    Functions in this class are high-performance, please edit with care. Last benchmarked on 24-08-2023.
+    Functions in this class are high-performance, please edit with care. Last profiled on 20-09-2023.
     """
 
     def __init__(self, redisHost: str='127.0.0.1', redisPort: int=6379):
@@ -41,7 +41,7 @@ class DiameterService:
         try:
             packetVars, avps = await(self.diameterLibrary.decodeDiameterPacket(inboundData))
             messageType = await(self.diameterLibrary.getDiameterMessageType(inboundData))
-            originHost = (await self.diameterLibrary.getAvpData(avps, 264))[0]
+            originHost = (await(self.diameterLibrary.getAvpData(avps, 264)))[0]
             originHost = bytes.fromhex(originHost).decode("utf-8")
             peerType = await(self.diameterLibrary.getPeerType(originHost))
             self.activePeers[f"{clientAddress}-{clientPort}"].update({'lastDwrTimestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S") if messageType['inbound'] == 'DWR' else self.activePeers[f"{clientAddress}-{clientPort}"]['lastDwrTimestamp'], 
@@ -59,6 +59,7 @@ class DiameterService:
                                                 metricExpiry=60))
         except Exception as e:
             await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] Exception: {e}\n{traceback.format_exc()}"))
+            await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] AVPs: {avps}\nPacketVars: {packetVars}"))
             return False
         return True
 
@@ -70,7 +71,7 @@ class DiameterService:
         while True:
             try:
                 if not len(self.activePeers) > 0:
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(1))
                     continue
 
                 activeDiameterPeersTimeout = self.config.get('hss', {}).get('active_diameter_peers_timeout', 3600)
@@ -130,7 +131,7 @@ class DiameterService:
                         diamteterValidationStartTime = time.perf_counter()
                     if not await(self.validateDiameterInbound(clientAddress, clientPort, inboundData)):
                         await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter Inbound, discarding data."))
-                        await(asyncio.sleep(0))
+                        await(asyncio.sleep(0.001))
                         continue
                     if self.benchmarking:
                         await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Time taken to validate diameter request: {round(((time.perf_counter() - diamteterValidationStartTime)*1000), 3)} ms"))
@@ -145,7 +146,7 @@ class DiameterService:
                     await(self.redisReaderMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=self.diameterRequestTimeout))
                     if self.benchmarking:
                         await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.001))
                         
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Exception for {clientAddress} on port {clientPort}, closing connection.\n{e}"))
@@ -166,11 +167,11 @@ class DiameterService:
                 
                 pendingOutboundQueue = await(self.redisWriterMessaging.getNextQueue(pattern=f'diameter-outbound-{clientAddress.replace(".", "*")}-{clientPort}-*'))
                 if not len(pendingOutboundQueue) > 0:
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.01))
                     continue
-                pendingOutboundQueue = pendingOutboundQueue.decode()
+                pendingOutboundQueue = pendingOutboundQueue
 
-                await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Pending Outbound Queue: {pendingOutboundQueue}"))
+                # await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Pending Outbound Queue: {pendingOutboundQueue}"))
                 outboundQueueSplit = str(pendingOutboundQueue).split('-')
                 queuedMessageType = outboundQueueSplit[1]
                 diameterOutboundHost = outboundQueueSplit[2]
@@ -185,14 +186,14 @@ class DiameterService:
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] [{diameterMessageType}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
                     writer.write(diameterOutboundBinary)
                     await(writer.drain())
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.001))
                     if self.benchmarking:
                         await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Time taken to write response: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
-            except Exception:
+            except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer."))
                 return False
-            await(asyncio.sleep(0))
+            await(asyncio.sleep(0.001))
 
     async def handleConnection(self, reader, writer):
         """
@@ -238,7 +239,7 @@ class DiameterService:
             for pendingTask in pendingTasks:
                 try:
                     pendingTask.cancel()
-                    await(asyncio.sleep(0))
+                    await(asyncio.sleep(0.1))
                 except asyncio.CancelledError:
                     pass
       

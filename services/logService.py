@@ -1,5 +1,6 @@
 import os, sys, json, yaml
 from datetime import datetime
+import time
 import logging
 sys.path.append(os.path.realpath('../lib'))
 from messaging import RedisMessaging
@@ -46,6 +47,7 @@ class LogService:
                 logMessage = self.redisMessaging.getMessage(queue=logQueue)
                 
                 if not len(logMessage) > 0:
+                    time.sleep(0.001)
                     continue
 
                 print(f"[Log] Queue: {logQueue}")
