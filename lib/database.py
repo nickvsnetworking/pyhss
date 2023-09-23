@@ -287,8 +287,10 @@ class Database:
         #Load IMEI TAC database into Redis if enabled
         if ('tac_database_csv' in self.config['eir']):
             self.load_IMEI_database_into_Redis()
+            self.tacData = json.loads(self.redisMessaging.getValue(key="tacDatabase"))
         else:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
+            self.tacData = {}
 
     # Create individual tables if they do not exist.
         inspector = Inspector.from_engine(self.engine)
@@ -310,25 +312,28 @@ class Database:
             return
         try:
             count = 0
+            tacList = {"tacList": []}
             for line in csvfile:
                 line = line.replace('"', '')        #Strip excess invered commas
                 line = line.replace("'", '')        #Strip excess invered commas
                 line = line.rstrip()                #Strip newlines
                 result = line.split(',')
-                tac_prefix = result[0]
+                tacPrefix = result[0]
                 name = result[1].lstrip()
                 model = result[2].lstrip()
+                
                 if count == 0:
                     self.logTool.log(service='Database', level='info', message="Checking to see if entries are already present...", redisClient=self.redisMessaging)
-                    redis_imei_result = self.redisMessaging.getMessage(queue=str(tac_prefix))
-                    if len(redis_imei_result) != 0:
-                        self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file...", redisClient=self.redisMessaging)
-                        break
-                    else:
+                    redis_imei_result = self.redisMessaging.getValue(key="tacDatabase")
+                    if redis_imei_result is not None:
+                        if len(redis_imei_result) > 0:
+                            self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file...", redisClient=self.redisMessaging)
+                            return
                         self.logTool.log(service='Database', level='info', message="No data loaded into Redis, proceeding to load...", redisClient=self.redisMessaging)
-                imei_result = {'tac_prefix': tac_prefix, 'name': name, 'model': model}
-                self.redisMessaging.sendMessage(queue=str(tac_prefix), message=imei_result)
-                count = count +1
+                tacList['tacList'].append({str(tacPrefix): {'name': name, 'model': model}})
+                count += 1
+            self.redisMessaging.setValue(key="tacDatabase", value=json.dumps(tacList))
+            self.tacData = tacList
             self.logTool.log(service='Database', level='info', message="Loaded " + str(count) + " IMEI TAC entries into Redis", redisClient=self.redisMessaging)
         except Exception as E:
             self.logTool.log(service='Database', level='error', message="Failed to load IMEI Database into Redis due to error: " + (str(E)), redisClient=self.redisMessaging)
@@ -833,13 +838,17 @@ class Database:
             self.safe_close(session)
             raise ValueError(E)
 
-    def handleGeored(self, jsonData):
+    def handleGeored(self, jsonData, operation: str):
         try:
+            operation = operation.upper()
+            if operation not in ['PUT', 'PATCH', 'DELETE']:
+                self.logTool.log(service='Database', level='warning', message="Failed to send Geored message invalid operation type, received: " + str(operation), redisClient=self.redisMessaging)
+                return
             georedDict = {}
             if self.config.get('geored', {}).get('enabled', False):
                 if self.config.get('geored', {}).get('endpoints', []) is not None and len(self.config.get('geored', {}).get('endpoints', [])) > 0:
                     georedDict['body'] = jsonData
-                    georedDict['operation'] = 'PATCH'
+                    georedDict['operation'] = operation
                     self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
         except Exception as E:
             self.logTool.log(service='Database', level='warning', message="Failed to send Geored message due to error: " + str(E), redisClient=self.redisMessaging)
@@ -1122,7 +1131,7 @@ class Database:
         self.logTool.log(service='Database', level='debug', message="Generating JSON model for Flask for object type: " + str(obj_type), redisClient=self.redisMessaging)
 
         dictty = dict(self.generate_json_schema(obj_type))
-        pprint.pprint(dictty)
+        # pprint.pprint(dictty)
 
 
         #dictty['properties'] = dict(dictty['properties'])
@@ -1853,7 +1862,7 @@ class Database:
                     self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
                                                     metricType='counter', metricAction='inc', 
                                                     metricValue=1, metricHelp='Profile of attached devices',
-                                                    metricLabels={'imei_prefix': device_info['tac_prefix'],
+                                                    metricLabels={'imei_prefix': device_info['tacPrefix'],
                                                                   'device_type': device_info['name'],
                                                                   'device_name': device_info['model']},
                                                     metricExpiry=60)
@@ -1999,31 +2008,32 @@ class Database:
         dict_string = {}
         for key, value in dict_bytes.items():
             dict_string[key.decode()] = value.decode()
-        return dict_string
+        return 
+        
+    def find_imei_in_tac_list(self, imei, tacList):
+        """
+        Iterate over every tac in the tacList and try to match the first 8 digits of the IMEI.
+        If that fails, try to match the first 6 digits of the IMEI.
+        """
+        for tac in tacList['tacList']:
+            for key, value in tac.items():
+                if str(key) == str(imei[0:8]):
+                    return {'tacPrefix': key, 'name': tac[key]['name'], 'model': tac[key]['model']}
+            for key, value in tac.items():
+                if str(key) == str(imei[0:6]):
+                    return {'tacPrefix': key, 'name': tac[key]['name'], 'model': tac[key]['model']}
+        return {}
 
-
-    def get_device_info_from_TAC(self, imei):
+    def get_device_info_from_TAC(self, imei) -> dict:
         self.logTool.log(service='Database', level='debug', message="Getting Device Info from IMEI: " + str(imei), redisClient=self.redisMessaging)
-        #Try 8 digit TAC
         try:
-            self.logTool.log(service='Database', level='debug', message="Trying to match on 8 Digit IMEI", redisClient=self.redisMessaging)
-            imei_result = self.redisMessaging.RedisHGetAll(str(imei[0:8]))
-            imei_result = self.dict_bytes_to_dict_string(imei_result)
+            self.logTool.log(service='Database', level='debug', message="Taclist: self.tacList ", redisClient=self.redisMessaging)
+            imei_result = self.find_imei_in_tac_list(imei, self.tacData)
             assert(len(imei_result) != 0)
             self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
             return imei_result
         except:
             self.logTool.log(service='Database', level='debug', message="Failed to match on 8 digit IMEI", redisClient=self.redisMessaging)
-        
-        try:
-            self.logTool.log(service='Database', level='debug', message="Trying to match on 6 Digit IMEI", redisClient=self.redisMessaging)
-            imei_result = self.redisMessaging.RedisHGetAll(str(imei[0:6]))
-            imei_result = self.dict_bytes_to_dict_string(imei_result)
-            assert(len(imei_result) != 0)
-            self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
-            return imei_result
-        except:
-            self.logTool.log(service='Database', level='debug', message="Failed to match on 6 digit IMEI", redisClient=self.redisMessaging)
 
         raise ValueError("No matching TAC in IMEI Database")
 

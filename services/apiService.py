@@ -949,7 +949,6 @@ class PyHSS_EIR_TAC(Resource):
             print(E)
             return handle_exception(E)
 
-
 @ns_subscriber_attributes.route('/list')
 class PyHSS_Subscriber_Attributes_All(Resource):
     @ns_subscriber_attributes.expect(paginatorParser)
