@@ -239,7 +239,46 @@ class GeoredService:
                 await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [sendWebhook] Time taken to send individual webhook request to {url}: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
             return True
-    
+
+    async def handleAsymmetricGeoredQueue(self):
+        """
+        Collects and processes asymmetric geored messages.
+        """
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+            while True:
+                try:
+                    if self.benchmarking:
+                        startTime = time.perf_counter()
+                    asymmetricGeoredQueue = await(self.redisGeoredMessaging.getNextQueue(pattern='asymmetric-geored-*'))
+                    if not len(asymmetricGeoredQueue) > 0:
+                        await(asyncio.sleep(0.01))
+                        continue
+                    georedMessage = await(self.redisGeoredMessaging.getMessage(queue=georedQueue))
+                    if not len(georedMessage) > 0:
+                        await(asyncio.sleep(0.01))
+                        continue
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Queue: {georedQueue}"))
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Message: {georedMessage}"))
+
+                    georedDict = json.loads(georedMessage)
+                    georedOperation = georedDict['operation']
+                    georedBody = georedDict['body']
+                    georedUrls = georedDict['urls']
+                    georedTasks = []
+
+                    for georedEndpoint in georedUrls:
+                            georedTasks.append(self.sendGeored(asyncSession=session, url=georedEndpoint, operation=georedOperation, body=georedBody))
+                    await asyncio.gather(*georedTasks)
+                    if self.benchmarking:
+                        await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleAsymmetricGeoredQueue] Time taken to send asymmetric geored message to specified peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
+
+                    await(asyncio.sleep(0.001))
+
+                except Exception as e:
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Error handling asymmetric geored queue: {e}"))
+                    await(asyncio.sleep(0.001))
+                    continue
+
     async def handleGeoredQueue(self):
         """
         Collects and processes queued geored messages.
@@ -341,6 +380,7 @@ class GeoredService:
 
             if georedEnabled:
                 georedTask = asyncio.create_task(self.handleGeoredQueue())
+                asymmetricGeoredTask = asyncio.create_task(self.asymmetricGeoredQueue())
                 activeTasks.append(georedTask)
             
             if webhooksEnabled:

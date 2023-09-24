@@ -170,8 +170,6 @@ class DiameterService:
                     await(asyncio.sleep(0.01))
                     continue
                 pendingOutboundQueue = pendingOutboundQueue
-
-                # await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Pending Outbound Queue: {pendingOutboundQueue}"))
                 outboundQueueSplit = str(pendingOutboundQueue).split('-')
                 queuedMessageType = outboundQueueSplit[1]
                 diameterOutboundHost = outboundQueueSplit[2]

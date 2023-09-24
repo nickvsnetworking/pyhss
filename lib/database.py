@@ -838,7 +838,11 @@ class Database:
             self.safe_close(session)
             raise ValueError(E)
 
-    def handleGeored(self, jsonData, operation: str):
+    def handleGeored(self, jsonData, operation: str="PATCH", asymmetric: bool=False, asymmetricUrls: list=[]) -> bool:
+        """
+        Validate the request, check configuration and queue the geored message.
+        Asymmetric geored is supported (where one or more specific or foreign geored endpoints are specified).
+        """
         try:
             operation = operation.upper()
             if operation not in ['PUT', 'PATCH', 'DELETE']:
@@ -850,8 +854,17 @@ class Database:
                     georedDict['body'] = jsonData
                     georedDict['operation'] = operation
                     self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
+                if asymmetric:
+                    if len(asymmetricUrls) > 0:
+                        georedDict['body'] = jsonData
+                        georedDict['operation'] = operation
+                        georedDict['urls'] = asymmetricUrls
+                        self.redisMessaging.sendMessage(queue=f'asymmetric-geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
+            return True
+
         except Exception as E:
             self.logTool.log(service='Database', level='warning', message="Failed to send Geored message due to error: " + str(E), redisClient=self.redisMessaging)
+            return False
 
     def handleWebhook(self, objectData, operation: str="PATCH"):
         webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
@@ -1523,17 +1536,16 @@ class Database:
                         
                         URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                         self.logTool.log(service='Database', level='debug', message="Sending CLR to API at " + str(URL), redisClient=self.redisMessaging)
-                        json_data = {
+                        
+                        self.logTool.log(service='Database', level='debug', message="Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data), redisClient=self.redisMessaging)
+                        transaction_id = str(uuid.uuid4())
+                        self.handleGeored({
+                            "imsi": str(imsi), 
                             "DestinationRealm": result.serving_mme_realm,
                             "DestinationHost": result.serving_mme,
                             "cancellationType": 2,
                             "diameterPeer": serving_mme_peer,
-                        }
-                        
-                        self.logTool.log(service='Database', level='debug', message="Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data), redisClient=self.redisMessaging)
-                        transaction_id = str(uuid.uuid4())
-                        GeoRed_Push_thread = threading.Thread(target=self.GeoRed_Push_Request, args=(serving_hss, json_data, transaction_id, URL))
-                        GeoRed_Push_thread.start()
+                            }, asymmetric=True, asymmetricUrls=[URL])
                 else:
                     #No currently serving MME - No action to take
                     self.logTool.log(service='Database', level='debug', message="No currently serving MME - No need to send CLR", redisClient=self.redisMessaging)
@@ -2036,6 +2048,7 @@ class Database:
             self.logTool.log(service='Database', level='debug', message="Failed to match on 8 digit IMEI", redisClient=self.redisMessaging)
 
         raise ValueError("No matching TAC in IMEI Database")
+
 
 if __name__ == "__main__":
     import binascii,os,pprint

@@ -455,8 +455,10 @@ class PyHSS_SUBSCRIBER_Get(Resource):
                 try:
                     assert(json_data['serving_mme'])
                     print("Serving MME set - Sending CLR")
-                    diameterClient.generateDiameterRequest(
+
+                    diameterClient.sendDiameterRequest(
                         requestType='CLR',
+                        hostname=json_data['serving_mme'],
                         imsi=json_data['imsi'], 
                         DestinationHost=json_data['serving_mme'], 
                         DestinationRealm=json_data['serving_mme_realm'], 
@@ -1070,6 +1072,69 @@ class PyHSS_OAM_Peers(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_oam.route('/deregister/<string:imsi>')
+class PyHSS_OAM_Deregister(Resource):
+    def get(self, imsi):
+        '''Deregisters a given IMSI from the entire network'''
+        try:
+            subscriberInfo =  databaseClient.Get_Subscriber(imsi=str(imsi))
+            imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
+            servingMme = subscriberInfo.get('serving_mme', None)
+            servingMmeRealm = subscriberInfo.get('serving_mme_realm', None)
+            servingScscf = imsSubscriberInfo.get('scscf_peer', None)
+            servingScscfRealm = imsSubscriberInfo.get('scscf_realm', None)
+            if servingMme is not None and servingMmeRealm is not None:
+                diameterRequest = diameterClient.broadcastDiameterRequest(
+                requestType='CLR',
+                peerType='MME',
+                imsi=imsi, 
+                DestinationHost=servingMme, 
+                DestinationRealm=servingMmeRealm, 
+                CancellationType=2
+                )
+                databaseClient.Update_Serving_MME(imsi=imsi, serving_mme=None)
+            if servingScscf and servingScscfRealm is not None:
+                servingScscf = servingScscf.split(';')[0]
+                diameterRequest = diameterClient.broadcastDiameterRequest(
+                requestType='RTR',
+                peerType='SCSCF',
+                imsi=imsi,
+                destinationHost=servingScscf, 
+                destinationRealm=servingScscfRealm, 
+                domain=servingScscfRealm
+                )
+                databaseClient.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
+            return {"result": f"Successfully deregistered {imsi} from the entire network"}, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+
+# The below function is kept as a placeholder until Rx is implemented.
+# @ns_oam.route('/deregister_ims/<string:imsi>')
+# class PyHSS_OAM_DeregisterIMS(Resource):
+#     def get(self, imsi):
+#         '''Deregisters a given IMSI from the IMS network'''
+#         try:
+#             imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
+#             servingScscf = imsSubscriberInfo.get('scscf_peer', None)
+#             servingScscfRealm = imsSubscriberInfo.get('scscf_realm', None)
+#             if servingScscf and servingScscfRealm is not None:
+#                 servingScscf = servingScscf.split(';')[0]
+#                 diameterRequest = diameterClient.broadcastDiameterRequest(
+#                 requestType='RTR',
+#                 peerType='SCSCF',
+#                 imsi=imsi,
+#                 destinationHost=servingScscf, 
+#                 destinationRealm=servingScscfRealm, 
+#                 domain=servingScscfRealm
+#                 )
+#                 databaseClient.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
+#             return {"result": f"Successfully deregistered {imsi} from the IMS network"}, 200
+#         except Exception as E:
+#             print(E)
+#             return handle_exception(E)
+
 @ns_oam.route("/ping")
 class PyHSS_OAM_Ping(Resource):
     def get(self):
@@ -1455,20 +1520,33 @@ class PyHSS_Push_CLR(Resource):
     @ns_push.expect(Push_CLR_Model)
     @ns_push.doc('Push CLR (Cancel Location Request) to MME')
     def put(self, imsi):
-        '''Push CLR (Cancel Location Request) to MME'''
-        json_data = request.get_json(force=True)
-        print("JSON Data sent: " + str(json_data))
-        if 'DestinationHost' not in json_data:
-            json_data['DestinationHost'] = None
-        diam_hex = diameterClient.sendDiameterRequest(
-            requestType='CLR',
-            imsi=imsi, 
-            DestinationHost=json_data['DestinationHost'], 
-            DestinationRealm=json_data['DestinationRealm'], 
-            CancellationType=json_data['cancellationType']
-        )
-        return diam_hex, 200
+        try:
+            '''Push CLR (Cancel Location Request) to MME'''
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            if 'DestinationHost' not in json_data:
+                json_data['DestinationHost'] = None
+            diameterRequest = diameterClient.sendDiameterRequest(
+                requestType='CLR',
+                hostname=json_data['diameterPeer'],
+                imsi=imsi, 
+                DestinationHost=json_data['DestinationHost'], 
+                DestinationRealm=json_data['DestinationRealm'], 
+                CancellationType=json_data['cancellationType']
+            )
+            if not len(diameterRequest) > 0:
+                return {'result': f'Failed queueing CLR to {json_data["diameterPeer"]}'}, 400
+
+            subscriber_details = databaseClient.Get_Subscriber(imsi=str(imsi))
+            if subscriber_details['serving_mme'] == json_data['DestinationHost']:
+                databaseClient.Update_Serving_MME(imsi=imsi, serving_mme=None)
+
+            return {'result': f'Successfully queued CLR to {json_data["diameterPeer"]}'}, 200
+        except Exception as E:
+            print("Exception when sending CLR: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to send CLR: " + str(E)}
+            return response_json
 
 if __name__ == '__main__':
-    apiService.run(debug=False)
+    apiService.run(debug=False, host='0.0.0.0', port=8080)
 
