@@ -380,7 +380,7 @@ class GeoredService:
 
             if georedEnabled:
                 georedTask = asyncio.create_task(self.handleGeoredQueue())
-                asymmetricGeoredTask = asyncio.create_task(self.asymmetricGeoredQueue())
+                asymmetricGeoredTask = asyncio.create_task(self.handleAsymmetricGeoredQueue())
                 activeTasks.append(georedTask)
             
             if webhooksEnabled:
