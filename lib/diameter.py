@@ -44,28 +44,34 @@ class Diameter:
 
         self.diameterResponseList = [
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
-                {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 280, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_280, "failureResultCode": 5012 ,"requestAcronym": "DWR", "responseAcronym": "DWA", "requestName": "Device Watchdog Request", "responseName": "Device Watchdog Answer"},
                 {"commandCode": 282, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_282, "failureResultCode": 5012 ,"requestAcronym": "DPR", "responseAcronym": "DPA", "requestName": "Disconnect Peer Request", "responseName": "Disconnect Peer Answer"},
-                {"commandCode": 318, "applicationId": 16777251, "flags": "c0", "responseMethod": self.Answer_16777251_318, "failureResultCode": 4100 ,"requestAcronym": "AIR", "responseAcronym": "AIA", "requestName": "Authentication Information Request", "responseName": "Authentication Information Answer"},
-                {"commandCode": 316, "applicationId": 16777251, "responseMethod": self.Answer_16777251_316, "failureResultCode": 4100 ,"requestAcronym": "ULR", "responseAcronym": "ULA", "requestName": "Update Location Request", "responseName": "Update Location Answer"},
-                {"commandCode": 321, "applicationId": 16777251, "responseMethod": self.Answer_16777251_321, "failureResultCode": 5012 ,"requestAcronym": "PUR", "responseAcronym": "PUA", "requestName": "Purge UE Request", "responseName": "Purge UE Answer"},
-                {"commandCode": 323, "applicationId": 16777251, "responseMethod": self.Answer_16777251_323, "failureResultCode": 5012 ,"requestAcronym": "NOR", "responseAcronym": "NOA", "requestName": "Notify Request", "responseName": "Notify Answer"},
                 {"commandCode": 300, "applicationId": 16777216, "responseMethod": self.Answer_16777216_300, "failureResultCode": 4100 ,"requestAcronym": "UAR", "responseAcronym": "UAA", "requestName": "User Authentication Request", "responseName": "User Authentication Answer"},
                 {"commandCode": 301, "applicationId": 16777216, "responseMethod": self.Answer_16777216_301, "failureResultCode": 4100 ,"requestAcronym": "SAR", "responseAcronym": "SAA", "requestName": "Server Assignment Request", "responseName": "Server Assignment Answer"},
                 {"commandCode": 302, "applicationId": 16777216, "responseMethod": self.Answer_16777216_302, "failureResultCode": 4100 ,"requestAcronym": "LIR", "responseAcronym": "LIA", "requestName": "Location Information Request", "responseName": "Location Information Answer"},
                 {"commandCode": 303, "applicationId": 16777216, "responseMethod": self.Answer_16777216_303, "failureResultCode": 4100 ,"requestAcronym": "MAR", "responseAcronym": "MAA", "requestName": "Multimedia Authentication Request", "responseName": "Multimedia Authentication Answer"},
                 {"commandCode": 306, "applicationId": 16777217, "responseMethod": self.Answer_16777217_306, "failureResultCode": 5001 ,"requestAcronym": "UDR", "responseAcronym": "UDA", "requestName": "User Data Request", "responseName": "User Data Answer"},
                 {"commandCode": 307, "applicationId": 16777217, "responseMethod": self.Answer_16777217_307, "failureResultCode": 5001 ,"requestAcronym": "PRUR", "responseAcronym": "PRUA", "requestName": "Profile Update Request", "responseName": "Profile Update Answer"},
+                {"commandCode": 265, "applicationId": 16777236, "responseMethod": self.Answer_16777236_265, "failureResultCode": 4100 ,"requestAcronym": "AAR", "responseAcronym": "AAA", "requestName": "AA Request", "responseName": "AA Answer"},
+                {"commandCode": 258, "applicationId": 16777236, "responseMethod": self.Answer_16777236_258, "failureResultCode": 4100 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
+                {"commandCode": 275, "applicationId": 16777236, "responseMethod": self.Answer_16777236_275, "failureResultCode": 4100 ,"requestAcronym": "STR", "responseAcronym": "STA", "requestName": "Session Termination Request", "responseName": "Session Termination Answer"},
+                {"commandCode": 274, "applicationId": 16777236, "responseMethod": self.Answer_16777236_274, "failureResultCode": 4100 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},
+                {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
+                {"commandCode": 318, "applicationId": 16777251, "flags": "c0", "responseMethod": self.Answer_16777251_318, "failureResultCode": 4100 ,"requestAcronym": "AIR", "responseAcronym": "AIA", "requestName": "Authentication Information Request", "responseName": "Authentication Information Answer"},
+                {"commandCode": 316, "applicationId": 16777251, "responseMethod": self.Answer_16777251_316, "failureResultCode": 4100 ,"requestAcronym": "ULR", "responseAcronym": "ULA", "requestName": "Update Location Request", "responseName": "Update Location Answer"},
+                {"commandCode": 321, "applicationId": 16777251, "responseMethod": self.Answer_16777251_321, "failureResultCode": 5012 ,"requestAcronym": "PUR", "responseAcronym": "PUA", "requestName": "Purge UE Request", "responseName": "Purge UE Answer"},
+                {"commandCode": 323, "applicationId": 16777251, "responseMethod": self.Answer_16777251_323, "failureResultCode": 5012 ,"requestAcronym": "NOR", "responseAcronym": "NOA", "requestName": "Notify Request", "responseName": "Notify Answer"},
                 {"commandCode": 324, "applicationId": 16777252, "responseMethod": self.Answer_16777252_324, "failureResultCode": 4100 ,"requestAcronym": "ECR", "responseAcronym": "ECA", "requestName": "ME Identity Check Request", "responseName": "ME Identity Check Answer"},
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
+
+
             ]
 
         self.diameterRequestList = [
+                {"commandCode": 304, "applicationId": 16777216, "requestMethod": self.Request_16777216_304, "failureResultCode": 5012 ,"requestAcronym": "RTR", "responseAcronym": "RTA", "requestName": "Registration Termination Request", "responseName": "Registration Termination Answer"},
+                {"commandCode": 258, "applicationId": 16777238, "requestMethod": self.Request_16777238_258, "failureResultCode": 5012 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
-                {"commandCode": 258, "applicationId": 16777238, "requestMethod": self.Request_16777238_258, "failureResultCode": 5012 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
-                {"commandCode": 304, "applicationId": 16777216, "requestMethod": self.Request_16777216_304, "failureResultCode": 5012 ,"requestAcronym": "RTR", "responseAcronym": "RTA", "requestName": "Registration Termination Request", "responseName": "Registration Termination Answer"},
 
         ]
 
@@ -647,6 +653,7 @@ class Diameter:
                         assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
                         if 'flags' in diameterApplication:
                             assert(str(packet_vars["flags"]) == str(diameterApplication["flags"]))
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Attempting to generate response", redisClient=self.redisMessaging)
                         response = diameterApplication["responseMethod"](packet_vars, avps)
                         self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Successfully generated response: {response}", redisClient=self.redisMessaging)
                         break
@@ -664,6 +671,32 @@ class Diameter:
                                                 metricValue=1.0, metricHelp='Number of Failed Diameter Responses',
                                                 metricExpiry=60)
                 return ''
+
+    def validateImsSubscriber(self, imsi=None, msisdn=None) -> bool:
+        """
+        Ensures that a given IMSI or MSISDN (Or both, if specified) are associated with a subscriber that is enabled, and has an associated IMS Subscriber record.
+        """
+        if imsi == None and msisdn == None:
+            return False
+
+        try:
+            if imsi is not None:
+                subscriberDetails = self.database.Get_Subscriber(imsi=imsi)
+                if not subscriberDetails.get('enabled', False):
+                    return False
+                imsSubscriberDetails = self.database.Get_IMS_Subscriber(imsi=imsi)
+        except Exception as e:
+            return False
+        try:
+            if msisdn is not None:
+                subscriberDetails = self.database.Get_Subscriber(msisdn=msisdn)
+                if not subscriberDetails.get('enabled', False):
+                    return False
+                imsSubscriberDetails = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+        except Exception as e:
+            return False
+        
+        return True
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
@@ -1977,10 +2010,175 @@ class Diameter:
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
         VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777217),"x").zfill(8))   #Auth-Application-ID Sh
         avp += self.generate_avp(260, 40, VendorSpecificApplicationId) 
-
-        
         response = self.generate_diameter_packet("01", "40", 307, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
+
+
+    ################################
+    ####        3GPP RX         ####
+    ################################ 
+
+    #3GPP Rx - AA Answer (AAA)
+    def Answer_16777236_265(self, packet_vars, avps):
+        try:
+            """
+            Generates a response to a provided AAR.
+            The response is determined by whether or not the subscriber is enabled, and has a matching ims_subscriber entry.
+            """
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            subscriptionId = bytes.fromhex(self.get_avp_data(avps, 444)[0]).decode('ascii')
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Received subscription ID: {subscriptionId}", redisClient=self.redisMessaging)
+            subscriptionId = subscriptionId.replace('sip:', '')
+            imsi = None
+            msisdn = None
+            identifier = None
+            if '@' in subscriptionId:
+                subscriberIdentifier = subscriptionId.split('@')[0]
+                # Subscriber Identifier can be either an IMSI or an MSISDN
+                try:
+                    subscriberDetails = self.database.Get_Subscriber(imsi=subscriberIdentifier)
+                    imsSubscriberDetails = self.database.Get_IMS_Subscriber(imsi=subscriberIdentifier)
+                    identifier = 'imsi'
+                    imsi = imsSubscriberDetails.get('imsi', None)
+                except Exception as e:
+                    pass
+                try:
+                    subscriberDetails = self.database.Get_Subscriber(msisdn=subscriberIdentifier)
+                    imsSubscriberDetails = self.database.Get_IMS_Subscriber(msisdn=subscriberIdentifier)
+                    identifier = 'msisdn'
+                    msisdn = imsSubscriberDetails.get('msisdn', None)
+                except Exception as e:
+                    pass
+            else:
+                imsi = None
+                msisdn = None
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
+            imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
+
+            if imsEnabled:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
+                avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
+            else:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request unauthorized", redisClient=self.redisMessaging)
+                avp += self.generate_avp(268, 40, self.int_to_hex(4001, 4))
+
+            response = self.generate_diameter_packet("01", "40", 265, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error generating AAA: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(5012, 4))                                      #Result Code 5012 UNABLE_TO_COMPLY
+            response = self.generate_diameter_packet("01", "40", 265, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
+    #3GPP Rx - Re Auth Answer (RAA)
+    def Answer_16777236_258(self, packet_vars, avps):
+        try:
+            """
+            Generates a response to a provided RAR.
+            The response is determined by whether or not the subscriber is enabled, and has a matching ims_subscriber entry.
+            """
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            subscriptionId = bytes.fromhex(self.get_avp_data(avps, 444)[0]).decode('ascii')
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] Received subscription ID: {subscriptionId}", redisClient=self.redisMessaging)
+            subscriptionId = subscriptionId.replace('sip:', '')
+            imsi = None
+            msisdn = None
+            identifier = None
+            if '@' in subscriptionId:
+                subscriberIdentifier = subscriptionId.split('@')[0]
+                # Subscriber Identifier can be either an IMSI or an MSISDN
+                try:
+                    subscriberDetails = self.database.Get_Subscriber(imsi=subscriberIdentifier)
+                    imsSubscriberDetails = self.database.Get_IMS_Subscriber(imsi=subscriberIdentifier)
+                    identifier = 'imsi'
+                    imsi = imsSubscriberDetails.get('imsi', None)
+                except Exception as e:
+                    pass
+                try:
+                    subscriberDetails = self.database.Get_Subscriber(msisdn=subscriberIdentifier)
+                    imsSubscriberDetails = self.database.Get_IMS_Subscriber(msisdn=subscriberIdentifier)
+                    identifier = 'msisdn'
+                    msisdn = imsSubscriberDetails.get('msisdn', None)
+                except Exception as e:
+                    pass
+            else:
+                imsi = None
+                msisdn = None
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
+            imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
+
+            if imsEnabled:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] Request authorized", redisClient=self.redisMessaging)
+                avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
+            else:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] Request unauthorized", redisClient=self.redisMessaging)
+                avp += self.generate_avp(268, 40, self.int_to_hex(4001, 4))
+
+            response = self.generate_diameter_packet("01", "40", 258, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_258] [RAA] Error generating RAA: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(5012, 4))                                      #Result Code 5012 UNABLE_TO_COMPLY
+            response = self.generate_diameter_packet("01", "40", 258, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+
+    #3GPP Rx - Session Termination Answer (STA)
+    def Answer_16777236_275(self, packet_vars, avps):
+        try:
+            """
+            Generates a response to a provided STR.
+            Returns Result-Code 2001.
+            """
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            response = self.generate_diameter_packet("01", "40", 275, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA: {traceback.format_exc()}", redisClient=self.redisMessaging)
+
+    #3GPP Rx - Abort Session Answer (ASA)
+    def Answer_16777236_274(self, packet_vars, avps):
+        try:
+            """
+            Generates a response to a provided ASR.
+            Returns Result-Code 2001.
+            """
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            response = self.generate_diameter_packet("01", "40", 274, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_274] [STA] Error generating STA: {traceback.format_exc()}", redisClient=self.redisMessaging)
+
+
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
