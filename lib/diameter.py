@@ -1328,9 +1328,17 @@ class Diameter:
             CC_Request_Type = self.get_avp_data(avps, 416)[0]
             CC_Request_Number = self.get_avp_data(avps, 415)[0]
             #Called Station ID
-            self.logTool.log(service='HSS', level='debug', message="Attempting to find APN in CCR", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Attempting to find APN in CCR", redisClient=self.redisMessaging)
             apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
-            self.logTool.log(service='HSS', level='debug', message="CCR for APN " + str(apn), redisClient=self.redisMessaging)
+            # Strip plmn based domain from apn, if present
+            try:
+                if '.' in apn:
+                        assert('mcc' in apn)
+                        assert('mnc' in apn)
+                        apn = apn.split('.')[0]
+            except Exception as e:
+                apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] CCR for APN " + str(apn), redisClient=self.redisMessaging)
 
             OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
             OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
@@ -1343,46 +1351,45 @@ class Diameter:
                 remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
             except:     #If we don't have a record-route set, we'll send the response to the OriginHost
                 remote_peer = OriginHost
-            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
             remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
 
             avp = ''                                                                                    #Initiate empty var AVP
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCR] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
             avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
             avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
             avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
-            
 
             #Get Subscriber info from Subscription ID
             for SubscriptionIdentifier in self.get_avp_data(avps, 443):
                 for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
-                    self.logTool.log(service='HSS', level='debug', message="Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Evaluating UniqueSubscriptionIdentifier AVP " + str(UniqueSubscriptionIdentifier) + " to find IMSI", redisClient=self.redisMessaging)
                     if UniqueSubscriptionIdentifier['avp_code'] == 444:
                         imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
-                        self.logTool.log(service='HSS', level='debug', message="Found IMSI " + str(imsi), redisClient=self.redisMessaging)
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Found IMSI " + str(imsi), redisClient=self.redisMessaging)
 
-            self.logTool.log(service='HSS', level='info', message="SubscriptionID: " + str(self.get_avp_data(avps, 443)), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] SubscriptionID: " + str(self.get_avp_data(avps, 443)), redisClient=self.redisMessaging)
             try:
-                self.logTool.log(service='HSS', level='info', message="Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database", redisClient=self.redisMessaging)                                            #Get subscriber details
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database", redisClient=self.redisMessaging)                                            #Get subscriber details
                 ChargingRules = self.database.Get_Charging_Rules(imsi=imsi, apn=apn)
-                self.logTool.log(service='HSS', level='info', message="Got Charging Rules: " + str(ChargingRules), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Got Charging Rules: " + str(ChargingRules), redisClient=self.redisMessaging)
             except Exception as E:
                 #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
                 self.logTool.log(service='HSS', level='debug', message=E, redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists", redisClient=self.redisMessaging)
 
 
             if int(CC_Request_Type) == 1:
-                self.logTool.log(service='HSS', level='info', message="Request type for CCA is 1 - Initial", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 1 - Initial", redisClient=self.redisMessaging)
 
                 #Get UE IP            
                 try:
                     ue_ip = self.get_avp_data(avps, 8)[0]
                     ue_ip = str(self.hex_to_ip(ue_ip))
                 except Exception as E:
-                    self.logTool.log(service='HSS', level='error', message="Failed to get UE IP", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to get UE IP", redisClient=self.redisMessaging)
                     self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
                     ue_ip = 'Failed to Decode / Get UE IP'
 
@@ -1393,10 +1400,10 @@ class Diameter:
                 #Supported-Features(628) (Gx feature list)
                 avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
 
-                #Default EPS Beaerer QoS (From database with fallback source CCR-I)
+                #Default EPS Bearer QoS (From database with fallback source CCR-I, then omission)
                 try:
                     apn_data = ChargingRules['apn_data']
-                    self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Setting APN AMBR", redisClient=self.redisMessaging)
                     #AMBR
                     AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
                     apn_ambr_ul = int(apn_data['apn_ambr_ul'])
@@ -1405,7 +1412,7 @@ class Diameter:
                     AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
                     APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-                    self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
                     #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
                     AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
                     AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
@@ -1415,12 +1422,13 @@ class Diameter:
                     avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
                 except Exception as E:
                     self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
-                    self.logTool.log(service='HSS', level='error', message="Failed to populate default_EPS_QoS from DB for sub " + str(imsi), redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to populate default_EPS_QoS from DB for sub " + str(imsi), redisClient=self.redisMessaging)
                     default_EPS_QoS = self.get_avp_data(avps, 1049)[0][8:]
-                    avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
+                    if len(default_EPS_QoS) > 0:
+                        avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
 
         
-                self.logTool.log(service='HSS', level='info', message="Creating QoS Information", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Creating QoS Information", redisClient=self.redisMessaging)
                 #QoS-Information
                 try:
                     apn_data = ChargingRules['apn_data']
@@ -1428,11 +1436,11 @@ class Diameter:
                     apn_ambr_dl = int(apn_data['apn_ambr_dl'])
                     QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
                     QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
-                    self.logTool.log(service='HSS', level='info', message="Created both QoS AVPs from data from Database", redisClient=self.redisMessaging)
-                    self.logTool.log(service='HSS', level='info', message="Populated QoS_Information", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Created both QoS AVPs from data from Database", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Populated QoS_Information", redisClient=self.redisMessaging)
                     avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
                 except Exception as E:
-                    self.logTool.log(service='HSS', level='error', message="Failed to get QoS information dynamically for sub " + str(imsi), redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to get QoS information dynamically for sub " + str(imsi), redisClient=self.redisMessaging)
                     self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
 
                     QoS_Information = ''
@@ -1440,26 +1448,28 @@ class Diameter:
                         self.logTool.log(service='HSS', level='debug', message=AMBR_Part, redisClient=self.redisMessaging)
                         AMBR_AVP = self.generate_vendor_avp(AMBR_Part['avp_code'], "80", 10415, AMBR_Part['misc_data'][8:])
                         QoS_Information += AMBR_AVP
-                        self.logTool.log(service='HSS', level='debug', message="QoS_Information added " + str(AMBR_AVP), redisClient=self.redisMessaging)
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] QoS_Information added " + str(AMBR_AVP), redisClient=self.redisMessaging)
                     avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)
-                    self.logTool.log(service='HSS', level='debug', message="QoS information set statically", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] QoS information set statically", redisClient=self.redisMessaging)
                     
-                self.logTool.log(service='HSS', level='info', message="Added to AVP List", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message="QoS Information: " + str(QoS_Information), redisClient=self.redisMessaging)                                                                                 
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Added to AVP List", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] QoS Information: " + str(QoS_Information), redisClient=self.redisMessaging)                                                                                 
                 
                 #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
                 if ChargingRules and ChargingRules['charging_rules'] is not None:
                     try:
                         self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
                         for individual_charging_rule in ChargingRules['charging_rules']:
-                            self.logTool.log(service='HSS', level='debug', message="Processing Charging Rule: " + str(individual_charging_rule), redisClient=self.redisMessaging)
-                            avp += self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
+                            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Processing Charging Rule: " + str(individual_charging_rule), redisClient=self.redisMessaging)
+                            chargingRule = self.Charging_Rule_Generator(ChargingRules=individual_charging_rule, ue_ip=ue_ip)
+                            if len(chargingRule) > 0:
+                                avp += chargingRule
 
                     except Exception as E:
-                        self.logTool.log(service='HSS', level='debug', message="Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
 
             elif int(CC_Request_Type) == 3:
-                self.logTool.log(service='HSS', level='info', message="Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
                 self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
             
             avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -1468,7 +1478,7 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         except Exception as e:                                             #Get subscriber details
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for CCR", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Subscriber " + str(imsi) + " unknown in HSS for CCR", redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='debug', message=traceback.format_exc(), redisClient=self.redisMessaging)
 
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
