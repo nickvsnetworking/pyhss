@@ -15,7 +15,6 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
-import threading
 from messaging import RedisMessaging
 import yaml
 import json
