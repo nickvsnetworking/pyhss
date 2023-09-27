@@ -19,6 +19,7 @@ import threading
 from messaging import RedisMessaging
 import yaml
 import json
+import traceback
 
 Base = declarative_base()
 
@@ -1225,7 +1226,14 @@ class Database:
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
-        if 'msisdn' in kwargs:
+        if 'subscriber_id' in kwargs:
+            self.logTool.log(service='Database', level='debug', message="Get_Subscriber for id " + str(kwargs['subscriber_id']), redisClient=self.redisMessaging)
+            try:
+                result = session.query(SUBSCRIBER).filter_by(subscriber_id=int(kwargs['subscriber_id'])).one()
+            except Exception as E:
+                self.safe_close(session)
+                raise ValueError(E)
+        elif 'msisdn' in kwargs:
             self.logTool.log(service='Database', level='debug', message="Get_Subscriber for msisdn " + str(kwargs['msisdn']), redisClient=self.redisMessaging)
             try:
                 result = session.query(SUBSCRIBER).filter_by(msisdn=str(kwargs['msisdn'])).one()
@@ -1736,6 +1744,44 @@ class Database:
         
         self.safe_close(session)
         return result   
+
+    def Get_Serving_APNs(self, subscriber_id: int) -> dict:
+        """
+        Returns all a dictionary containing all APNs that a subscriber is configured for (subscriber/apn_list), 
+        with active sessions being a populated dictionary, and inactive sessions being an empty dictionary.
+        """
+        self.logTool.log(service='Database', level='debug', message=f"Getting Serving APNs for subscriber_id: {subscriber_id}", redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        apnDict = {'apns': {}}
+
+        try:
+            subscriber = self.Get_Subscriber(subscriber_id=subscriber_id)
+        except:
+            self.logTool.log(service='Database', level='debug', message=f"Unable to get subscriber with ID: {subscriber_id}: {traceback.format_exc()} ", redisClient=self.redisMessaging)
+            return apnDict
+        
+        apnList = subscriber.get('apn_list', []).split(',')
+        for apnId in apnList:
+            try:
+                apnData = self.Get_APN(apnId)
+                apnName = apnData.get('apn', 'Unknown')
+                try:
+                    servingApn = self.Sanitize_Datetime(self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apnId))
+                    self.logTool.log(service='Database', level='debug', message=f"Got serving APN: {servingApn}", redisClient=self.redisMessaging)
+                    if len(servingApn) > 0:
+                        apnDict['apns'][apnName] = servingApn
+                    else:
+                        apnDict['apns'][apnName] = {}
+                except Exception as e:
+                    apnDict['apns'][apnName] = {}
+                    continue
+            except Exception as E:
+                self.logTool.log(service='Database', level='debug', message=f"Error getting apn for subscriber id: {subscriber_id}: {traceback.format_exc()} ", redisClient=self.redisMessaging)
+        
+        self.logTool.log(service='Database', level='debug', message=f"Returning: {apnDict}", redisClient=self.redisMessaging)
+
+        return apnDict
 
     def Get_Charging_Rule(self, charging_rule_id):
         self.logTool.log(service='Database', level='debug', message="Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id), redisClient=self.redisMessaging)

@@ -32,7 +32,7 @@ productName = config.get('hss', {}).get('ProductName', f'PyHSS')
 
 redisHost = config.get("redis", {}).get("host", "127.0.0.1")
 redisPort = int(config.get("redis", {}).get("port", 6379))
-redisMessaging = RedisMessaging(host=redisHost, port=redisPort)
+redisMessaging = RedisMessaging()
 
 logTool = LogTool(config)
 
@@ -1064,76 +1064,153 @@ class PyHSS_Operation_Log_List_Table(Resource):
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
     def get(self):
-        '''Get all Diameter Peers'''
+        '''Get active Diameter Peers'''
         try:
-            diameterPeers = redisMessaging.getValue("ActiveDiameterPeers")
+            diameterPeers = json.loads(redisMessaging.getValue("ActiveDiameterPeers"))
             return diameterPeers, 200
         except Exception as E:
+            logTool.log(service='API', level='error', message=f"[API] An error occurred: {traceback.format_exc()}", redisClient=redisMessaging)
             print(E)
             return handle_exception(E)
 
 @ns_oam.route('/deregister/<string:imsi>')
 class PyHSS_OAM_Deregister(Resource):
     def get(self, imsi):
-        '''Deregisters a given IMSI from the entire network'''
+        '''Deregisters a given IMSI from the entire network.'''
         try:
-            subscriberInfo =  databaseClient.Get_Subscriber(imsi=str(imsi))
+            subscriberInfo = databaseClient.Get_Subscriber(imsi=str(imsi))
             imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
+            subscriberId = subscriberInfo.get('subscriber_id', None)
+            servingMmePeer = subscriberInfo.get('serving_mme_peer', None)
             servingMme = subscriberInfo.get('serving_mme', None)
             servingMmeRealm = subscriberInfo.get('serving_mme_realm', None)
-            servingScscf = imsSubscriberInfo.get('scscf_peer', None)
+            servingScscf = subscriberInfo.get('scscf', None)
+            servingScscfPeer = imsSubscriberInfo.get('scscf_peer', None)
             servingScscfRealm = imsSubscriberInfo.get('scscf_realm', None)
-            if servingMme is not None and servingMmeRealm is not None:
-                diameterRequest = diameterClient.broadcastDiameterRequest(
+            if servingMmePeer is not None and servingMmeRealm is not None and servingMme is not None:
+                if ';' in servingMmePeer:
+                    servingMmePeer = servingMmePeer.split(';')[0]
+
+                # Send the CLR to the serving MME
+                diameterClient.sendDiameterRequest(
                 requestType='CLR',
-                peerType='MME',
+                hostname=servingMmePeer,
                 imsi=imsi, 
                 DestinationHost=servingMme, 
                 DestinationRealm=servingMmeRealm, 
                 CancellationType=2
                 )
-                databaseClient.Update_Serving_MME(imsi=imsi, serving_mme=None)
-            if servingScscf and servingScscfRealm is not None:
-                servingScscf = servingScscf.split(';')[0]
-                diameterRequest = diameterClient.broadcastDiameterRequest(
+            
+            #Broadcast the CLR to all connected MME's, regardless of whether the subscriber is attached.
+            diameterClient.broadcastDiameterRequest(
+            requestType='CLR',
+            peerType='MME',
+            imsi=imsi, 
+            DestinationHost=servingMme, 
+            DestinationRealm=servingMmeRealm, 
+            CancellationType=2
+            )
+
+            databaseClient.Update_Serving_MME(imsi=imsi, serving_mme=None)
+
+            if servingScscfPeer is not None and servingScscfRealm is not None and servingScscf is not None:
+                if ';' in servingScscfPeer:
+                    servingScscfPeer = servingScscfPeer.split(';')[0]
+                servingScscf = servingScscf.replace('sip:', '')
+                if ';' in servingScscf:
+                    servingScscf = servingScscf.split(';')[0]
+                diameterClient.sendDiameterRequest(
                 requestType='RTR',
-                peerType='SCSCF',
+                peerType=servingScscfPeer,
                 imsi=imsi,
                 destinationHost=servingScscf, 
                 destinationRealm=servingScscfRealm, 
                 domain=servingScscfRealm
                 )
-                databaseClient.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
-            return {"result": f"Successfully deregistered {imsi} from the entire network"}, 200
+
+            #Broadcast the RTR to all connected SCSCF's, regardless of whether the subscriber is attached.
+            diameterClient.broadcastDiameterRequest(
+            requestType='RTR',
+            peerType='SCSCF',
+            imsi=imsi,
+            destinationHost=servingScscf, 
+            destinationRealm=servingScscfRealm, 
+            domain=servingScscfRealm
+            )
+
+            databaseClient.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
+
+            # If a subscriber has an active serving apn, grab the pcrf session id for that apn and send a CCR-T, then a Registration Termination Request to the serving pgw peer.
+            if subscriberId is not None:
+                servingApns = databaseClient.Get_Serving_APNs(subscriber_id=subscriberId)
+                if len(servingApns.get('apns', {})) > 0:
+                    for apnKey, apnDict in servingApns['apns'].items():
+                        pcrfSessionId = None
+                        servingPgwPeer = None
+                        servingPgwRealm = None
+                        servingPgw = None
+                        for apnDataKey, apnDataValue in servingApns['apns'][apnKey].items():
+                            if apnDataKey == 'pcrf_session_id':
+                                pcrfSessionId = apnDataValue
+                            if apnDataKey == 'serving_pgw_peer':
+                                servingPgwPeer = apnDataValue
+                            if apnDataKey == 'serving_pgw_realm':
+                                servingPgwRealm = apnDataValue
+                            if apnDataKey == 'serving_pgw':
+                                servingPgwRealm = apnDataValue
+                            
+                        if pcrfSessionId is not None and servingPgwPeer is not None and servingPgwRealm is not None and servingPgw is not None:
+                            if ';' in servingPgwPeer:
+                                servingPgwPeer = servingPgwPeer.split(';')[0]
+
+                            diameterClient.sendDiameterRequest(
+                            requestType='CCR',
+                            hostname=servingPgwPeer,
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm,
+                            ccr_type=3,
+                            sessionId=pcrfSessionId,
+                            domain=servingPgwRealm
+                            )
+
+                            diameterClient.sendDiameterRequest(
+                            requestType='RTR',
+                            hostname=servingPgwPeer,
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm, 
+                            domain=servingPgwRealm
+                            )
+                        
+                        diameterClient.broadcastDiameterRequest(
+                            requestType='CCR',
+                            peerType='PGW',
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm,
+                            ccr_type=3,
+                            sessionId = pcrfSessionId,
+                            domain=servingPgwRealm
+                            )
+                        
+                        diameterClient.broadcastDiameterRequest(
+                        requestType='RTR',
+                        peerType='PGW',
+                        imsi=imsi,
+                        destinationHost=servingPgw, 
+                        destinationRealm=servingPgwRealm, 
+                        domain=servingPgwRealm
+                        )
+
+            subscriberInfo = databaseClient.Get_Subscriber(imsi=str(imsi))
+            imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
+            servingApns = databaseClient.Get_Serving_APNs(subscriber_id=subscriberId)
+
+            return {'subscriber': subscriberInfo, 'ims_subscriber': imsSubscriberInfo, 'pcrf': servingApns}, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
-
-
-# The below function is kept as a placeholder until Rx is implemented.
-# @ns_oam.route('/deregister_ims/<string:imsi>')
-# class PyHSS_OAM_DeregisterIMS(Resource):
-#     def get(self, imsi):
-#         '''Deregisters a given IMSI from the IMS network'''
-#         try:
-#             imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
-#             servingScscf = imsSubscriberInfo.get('scscf_peer', None)
-#             servingScscfRealm = imsSubscriberInfo.get('scscf_realm', None)
-#             if servingScscf and servingScscfRealm is not None:
-#                 servingScscf = servingScscf.split(';')[0]
-#                 diameterRequest = diameterClient.broadcastDiameterRequest(
-#                 requestType='RTR',
-#                 peerType='SCSCF',
-#                 imsi=imsi,
-#                 destinationHost=servingScscf, 
-#                 destinationRealm=servingScscfRealm, 
-#                 domain=servingScscfRealm
-#                 )
-#                 databaseClient.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
-#             return {"result": f"Successfully deregistered {imsi} from the IMS network"}, 200
-#         except Exception as E:
-#             print(E)
-#             return handle_exception(E)
 
 @ns_oam.route("/ping")
 class PyHSS_OAM_Ping(Resource):

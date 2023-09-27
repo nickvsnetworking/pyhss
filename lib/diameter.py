@@ -70,6 +70,7 @@ class Diameter:
         self.diameterRequestList = [
                 {"commandCode": 304, "applicationId": 16777216, "requestMethod": self.Request_16777216_304, "failureResultCode": 5012 ,"requestAcronym": "RTR", "responseAcronym": "RTA", "requestName": "Registration Termination Request", "responseName": "Registration Termination Answer"},
                 {"commandCode": 258, "applicationId": 16777238, "requestMethod": self.Request_16777238_258, "failureResultCode": 5012 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
+                {"commandCode": 272, "applicationId": 16777238, "requestMethod": self.Request_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
 
@@ -522,7 +523,7 @@ class Diameter:
 
     def getPeerType(self, originHost: str) -> str:
             try:
-                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs']
+                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
 
                 for peer in peerTypes:
                     if peer in originHost.lower():
@@ -2914,9 +2915,12 @@ class Diameter:
         return response
 
     #3GPP Gx - Credit Control Request
-    def Request_16777238_272(self, imsi, apn, ccr_type):
+    def Request_16777238_272(self, imsi, apn, ccr_type, destinationHost, destinationRealm, sessionId=None):
         avp = ''
-        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_gx'                           #Session state generate
+        if sessionId == None:
+            sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_gx'                           #Session state generate
+        else:
+            sessionid = sessionId
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
@@ -2924,7 +2928,7 @@ class Diameter:
         VendorSpecificApplicationId += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
         avp += self.generate_avp(260, 40, VendorSpecificApplicationId)   
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (Not maintained)        
-        avp += self.generate_avp(264, 40, self.string_to_hex('ExamplePGW.com'))                                               #Origin Host
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
         
         avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx

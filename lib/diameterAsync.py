@@ -220,7 +220,7 @@ class DiameterAsync:
 
     async def getPeerType(self, originHost: str) -> str:
             try:
-                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs']
+                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
 
                 for peer in peerTypes:
                     if peer in originHost.lower():
