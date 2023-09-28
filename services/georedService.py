@@ -30,9 +30,10 @@ class GeoredService:
         if not self.config.get('geored', {}).get('enabled'):
             self.logger.error("[Geored] Fatal Error - geored not enabled under geored.enabled, exiting.")
             quit()
-        if not (len(self.georedPeers) > 0):
-            self.logger.error("[Geored] Fatal Error - no peers defined under geored.sync_endpoints, exiting.")
-            quit()
+        if self.georedPeers is not None:
+            if not (len(self.georedPeers) > 0):
+                self.logger.error("[Geored] Fatal Error - no peers defined under geored.sync_endpoints, exiting.")
+                quit()
 
     async def sendGeored(self, asyncSession, url: str, operation: str, body: str, transactionId: str=uuid.uuid4(), retryCount: int=3) -> bool:
             """
@@ -366,11 +367,13 @@ class GeoredService:
             georedEnabled = self.config.get('geored', {}).get('enabled', False)
             webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
 
-            if not len(self.georedPeers) > 0:
-                georedEnabled = False
+            if self.georedPeers is not None:
+                if not len(self.georedPeers) > 0:
+                    georedEnabled = False
             
-            if not len(self.webhookPeers) > 0:
-                webhooksEnabled = False
+            if self.webhookPeers is not None:
+                if not len(self.webhookPeers) > 0:
+                    webhooksEnabled = False
 
             if not georedEnabled and not webhooksEnabled:
                 await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [startService] Geored and Webhook services both disabled or missing peers, exiting."))

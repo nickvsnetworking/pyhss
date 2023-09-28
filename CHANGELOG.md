@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Memory leaking in diameter.py
  - Gx CCA now supports apn inside a plmn based uri
  - AVP_Preemption_Capability and AVP_Preemption_Vulnerability now presents correctly in all diameter messages
+ - Crash when webhook or geored endpoints enabled and no peers defined
 
 ### Removed
 
