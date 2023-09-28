@@ -17,16 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Dependency on Redis for inter-service messaging
  - Significant performance improvements under load
  - Basic Rx support for RAA, AAA, ASA and STA
+ - Asymmetric geored support
 
 ### Changed
 
 - Split logical functions of PyHSS into 6 service processes.
 - Logtool no longer handles metric processing
 - Updated config.yaml
+- Gx CCR-T now flushes PGW / IMS data, depending on Called-Station-Id
 
 ### Fixed
 
  - Memory leaking in diameter.py
+ - Gx CCA now supports apn inside a plmn based uri
+ - AVP_Preemption_Capability and AVP_Preemption_Vulnerability now presents correctly in all diameter messages
 
 ### Removed
 

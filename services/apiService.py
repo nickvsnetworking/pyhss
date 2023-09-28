@@ -1087,6 +1087,7 @@ class PyHSS_OAM_Deregister(Resource):
             servingScscf = subscriberInfo.get('scscf', None)
             servingScscfPeer = imsSubscriberInfo.get('scscf_peer', None)
             servingScscfRealm = imsSubscriberInfo.get('scscf_realm', None)
+            
             if servingMmePeer is not None and servingMmeRealm is not None and servingMme is not None:
                 if ';' in servingMmePeer:
                     servingMmePeer = servingMmePeer.split(';')[0]
@@ -1202,6 +1203,8 @@ class PyHSS_OAM_Deregister(Resource):
                         destinationRealm=servingPgwRealm, 
                         domain=servingPgwRealm
                         )
+
+                        databaseClient.Update_Serving_APN(imsi=imsi, apn=apnKey, pcrf_session_id=None, serving_pgw=None, subscriber_routing='')
 
             subscriberInfo = databaseClient.Get_Subscriber(imsi=str(imsi))
             imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))

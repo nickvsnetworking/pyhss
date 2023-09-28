@@ -1636,7 +1636,6 @@ class Database:
         finally:
             self.safe_close(session)
 
-
     def Update_Serving_APN(self, imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn), redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message="PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing), redisClient=self.redisMessaging)
@@ -1680,31 +1679,41 @@ class Database:
             'subscriber_routing' : str(subscriber_routing)
         }
 
-        try:
-        #Check if already a serving APN on record
-            self.logTool.log(service='Database', level='debug', message="Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id), redisClient=self.redisMessaging)
-            ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
-            self.logTool.log(service='Database', level='debug', message="Existing Serving APN ID on record, updating", redisClient=self.redisMessaging)
+        if serving_pgw is None:
             try:
-                assert(type(serving_pgw) == str)
-                assert(len(serving_pgw) > 0)
-                assert("None" not in serving_pgw)
-                
-                self.UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
-                objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-                self.handleWebhook(objectData, 'PATCH')
-            except:
+                ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
                 self.logTool.log(service='Database', level='debug', message="Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']), redisClient=self.redisMessaging)
                 objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
                 self.handleWebhook(objectData, 'DELETE')
                 self.DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
-        except Exception as E:
-            self.logTool.log(service='Database', level='info', message="Failed to update existing APN " + str(E), redisClient=self.redisMessaging)
-            #Create if does not exist
-            self.CreateObj(SERVING_APN, json_data, True)
-            ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
-            objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
-            self.handleWebhook(objectData, 'PUT')
+            except Exception as e:
+                self.logTool.log(service='Database', level='debug', message=f"Error when trying to delete serving_apn id: {apn_id}", redisClient=self.redisMessaging)
+        else:
+            try:
+            #Check if already a serving APN on record
+                self.logTool.log(service='Database', level='debug', message="Checking to see if subscriber id " + str(subscriber_id) + " already has an active PCRF profile on APN id " + str(apn_id), redisClient=self.redisMessaging)
+                ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
+                self.logTool.log(service='Database', level='debug', message="Existing Serving APN ID on record, updating", redisClient=self.redisMessaging)
+                try:
+                    assert(type(serving_pgw) == str)
+                    assert(len(serving_pgw) > 0)
+                    assert("None" not in serving_pgw)
+                    
+                    self.UpdateObj(SERVING_APN, json_data, ServingAPN['serving_apn_id'], True)
+                    objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+                    self.handleWebhook(objectData, 'PATCH')
+                except:
+                    self.logTool.log(service='Database', level='debug', message="Clearing PCRF session ID on serving_apn_id: " + str(ServingAPN['serving_apn_id']), redisClient=self.redisMessaging)
+                    objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+                    self.handleWebhook(objectData, 'DELETE')
+                    self.DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
+            except Exception as E:
+                self.logTool.log(service='Database', level='info', message="Failed to update existing APN " + str(E), redisClient=self.redisMessaging)
+                #Create if does not exist
+                self.CreateObj(SERVING_APN, json_data, True)
+                ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)
+                objectData = self.GetObj(SERVING_APN, ServingAPN['serving_apn_id'])
+                self.handleWebhook(objectData, 'PUT')
 
         #Sync state change with geored
         if propagate == True:
@@ -1723,7 +1732,6 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of PCRF events", redisClient=self.redisMessaging)
             except Exception as E:
                 self.logTool.log(service='Database', level='debug', message="Nothing synced to Geographic PyHSS instances for event PCRF", redisClient=self.redisMessaging)
-
 
             return
 

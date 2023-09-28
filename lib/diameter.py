@@ -699,6 +699,126 @@ class Diameter:
         
         return True
 
+
+    def deregisterApn(self, imsi: str=None, msisdn: str=None, apn: str=None) -> bool:
+        """
+        Revokes a given UE's session with the assigned PGW (If it exists), and sends a CLR to the MME.
+        """
+        try:
+            if imsi is None and msisdn is None:
+                return False
+
+            if imsi is not None:
+                subscriberDetails = self.database.Get_Subscriber(imsi=imsi)
+            if msisdn is not None:
+                subscriberDetails = self.database.Get_Subscriber(msisdn=msisdn)
+                imsi = subscriberDetails.get('imsi', '')
+        
+            if subscriberDetails is None:
+                return False
+            
+            subscriberId = subscriberDetails.get('subscriber_id', None)
+
+            # If a subscriber has an active serving apn, grab the pcrf session id for that apn and send a CCR-T, then a Registration Termination Request to the serving pgw peer.
+            if subscriberId is not None:
+                servingApns = self.database.Get_Serving_APNs(subscriber_id=subscriberId)
+                if len(servingApns.get('apns', {})) > 0:
+                    for apnKey, apnDict in servingApns['apns'].items():
+                        pcrfSessionId = None
+                        servingPgwPeer = None
+                        servingPgwRealm = None
+                        servingPgw = None
+                        for apnDataKey, apnDataValue in servingApns['apns'][apnKey].items():
+                            if apnDataKey == 'pcrf_session_id':
+                                pcrfSessionId = apnDataValue
+                            if apnDataKey == 'serving_pgw_peer':
+                                servingPgwPeer = apnDataValue
+                            if apnDataKey == 'serving_pgw_realm':
+                                servingPgwRealm = apnDataValue
+                            if apnDataKey == 'serving_pgw':
+                                servingPgwRealm = apnDataValue
+                            
+                        if pcrfSessionId is not None and servingPgwPeer is not None and servingPgwRealm is not None and servingPgw is not None:
+                            if ';' in servingPgwPeer:
+                                servingPgwPeer = servingPgwPeer.split(';')[0]
+                            
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [deregisterData] Sending CCR-T with Session-ID:{pcrfSessionId} to peer: {servingPgwPeer} {apnKey}", redisClient=self.redisMessaging)
+
+                            self.sendDiameterRequest(
+                            requestType='CCR',
+                            hostname=servingPgwPeer,
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm,
+                            ccr_type=3,
+                            sessionId=pcrfSessionId,
+                            domain=servingPgwRealm
+                            )
+
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [deregisterData] Sending RTR to peer: {servingPgwPeer} {apnKey}", redisClient=self.redisMessaging)
+
+                            self.sendDiameterRequest(
+                            requestType='RTR',
+                            hostname=servingPgwPeer,
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm, 
+                            domain=servingPgwRealm
+                            )
+
+                        self.database.Update_Serving_APN(imsi=imsi, apn=apnKey, pcrf_session_id=None, serving_pgw=None, subscriber_routing='')
+            
+            return True
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [deregisterIms] Error deregistering subscriber from IMS: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return False
+
+    def deregisterIms(self, imsi=None, msisdn=None) -> bool:
+        """
+        Revokes a given UE's IMS registration, and sends a RTR to the SCSCF (if defined).
+        Does not revoke the pgw session, or notify the mme.
+        """
+        try:
+            if imsi is None and msisdn is None:
+                return False
+
+            if imsi is not None:
+                imsSubscriberDetails = self.database.Get_Subscriber(imsi=imsi)
+            if msisdn is not None:
+                imsSubscriberDetails = self.database.Get_Subscriber(msisdn=msisdn)
+        
+            if imsSubscriberDetails is None:
+                return False
+            
+            servingScscf = imsSubscriberDetails.get('scscf', None)
+            servingScscfPeer = imsSubscriberDetails.get('scscf_peer', None)
+            servingScscfRealm = imsSubscriberDetails.get('scscf_realm', None)
+
+            if servingScscfPeer is not None and servingScscfRealm is not None and servingScscf is not None:
+                if ';' in servingScscfPeer:
+                    servingScscfPeer = servingScscfPeer.split(';')[0]
+                servingScscf = servingScscf.replace('sip:', '')
+                if ';' in servingScscf:
+                    servingScscf = servingScscf.split(';')[0]
+                self.sendDiameterRequest(
+                requestType='RTR',
+                peerType=servingScscfPeer,
+                imsi=imsi,
+                destinationHost=servingScscf, 
+                destinationRealm=servingScscfRealm, 
+                domain=servingScscfRealm
+                )
+
+            if imsi is not None:
+                self.database.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
+            elif msisdn is not None:
+                self.database.Update_Serving_CSCF(msisdn=msisdn, serving_cscf=None)
+            
+            return True
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [deregisterIms] Error deregistering subscriber from IMS: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return False
+
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
             if avp_dicts['avp_code'] == 278:
@@ -741,8 +861,8 @@ class Diameter:
         #ARP
         self.logTool.log(service='HSS', level='info', message="Defining ARP information", redisClient=self.redisMessaging)
         AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
-        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_capability']), 4))
-        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(ChargingRules['arp_preemption_vulnerability']), 4))
+        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not ChargingRules['arp_preemption_capability']), 4))
+        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not ChargingRules['arp_preemption_vulnerability']), 4))
         ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
 
         self.logTool.log(service='HSS', level='info', message="Defining MBR information", redisClient=self.redisMessaging)
@@ -1038,8 +1158,8 @@ class Diameter:
             self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
             #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
             AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
+            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
+            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
             AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
             AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
             APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
@@ -1415,9 +1535,14 @@ class Diameter:
 
                     self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
                     #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+                    # Per TS 29.212, we need to flip our stored values for capability and vulnerability:
+                    # PRE-EMPTION_CAPABILITY_ENABLED (0)
+                    # PRE-EMPTION_CAPABILITY_DISABLED (1)
+                    # PRE-EMPTION_VULNERABILITY_ENABLED (0)
+                    # PRE-EMPTION_VULNERABILITY_DISABLED (1)
                     AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
-                    AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_capability']), 4))
-                    AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(apn_data['arp_preemption_vulnerability']), 4))
+                    AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
+                    AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
                     AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
                     AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
                     avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
@@ -1456,7 +1581,8 @@ class Diameter:
                 self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Added to AVP List", redisClient=self.redisMessaging)
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] QoS Information: " + str(QoS_Information), redisClient=self.redisMessaging)                                                                                 
                 
-                #If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+                # If database returned an existing ChargingRule defintion add ChargingRule to CCA-I
+                # If a Charging Rule Install AVP is present, it may trigger the creation of a dedicated bearer.
                 if ChargingRules and ChargingRules['charging_rules'] is not None:
                     try:
                         self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
@@ -1470,9 +1596,18 @@ class Diameter:
                         self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
 
             elif int(CC_Request_Type) == 3:
-                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
-                self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=None, subscriber_routing=None)
-            
+                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
+                if 'ims' in apn:
+                    if not self.deregisterIms(imsi=imsi):
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to deregister IMS", redisClient=self.redisMessaging)
+                    else:
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Successfully deregistered IMS", redisClient=self.redisMessaging)
+                else:
+                    if not self.deregisterData(imsi=imsi):
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to deregister Data APNs", redisClient=self.redisMessaging)
+                    else:
+                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Successfully deregistered Data APNs", redisClient=self.redisMessaging)
+
             avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
@@ -2389,7 +2524,7 @@ class Diameter:
     #3GPP S6a/S6d Authentication Information Request
     def Request_16777251_318(self, imsi, DestinationHost, DestinationRealm, requested_vectors=1):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -2413,7 +2548,7 @@ class Diameter:
         mcc = imsi[0:3]
         mnc = imsi[3:5]
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + self.config['hss']['OriginHost'])),'ascii'))          
@@ -2431,7 +2566,7 @@ class Diameter:
     #3GPP S6a/S6d Purge UE Request PUR
     def Request_16777251_321(self, imsi, DestinationRealm, DestinationHost):
         avp = ''
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))               #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                         #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -2446,7 +2581,7 @@ class Diameter:
     #3GPP S6a/S6d NOtify Request NOR
     def Request_16777251_323(self, imsi, DestinationRealm, DestinationHost):
         avp = ''
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))               #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                         #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -2461,7 +2596,7 @@ class Diameter:
     #3GPP S6a/S6d Cancel-Location-Request Request CLR
     def Request_16777251_317(self, imsi, DestinationRealm, DestinationHost=None, CancellationType=2):
         avp = ''
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                      #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                      #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
@@ -2480,7 +2615,7 @@ class Diameter:
         avp = ''                                                                                    #Initiate empty var AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_s6a'                 #Session ID generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                 #Session ID generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))     #Session ID set AVP
         avp += self.generate_vendor_avp(266, 40, 10415, '')                                         #AVP Vendor ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
@@ -2712,7 +2847,7 @@ class Diameter:
     #ToDo - Check the command code here...
     def Request_16777216_302(self, sipaor):                                                             
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         #Auth Session state
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
@@ -2731,7 +2866,7 @@ class Diameter:
     #3GPP Cx User Authorization Request (UAR)
     def Request_16777216_300(self, imsi, domain):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -2747,7 +2882,7 @@ class Diameter:
     #3GPP Cx Server Assignment Request (SAR)
     def Request_16777216_301(self, imsi, domain, server_assignment_type):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session Session ID
         avp += self.generate_avp(264, 40, str(binascii.hexlify(str.encode("testclient." + self.config['hss']['OriginHost'])),'ascii'))                                                              #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -2765,7 +2900,7 @@ class Diameter:
     #3GPP Cx Multimedia Authentication Request (MAR)
     def Request_16777216_303(self, imsi, domain):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
@@ -2785,7 +2920,7 @@ class Diameter:
     #3GPP Cx Registration Termination Request (RTR)
     def Request_16777216_304(self, imsi, domain, destinationHost, destinationRealm):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_cx'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777216),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Cx)
         
@@ -2815,7 +2950,7 @@ class Diameter:
     #3GPP Sh User-Data Request (UDR)
     def Request_16777217_306(self, **kwargs):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
-        sessionid = str(self.OriginHost) + ';' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_sh'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session ID AVP
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777217),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Sh)
         
@@ -2897,7 +3032,7 @@ class Diameter:
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
 
-        sessionid = 'nickpc.localdomain;' + self.generate_id(5) + ';1;app_slh'                           #Session state generate
+        sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + self.generate_id(5) + ';1;app_slh'                           #Session state generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session State set AVP
         
         #Username (IMSI)
