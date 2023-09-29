@@ -254,11 +254,11 @@ class GeoredService:
                     if not len(asymmetricGeoredQueue) > 0:
                         await(asyncio.sleep(0.01))
                         continue
-                    georedMessage = await(self.redisGeoredMessaging.getMessage(queue=georedQueue))
+                    georedMessage = await(self.redisGeoredMessaging.getMessage(queue=asymmetricGeoredQueue))
                     if not len(georedMessage) > 0:
                         await(asyncio.sleep(0.01))
                         continue
-                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Queue: {georedQueue}"))
+                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Queue: {asymmetricGeoredQueue}"))
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Message: {georedMessage}"))
 
                     georedDict = json.loads(georedMessage)
@@ -385,6 +385,7 @@ class GeoredService:
                 georedTask = asyncio.create_task(self.handleGeoredQueue())
                 asymmetricGeoredTask = asyncio.create_task(self.handleAsymmetricGeoredQueue())
                 activeTasks.append(georedTask)
+                activeTasks.append(asymmetricGeoredTask)
             
             if webhooksEnabled:
                 webhookTask = asyncio.create_task(self.handleWebhookQueue())

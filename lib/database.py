@@ -850,10 +850,11 @@ class Database:
                 return
             georedDict = {}
             if self.config.get('geored', {}).get('enabled', False):
-                if self.config.get('geored', {}).get('endpoints', []) is not None and len(self.config.get('geored', {}).get('endpoints', [])) > 0:
-                    georedDict['body'] = jsonData
-                    georedDict['operation'] = operation
-                    self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
+                if self.config.get('geored', {}).get('endpoints', []) is not None:
+                    if len(self.config.get('geored', {}).get('endpoints', [])) > 0:
+                        georedDict['body'] = jsonData
+                        georedDict['operation'] = operation
+                        self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
                 if asymmetric:
                     if len(asymmetricUrls) > 0:
                         georedDict['body'] = jsonData
@@ -874,6 +875,9 @@ class Database:
         if not webhooksEnabled:
             return False
         
+        if endpointList is None:
+            return False
+        
         if not len (endpointList) > 0:
             self.logTool.log(service='Database', level='error', message="Webhooks enabled, but endpoints are missing.", redisClient=self.redisMessaging)
             return False
@@ -882,7 +886,7 @@ class Database:
 
         webhook['body'] = self.Sanitize_Datetime(objectData)
         webhook['headers'] = webhookHeaders
-        webhook['operation'] = "POST"
+        webhook['operation'] = operation
         self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(webhook), queueExpiry=120)
         return True
 
