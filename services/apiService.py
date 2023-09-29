@@ -35,7 +35,7 @@ redisPort = int(config.get("redis", {}).get("port", 6379))
 redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
 redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
 
-redisMessaging = RedisMessaging(host=redisHost, port=redisPort, useUnixSocket=redisUseUnixSocket, redisUnixSocketPath=redisUnixSocketPath)
+redisMessaging = RedisMessaging(host=redisHost, port=redisPort, useUnixSocket=redisUseUnixSocket, unixSocketPath=redisUnixSocketPath)
 
 logTool = LogTool(config)
 

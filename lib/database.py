@@ -191,9 +191,13 @@ class IMS_SUBSCRIBER(Base):
     msisdn_list = Column(String(1200), doc='Comma Separated list of additional MSISDNs for Subscriber')
     imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
     ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
+    pcscf = Column(String(512), doc='Proxy-CSCF serving this subscriber')
+    pcscf_realm = Column(String(512), doc='Realm of PCSCF')
+    pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
+    pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF') 
     sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
     scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
-    scscf_timestamp = Column(DateTime, doc='Timestamp of attach to S-CSCF')
+    scscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to SCSCF')
     scscf_realm = Column(String(512), doc='Realm of SCSCF')
     scscf_peer = Column(String(512), doc='Diameter peer used to reach SCSCF') 
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
@@ -1552,16 +1556,18 @@ class Database:
                         
                         URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                         self.logTool.log(service='Database', level='debug', message="Sending CLR to API at " + str(URL), redisClient=self.redisMessaging)
-                        
-                        self.logTool.log(service='Database', level='debug', message="Pushing CLR to API on " + str(URL) + " with JSON body: " + str(json_data), redisClient=self.redisMessaging)
-                        transaction_id = str(uuid.uuid4())
-                        self.handleGeored({
+
+                        clrBody = {
                             "imsi": str(imsi), 
                             "DestinationRealm": result.serving_mme_realm,
                             "DestinationHost": result.serving_mme,
                             "cancellationType": 2,
                             "diameterPeer": serving_mme_peer,
-                            }, asymmetric=True, asymmetricUrls=[URL])
+                            }
+                        
+                        self.logTool.log(service='Database', level='debug', message="Pushing CLR to API on " + str(URL) + " with JSON body: " + str(clrBody), redisClient=self.redisMessaging)
+                        transaction_id = str(uuid.uuid4())
+                        self.handleGeored(clrBody, asymmetric=True, asymmetricUrls=[URL])
                 else:
                     #No currently serving MME - No action to take
                     self.logTool.log(service='Database', level='debug', message="No currently serving MME - No need to send CLR", redisClient=self.redisMessaging)

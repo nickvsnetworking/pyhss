@@ -1093,12 +1093,10 @@ class Diameter:
 
         self.database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
 
-
         #Boilerplate AVPs
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                      #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State    
         avp += self.generate_vendor_avp(1406, "c0", 10415, "00000001")                                   #ULA Flags
-
 
         #Subscription Data: 
         subscription_data = ''
@@ -1508,6 +1506,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Subscriber " + str(imsi) + " unknown in HSS for CCR - Check Charging Rule assigned to APN is set and exists", redisClient=self.redisMessaging)
 
 
+            # CCR - Initial Request
             if int(CC_Request_Type) == 1:
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 1 - Initial", redisClient=self.redisMessaging)
 
@@ -1601,18 +1600,22 @@ class Diameter:
                     except Exception as E:
                         self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Error in populating dynamic charging rules: " + str(E), redisClient=self.redisMessaging)
 
+            # CCR - Termination Request
             elif int(CC_Request_Type) == 3:
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
                 if 'ims' in apn:
-                    if not self.deregisterIms(imsi=imsi):
-                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to deregister IMS", redisClient=self.redisMessaging)
-                    else:
-                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Successfully deregistered IMS", redisClient=self.redisMessaging)
+                        try:
+                            self.database.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
+                            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=str(binascii.unhexlify(session_id).decode()), subscriber_routing='')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Successfully cleared stored IMS state", redisClient=self.redisMessaging)
+                        except Exception as e:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed to clear stored IMS state: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 else:
-                    if not self.deregisterData(imsi=imsi):
-                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to deregister Data APNs", redisClient=self.redisMessaging)
-                    else:
-                        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Successfully deregistered Data APNs", redisClient=self.redisMessaging)
+                        try:
+                            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=str(binascii.unhexlify(session_id).decode()), subscriber_routing='')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Successfully cleared stored state for: {apn}", redisClient=self.redisMessaging)
+                        except Exception as e:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed to clear apn state for {apn}: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
             avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
