@@ -33,8 +33,14 @@ class LogTool:
         'NOTSET': {'verbosity': 6, 'logging':  logging.NOTSET},
         }
         self.logLevel = config.get('logging', {}).get('level', 'INFO')
-        self.redisMessagingAsync = RedisMessagingAsync()
-        self.redisMessaging = RedisMessaging()
+
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
+
+        self.redisMessagingAsync = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
     
     async def logAsync(self, service: str, level: str, message: str, redisClient=None) -> bool:
         """

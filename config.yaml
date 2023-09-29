@@ -113,6 +113,9 @@ geored:
 
 #Redis is required to run PyHSS. A locally running instance is recommended for production.
 redis:
+  # Whether to use a UNIX socket instead of a tcp connection to redis. Host and port is ignored if useUnixSocket is True.
+  useUnixSocket: False
+  unixSocketPath: '/var/run/redis/redis-server.sock'
   host: localhost
   port: 6379
 

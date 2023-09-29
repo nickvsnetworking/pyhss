@@ -21,8 +21,14 @@ class GeoredService:
             quit()
         self.logTool = LogTool(self.config)
         self.banners = Banners()
-        self.redisGeoredMessaging = RedisMessagingAsync(host=redisHost, port=redisPort)
-        self.redisWebhookMessaging = RedisMessagingAsync(host=redisHost, port=redisPort)
+
+        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisGeoredMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.redisWebhookMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        
         self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
         self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)

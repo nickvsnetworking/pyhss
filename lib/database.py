@@ -261,12 +261,17 @@ class Database:
     def __init__(self, logTool, redisMessaging=None):
         with open("../config.yaml", 'r') as stream:
             self.config = (yaml.safe_load(stream))
+        
+        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = self.config.get('redis', {}).get('port', 6379)
 
         self.logTool = logTool
         if redisMessaging:
             self.redisMessaging = redisMessaging
         else:
-            self.redisMessaging = RedisMessaging()
+            self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
         db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
         self.engine = create_engine(
@@ -469,11 +474,11 @@ class Database:
                     changes = []
                     for attr in class_mapper(obj.__class__).column_attrs:
                         hist = get_history(obj, attr.key)
-                        self.logTool.log(service='Database', level='info', message=f"History {hist}", redisClient=self.redisMessaging)
+                        self.logTool.log(service='Database', level='debug', message=f"History {hist}", redisClient=self.redisMessaging)
                         if hist.has_changes() and hist.added and hist.deleted:
                             old_value, new_value = hist.deleted[0], hist.added[0]
-                            self.logTool.log(service='Database', level='info', message=f"Old Value {old_value}", redisClient=self.redisMessaging)
-                            self.logTool.log(service='Database', level='info', message=f"New Value {new_value}", redisClient=self.redisMessaging)
+                            self.logTool.log(service='Database', level='debug', message=f"Old Value {old_value}", redisClient=self.redisMessaging)
+                            self.logTool.log(service='Database', level='debug', message=f"New Value {new_value}", redisClient=self.redisMessaging)
                             changes.append((attr.key, old_value, new_value))
                             continue
 
@@ -1712,7 +1717,7 @@ class Database:
                     self.handleWebhook(objectData, 'DELETE')
                     self.DeleteObj(SERVING_APN, ServingAPN['serving_apn_id'], True)
             except Exception as E:
-                self.logTool.log(service='Database', level='info', message="Failed to update existing APN " + str(E), redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message="Failed to update existing APN " + str(E), redisClient=self.redisMessaging)
                 #Create if does not exist
                 self.CreateObj(SERVING_APN, json_data, True)
                 ServingAPN = self.Get_Serving_APN(subscriber_id=subscriber_id, apn_id=apn_id)

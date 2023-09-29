@@ -7,9 +7,11 @@ class RedisMessaging:
     A class for sending and receiving redis messages.
     """
 
-    def __init__(self, host: str='localhost', port: int=6379):
-        self.redisClient = Redis(unix_socket_path='/var/run/redis/redis-server.sock')
-        pass
+    def __init__(self, host: str='localhost', port: int=6379, useUnixSocket: bool=False, unixSocketPath: str='/var/run/redis/redis-server.sock'):
+        if useUnixSocket:
+            self.redisClient = Redis(unix_socket_path=unixSocketPath)
+        else:
+            self.redisClient = Redis(host=host, port=port)
 
     def sendMessage(self, queue: str, message: str, queueExpiry: int=None) -> str:
         """

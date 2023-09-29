@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Significant performance improvements under load
  - Basic Rx support for RAA, AAA, ASA and STA
  - Asymmetric geored support
+ - Configurable redis connection (Unix socket or TCP)
 
 ### Changed
 

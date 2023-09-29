@@ -32,7 +32,10 @@ productName = config.get('hss', {}).get('ProductName', f'PyHSS')
 
 redisHost = config.get("redis", {}).get("host", "127.0.0.1")
 redisPort = int(config.get("redis", {}).get("port", 6379))
-redisMessaging = RedisMessaging()
+redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+
+redisMessaging = RedisMessaging(host=redisHost, port=redisPort, useUnixSocket=redisUseUnixSocket, redisUnixSocketPath=redisUnixSocketPath)
 
 logTool = LogTool(config)
 

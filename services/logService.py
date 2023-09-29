@@ -14,7 +14,7 @@ class LogService:
     This class is synchronous and not high-performance.
     """
 
-    def __init__(self, redisHost: str='127.0.0.1', redisPort: int=6379):
+    def __init__(self):
         try:
             with open("../config.yaml", "r") as self.configFile:
                 self.config = yaml.safe_load(self.configFile)
@@ -23,7 +23,11 @@ class LogService:
             quit()
         self.logTool = LogTool(config=self.config)
         self.banners = Banners()
-        self.redisMessaging = RedisMessaging(host=redisHost, port=redisPort)
+        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.logFilePaths = self.config.get('logging', {}).get('logfiles', {})
         self.logLevels = {
         'CRITICAL': {'verbosity': 1, 'logging': logging.CRITICAL},

@@ -8,8 +8,12 @@ class RedisMessagingAsync:
     A class for sending and receiving redis messages asynchronously.
     """
 
-    def __init__(self, host: str='localhost', port: int=6379):
-        self.redisClient = redis.Redis(unix_socket_path='/var/run/redis/redis-server.sock')
+    def __init__(self, host: str='localhost', port: int=6379, useUnixSocket: bool=False, unixSocketPath: str='/var/run/redis/redis-server.sock'):
+        if useUnixSocket:
+            self.redisClient = redis.Redis(unix_socket_path=unixSocketPath)
+        else:
+            self.redisClient = redis.Redis(host=host, port=port)
+        pass
 
     async def sendMessage(self, queue: str, message: str, queueExpiry: int=None) -> str:
         """
