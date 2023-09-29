@@ -1512,7 +1512,7 @@ class Database:
         return result    
 
     def Get_APN_by_Name(self, apn):
-        self.logTool.log(service='Database', level='debug', message="Getting APN named " + str(apn_id), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="Getting APN named " + str(apn), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()    
         try:
@@ -1607,6 +1607,49 @@ class Database:
         finally:
             self.safe_close(session)
 
+
+    def Update_Proxy_CSCF(self, imsi, proxy_cscf, pcscf_realm=None, pcscf_peer=None, propagate=True):
+        self.logTool.log(service='Database', level='debug', message="Update_Proxy_CSCF for sub " + str(imsi) + " to pcscf " + str(proxy_cscf) + " with realm " + str(pcscf_realm) + " and peer " + str(pcscf_peer), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        try:
+            result = session.query(IMS_SUBSCRIBER).filter_by(imsi=imsi).one()
+            try:
+                assert(type(proxy_cscf) == str)
+                assert(len(proxy_cscf) > 0)
+                self.logTool.log(service='Database', level='debug', message="Setting Proxy CSCF", redisClient=self.redisMessaging)
+                #Strip duplicate SIP prefix before storing
+                proxy_cscf = proxy_cscf.replace("sip:sip:", "sip:")
+                result.pcscf = proxy_cscf
+                result.pcscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                result.pcscf_realm = pcscf_realm
+                result.pcscf_peer = str(pcscf_peer)
+            except:
+                #Clear values
+                self.logTool.log(service='Database', level='debug', message="Clearing Proxy CSCF", redisClient=self.redisMessaging)
+                result.pcscf = None
+                result.pcscf_timestamp = None
+                result.pcscf_realm = None
+                result.pcscf_peer = None
+            
+            session.commit()
+            objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
+            self.handleWebhook(objectData, 'PATCH')
+
+            #Sync state change with geored
+            if propagate == True:
+                if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                    self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_peer": str(result.pcscf_peer)})
+                else:
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="An error occurred, rolling back session: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            raise
+        finally:
+            self.safe_close(session)
 
     def Update_Serving_CSCF(self, imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer), redisClient=self.redisMessaging)

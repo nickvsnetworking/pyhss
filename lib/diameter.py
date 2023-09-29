@@ -69,8 +69,6 @@ class Diameter:
                 {"commandCode": 323, "applicationId": 16777251, "responseMethod": self.Answer_16777251_323, "failureResultCode": 5012 ,"requestAcronym": "NOR", "responseAcronym": "NOA", "requestName": "Notify Request", "responseName": "Notify Answer"},
                 {"commandCode": 324, "applicationId": 16777252, "responseMethod": self.Answer_16777252_324, "failureResultCode": 4100 ,"requestAcronym": "ECR", "responseAcronym": "ECA", "requestName": "ME Identity Check Request", "responseName": "ME Identity Check Answer"},
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
-
-
             ]
 
         self.diameterRequestList = [
@@ -79,7 +77,6 @@ class Diameter:
                 {"commandCode": 272, "applicationId": 16777238, "requestMethod": self.Request_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
-
         ]
 
     #Generates rounding for calculating padding
@@ -591,7 +588,7 @@ class Diameter:
         try:
             request = ''
             requestType = requestType.upper()
-            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Generating a diameter outbound request", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Generating a diameter outbound request", redisClient=self.redisMessaging)
             
             for diameterApplication in self.diameterRequestList:
                 try:
@@ -609,6 +606,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return request
         except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Error generating diameter outbound request: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return ''
 
     def broadcastDiameterRequest(self, requestType: str, peerType: str, **kwargs) -> bool:
@@ -1606,13 +1604,14 @@ class Diameter:
                 if 'ims' in apn:
                         try:
                             self.database.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
-                            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=str(binascii.unhexlify(session_id).decode()), subscriber_routing='')
+                            self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=None)
+                            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=str(binascii.unhexlify(session_id).decode()), serving_pgw=OriginHost, subscriber_routing='')
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Successfully cleared stored IMS state", redisClient=self.redisMessaging)
                         except Exception as e:
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed to clear stored IMS state: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 else:
                         try:
-                            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=str(binascii.unhexlify(session_id).decode()), subscriber_routing='')
+                            self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=str(binascii.unhexlify(session_id).decode()), serving_pgw=OriginHost, subscriber_routing='')
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Successfully cleared stored state for: {apn}", redisClient=self.redisMessaging)
                         except Exception as e:
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed to clear apn state for {apn}: {traceback.format_exc()}", redisClient=self.redisMessaging)
@@ -2168,7 +2167,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 307, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
-
     ################################
     ####        3GPP RX         ####
     ################################ 
@@ -2216,7 +2214,108 @@ class Diameter:
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
 
             if imsEnabled:
+                """
+                Add the PCSCF to the IMS_Subscriber object, and set the result code to 2001.
+                """
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
+
+                if imsi is None:
+                    imsi = subscriberDetails.get('imsi', None)
+                    
+                aarOriginHost = self.get_avp_data(avps, 264)[0]
+                aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
+                aarOriginRealm = self.get_avp_data(avps, 296)[0]
+                aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
+                #Check if we have a record-route set as that's where we'll need to send the response
+                try:
+                    #Get first record-route header, then parse it
+                    remotePeer = self.get_avp_data(avps, 282)[-1]
+                    remotePeer = binascii.unhexlify(remotePeer).decode('utf-8')
+                except Exception as e:
+                    #If we don't have a record-route set, we'll send the response to the OriginHost
+                    remotePeer = aarOriginHost
+                
+                remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
+                
+                self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer)
+                """
+                Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
+                Media-Type: 0 = Audio, 4 = Control
+                """
+                try:
+                    afApplicationIdentifier = self.get_avp_data(avps, 504)[0]
+                    mediaType = self.get_avp_data(avps, 520)[0]
+                    assert(bytes.fromhex(afApplicationIdentifier).decode('ascii') == "IMS Services")
+                    assert(int(mediaType, 16) == 0)
+
+                    # At this point, we know the AAR is indicating a call setup, so we'll send get the serving pgw information, then send a 
+                    # RAR to the PGW over Gx, asking it to setup the dedicated bearer.
+
+                    subscriberId = subscriberDetails.get('subscriber_id', None)
+                    apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+                    servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                    servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+                    servingPgw = servingApn.get('serving_pgw', None)
+                    servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+                    pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                    ueIp = servingApn.get('subscriber_routing', None)
+
+                    """
+                    The below charging rule needs to be replaced by the following logic:
+                    1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
+                    2. Compare it to a given backup rule
+                      - If the flowrates are greater than the backup rule (UE is asking for more than allowed), use the backup rule
+                      - If the flowrates are lesser than the backup rule, use the requested flowrates. This will allow for better utilization of radio resources.
+                    3. Maybe something to do with the TFT's
+                    4. Send the winning rule.
+                    """
+
+                    chargingRule = {
+                    "charging_rule_id": 1000,
+                    "qci": 1,
+                    "arp_preemption_capability": True,
+                    "mbr_dl": 128000,
+                    "mbr_ul": 128000,
+                    "gbr_ul": 128000,
+                    "precedence": 100,
+                    "arp_priority": 2,
+                    "rule_name": "GBR-Voice",
+                    "arp_preemption_vulnerability": False,
+                    "gbr_dl": 128000,
+                    "tft_group_id": 1,
+                    "rating_group": None,
+                    "tft": [
+                        {
+                        "tft_group_id": 1,
+                        "direction": 1,
+                        "tft_id": 1,
+                        "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535",
+                        "last_modified": "2023-09-29T05:09:26Z"
+                        },
+                        {
+                        "tft_group_id": 1,
+                        "direction": 2,
+                        "tft_id": 2,
+                        "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535",
+                        "last_modified": "2023-09-29T05:09:26Z"
+                        }
+                    ]
+                    }
+
+                    self.sendDiameterRequest(
+                            requestType='RAR',
+                            hostname=servingPgwPeer,
+                            sessionId=pcrfSessionId,
+                            chargingRules=chargingRule,
+                            ueIp=ueIp,
+                            servingPgw=servingPgw,
+                            servingRealm=servingPgwRealm
+                            )
+                    
+                except Exception as e:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error sending Gx RAR: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                    pass
+
                 avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
             else:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request unauthorized", redisClient=self.redisMessaging)
@@ -3115,19 +3214,23 @@ class Diameter:
         return response
 
     #3GPP Gx - Re Auth Request
-    def Request_16777238_258(self, sessionid, ChargingRules, ue_ip, Serving_PGW, Serving_Realm):
+    def Request_16777238_258(self, sessionId, chargingRules, ueIp, servingPgw, servingRealm):
         avp = ''
-        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))          #Session-Id set AVP
+        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Creating Re Auth Request", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Charging Rules: {chargingRules}", redisClient=self.redisMessaging)
+
+
+        avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionId)),'ascii'))          #Session-Id set AVP
 
         #Setup Charging Rule
-        self.logTool.log(service='HSS', level='debug', message=ChargingRules, redisClient=self.redisMessaging)
-        avp += self.Charging_Rule_Generator(ChargingRules=ChargingRules, ue_ip=ue_ip)
-
+        self.logTool.log(service='HSS', level='debug', message=chargingRules, redisClient=self.redisMessaging)
+        avp += self.Charging_Rule_Generator(ChargingRules=chargingRules, ue_ip=ueIp)
+        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Generated Charging Rules", redisClient=self.redisMessaging)
 
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
-        avp += self.generate_avp(293, 40, self.string_to_hex(Serving_PGW))                                               #Destination Host
-        avp += self.generate_avp(283, 40, self.string_to_hex(Serving_Realm))                                               #Destination Realm
+        avp += self.generate_avp(293, 40, self.string_to_hex(servingPgw))                                               #Destination Host
+        avp += self.generate_avp(283, 40, self.string_to_hex(servingRealm))                                               #Destination Realm
        
         avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))   #Auth-Application-ID Gx
         
