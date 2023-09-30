@@ -906,7 +906,10 @@ class Database:
                     continue
                 else:
                     self.logTool.log(service='Database', level='debug', message="Key " + str(keys) + " is type DateTime with value: " + str(result[keys]) + " - Formatting to String", redisClient=self.redisMessaging)
-                    result[keys] = str(result[keys])
+                    try:
+                        result[keys] = result[keys].strftime('%Y-%m-%dT%H:%M:%SZ')
+                    except Exception as e:
+                        result[keys] = str(result[keys])
         return result
 
     def Sanitize_Keys(self, result):
@@ -1530,7 +1533,7 @@ class Database:
         self.logTool.log(service='Database', level='debug', message=self.UpdateObj(AUC, {'sqn': sqn}, auc_id, True), redisClient=self.redisMessaging)
         return
 
-    def Update_Serving_MME(self, imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, propagate=True):
+    def Update_Serving_MME(self, imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, serving_mme_timestamp=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
@@ -1575,7 +1578,17 @@ class Database:
             if type(serving_mme) == str:
                 self.logTool.log(service='Database', level='debug', message="Updating serving MME & Timestamp", redisClient=self.redisMessaging)
                 result.serving_mme = serving_mme
-                result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
+                try:
+                    if serving_mme_timestamp is not None and serving_mme_timestamp is not 'None':
+                        result.serving_mme_timestamp = datetime.strptime(serving_mme_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+                        result.serving_mme_timestamp = result.serving_mme_timestamp.replace(tzinfo=timezone.utc)
+                        serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    else:
+                        result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
+                        serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                except Exception as e:
+                    result.serving_mme_timestamp = datetime.datetime.now(tz=timezone.utc)
+                    serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
                 result.serving_mme_realm = serving_mme_realm
                 result.serving_mme_peer = serving_mme_peer
             else:
@@ -1585,10 +1598,14 @@ class Database:
                 result.serving_mme_timestamp = None
                 result.serving_mme_realm = None
                 result.serving_mme_peer = None
+                serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
 
             session.commit()
             objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
             self.handleWebhook(objectData, 'PATCH')
+
+            if result.serving_mme_timestamp is not None:
+                result.serving_mme_timestamp = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
 
             #Sync state change with geored
             if propagate == True:
@@ -1598,7 +1615,8 @@ class Database:
                         "imsi": str(imsi), 
                         "serving_mme": result.serving_mme, 
                         "serving_mme_realm": str(result.serving_mme_realm), 
-                        "serving_mme_peer": str(result.serving_mme_peer)
+                        "serving_mme_peer": str(result.serving_mme_peer),
+                        "serving_mme_timestamp": serving_mme_timestamp_string
                         })
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of HSS events", redisClient=self.redisMessaging)
@@ -1608,7 +1626,7 @@ class Database:
             self.safe_close(session)
 
 
-    def Update_Proxy_CSCF(self, imsi, proxy_cscf, pcscf_realm=None, pcscf_peer=None, propagate=True):
+    def Update_Proxy_CSCF(self, imsi, proxy_cscf, pcscf_realm=None, pcscf_peer=None, pcscf_timestamp=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Update_Proxy_CSCF for sub " + str(imsi) + " to pcscf " + str(proxy_cscf) + " with realm " + str(pcscf_realm) + " and peer " + str(pcscf_peer), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
@@ -1622,7 +1640,17 @@ class Database:
                 #Strip duplicate SIP prefix before storing
                 proxy_cscf = proxy_cscf.replace("sip:sip:", "sip:")
                 result.pcscf = proxy_cscf
-                result.pcscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                try:
+                    if pcscf_timestamp is not None and pcscf_timestamp is not 'None':
+                        result.pcscf_timestamp = datetime.strptime(pcscf_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+                        result.pcscf_timestamp = result.pcscf_timestamp.replace(tzinfo=timezone.utc)
+                        pcscf_timestamp_string = result.pcscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    else:
+                        result.pcscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                        pcscf_timestamp_string = result.pcscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                except Exception as e:
+                    result.pcscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                    pcscf_timestamp_string = result.pcscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
                 result.pcscf_realm = pcscf_realm
                 result.pcscf_peer = str(pcscf_peer)
             except:
@@ -1632,6 +1660,7 @@ class Database:
                 result.pcscf_timestamp = None
                 result.pcscf_realm = None
                 result.pcscf_peer = None
+                pcscf_timestamp_string = None
             
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
@@ -1641,7 +1670,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_peer": str(result.pcscf_peer)})
+                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": str(result.pcscf_peer)})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1651,7 +1680,7 @@ class Database:
         finally:
             self.safe_close(session)
 
-    def Update_Serving_CSCF(self, imsi, serving_cscf, scscf_realm=None, scscf_peer=None, propagate=True):
+    def Update_Serving_CSCF(self, imsi, serving_cscf, scscf_realm=None, scscf_peer=None, scscf_timestamp=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Update_Serving_CSCF for sub " + str(imsi) + " to SCSCF " + str(serving_cscf) + " with realm " + str(scscf_realm) + " and peer " + str(scscf_peer), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
@@ -1665,7 +1694,17 @@ class Database:
                 #Strip duplicate SIP prefix before storing
                 serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
                 result.scscf = serving_cscf
-                result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                try:
+                    if scscf_timestamp is not None and scscf_timestamp is not 'None':
+                        result.scscf_timestamp = datetime.strptime(scscf_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+                        result.scscf_timestamp = result.scscf_timestamp.replace(tzinfo=timezone.utc)
+                        scscf_timestamp_string = result.scscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    else:
+                        result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                        scscf_timestamp_string = result.scscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                except Exception as e:
+                    result.scscf_timestamp = datetime.datetime.now(tz=timezone.utc)
+                    scscf_timestamp_string = result.scscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
                 result.scscf_realm = scscf_realm
                 result.scscf_peer = str(scscf_peer)
             except:
@@ -1675,6 +1714,7 @@ class Database:
                 result.scscf_timestamp = None
                 result.scscf_realm = None
                 result.scscf_peer = None
+                scscf_timestamp_string = None
             
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
@@ -1684,7 +1724,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_peer": str(result.scscf_peer)})
+                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_timestamp": scscf_timestamp_string, "scscf_peer": str(result.scscf_peer)})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1694,7 +1734,7 @@ class Database:
         finally:
             self.safe_close(session)
 
-    def Update_Serving_APN(self, imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, propagate=True):
+    def Update_Serving_APN(self, imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, serving_pgw_timestamp=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn), redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message="PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing), redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message="Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer), redisClient=self.redisMessaging)
@@ -1726,6 +1766,20 @@ class Database:
                 break
         self.logTool.log(service='Database', level='debug', message="APN ID is " + str(apn_id), redisClient=self.redisMessaging)
 
+        try:
+            if serving_pgw_timestamp is not None and serving_pgw_timestamp is not 'None':
+                serving_pgw_timestamp = datetime.strptime(serving_pgw_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+                serving_pgw_timestamp = serving_pgw_timestamp.replace(tzinfo=timezone.utc)
+                serving_pgw_timestamp_string = serving_pgw_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+            else:
+                serving_pgw_timestamp = datetime.datetime.now(tz=timezone.utc)
+                serving_pgw_timestamp_string = serving_pgw_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+        except Exception as e:
+            serving_pgw_timestamp = datetime.datetime.now(tz=timezone.utc)
+            serving_pgw_timestamp_string = serving_pgw_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+        serving_pgw_realm = serving_pgw_realm
+        serving_pgw_peer = serving_pgw_peer
+
         json_data = {
             'apn' : apn_id,
             'subscriber_id' : subscriber_id,
@@ -1733,7 +1787,7 @@ class Database:
             'serving_pgw' : str(serving_pgw),
             'serving_pgw_realm' : str(serving_pgw_realm),
             'serving_pgw_peer' : str(serving_pgw_peer),
-            'serving_pgw_timestamp' : datetime.datetime.now(tz=timezone.utc),
+            'serving_pgw_timestamp' : serving_pgw_timestamp,
             'subscriber_routing' : str(subscriber_routing)
         }
 
@@ -1784,6 +1838,7 @@ class Database:
                                     'serving_pgw': str(serving_pgw),
                                     'serving_pgw_realm': str(serving_pgw_realm),
                                     'serving_pgw_peer': str(serving_pgw_peer),
+                                    'serving_pgw_timestamp': serving_pgw_timestamp_string,
                                     'subscriber_routing': str(subscriber_routing)
                                     })
                 else:

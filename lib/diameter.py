@@ -1814,7 +1814,7 @@ class Diameter:
         ServingCSCF = binascii.unhexlify(ServingCSCF).decode('utf-8')      #Format it
         self.logTool.log(service='HSS', level='debug', message="Subscriber is served by S-CSCF " + str(ServingCSCF), redisClient=self.redisMessaging)
         if (Server_Assignment_Type == 1) or (Server_Assignment_Type == 2):
-            self.logTool.log(service='HSS', level='debug', message="SAR is Register / Re-Restister", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="SAR is Register / Re-Register", redisClient=self.redisMessaging)
             remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
             self.database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
         else:

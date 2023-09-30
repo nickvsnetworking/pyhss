@@ -1507,6 +1507,8 @@ class PyHSS_Geored(Resource):
                     json_data['serving_pgw_realm'] = None
                 if 'serving_pgw_peer' not in json_data:
                     json_data['serving_pgw_peer'] = None
+                if 'serving_pgw_timestamp' not in json_data:
+                    json_data['serving_pgw_timestamp'] = None
                 response_data.append(databaseClient.Update_Serving_APN(
                     imsi=str(json_data['imsi']), 
                     apn=json_data['serving_apn'],
@@ -1515,6 +1517,7 @@ class PyHSS_Geored(Resource):
                     subscriber_routing=json_data['subscriber_routing'],
                     serving_pgw_realm=json_data['serving_pgw_realm'],
                     serving_pgw_peer=json_data['serving_pgw_peer'],
+                    serving_pgw_timestamp=json_data['serving_pgw_timestamp'],
                     propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
@@ -1525,17 +1528,36 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60)
             if 'scscf' in json_data:
-                print("Updating serving SCSCF")
+                print("Updating Serving SCSCF")
                 if 'scscf_realm' not in json_data:
                     json_data['scscf_realm'] = None
                 if 'scscf_peer' not in json_data:
                     json_data['scscf_peer'] = None
-                response_data.append(databaseClient.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
+                if 'scscf_timestamp' not in json_data:
+                    json_data['scscf_timestamp'] = None
+                response_data.append(databaseClient.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), scscf_timestamp=json_data['scscf_timestamp'], propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
                                     metricLabels={
-                                        "endpoint": "IMS",
+                                        "endpoint": "IMS_SCSCF",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
+            if 'pcscf' in json_data:
+                print("Updating Proxy SCSCF")
+                if 'pcscf_realm' not in json_data:
+                    json_data['pcscf_realm'] = None
+                if 'pcscf_peer' not in json_data:
+                    json_data['pcscf_peer'] = None
+                if 'pcscf_timestamp' not in json_data:
+                    json_data['pcscf_timestamp'] = None
+                response_data.append(databaseClient.Update_Proxy_CSCF(imsi=str(json_data['imsi']), proxy_cscf=json_data['pcscf'], pcscf_realm=str(json_data['pcscf_realm']), pcscf_peer=str(json_data['pcscf_peer']), pcscf_timestamp=json_data['pcscf_timestamp'], propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "IMS_PCSCF",
                                         "geored_host": request.remote_addr,
                                     },
                                     metricExpiry=60)
