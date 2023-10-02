@@ -1,5 +1,5 @@
 from redis import Redis
-import time, json, uuid
+import time, json, uuid, traceback
 
 class RedisMessaging:
     """
@@ -88,11 +88,11 @@ class RedisMessaging:
         Returns all Queues (Keys) in the database.
         """
         try:
-            allQueues = self.redisClient.keys(pattern)
+            allQueues = self.redisClient.scan_iter(match=pattern)
             return [x.decode() for x in allQueues]
         except Exception as e:
-            return []
-    
+            return f"{traceback.format_exc()}"
+
     def getNextQueue(self, pattern: str='*') -> dict:
         """
         Returns the next Queue (Key) in the list.
@@ -137,6 +137,19 @@ class RedisMessaging:
                     return message
         except Exception as e:
             return ''
+
+    def getList(self, key: str) -> list:
+        """
+        Gets the list stored under a given key.
+        """
+        try:
+                allResults = self.redisClient.lrange(key, 0, -1)
+                if allResults is None:
+                    result = []
+                else:
+                    return [result.decode() for result in allResults]
+        except Exception as e:
+            return []
 
     def RedisHGetAll(self, key: str):
         """

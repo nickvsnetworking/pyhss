@@ -99,7 +99,7 @@ class RedisMessagingAsync:
         Returns all Queues (Keys) in the database, asynchronously.
         """
         try:
-                allQueuesBinary = await(self.redisClient.keys(pattern))
+                allQueuesBinary = await(self.redisClient.scan_iter(match=pattern))
                 allQueues = [x.decode() for x in allQueuesBinary]
                 return allQueues
         except Exception as e:

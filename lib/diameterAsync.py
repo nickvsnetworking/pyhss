@@ -19,9 +19,9 @@ class DiameterAsync:
                 {"commandCode": 306, "applicationId": 16777217, "responseMethod": self.Answer_16777217_306, "failureResultCode": 5001 ,"requestAcronym": "UDR", "responseAcronym": "UDA", "requestName": "User Data Request", "responseName": "User Data Answer"},
                 {"commandCode": 307, "applicationId": 16777217, "responseMethod": self.Answer_16777217_307, "failureResultCode": 5001 ,"requestAcronym": "PRUR", "responseAcronym": "PRUA", "requestName": "Profile Update Request", "responseName": "Profile Update Answer"},
                 {"commandCode": 265, "applicationId": 16777236, "responseMethod": self.Answer_16777236_265, "failureResultCode": 4100 ,"requestAcronym": "AAR", "responseAcronym": "AAA", "requestName": "AA Request", "responseName": "AA Answer"},
-                {"commandCode": 258, "applicationId": 16777236, "responseMethod": self.Answer_16777236_258, "failureResultCode": 4100 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
                 {"commandCode": 275, "applicationId": 16777236, "responseMethod": self.Answer_16777236_275, "failureResultCode": 4100 ,"requestAcronym": "STR", "responseAcronym": "STA", "requestName": "Session Termination Request", "responseName": "Session Termination Answer"},
                 {"commandCode": 274, "applicationId": 16777236, "responseMethod": self.Answer_16777236_274, "failureResultCode": 4100 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},
+                {"commandCode": 258, "applicationId": 16777238, "responseMethod": self.Answer_16777238_258, "failureResultCode": 4100 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
                 {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 318, "applicationId": 16777251, "flags": "c0", "responseMethod": self.Answer_16777251_318, "failureResultCode": 4100 ,"requestAcronym": "AIR", "responseAcronym": "AIA", "requestName": "Authentication Information Request", "responseName": "Authentication Information Answer"},
                 {"commandCode": 316, "applicationId": 16777251, "responseMethod": self.Answer_16777251_316, "failureResultCode": 4100 ,"requestAcronym": "ULR", "responseAcronym": "ULA", "requestName": "Update Location Request", "responseName": "Update Location Answer"},
@@ -229,7 +229,7 @@ class DiameterAsync:
 
     async def getPeerType(self, originHost: str) -> str:
             try:
-                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
+                peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
 
                 for peer in peerTypes:
                     if peer in originHost.lower():
@@ -241,7 +241,7 @@ class DiameterAsync:
     async def getConnectedPeersByType(self, peerType: str) -> list:
             try:
                 peerType = peerType.lower()
-                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs']
+                peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
 
                 if peerType not in peerTypes:
                     return []
@@ -257,8 +257,10 @@ class DiameterAsync:
             except Exception as e:
                 return []
 
-
     async def getDiameterMessageType(self, binaryData: str) -> dict:
+        """
+        Determines whether a message is a request or a response, and the appropriate acronyms for each type.
+        """
         packet_vars, avps = await(self.decodeDiameterPacket(binaryData))
         response = {}
         
@@ -266,8 +268,12 @@ class DiameterAsync:
             try:
                 assert(packet_vars["command_code"] == diameterApplication["commandCode"])
                 assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
-                response['inbound'] = diameterApplication["requestAcronym"]
-                response['outbound'] = diameterApplication["responseAcronym"]
+                if packet_vars["flags_bin"][0:1] == "1":
+                    response['inbound'] = diameterApplication["requestAcronym"]
+                    response['outbound'] = diameterApplication["responseAcronym"]
+                else:
+                    response['inbound'] = diameterApplication["responseAcronym"]
+                    response['outbound'] = diameterApplication["requestAcronym"]
             except Exception as e:
                 continue
         
@@ -344,11 +350,11 @@ class DiameterAsync:
     async def Answer_16777236_265(self):
         pass
 
-    async def Answer_16777236_258(self):
-        pass
-
     async def Answer_16777236_275(self):
         pass
 
     async def Answer_16777236_274(self):
+        pass
+
+    async def Answer_16777238_258(self):
         pass

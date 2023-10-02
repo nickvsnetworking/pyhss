@@ -248,6 +248,7 @@ def page_not_found(e):
 @apiService.after_request
 def apply_caching(response):
     response.headers["HSS"] = str(config['hss']['OriginHost'])
+    response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
 @ns_apn.route('/<string:apn_id>')

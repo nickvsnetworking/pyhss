@@ -49,7 +49,8 @@ class HssService:
                 inboundSplit = str(inboundQueue).split('-')
                 inboundHost = inboundSplit[2]
                 inboundPort = inboundSplit[3]
-                inboundTimestamp = inboundSplit[4]
+                inboundMessageType = inboundSplit[4]
+                inboundTimestamp = inboundSplit[5]
 
                 try:
                     diameterOutbound = self.diameterLibrary.generateDiameterResponse(binaryData=inboundBinary)

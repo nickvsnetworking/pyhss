@@ -144,7 +144,7 @@ class DiameterService:
                     diameterMessageType = await(self.diameterLibrary.getDiameterMessageType(binaryData=inboundData))
                     diameterMessageType = diameterMessageType.get('inbound', '')
 
-                    inboundQueueName = f"diameter-inbound-{clientAddress}-{clientPort}-{time.time_ns()}"
+                    inboundQueueName = f"diameter-inbound-{clientAddress}-{clientPort}-{diameterMessageType}-{time.time_ns()}"
                     inboundHexString = json.dumps({f"diameter-inbound": inboundData.hex()})
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] [{diameterMessageType}] Queueing {inboundHexString}"))
                     await(self.redisReaderMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=self.diameterRequestTimeout))

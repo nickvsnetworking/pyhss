@@ -59,9 +59,9 @@ class Diameter:
                 {"commandCode": 306, "applicationId": 16777217, "responseMethod": self.Answer_16777217_306, "failureResultCode": 5001 ,"requestAcronym": "UDR", "responseAcronym": "UDA", "requestName": "User Data Request", "responseName": "User Data Answer"},
                 {"commandCode": 307, "applicationId": 16777217, "responseMethod": self.Answer_16777217_307, "failureResultCode": 5001 ,"requestAcronym": "PRUR", "responseAcronym": "PRUA", "requestName": "Profile Update Request", "responseName": "Profile Update Answer"},
                 {"commandCode": 265, "applicationId": 16777236, "responseMethod": self.Answer_16777236_265, "failureResultCode": 4100 ,"requestAcronym": "AAR", "responseAcronym": "AAA", "requestName": "AA Request", "responseName": "AA Answer"},
-                {"commandCode": 258, "applicationId": 16777236, "responseMethod": self.Answer_16777236_258, "failureResultCode": 4100 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
                 {"commandCode": 275, "applicationId": 16777236, "responseMethod": self.Answer_16777236_275, "failureResultCode": 4100 ,"requestAcronym": "STR", "responseAcronym": "STA", "requestName": "Session Termination Request", "responseName": "Session Termination Answer"},
                 {"commandCode": 274, "applicationId": 16777236, "responseMethod": self.Answer_16777236_274, "failureResultCode": 4100 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},
+                {"commandCode": 258, "applicationId": 16777238, "responseMethod": self.Answer_16777238_258, "failureResultCode": 4100 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
                 {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
                 {"commandCode": 318, "applicationId": 16777251, "flags": "c0", "responseMethod": self.Answer_16777251_318, "failureResultCode": 4100 ,"requestAcronym": "AIR", "responseAcronym": "AIA", "requestName": "Authentication Information Request", "responseName": "Authentication Information Answer"},
                 {"commandCode": 316, "applicationId": 16777251, "responseMethod": self.Answer_16777251_316, "failureResultCode": 4100 ,"requestAcronym": "ULR", "responseAcronym": "ULA", "requestName": "Update Location Request", "responseName": "Update Location Answer"},
@@ -525,61 +525,68 @@ class Diameter:
             return False
 
     def getPeerType(self, originHost: str) -> str:
-            try:
-                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
+        try:
+            peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
 
-                for peer in peerTypes:
-                    if peer in originHost.lower():
-                        return peer
-                
-            except Exception as e:
-                return ''
+            for peer in peerTypes:
+                if peer in originHost.lower():
+                    return peer
+            
+        except Exception as e:
+            return ''
 
     def getConnectedPeersByType(self, peerType: str) -> list:
-            try:
-                peerType = peerType.lower()
-                peerTypes = ['mme', 'pgw', 'icscf', 'scscf', 'hss', 'ocs']
+        try:
+            peerType = peerType.lower()
+            peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
 
-                if peerType not in peerTypes:
-                    return []
-                filteredConnectedPeers = []
-                activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
-
-                for key, value in activePeers.items():
-                    if activePeers.get(key, {}).get('peerType', '') == peerType and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
-                        filteredConnectedPeers.append(activePeers.get(key, {}))
-                
-                return filteredConnectedPeers
-
-            except Exception as e:
+            if peerType not in peerTypes:
                 return []
+            filteredConnectedPeers = []
+            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
+
+            for key, value in activePeers.items():
+                if activePeers.get(key, {}).get('peerType', '') == peerType and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
+                    filteredConnectedPeers.append(activePeers.get(key, {}))
+            
+            return filteredConnectedPeers
+
+        except Exception as e:
+            return []
 
     def getPeerByHostname(self, hostname: str) -> dict:
-            try:
-                hostname = hostname.lower()
-                activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
+        try:
+            hostname = hostname.lower()
+            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
 
-                for key, value in activePeers.items():
-                    if activePeers.get(key, {}).get('diameterHostname', '').lower() == hostname and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
-                        return(activePeers.get(key, {}))
+            for key, value in activePeers.items():
+                if activePeers.get(key, {}).get('diameterHostname', '').lower() == hostname and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
+                    return(activePeers.get(key, {}))
 
-            except Exception as e:
-                return {}
+        except Exception as e:
+            return {}
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
-            packet_vars, avps = self.decode_diameter_packet(binaryData)
-            response = {}
-            
-            for diameterApplication in self.diameterResponseList:
-                try:
-                    assert(packet_vars["command_code"] == diameterApplication["commandCode"])
-                    assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
+        """
+        Determines whether a message is a request or a response, and the appropriate acronyms for each type.
+        """
+        packet_vars, avps = self.decode_diameter_packet(binaryData)
+        response = {}
+        
+        for diameterApplication in self.diameterResponseList:
+            try:
+                assert(packet_vars["command_code"] == diameterApplication["commandCode"])
+                assert(packet_vars["ApplicationId"] == diameterApplication["applicationId"])
+                if packet_vars["flags_bin"][0:1] == "1":
                     response['inbound'] = diameterApplication["requestAcronym"]
                     response['outbound'] = diameterApplication["responseAcronym"]
-                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Matched message types: {response}", redisClient=self.redisMessaging)
-                except Exception as e:
-                    continue
-            return response
+                else:
+                    response['inbound'] = diameterApplication["responseAcronym"]
+                    response['outbound'] = diameterApplication["requestAcronym"]
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] Matched message types: {response}", redisClient=self.redisMessaging)
+            except Exception as e:
+                continue
+        return response
 
     def sendDiameterRequest(self, requestType: str, hostname: str, **kwargs) -> str:
         """
@@ -599,11 +606,11 @@ class Diameter:
                 peerIp = connectedPeer['ipAddress']
                 peerPort = connectedPeer['port']
                 request = diameterApplication["requestMethod"](**kwargs)
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}-{time.time_ns()}"
                 outboundMessage = json.dumps({'diameter-outbound': request})
                 self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return request
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Error generating diameter outbound request: {traceback.format_exc()}", redisClient=self.redisMessaging)
@@ -635,6 +642,81 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Queueing for peer type: {peerType} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return connectedPeerList
         except Exception as e:
+            return ''
+
+    def awaitDiameterRequestAndResponse(self, requestType: str, hostname: str, timeout: float=0.12, **kwargs) -> str:
+        """
+        Sends a given diameter request of requestType to the provided peer hostname.
+        Ensures the peer is connected, sends the request, then waits on and returns the response.
+        If the timeout is reached, the function fails.
+
+        Diameter lacks a unique identifier for all message types, the closest being Session-ID which exists for most.
+        We attempt to get the associated response given the following logic:
+          - If sessionId is none, attempt to return the first response that matches the expected response method (eg AAA, CEA, etc.) which has a timestamp greater than sendTime.
+          - If sessionId is not none, perform the logic above, and also ensure that sessionId matches.
+
+        Returns an empty string if fails.
+
+        Until diameter.py is rewritten to be asynchronous, this method should be called only when strictly necessary. It potentially adds up to 120ms of delay per invocation.
+        """
+        try:
+            request = ''
+            requestType = requestType.upper()
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Generating a diameter outbound request", redisClient=self.redisMessaging)
+            
+            for diameterApplication in self.diameterRequestList:
+                try:
+                    assert(requestType == diameterApplication["requestAcronym"])
+                except Exception as e:
+                    continue
+                connectedPeer = self.getPeerByHostname(hostname=hostname)
+                peerIp = connectedPeer['ipAddress']
+                peerPort = connectedPeer['port']
+                request = diameterApplication["requestMethod"](**kwargs)
+                responseType = diameterApplication["responseAcronym"]
+                sessionId = kwargs.get('sessionId', None)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                sendTime = time.time_ns()
+                outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}-{sendTime}"
+                outboundMessage = json.dumps({'diameter-outbound': request})
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
+                startTimer = time.time()
+                while True:
+                    try:
+                        if not time.time() >= startTimer + timeout:
+                            if sessionId is None:
+                                responseQueues = self.redisMessaging.getQueues(pattern=f"diameter-inbound-{peerIp.replace('.', '*')}-{peerPort}-{responseType}*")
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] responseQueues(NoSessionId): {responseQueues}", redisClient=self.redisMessaging)
+                                for responseQueue in responseQueues:
+                                    if float(responseQueue.split('-')[5]) > sendTime:
+                                        inboundResponseList = self.redisMessaging.getMessage(queue=responseQueue)
+                                        if len(inboundResponseList) > 0:
+                                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Found inbound response: {inboundResponse}", redisClient=self.redisMessaging)
+                                            return json.loads(inboundResponseList[0]).get('diameter-inbound', '')
+                                time.sleep(0.02)
+                            else:
+                                responseQueues = self.redisMessaging.getQueues(pattern=f"diameter-inbound-{peerIp.replace('.', '*')}-{peerPort}-{responseType}*")
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] responseQueues({sessionId}): {responseQueues} responseType: {responseType}", redisClient=self.redisMessaging)
+                                for responseQueue in responseQueues:
+                                    if float(responseQueue.split('-')[5]) > sendTime:
+                                        inboundResponseList = self.redisMessaging.getList(key=responseQueue)
+                                        if len(inboundResponseList) > 0:
+                                            for inboundResponse in inboundResponseList:
+                                                responseHex = json.loads(inboundResponse)['diameter-inbound']
+                                                packetVars, avps = self.decode_diameter_packet(responseHex)
+                                                responseSessionId = bytes.fromhex(self.get_avp_data(avps, 263)[0]).decode('ascii')
+                                                if responseSessionId == sessionId:
+                                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Matched on Session Id: {sessionId}", redisClient=self.redisMessaging)
+                                                    return json.loads(inboundResponseList[0]).get('diameter-inbound', '')
+                                time.sleep(0.02)
+                        else:
+                            return ''
+                    except Exception as e:
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Traceback: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                        return ''
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Error generating diameter outbound request: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return ''
 
     def generateDiameterResponse(self, binaryData: str) -> str:
@@ -2251,72 +2333,87 @@ class Diameter:
                     # At this point, we know the AAR is indicating a call setup, so we'll send get the serving pgw information, then send a 
                     # RAR to the PGW over Gx, asking it to setup the dedicated bearer.
 
-                    subscriberId = subscriberDetails.get('subscriber_id', None)
-                    apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
-                    servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
-                    servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
-                    servingPgw = servingApn.get('serving_pgw', None)
-                    servingPgwRealm = servingApn.get('serving_pgw_realm', None)
-                    pcrfSessionId = servingApn.get('pcrf_session_id', None)
-                    ueIp = servingApn.get('subscriber_routing', None)
+                    try:
+                        subscriberId = subscriberDetails.get('subscriber_id', None)
+                        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+                        servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                        servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+                        servingPgw = servingApn.get('serving_pgw', None)
+                        servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+                        pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                        ueIp = servingApn.get('subscriber_routing', None)
 
-                    """
-                    The below charging rule needs to be replaced by the following logic:
-                    1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
-                    2. Compare it to a given backup rule
-                      - If the flowrates are greater than the backup rule (UE is asking for more than allowed), use the backup rule
-                      - If the flowrates are lesser than the backup rule, use the requested flowrates. This will allow for better utilization of radio resources.
-                    3. Maybe something to do with the TFT's
-                    4. Send the winning rule.
-                    """
+                        """
+                        The below charging rule needs to be replaced by the following logic:
+                        1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
+                        2. Compare it to a given backup rule
+                        - If the flowrates are greater than the backup rule (UE is asking for more than allowed), use the backup rule
+                        - If the flowrates are lesser than the backup rule, use the requested flowrates. This will allow for better utilization of radio resources.
+                        3. Maybe something to do with the TFT's
+                        4. Send the winning rule.
+                        """
 
-                    chargingRule = {
-                    "charging_rule_id": 1000,
-                    "qci": 1,
-                    "arp_preemption_capability": True,
-                    "mbr_dl": 128000,
-                    "mbr_ul": 128000,
-                    "gbr_ul": 128000,
-                    "precedence": 100,
-                    "arp_priority": 2,
-                    "rule_name": "GBR-Voice",
-                    "arp_preemption_vulnerability": False,
-                    "gbr_dl": 128000,
-                    "tft_group_id": 1,
-                    "rating_group": None,
-                    "tft": [
-                        {
+                        chargingRule = {
+                        "charging_rule_id": 1000,
+                        "qci": 1,
+                        "arp_preemption_capability": True,
+                        "mbr_dl": 128000,
+                        "mbr_ul": 128000,
+                        "gbr_ul": 128000,
+                        "precedence": 100,
+                        "arp_priority": 2,
+                        "rule_name": "GBR-Voice",
+                        "arp_preemption_vulnerability": False,
+                        "gbr_dl": 128000,
                         "tft_group_id": 1,
-                        "direction": 1,
-                        "tft_id": 1,
-                        "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535",
-                        "last_modified": "2023-09-29T05:09:26Z"
-                        },
-                        {
-                        "tft_group_id": 1,
-                        "direction": 2,
-                        "tft_id": 2,
-                        "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535",
-                        "last_modified": "2023-09-29T05:09:26Z"
+                        "rating_group": None,
+                        "tft": [
+                            {
+                            "tft_group_id": 1,
+                            "direction": 1,
+                            "tft_id": 1,
+                            "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            },
+                            {
+                            "tft_group_id": 1,
+                            "direction": 2,
+                            "tft_id": 2,
+                            "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            }
+                        ]
                         }
-                    ]
-                    }
 
-                    self.sendDiameterRequest(
-                            requestType='RAR',
-                            hostname=servingPgwPeer,
-                            sessionId=pcrfSessionId,
-                            chargingRules=chargingRule,
-                            ueIp=ueIp,
-                            servingPgw=servingPgw,
-                            servingRealm=servingPgwRealm
-                            )
+                        reAuthAnswer = self.awaitDiameterRequestAndResponse(
+                                requestType='RAR',
+                                hostname=servingPgwPeer,
+                                sessionId=pcrfSessionId,
+                                chargingRules=chargingRule,
+                                ueIp=ueIp,
+                                servingPgw=servingPgw,
+                                servingRealm=servingPgwRealm
+                        )
+
+                        if not len(reAuthAnswer) > 0:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA Timeout: {reAuthAnswer}", redisClient=self.redisMessaging)
+                            assert()
+                            
+                        raaPacketVars, raaAvps = self.decode_diameter_packet(reAuthAnswer)
+                        raaResultCode = int(self.get_avp_data(raaAvps, 268)[0], 16)
+
+                        if raaResultCode == 2001:
+                            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA returned Successfully, authorizing request", redisClient=self.redisMessaging)
+                        else:
+                            avp += self.generate_avp(268, 40, self.int_to_hex(4001, 4))
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA returned Unauthorized, declining request", redisClient=self.redisMessaging)
+
+                    except Exception as e:
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error processing RAR / RAA, Authorizing request: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
                     
                 except Exception as e:
-                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error sending Gx RAR: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
                     pass
-
-                avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
             else:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request unauthorized", redisClient=self.redisMessaging)
                 avp += self.generate_avp(268, 40, self.int_to_hex(4001, 4))
@@ -2410,6 +2507,7 @@ class Diameter:
             avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
             avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
             response = self.generate_diameter_packet("01", "40", 275, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         except Exception as e:
@@ -2427,12 +2525,26 @@ class Diameter:
             avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
             avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
             response = self.generate_diameter_packet("01", "40", 274, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_274] [STA] Error generating STA: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
 
+    # Re Auth Answer
+    def Answer_16777238_258(self, packet_vars, avps):
+        try:
+            avp = ''
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
+            response = self.generate_diameter_packet("01", "40", 274, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_274] [RAA] Error generating RAA: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
     #3GPP S13 - ME-Identity-Check Answer
     def Answer_16777252_324(self, packet_vars, avps):
