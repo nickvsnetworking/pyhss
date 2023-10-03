@@ -150,6 +150,11 @@ GeoRed_model = api.model('GeoRed', {
     'serving_mme_timestamp' : fields.String(description=SUBSCRIBER.serving_mme_timestamp.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
+    'pcscf' : fields.String(description=IMS_SUBSCRIBER.pcscf.doc),
+    'pcscf_realm' : fields.String(description=IMS_SUBSCRIBER.pcscf_realm.doc),
+    'pcscf_peer' : fields.String(description=IMS_SUBSCRIBER.pcscf_peer.doc),
+    'pcscf_timestamp' : fields.String(description=IMS_SUBSCRIBER.pcscf_timestamp.doc),
+    'pcscf_active_session' : fields.String(description=IMS_SUBSCRIBER.pcscf_active_session.doc),
     'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
     'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
     'serving_pgw_realm' : fields.String(description=Serving_APN.serving_pgw_realm.doc),
@@ -1552,7 +1557,9 @@ class PyHSS_Geored(Resource):
                     json_data['pcscf_peer'] = None
                 if 'pcscf_timestamp' not in json_data:
                     json_data['pcscf_timestamp'] = None
-                response_data.append(databaseClient.Update_Proxy_CSCF(imsi=str(json_data['imsi']), proxy_cscf=json_data['pcscf'], pcscf_realm=str(json_data['pcscf_realm']), pcscf_peer=str(json_data['pcscf_peer']), pcscf_timestamp=json_data['pcscf_timestamp'], propagate=False))
+                if 'pcscf_active_session' not in json_data:
+                    json_data['pcscf_active_session'] = None
+                response_data.append(databaseClient.Update_Proxy_CSCF(imsi=str(json_data['imsi']), proxy_cscf=json_data['pcscf'], pcscf_realm=str(json_data['pcscf_realm']), pcscf_peer=str(json_data['pcscf_peer']), pcscf_timestamp=json_data['pcscf_timestamp'], pcscf_active_session=str(json_data['pcscf_active_session']), propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
