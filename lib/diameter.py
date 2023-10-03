@@ -913,84 +913,101 @@ class Diameter:
                 origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
                 return origin_state_incriment_hex
 
-    def Charging_Rule_Generator(self, ChargingRules, ue_ip):
-        self.logTool.log(service='HSS', level='debug', message="Called Charging_Rule_Generator", redisClient=self.redisMessaging)
-        #Install Charging Rules
-        self.logTool.log(service='HSS', level='debug', message="Naming Charging Rule", redisClient=self.redisMessaging)
-        Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
-        self.logTool.log(service='HSS', level='debug', message="Named Charging Rule", redisClient=self.redisMessaging)
-
-        #Populate all Flow Information AVPs
-        Flow_Information = ''
-        for tft in ChargingRules['tft']:
-            self.logTool.log(service='HSS', level='debug', message=tft, redisClient=self.redisMessaging)
-            #If {{ UE_IP }} in TFT splice in the real UE IP Value
-            try:
-                tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
-                tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
-                self.logTool.log(service='HSS', level='debug', message="Spliced in UE IP into TFT: " + str(tft['tft_string']), redisClient=self.redisMessaging)
-            except Exception as E:
-                self.logTool.log(service='HSS', level='error', message="Failed to splice in UE IP into flow description", redisClient=self.redisMessaging)
-            
-            #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
-            Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
-            Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
-            Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
-
-        Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
-        self.logTool.log(service='HSS', level='debug', message="Defined Flow_Status: " + str(Flow_Status), redisClient=self.redisMessaging)
-
-        self.logTool.log(service='HSS', level='debug', message="Defining QoS information", redisClient=self.redisMessaging)
-        #QCI 
-        QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
-
-        #ARP
-        self.logTool.log(service='HSS', level='debug', message="Defining ARP information", redisClient=self.redisMessaging)
-        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
-        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not ChargingRules['arp_preemption_capability']), 4))
-        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not ChargingRules['arp_preemption_vulnerability']), 4))
-        ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-
-        self.logTool.log(service='HSS', level='debug', message="Defining MBR information", redisClient=self.redisMessaging)
-        #Max Requested Bandwidth
-        Bandwidth_info = ''
-        Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
-        Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
-
-        self.logTool.log(service='HSS', level='debug', message="Defining GBR information", redisClient=self.redisMessaging)
-        #GBR
-        if int(ChargingRules['gbr_ul']) != 0:
-            Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
-        if int(ChargingRules['gbr_dl']) != 0:                
-            Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
-        self.logTool.log(service='HSS', level='debug', message="Defined Bandwith Info: " + str(Bandwidth_info), redisClient=self.redisMessaging)
-
-        #Populate QoS Information
-        QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
-        self.logTool.log(service='HSS', level='debug', message="Defined QoS_Information: " + str(QoS_Information), redisClient=self.redisMessaging)
+    def Charging_Rule_Generator(self, ChargingRules=None, ue_ip=None, chargingRuleName=None, action="install"):
+        self.logTool.log(service='HSS', level='debug', message=f"Called Charging_Rule_Generator with action: {action}", redisClient=self.redisMessaging)
+        if action not in ['install', 'remove']:
+            self.logTool.log(service='HSS', level='debug', message="Invalid action supplied to Charging_Rule_Generator", redisClient=self.redisMessaging)
+            return None
         
-        #Precedence
-        self.logTool.log(service='HSS', level='debug', message="Defining Precedence information", redisClient=self.redisMessaging)
-        Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
-        self.logTool.log(service='HSS', level='debug', message="Defined Precedence " + str(Precedence), redisClient=self.redisMessaging)
-
-        #Rating Group
-        self.logTool.log(service='HSS', level='debug', message="Defining Rating Group information", redisClient=self.redisMessaging)
-        if ChargingRules['rating_group'] != None:
-            RatingGroup = self.generate_avp(432, 40, format(int(ChargingRules['rating_group']),"x").zfill(8))                   #Rating-Group-ID
+        if action == 'remove':
+            if chargingRuleName is None:
+                self.logTool.log(service='HSS', level='error', message="chargingRuleName must be defined when removing a charging rule", redisClient=self.redisMessaging)
+                return None
+            Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(chargingRuleName))),'ascii'))
+            ChargingRuleDef = Charging_Rule_Name
+            return self.generate_vendor_avp(1002, "c0", 10415, ChargingRuleDef)
+        
         else:
-            RatingGroup = ''
-        self.logTool.log(service='HSS', level='debug', message="Defined Rating Group " + str(ChargingRules['rating_group']), redisClient=self.redisMessaging)
-        
+            if ChargingRules is None or ue_ip is None:
+                self.logTool.log(service='HSS', level='error', message="ChargingRules and ue_ip must be defined when installing a charging rule", redisClient=self.redisMessaging)
+                return None
 
-        #Complete Charging Rule Defintion
-        self.logTool.log(service='HSS', level='debug', message="Collating ChargingRuleDef", redisClient=self.redisMessaging)
-        ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence + RatingGroup
-        ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+            #Install Charging Rules
+            self.logTool.log(service='HSS', level='debug', message="Naming Charging Rule", redisClient=self.redisMessaging)
+            Charging_Rule_Name = self.generate_vendor_avp(1005, "c0", 10415, str(binascii.hexlify(str.encode(str(ChargingRules['rule_name']))),'ascii'))
+            self.logTool.log(service='HSS', level='debug', message="Named Charging Rule", redisClient=self.redisMessaging)
 
-        #Charging Rule Install
-        self.logTool.log(service='HSS', level='debug', message="Collating ChargingRuleDef", redisClient=self.redisMessaging)
-        return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
+            #Populate all Flow Information AVPs
+            Flow_Information = ''
+            for tft in ChargingRules['tft']:
+                self.logTool.log(service='HSS', level='debug', message=tft, redisClient=self.redisMessaging)
+                #If {{ UE_IP }} in TFT splice in the real UE IP Value
+                try:
+                    tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
+                    tft['tft_string'] = tft['tft_string'].replace('{{UE_IP}}', str(ue_ip))
+                    self.logTool.log(service='HSS', level='debug', message="Spliced in UE IP into TFT: " + str(tft['tft_string']), redisClient=self.redisMessaging)
+                except Exception as E:
+                    self.logTool.log(service='HSS', level='error', message="Failed to splice in UE IP into flow description", redisClient=self.redisMessaging)
+                
+                #Valid Values for Flow_Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional
+                Flow_Direction = self.generate_vendor_avp(1080, "80", 10415, self.int_to_hex(tft['direction'], 4))
+                Flow_Description = self.generate_vendor_avp(507, "c0", 10415, str(binascii.hexlify(str.encode(tft['tft_string'])),'ascii'))
+                Flow_Information += self.generate_vendor_avp(1058, "80", 10415, Flow_Direction + Flow_Description)
+
+            Flow_Status = self.generate_vendor_avp(511, "c0", 10415, self.int_to_hex(2, 4))
+            self.logTool.log(service='HSS', level='debug', message="Defined Flow_Status: " + str(Flow_Status), redisClient=self.redisMessaging)
+
+            self.logTool.log(service='HSS', level='debug', message="Defining QoS information", redisClient=self.redisMessaging)
+            #QCI 
+            QCI = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(ChargingRules['qci'], 4))
+
+            #ARP
+            self.logTool.log(service='HSS', level='debug', message="Defining ARP information", redisClient=self.redisMessaging)
+            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(ChargingRules['arp_priority']), 4))
+            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not ChargingRules['arp_preemption_capability']), 4))
+            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not ChargingRules['arp_preemption_vulnerability']), 4))
+            ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+
+            self.logTool.log(service='HSS', level='debug', message="Defining MBR information", redisClient=self.redisMessaging)
+            #Max Requested Bandwidth
+            Bandwidth_info = ''
+            Bandwidth_info += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_ul']), 4))
+            Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
+
+            self.logTool.log(service='HSS', level='debug', message="Defining GBR information", redisClient=self.redisMessaging)
+            #GBR
+            if int(ChargingRules['gbr_ul']) != 0:
+                Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
+            if int(ChargingRules['gbr_dl']) != 0:                
+                Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+            self.logTool.log(service='HSS', level='debug', message="Defined Bandwith Info: " + str(Bandwidth_info), redisClient=self.redisMessaging)
+
+            #Populate QoS Information
+            QoS_Information = self.generate_vendor_avp(1016, "c0", 10415, QCI + ARP + Bandwidth_info)
+            self.logTool.log(service='HSS', level='debug', message="Defined QoS_Information: " + str(QoS_Information), redisClient=self.redisMessaging)
+            
+            #Precedence
+            self.logTool.log(service='HSS', level='debug', message="Defining Precedence information", redisClient=self.redisMessaging)
+            Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+            self.logTool.log(service='HSS', level='debug', message="Defined Precedence " + str(Precedence), redisClient=self.redisMessaging)
+
+            #Rating Group
+            self.logTool.log(service='HSS', level='debug', message="Defining Rating Group information", redisClient=self.redisMessaging)
+            if ChargingRules['rating_group'] != None:
+                RatingGroup = self.generate_avp(432, 40, format(int(ChargingRules['rating_group']),"x").zfill(8))                   #Rating-Group-ID
+            else:
+                RatingGroup = ''
+            self.logTool.log(service='HSS', level='debug', message="Defined Rating Group " + str(ChargingRules['rating_group']), redisClient=self.redisMessaging)
+            
+
+            #Complete Charging Rule Defintion
+            self.logTool.log(service='HSS', level='debug', message="Collating ChargingRuleDef", redisClient=self.redisMessaging)
+            ChargingRuleDef = Charging_Rule_Name + Flow_Information + Flow_Status + QoS_Information + Precedence + RatingGroup
+            ChargingRuleDef = self.generate_vendor_avp(1003, "c0", 10415, ChargingRuleDef)
+
+            #Charging Rule Install
+            self.logTool.log(service='HSS', level='debug', message="Collating ChargingRuleDef", redisClient=self.redisMessaging)
+            return self.generate_vendor_avp(1001, "c0", 10415, ChargingRuleDef)
 
     def Get_IMS_Subscriber_Details_from_AVP(self, username):
         #Feed the Username AVP with Tel URI, SIP URI and either MSISDN or IMSI and this returns user data
@@ -2261,8 +2278,8 @@ class Diameter:
             The response is determined by whether or not the subscriber is enabled, and has a matching ims_subscriber entry.
             """
             avp = ''
-            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            sessionId = bytes.fromhex(self.get_avp_data(avps, 263)[0]).decode('ascii')                                          #Get Session-ID
+            avp += self.generate_avp(263, 40, self.string_to_hex(sessionId))                                                    #Set session ID to received session ID
             avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))
             avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
@@ -2318,8 +2335,8 @@ class Diameter:
                     remotePeer = aarOriginHost
                 
                 remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
-                
-                self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer)
+
+                self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=None)
                 """
                 Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
                 Media-Type: 0 = Audio, 4 = Control
@@ -2382,6 +2399,8 @@ class Diameter:
                             }
                         ]
                         }
+
+                        self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=sessionId)
 
                         reAuthAnswer = self.awaitDiameterRequestAndResponse(
                                 requestType='RAR',
@@ -2499,19 +2518,69 @@ class Diameter:
     def Answer_16777236_275(self, packet_vars, avps):
         try:
             """
-            Generates a response to a provided STR.
-            Returns Result-Code 2001.
+            Triggers a Re-Auth-Request to the PGW, the returns a Session Termination Answer.
             """
             avp = ''
-            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-            avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+            sessionId = bytes.fromhex(self.get_avp_data(avps, 263)[0]).decode('ascii')                                          #Get Session-ID
+            avp += self.generate_avp(263, 40, self.string_to_hex(sessionId))                                                    #Set session ID to received session ID
+            avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            imsSubscriber = self.database.Get_IMS_Subscriber_By_Session_Id(sessionId=sessionId)
+            imsi = imsSubscriber.get('imsi', None)
+            pcscf = imsSubscriber.get('pcscf', None)
+            pcscf_realm = imsSubscriber.get('pcscf_realm', None)
+            pcscf_peer = imsSubscriber.get('pcscf_peer', None)
+            subscriber = self.database.Get_Subscriber(imsi=imsi)
+            subscriberId = subscriber.get('subscriber_id', None)
+            apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+            servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+            self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=pcscf, pcscf_realm=pcscf_realm, pcscf_peer=pcscf_peer, pcscf_active_session=None)
+            
+            if servingApn is not None:
+                servingPgw = servingApn.get('serving_pgw', '')
+                servingPgwRealm = servingApn.get('serving_pgw_realm', '')
+                servingPgwPeer = servingApn.get('serving_pgw_peer', '').split(';')[0]
+                pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                reAuthAnswer = self.awaitDiameterRequestAndResponse(
+                        requestType='RAR',
+                        hostname=servingPgwPeer,
+                        sessionId=pcrfSessionId,
+                        servingPgw=servingPgw,
+                        servingRealm=servingPgwRealm,
+                        chargingRuleName='GBR-Voice',
+                        chargingRuleAction='remove'
+                )
+
+                if not len(reAuthAnswer) > 0:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] RAA Timeout: {reAuthAnswer}", redisClient=self.redisMessaging)
+                    assert()
+                
+                raaPacketVars, raaAvps = self.decode_diameter_packet(reAuthAnswer)
+                raaResultCode = int(self.get_avp_data(raaAvps, 268)[0], 16)
+
+                if raaResultCode == 2001:
+                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] RAA returned Successfully, authorizing request", redisClient=self.redisMessaging)
+                else:
+                    avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4))
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] RAA returned Unauthorized, returning Result-Code 5001", redisClient=self.redisMessaging)
+
+            else:
+                self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_275] [STA] Unable to find serving APN for RAR, returning Result-Code 2001", redisClient=self.redisMessaging)
+
+            avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
+            response = self.generate_diameter_packet("01", "40", 275, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA, returning 2001: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            avp = ''
+            sessionId = self.get_avp_data(avps, 263)[0]                                                       #Get Session-ID
+            avp += self.generate_avp(263, 40, sessionId)                                                    #Set session ID to received session ID
             avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
             avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
             response = self.generate_diameter_packet("01", "40", 275, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
-        except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
     #3GPP Rx - Abort Session Answer (ASA)
     def Answer_16777236_274(self, packet_vars, avps):
@@ -3326,18 +3395,21 @@ class Diameter:
         return response
 
     #3GPP Gx - Re Auth Request
-    def Request_16777238_258(self, sessionId, chargingRules, ueIp, servingPgw, servingRealm):
+    def Request_16777238_258(self, sessionId, servingPgw, servingRealm, chargingRules=None, ueIp=None, chargingRuleAction='install', chargingRuleName=None):
         avp = ''
         self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Creating Re Auth Request", redisClient=self.redisMessaging)
-        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Charging Rules: {chargingRules}", redisClient=self.redisMessaging)
-
 
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionId)),'ascii'))          #Session-Id set AVP
 
         #Setup Charging Rule
         self.logTool.log(service='HSS', level='debug', message=chargingRules, redisClient=self.redisMessaging)
-        avp += self.Charging_Rule_Generator(ChargingRules=chargingRules, ue_ip=ueIp)
-        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Generated Charging Rules", redisClient=self.redisMessaging)
+        if chargingRules is not None and ueIp is not None:
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Charging Rules: {chargingRules}", redisClient=self.redisMessaging)
+            avp += self.Charging_Rule_Generator(ChargingRules=chargingRules, ue_ip=ueIp)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Generated Charging Rules", redisClient=self.redisMessaging)
+        elif chargingRuleName is not None and chargingRuleAction == 'remove':
+            avp += self.Charging_Rule_Generator(action=chargingRuleAction, chargingRuleName=chargingRuleName)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777238_258] [RAR] Removing Charging Rule: {chargingRuleName}", redisClient=self.redisMessaging)
 
         avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm

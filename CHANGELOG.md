@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Dependency on Redis for inter-service messaging
  - Significant performance improvements under load
  - Basic Rx support for RAA, AAA, ASA and STA
+ - Rx MO call flow support (AAR -> RAR -> RAA -> AAA)
+ - Dedicated bearer setup and teardown on Rx call
  - Asymmetric geored support
  - Configurable redis connection (Unix socket or TCP)
  - Basic database upgrade support in tools/databaseUpgrade

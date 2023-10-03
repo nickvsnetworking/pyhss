@@ -31,7 +31,7 @@ def get_url_from_config() -> str:
     """
     Reads config.yaml and returns the database url.
     """
-    with open("config.yaml", 'r') as stream:
+    with open("../../config.yaml", 'r') as stream:
         try:
             config = yaml.safe_load(stream)
             db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])

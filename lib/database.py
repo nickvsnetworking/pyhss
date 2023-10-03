@@ -193,6 +193,7 @@ class IMS_SUBSCRIBER(Base):
     ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
     pcscf = Column(String(512), doc='Proxy-CSCF serving this subscriber')
     pcscf_realm = Column(String(512), doc='Realm of PCSCF')
+    pcscf_active_session = Column(String(512), doc='Session Id for the PCSCF when in a call')
     pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
     pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF') 
     sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
@@ -1626,8 +1627,8 @@ class Database:
             self.safe_close(session)
 
 
-    def Update_Proxy_CSCF(self, imsi, proxy_cscf, pcscf_realm=None, pcscf_peer=None, pcscf_timestamp=None, propagate=True):
-        self.logTool.log(service='Database', level='debug', message="Update_Proxy_CSCF for sub " + str(imsi) + " to pcscf " + str(proxy_cscf) + " with realm " + str(pcscf_realm) + " and peer " + str(pcscf_peer), redisClient=self.redisMessaging)
+    def Update_Proxy_CSCF(self, imsi, proxy_cscf, pcscf_realm=None, pcscf_peer=None, pcscf_timestamp=None, pcscf_active_session=None, propagate=True):
+        self.logTool.log(service='Database', level='debug', message="Update_Proxy_CSCF for sub " + str(imsi) + " to pcscf " + str(proxy_cscf) + " with realm " + str(pcscf_realm) + " and peer " + str(pcscf_peer) + " for session id " + str(pcscf_active_session), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
@@ -1640,6 +1641,7 @@ class Database:
                 #Strip duplicate SIP prefix before storing
                 proxy_cscf = proxy_cscf.replace("sip:sip:", "sip:")
                 result.pcscf = proxy_cscf
+                result.pcscf_active_session = pcscf_active_session
                 try:
                     if pcscf_timestamp is not None and pcscf_timestamp is not 'None':
                         result.pcscf_timestamp = datetime.strptime(pcscf_timestamp, '%Y-%m-%dT%H:%M:%SZ')
@@ -1660,6 +1662,7 @@ class Database:
                 result.pcscf_timestamp = None
                 result.pcscf_realm = None
                 result.pcscf_peer = None
+                result.pcscf_active_session = None
                 pcscf_timestamp_string = None
             
             session.commit()
@@ -1670,7 +1673,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": str(result.pcscf_peer)})
+                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": str(result.pcscf_peer), "pcscf_active_session": str(pcscf_active_session)})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1988,8 +1991,22 @@ class Database:
         result.pop('_sa_instance_state')
         result = self.Sanitize_Datetime(result)
         return result
-        #Get Subscriber ID from IMSI
-        subscriber_details = Get_Subscriber(imsi=str(imsi))
+
+    def Get_IMS_Subscriber_By_Session_Id(self, sessionId):   
+        self.logTool.log(service='Database', level='debug', message="Called Get_IMS_Subscriber_By_Session_Id() for Session " + str(sessionId), redisClient=self.redisMessaging)
+
+        Session = sessionmaker(bind = self.engine)
+        session = Session()    
+        
+        try:
+            result = session.query(IMS_SUBSCRIBER).filter_by(pcscf_active_session=sessionId).one()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        result = self.Sanitize_Datetime(result)
+        return result
 
     def Store_IMSI_IMEI_Binding(self, imsi, imei, match_response_code, propagate=True):
         #IMSI           14-15 Digits
