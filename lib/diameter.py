@@ -607,8 +607,9 @@ class Diameter:
                 peerPort = connectedPeer['port']
                 request = diameterApplication["requestMethod"](**kwargs)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
-                outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}-{time.time_ns()}"
-                outboundMessage = json.dumps({'diameter-outbound': request})
+                outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
+                sendTime = time.time_ns()
+                outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
                 self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return request
@@ -636,8 +637,9 @@ class Diameter:
                     peerPort = connectedPeer['port']
                     request = diameterApplication["requestMethod"](**kwargs)
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
-                    outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}-{time.time_ns()}"
-                    outboundMessage = json.dumps({'diameter-outbound': request})
+                    outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
+                    sendTime = time.time_ns()
+                    outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
                     self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Queueing for peer type: {peerType} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return connectedPeerList
@@ -677,8 +679,8 @@ class Diameter:
                 sessionId = kwargs.get('sessionId', None)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                 sendTime = time.time_ns()
-                outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}-{sendTime}"
-                outboundMessage = json.dumps({'diameter-outbound': request})
+                outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
+                outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
                 self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
                 startTimer = time.time()
@@ -2572,7 +2574,7 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 275, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA, returning 2001: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA, returning 2001: {traceback.format_exc()}", redisClient=self.redisMessaging)
             avp = ''
             sessionId = self.get_avp_data(avps, 263)[0]                                                       #Get Session-ID
             avp += self.generate_avp(263, 40, sessionId)                                                    #Set session ID to received session ID

@@ -33,9 +33,6 @@ hss:
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: 120
 
-  #Enable benchmarking log output for response times - set to False in production.
-  enable_benchmarking: False
-
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: 300
 
@@ -70,6 +67,12 @@ hss:
 
 api:
   page_size: 200
+
+benchmarking:
+  # Whether to enable benchmark logging
+  enabled: True
+  # How often to report, in seconds. Not all benchmarking supports interval reporting.
+  reporting_interval: 3600
 
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend

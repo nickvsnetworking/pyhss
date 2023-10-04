@@ -1,4 +1,4 @@
-import os, sys, json, yaml, time
+import os, sys, json, yaml, time, traceback
 sys.path.append(os.path.realpath('../lib'))
 from messaging import RedisMessaging
 from diameter import Diameter
@@ -31,7 +31,6 @@ class HssService:
         self.diameterLibrary = Diameter(logTool=self.logTool, originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
 
-
     def handleQueue(self):
         """
         Gets and parses inbound diameter requests, processes them and queues the response.
@@ -40,17 +39,13 @@ class HssService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                inboundQueue = self.redisMessaging.getNextQueue(pattern='diameter-inbound*')
-                inboundMessage = self.redisMessaging.getMessage(queue=inboundQueue)
-                assert(len(inboundMessage))
 
-                inboundDict = json.loads(inboundMessage)
-                inboundBinary = bytes.fromhex(next(iter(inboundDict.values())))
-                inboundSplit = str(inboundQueue).split('-')
-                inboundHost = inboundSplit[2]
-                inboundPort = inboundSplit[3]
-                inboundMessageType = inboundSplit[4]
-                inboundTimestamp = inboundSplit[5]
+                inboundMessage = json.loads(self.redisMessaging.awaitMessage(key='diameter-inbound')[1])
+
+                inboundBinary = bytes.fromhex(inboundMessage.get('diameter-inbound', None))
+                inboundHost = inboundMessage.get('clientAddress', None)
+                inboundPort = inboundMessage.get('clientPort', None)
+                inboundTimestamp = inboundMessage.get('inbound-received-timestamp', None)
 
                 try:
                     diameterOutbound = self.diameterLibrary.generateDiameterResponse(binaryData=inboundBinary)
@@ -61,14 +56,13 @@ class HssService:
                     self.logTool.log(service='HSS', level='warning', message=f"[HSS] [handleQueue] Failed to generate diameter outbound: {e}", redisClient=self.redisMessaging)
                     continue
 
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound Queue: {inboundQueue}", redisClient=self.redisMessaging)
                 self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound: {inboundMessage}", redisClient=self.redisMessaging)
 
                 if not len(diameterOutbound) > 0:
                     continue
                 
-                outboundQueue = f"diameter-outbound-{inboundHost}-{inboundPort}-{inboundTimestamp}"
-                outboundMessage = json.dumps({"diameter-outbound": diameterOutbound})
+                outboundQueue = f"diameter-outbound-{inboundHost}-{inboundPort}"
+                outboundMessage = json.dumps({"diameter-outbound": diameterOutbound, "inbound-received-timestamp": inboundTimestamp})
 
                 self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Generated Diameter Outbound: {diameterOutbound}", redisClient=self.redisMessaging)
                 self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound Queue: {outboundQueue}", redisClient=self.redisMessaging)
@@ -79,7 +73,7 @@ class HssService:
                     self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
 
             except Exception as e:
-                time.sleep(0.001)
+                self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 continue
         
 

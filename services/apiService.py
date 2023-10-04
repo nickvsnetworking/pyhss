@@ -1444,22 +1444,33 @@ class PyHSS_PCRF(Resource):
         print("subscriber_data: " + str(subscriber_data))
 
         #Get PCRF Session
-        pcrf_session_data = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
-        print("pcrf_session_data: " + str(pcrf_session_data))
+        servingApn = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
+        print("pcrf_session_data: " + str(servingApn))
 
         #Get Charging Rules
         ChargingRule = databaseClient.Get_Charging_Rule(json_data['charging_rule_id'])
         ChargingRule['apn_data'] = databaseClient.Get_APN(json_data['apn_id'])
         print("Got ChargingRule: " + str(ChargingRule))
 
-        diameterRequest = diameterClient.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['subscriber_routing'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
-        connectedPgws = diameterClient.getConnectedPeersByType('pgw')
-        for connectedPgw in connectedPgws:
-            outboundQueue = f"diameter-outbound-{connectedPgw.get('ipAddress')}-{connectedPgw.get('port')}-{time.time_ns()}"
-            outboundMessage = json.dumps({"diameter-outbound": diameterRequest})
-            redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60)
+        subscriberId = subscriber_data.get('subscriber_id', None)
+        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+        servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+        servingPgw = servingApn.get('serving_pgw', None)
+        servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+        pcrfSessionId = servingApn.get('pcrf_session_id', None)
+        ueIp = servingApn.get('subscriber_routing', None)
+
+        diameterResponse = diameterClient.sendDiameterRequest(
+                requestType='RAR',
+                hostname=servingPgwPeer,
+                sessionId=pcrfSessionId,
+                chargingRules=ChargingRule,
+                ueIp=ueIp,
+                servingPgw=servingPgw,
+                servingRealm=servingPgwRealm
+            )
         
-        result = {"request": diameterRequest, "destinationClients": connectedPgws}
+        result = {"Result": "Successfully sent Gx RAR", "destinationClients": str(servingPgw)}
         return result, 200
 
 @ns_pcrf.route('/<string:charging_rule_id>')

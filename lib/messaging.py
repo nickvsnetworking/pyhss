@@ -33,6 +33,8 @@ class RedisMessaging:
             return 'Invalid Argument: metricValue must be a digit'
         metricValue = float(metricValue)
         prometheusMetricBody = json.dumps([{
+        'serviceName': serviceName,
+        'timestamp': metricTimestamp,
         'NAME': metricName,
         'TYPE': metricType,
         'HELP': metricHelp,
@@ -42,7 +44,7 @@ class RedisMessaging:
         }
         ])
 
-        metricQueueName = f"metric-{serviceName}-{metricTimestamp}-{uuid.uuid4()}"
+        metricQueueName = f"metric"
 
         try:
             self.redisClient.rpush(metricQueueName, prometheusMetricBody)
@@ -57,8 +59,8 @@ class RedisMessaging:
         Stores a message in a given Queue (Key).
         """
         try:
-            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}-{uuid.uuid4()}"
-            logMessage = json.dumps({"message": message})
+            logQueueName = f"log"
+            logMessage = json.dumps({"message": message, "service": serviceName, "level": logLevel, "timestamp": logTimestamp})
             self.redisClient.rpush(logQueueName, logMessage)
             if logExpiry is not None:
                 self.redisClient.expire(logQueueName, logExpiry)
@@ -102,6 +104,17 @@ class RedisMessaging:
                 return nextQueue.decode()
         except Exception as e:
             return {}
+
+    def awaitMessage(self, key: str):
+        """
+        Blocks until a message is received at the given key, then returns the message.
+        """
+        try:
+            message =  self.redisClient.blpop(key)
+            return tuple(data.decode() for data in message)
+        except Exception as e:
+            return ''
+
 
     def deleteQueue(self, queue: str) -> bool:
         """

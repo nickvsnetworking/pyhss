@@ -34,13 +34,8 @@ class MetricService:
             actions = {'inc': 'inc', 'dec': 'dec', 'set':'set'}
             prometheusTypes = {'counter': Counter, 'gauge': Gauge, 'histogram': Histogram, 'summary': Summary}
 
-            metricQueue = self.redisMessaging.getNextQueue(pattern='metric-*')
-            metric = self.redisMessaging.getMessage(queue=metricQueue)
+            metric = self.redisMessaging.awaitMessage(key='metric')[1]
 
-            if not (len(metric) > 0):
-                time.sleep(0.001)
-                return
-            
             self.logTool.log(service='Metric', level='debug', message=f"[Metric] [handleMetrics] Received Metric: {metric}", redisClient=self.redisMessaging)
             prometheusJsonList = json.loads(metric)
 
