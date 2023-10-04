@@ -603,8 +603,11 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
-                peerIp = connectedPeer['ipAddress']
-                peerPort = connectedPeer['port']
+                try:
+                    peerIp = connectedPeer['ipAddress']
+                    peerPort = connectedPeer['port']
+                except Exception as e:
+                    return ''
                 request = diameterApplication["requestMethod"](**kwargs)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
@@ -633,8 +636,11 @@ class Diameter:
                     continue
                 connectedPeerList = self.getConnectedPeersByType(peerType=peerType)
                 for connectedPeer in connectedPeerList:
-                    peerIp = connectedPeer['ipAddress']
-                    peerPort = connectedPeer['port']
+                    try:
+                        peerIp = connectedPeer['ipAddress']
+                        peerPort = connectedPeer['port']
+                    except Exception as e:
+                        return ''
                     request = diameterApplication["requestMethod"](**kwargs)
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                     outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
@@ -672,8 +678,11 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
-                peerIp = connectedPeer['ipAddress']
-                peerPort = connectedPeer['port']
+                try:
+                    peerIp = connectedPeer['ipAddress']
+                    peerPort = connectedPeer['port']
+                except Exception as e:
+                    return ''
                 request = diameterApplication["requestMethod"](**kwargs)
                 responseType = diameterApplication["responseAcronym"]
                 sessionId = kwargs.get('sessionId', None)
@@ -688,29 +697,41 @@ class Diameter:
                     try:
                         if not time.time() >= startTimer + timeout:
                             if sessionId is None:
-                                responseQueues = self.redisMessaging.getQueues(pattern=f"diameter-inbound-{peerIp.replace('.', '*')}-{peerPort}-{responseType}*")
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] responseQueues(NoSessionId): {responseQueues}", redisClient=self.redisMessaging)
-                                for responseQueue in responseQueues:
-                                    if float(responseQueue.split('-')[5]) > sendTime:
-                                        inboundResponseList = self.redisMessaging.getMessage(queue=responseQueue)
-                                        if len(inboundResponseList) > 0:
+                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound")
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages(NoSessionId): {queuedMessages}", redisClient=self.redisMessaging)
+                                for queuedMessage in queuedMessages:
+                                    queuedMessage = json.loads(queuedMessage)
+                                    clientAddress = queuedMessage.get('clientAddress', None)
+                                    clientPort = queuedMessage.get('clientPort', None)
+                                    if clientAddress != peerIp or clientPort != peerPort:
+                                        continue
+                                    messageReceiveTime = queuedMessage.get('inbound-received-timestamp', None)
+                                    if float(messageReceiveTime) > sendTime:
+                                        messageHex = queuedMessage.get('diameter-inbound')
+                                        messageType = self.getDiameterMessageType(messageHex)
+                                        if messageType['inbound'].upper() == responseType.upper():
                                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Found inbound response: {inboundResponse}", redisClient=self.redisMessaging)
-                                            return json.loads(inboundResponseList[0]).get('diameter-inbound', '')
+                                            return messageHex
                                 time.sleep(0.02)
                             else:
-                                responseQueues = self.redisMessaging.getQueues(pattern=f"diameter-inbound-{peerIp.replace('.', '*')}-{peerPort}-{responseType}*")
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] responseQueues({sessionId}): {responseQueues} responseType: {responseType}", redisClient=self.redisMessaging)
-                                for responseQueue in responseQueues:
-                                    if float(responseQueue.split('-')[5]) > sendTime:
-                                        inboundResponseList = self.redisMessaging.getList(key=responseQueue)
-                                        if len(inboundResponseList) > 0:
-                                            for inboundResponse in inboundResponseList:
-                                                responseHex = json.loads(inboundResponse)['diameter-inbound']
-                                                packetVars, avps = self.decode_diameter_packet(responseHex)
-                                                responseSessionId = bytes.fromhex(self.get_avp_data(avps, 263)[0]).decode('ascii')
-                                                if responseSessionId == sessionId:
-                                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Matched on Session Id: {sessionId}", redisClient=self.redisMessaging)
-                                                    return json.loads(inboundResponseList[0]).get('diameter-inbound', '')
+                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound")
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages({sessionId}): {queuedMessages} responseType: {responseType}", redisClient=self.redisMessaging)
+                                for queuedMessage in queuedMessages:
+                                    queuedMessage = json.loads(queuedMessage)
+                                    clientAddress = queuedMessage.get('clientAddress', None)
+                                    clientPort = queuedMessage.get('clientPort', None)
+                                    if clientAddress != peerIp or clientPort != peerPort:
+                                        continue
+                                    messageReceiveTime = queuedMessage.get('inbound-received-timestamp', None)
+                                    if float(messageReceiveTime) > sendTime:
+                                        messageHex = queuedMessage.get('diameter-inbound')
+                                        messageType = self.getDiameterMessageType(messageHex)
+                                        if messageType['inbound'].upper() == responseType.upper():
+                                            packetVars, avps = self.decode_diameter_packet(messageHex)
+                                            messageSessionId = bytes.fromhex(self.get_avp_data(avps, 263)[0]).decode('ascii')
+                                            if messageSessionId == sessionId:
+                                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Matched on Session Id: {sessionId}", redisClient=self.redisMessaging)
+                                                return messageHex
                                 time.sleep(0.02)
                         else:
                             return ''
@@ -2574,7 +2595,7 @@ class Diameter:
             response = self.generate_diameter_packet("01", "40", 275, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
         except Exception as e:
-            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA, returning 2001: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Error generating STA, returning 2001", redisClient=self.redisMessaging)
             avp = ''
             sessionId = self.get_avp_data(avps, 263)[0]                                                       #Get Session-ID
             avp += self.generate_avp(263, 40, sessionId)                                                    #Set session ID to received session ID

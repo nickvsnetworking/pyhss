@@ -196,7 +196,6 @@ class DiameterService:
                                                                         "ipAddress":'',
                                                                         "port":'',
                                                                         "connectionStatus": '',
-                                                                        "lastDwrTimestamp": '',
                                                                         "diameterHostname": '',
                                                                         "peerType": '',
                                                                         }

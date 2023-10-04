@@ -43,13 +43,27 @@ class HssService:
                 inboundMessage = json.loads(self.redisMessaging.awaitMessage(key='diameter-inbound')[1])
 
                 inboundBinary = bytes.fromhex(inboundMessage.get('diameter-inbound', None))
+                if inboundBinary == None:
+                    continue
                 inboundHost = inboundMessage.get('clientAddress', None)
                 inboundPort = inboundMessage.get('clientPort', None)
                 inboundTimestamp = inboundMessage.get('inbound-received-timestamp', None)
 
                 try:
                     diameterOutbound = self.diameterLibrary.generateDiameterResponse(binaryData=inboundBinary)
+
+                    if diameterOutbound == None:
+                        continue
+                    if not len(diameterOutbound) > 0:
+                        continue
+
                     diameterMessageTypeDict = self.diameterLibrary.getDiameterMessageType(binaryData=inboundBinary)
+                    
+                    if diameterMessageTypeDict == None:
+                        continue
+                    if not len(diameterMessageTypeDict) > 0:
+                        continue
+
                     diameterMessageTypeInbound = diameterMessageTypeDict.get('inbound', '')
                     diameterMessageTypeOutbound = diameterMessageTypeDict.get('outbound', '')
                 except Exception as e:
@@ -57,9 +71,6 @@ class HssService:
                     continue
 
                 self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound: {inboundMessage}", redisClient=self.redisMessaging)
-
-                if not len(diameterOutbound) > 0:
-                    continue
                 
                 outboundQueue = f"diameter-outbound-{inboundHost}-{inboundPort}"
                 outboundMessage = json.dumps({"diameter-outbound": diameterOutbound, "inbound-received-timestamp": inboundTimestamp})
