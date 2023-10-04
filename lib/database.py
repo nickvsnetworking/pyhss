@@ -1618,8 +1618,8 @@ class Database:
                     self.handleGeored({
                         "imsi": str(imsi), 
                         "serving_mme": result.serving_mme, 
-                        "serving_mme_realm": str(result.serving_mme_realm), 
-                        "serving_mme_peer": str(result.serving_mme_peer),
+                        "serving_mme_realm": result.serving_mme_realm, 
+                        "serving_mme_peer": result.serving_mme_peer,
                         "serving_mme_timestamp": serving_mme_timestamp_string
                         })
                 else:
@@ -1676,7 +1676,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": str(result.pcscf_peer), "pcscf_active_session": str(pcscf_active_session)})
+                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": result.pcscf_realm, "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": result.pcscf_peer, "pcscf_active_session": pcscf_active_session})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1730,7 +1730,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_timestamp": scscf_timestamp_string, "scscf_peer": str(result.scscf_peer)})
+                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": result.scscf_realm, "scscf_timestamp": scscf_timestamp_string, "scscf_peer": result.scscf_peer})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1839,13 +1839,13 @@ class Database:
                 if 'PCRF' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate PCRF changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi),
-                                    'serving_apn' : str(apn),
-                                    'pcrf_session_id': str(pcrf_session_id),
-                                    'serving_pgw': str(serving_pgw),
-                                    'serving_pgw_realm': str(serving_pgw_realm),
-                                    'serving_pgw_peer': str(serving_pgw_peer),
+                                    'serving_apn' : apn,
+                                    'pcrf_session_id': pcrf_session_id,
+                                    'serving_pgw': serving_pgw,
+                                    'serving_pgw_realm': serving_pgw_realm,
+                                    'serving_pgw_peer': serving_pgw_peer,
                                     'serving_pgw_timestamp': serving_pgw_timestamp_string,
-                                    'subscriber_routing': str(subscriber_routing)
+                                    'subscriber_routing': subscriber_routing
                                     })
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of PCRF events", redisClient=self.redisMessaging)
