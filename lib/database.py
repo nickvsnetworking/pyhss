@@ -864,13 +864,15 @@ class Database:
                     if len(self.config.get('geored', {}).get('endpoints', [])) > 0:
                         georedDict['body'] = jsonData
                         georedDict['operation'] = operation
-                        self.redisMessaging.sendMessage(queue=f'geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
+                        georedDict['timestamp'] = time.time_ns()
+                        self.redisMessaging.sendMessage(queue=f'geored', message=json.dumps(georedDict), queueExpiry=120)
                 if asymmetric:
                     if len(asymmetricUrls) > 0:
                         georedDict['body'] = jsonData
                         georedDict['operation'] = operation
+                        georedDict['timestamp'] = time.time_ns()
                         georedDict['urls'] = asymmetricUrls
-                        self.redisMessaging.sendMessage(queue=f'asymmetric-geored-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(georedDict), queueExpiry=120)
+                        self.redisMessaging.sendMessage(queue=f'asymmetric-geored', message=json.dumps(georedDict), queueExpiry=120)
             return True
 
         except Exception as E:
@@ -897,7 +899,8 @@ class Database:
         webhook['body'] = self.Sanitize_Datetime(objectData)
         webhook['headers'] = webhookHeaders
         webhook['operation'] = operation
-        self.redisMessaging.sendMessage(queue=f'webhook-{uuid.uuid4()}-{time.time_ns()}', message=json.dumps(webhook), queueExpiry=120)
+        webhook['timestamp'] = time.time_ns()
+        self.redisMessaging.sendMessage(queue=f'webhook', message=json.dumps(webhook), queueExpiry=120)
         return True
 
     def Sanitize_Datetime(self, result):
@@ -1580,7 +1583,7 @@ class Database:
                 self.logTool.log(service='Database', level='debug', message="Updating serving MME & Timestamp", redisClient=self.redisMessaging)
                 result.serving_mme = serving_mme
                 try:
-                    if serving_mme_timestamp is not None and serving_mme_timestamp is not 'None':
+                    if serving_mme_timestamp != None and serving_mme_timestamp != 'None':
                         result.serving_mme_timestamp = datetime.strptime(serving_mme_timestamp, '%Y-%m-%dT%H:%M:%SZ')
                         result.serving_mme_timestamp = result.serving_mme_timestamp.replace(tzinfo=timezone.utc)
                         serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1615,8 +1618,8 @@ class Database:
                     self.handleGeored({
                         "imsi": str(imsi), 
                         "serving_mme": result.serving_mme, 
-                        "serving_mme_realm": str(result.serving_mme_realm), 
-                        "serving_mme_peer": str(result.serving_mme_peer),
+                        "serving_mme_realm": result.serving_mme_realm, 
+                        "serving_mme_peer": result.serving_mme_peer,
                         "serving_mme_timestamp": serving_mme_timestamp_string
                         })
                 else:
@@ -1643,7 +1646,7 @@ class Database:
                 result.pcscf = proxy_cscf
                 result.pcscf_active_session = pcscf_active_session
                 try:
-                    if pcscf_timestamp is not None and pcscf_timestamp is not 'None':
+                    if pcscf_timestamp != None and pcscf_timestamp != 'None':
                         result.pcscf_timestamp = datetime.strptime(pcscf_timestamp, '%Y-%m-%dT%H:%M:%SZ')
                         result.pcscf_timestamp = result.pcscf_timestamp.replace(tzinfo=timezone.utc)
                         pcscf_timestamp_string = result.pcscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1673,7 +1676,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": str(result.pcscf_realm), "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": str(result.pcscf_peer), "pcscf_active_session": str(pcscf_active_session)})
+                    self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": result.pcscf_realm, "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": result.pcscf_peer, "pcscf_active_session": pcscf_active_session})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1698,7 +1701,7 @@ class Database:
                 serving_cscf = serving_cscf.replace("sip:sip:", "sip:")
                 result.scscf = serving_cscf
                 try:
-                    if scscf_timestamp is not None and scscf_timestamp is not 'None':
+                    if scscf_timestamp != None and scscf_timestamp != 'None':
                         result.scscf_timestamp = datetime.strptime(scscf_timestamp, '%Y-%m-%dT%H:%M:%SZ')
                         result.scscf_timestamp = result.scscf_timestamp.replace(tzinfo=timezone.utc)
                         scscf_timestamp_string = result.scscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1727,7 +1730,7 @@ class Database:
             if propagate == True:
                 if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": str(result.scscf_realm), "scscf_timestamp": scscf_timestamp_string, "scscf_peer": str(result.scscf_peer)})
+                    self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": result.scscf_realm, "scscf_timestamp": scscf_timestamp_string, "scscf_peer": result.scscf_peer})
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
@@ -1770,7 +1773,7 @@ class Database:
         self.logTool.log(service='Database', level='debug', message="APN ID is " + str(apn_id), redisClient=self.redisMessaging)
 
         try:
-            if serving_pgw_timestamp is not None and serving_pgw_timestamp is not 'None':
+            if serving_pgw_timestamp != None and serving_pgw_timestamp != 'None':
                 serving_pgw_timestamp = datetime.strptime(serving_pgw_timestamp, '%Y-%m-%dT%H:%M:%SZ')
                 serving_pgw_timestamp = serving_pgw_timestamp.replace(tzinfo=timezone.utc)
                 serving_pgw_timestamp_string = serving_pgw_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1836,13 +1839,13 @@ class Database:
                 if 'PCRF' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate PCRF changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi),
-                                    'serving_apn' : str(apn),
-                                    'pcrf_session_id': str(pcrf_session_id),
-                                    'serving_pgw': str(serving_pgw),
-                                    'serving_pgw_realm': str(serving_pgw_realm),
-                                    'serving_pgw_peer': str(serving_pgw_peer),
+                                    'serving_apn' : apn,
+                                    'pcrf_session_id': pcrf_session_id,
+                                    'serving_pgw': serving_pgw,
+                                    'serving_pgw_realm': serving_pgw_realm,
+                                    'serving_pgw_peer': serving_pgw_peer,
                                     'serving_pgw_timestamp': serving_pgw_timestamp_string,
-                                    'subscriber_routing': str(subscriber_routing)
+                                    'subscriber_routing': subscriber_routing
                                     })
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of PCRF events", redisClient=self.redisMessaging)

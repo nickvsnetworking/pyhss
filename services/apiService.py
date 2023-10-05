@@ -1451,22 +1451,33 @@ class PyHSS_PCRF(Resource):
         print("subscriber_data: " + str(subscriber_data))
 
         #Get PCRF Session
-        pcrf_session_data = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
-        print("pcrf_session_data: " + str(pcrf_session_data))
+        servingApn = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
+        print("pcrf_session_data: " + str(servingApn))
 
         #Get Charging Rules
         ChargingRule = databaseClient.Get_Charging_Rule(json_data['charging_rule_id'])
         ChargingRule['apn_data'] = databaseClient.Get_APN(json_data['apn_id'])
         print("Got ChargingRule: " + str(ChargingRule))
 
-        diameterRequest = diameterClient.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['subscriber_routing'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
-        connectedPgws = diameterClient.getConnectedPeersByType('pgw')
-        for connectedPgw in connectedPgws:
-            outboundQueue = f"diameter-outbound-{connectedPgw.get('ipAddress')}-{connectedPgw.get('port')}-{time.time_ns()}"
-            outboundMessage = json.dumps({"diameter-outbound": diameterRequest})
-            redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60)
+        subscriberId = subscriber_data.get('subscriber_id', None)
+        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+        servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+        servingPgw = servingApn.get('serving_pgw', None)
+        servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+        pcrfSessionId = servingApn.get('pcrf_session_id', None)
+        ueIp = servingApn.get('subscriber_routing', None)
+
+        diameterResponse = diameterClient.sendDiameterRequest(
+                requestType='RAR',
+                hostname=servingPgwPeer,
+                sessionId=pcrfSessionId,
+                chargingRules=ChargingRule,
+                ueIp=ueIp,
+                servingPgw=servingPgw,
+                servingRealm=servingPgwRealm
+            )
         
-        result = {"request": diameterRequest, "destinationClients": connectedPgws}
+        result = {"Result": "Successfully sent Gx RAR", "destinationClients": str(servingPgw)}
         return result, 200
 
 @ns_pcrf.route('/<string:charging_rule_id>')
@@ -1547,7 +1558,7 @@ class PyHSS_Geored(Resource):
                     json_data['scscf_peer'] = None
                 if 'scscf_timestamp' not in json_data:
                     json_data['scscf_timestamp'] = None
-                response_data.append(databaseClient.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), scscf_timestamp=json_data['scscf_timestamp'], propagate=False))
+                response_data.append(databaseClient.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=json_data['scscf_realm'], scscf_peer=json_data['scscf_peer'], scscf_timestamp=json_data['scscf_timestamp'], propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
@@ -1566,7 +1577,7 @@ class PyHSS_Geored(Resource):
                     json_data['pcscf_timestamp'] = None
                 if 'pcscf_active_session' not in json_data:
                     json_data['pcscf_active_session'] = None
-                response_data.append(databaseClient.Update_Proxy_CSCF(imsi=str(json_data['imsi']), proxy_cscf=json_data['pcscf'], pcscf_realm=str(json_data['pcscf_realm']), pcscf_peer=str(json_data['pcscf_peer']), pcscf_timestamp=json_data['pcscf_timestamp'], pcscf_active_session=str(json_data['pcscf_active_session']), propagate=False))
+                response_data.append(databaseClient.Update_Proxy_CSCF(imsi=str(json_data['imsi']), proxy_cscf=json_data['pcscf'], pcscf_realm=json_data['pcscf_realm'], pcscf_peer=json_data['pcscf_peer'], pcscf_timestamp=json_data['pcscf_timestamp'], pcscf_active_session=json_data['pcscf_active_session'], propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',

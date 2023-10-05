@@ -256,21 +256,12 @@ class GeoredService:
                 try:
                     if self.benchmarking:
                         startTime = time.perf_counter()
-                    asymmetricGeoredQueue = await(self.redisGeoredMessaging.getNextQueue(pattern='asymmetric-geored-*'))
-                    if not len(asymmetricGeoredQueue) > 0:
-                        await(asyncio.sleep(0.01))
-                        continue
-                    georedMessage = await(self.redisGeoredMessaging.getMessage(queue=asymmetricGeoredQueue))
-                    if not len(georedMessage) > 0:
-                        await(asyncio.sleep(0.01))
-                        continue
-                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Queue: {asymmetricGeoredQueue}"))
+                    georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='asymmetric-geored')))[1])
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Message: {georedMessage}"))
 
-                    georedDict = json.loads(georedMessage)
-                    georedOperation = georedDict['operation']
-                    georedBody = georedDict['body']
-                    georedUrls = georedDict['urls']
+                    georedOperation = georedMessage['operation']
+                    georedBody = georedMessage['body']
+                    georedUrls = georedMessage['urls']
                     georedTasks = []
 
                     for georedEndpoint in georedUrls:
@@ -279,11 +270,11 @@ class GeoredService:
                     if self.benchmarking:
                         await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleAsymmetricGeoredQueue] Time taken to send asymmetric geored message to specified peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
-                    await(asyncio.sleep(0.001))
+                    await(asyncio.sleep(0))
 
                 except Exception as e:
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Error handling asymmetric geored queue: {e}"))
-                    await(asyncio.sleep(0.001))
+                    await(asyncio.sleep(0))
                     continue
 
     async def handleGeoredQueue(self):
@@ -295,20 +286,11 @@ class GeoredService:
                 try:
                     if self.benchmarking:
                         startTime = time.perf_counter()
-                    georedQueue = await(self.redisGeoredMessaging.getNextQueue(pattern='geored-*'))
-                    if not len(georedQueue) > 0:
-                        await(asyncio.sleep(0.01))
-                        continue
-                    georedMessage = await(self.redisGeoredMessaging.getMessage(queue=georedQueue))
-                    if not len(georedMessage) > 0:
-                        await(asyncio.sleep(0.01))
-                        continue
-                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Queue: {georedQueue}"))
+                    georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='geored')))[1])
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Message: {georedMessage}"))
 
-                    georedDict = json.loads(georedMessage)
-                    georedOperation = georedDict['operation']
-                    georedBody = georedDict['body']
+                    georedOperation = georedMessage['operation']
+                    georedBody = georedMessage['body']
                     georedTasks = []
 
                     for remotePeer in self.georedPeers:
@@ -317,11 +299,11 @@ class GeoredService:
                     if self.benchmarking:
                         await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleGeoredQueue] Time taken to send geored message to all geored peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
-                    await(asyncio.sleep(0.001))
+                    await(asyncio.sleep(0))
 
                 except Exception as e:
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Error handling geored queue: {e}"))
-                    await(asyncio.sleep(0.001))
+                    await(asyncio.sleep(0))
                     continue
     
     async def handleWebhookQueue(self):
@@ -333,21 +315,13 @@ class GeoredService:
                 try:
                     if self.benchmarking:
                         startTime = time.perf_counter()
-                    webhookQueue = await(self.redisWebhookMessaging.getNextQueue(pattern='webhook-*'))
-                    if not len(webhookQueue) > 0:
-                        await(asyncio.sleep(0.01))
-                        continue
-                    webhookMessage = await(self.redisWebhookMessaging.getMessage(queue=webhookQueue))
-                    if not len(webhookMessage) > 0:
-                        await(asyncio.sleep(0.001))
-                        continue
-                    await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Queue: {webhookQueue}"))
+                    webhookMessage = json.loads((await(self.redisWebhookMessaging.awaitMessage(key='webhook')))[1])
+
                     await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Message: {webhookMessage}"))
 
-                    webhookDict = json.loads(webhookMessage)
-                    webhookHeaders = webhookDict['headers']
-                    webhookOperation = webhookDict['operation']
-                    webhookBody = webhookDict['body']
+                    webhookHeaders = webhookMessage['headers']
+                    webhookOperation = webhookMessage['operation']
+                    webhookBody = webhookMessage['body']
                     webhookTasks = []
 
                     for remotePeer in self.webhookPeers:

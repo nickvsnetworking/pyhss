@@ -39,7 +39,6 @@ class LogService:
         }
         print(f"{self.banners.logService()}")
 
-
     def handleLogs(self):
         """
         Continually polls the Redis DB for queued log files. Parses and writes log files to disk, using LogTool.
@@ -47,24 +46,14 @@ class LogService:
         activeLoggers = {}
         while True:
             try:
-                logQueue = self.redisMessaging.getNextQueue(pattern='log-*')
-                logMessage = self.redisMessaging.getMessage(queue=logQueue)
-                
-                if not len(logMessage) > 0:
-                    time.sleep(0.001)
-                    continue
+                logMessage = json.loads(self.redisMessaging.awaitMessage(key='log')[1])
 
-                print(f"[Log] Queue: {logQueue}")
                 print(f"[Log] Message: {logMessage}")
 
-                logSplit = logQueue.split('-')
-                logService = logSplit[1].lower()
-                logLevel = logSplit[2].upper()
-                logTimestamp = logSplit[3]
-
-                logDict = json.loads(logMessage)
-                logFileMessage = logDict['message']
-
+                logFileMessage = logMessage['message']
+                logService = logMessage.get('service').lower()
+                logLevel = logMessage.get('level').lower()
+                logTimestamp = logMessage.get('timestamp')
 
                 if f"{logService}_logging_file" not in self.logFilePaths:
                     continue

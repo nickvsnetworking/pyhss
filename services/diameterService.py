@@ -36,7 +36,10 @@ class DiameterService:
         self.diameterLibrary = DiameterAsync(logTool=self.logTool)
         self.activePeers = {}
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
-        self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
+        self.benchmarking = self.config.get('benchmarking', {}).get('enabled', False)
+        self.benchmarkingInterval = self.config.get('benchmarking', {}).get('reporting_interval', 3600)
+        self.diameterRequests = 0
+        self.diameterResponses = 0
     
     async def validateDiameterInbound(self, clientAddress: str, clientPort: str, inboundData) -> bool:
         """
@@ -44,28 +47,17 @@ class DiameterService:
         """
         try:
             packetVars, avps = await(self.diameterLibrary.decodeDiameterPacket(inboundData))
-            messageType = await(self.diameterLibrary.getDiameterMessageType(inboundData))
             originHost = (await(self.diameterLibrary.getAvpData(avps, 264)))[0]
             originHost = bytes.fromhex(originHost).decode("utf-8")
             peerType = await(self.diameterLibrary.getPeerType(originHost))
-            self.activePeers[f"{clientAddress}-{clientPort}"].update({'lastDwrTimestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S") if messageType['inbound'] == 'DWR' else self.activePeers[f"{clientAddress}-{clientPort}"]['lastDwrTimestamp'], 
-                                                                    'diameterHostname': originHost,
-                                                                    'peerType': peerType,
-                                                                    })
-            await(self.redisReaderMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_inbound_count',
-                                                metricType='counter', metricAction='inc', 
-                                                metricValue=1.0, metricHelp='Number of Diameter Inbounds',
-                                                metricLabels={
-                                                "diameter_application_id": str(packetVars["ApplicationId"]),
-                                                "diameter_cmd_code": str(packetVars["command_code"]),
-                                                "endpoint": originHost,
-                                                "type": "inbound"},
-                                                metricExpiry=60))
+            self.activePeers[f"{clientAddress}-{clientPort}"].update({'diameterHostname': originHost,
+                                                                      'peerType': peerType,
+                                                                     })
+            return True
         except Exception as e:
             await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] Exception: {e}\n{traceback.format_exc()}"))
             await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] AVPs: {avps}\nPacketVars: {packetVars}"))
             return False
-        return True
 
     async def handleActiveDiameterPeers(self):
         """
@@ -110,19 +102,33 @@ class DiameterService:
             activePeers = ''
         await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActivePeers] {len(self.activePeers)} Active Peers {activePeers}"))
 
+    async def logProcessedMessages(self):
+        """
+        Logs the number of processed messages on a rolling basis.
+        """
+        if not self.benchmarking:
+            return False
+
+        benchmarkInterval = int(self.benchmarkingInterval)
+
+        while True:
+            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterRequests} inbound diameter messages in the last {self.benchmarkingInterval} second(s)"))
+            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterResponses} outbound in the last {self.benchmarkingInterval} second(s)"))
+            self.diameterRequests = 0
+            self.diameterResponses = 0
+            await(asyncio.sleep(benchmarkInterval))
+
     async def readInboundData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
         Reads and parses incoming data from a connected client. Validated diameter messages are sent to the redis queue for processing.
         Terminates the connection if diameter traffic is not received, or if the client disconnects.
         """
         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] New connection from {clientAddress} on port {clientPort}"))
+        peerIsValidated = False
         while True:
             try:
 
                 inboundData = await(asyncio.wait_for(reader.read(8192), timeout=socketTimeout))
-
-                if self.benchmarking:
-                    startTime = time.perf_counter()
 
                 if reader.at_eof():
                     await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Timeout for {clientAddress} on port {clientPort}, closing connection."))
@@ -131,26 +137,22 @@ class DiameterService:
                 if len(inboundData) > 0:
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Received data from {clientAddress} on port {clientPort}"))
                     
-                    if self.benchmarking:
-                        diamteterValidationStartTime = time.perf_counter()
-                    if not await(self.validateDiameterInbound(clientAddress, clientPort, inboundData)):
-                        await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter Inbound, discarding data."))
-                        await(asyncio.sleep(0.001))
-                        continue
-                    if self.benchmarking:
-                        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Time taken to validate diameter request: {round(((time.perf_counter() - diamteterValidationStartTime)*1000), 3)} ms"))
-                        
+                    if not peerIsValidated:
+                        if not await(self.validateDiameterInbound(clientAddress, clientPort, inboundData)):
+                            await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter Inbound, discarding data."))
+                            await(asyncio.sleep(0))
+                            continue
+                        else:
+                            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Validated peer: {clientAddress} on port {clientPort}"))
+                            peerIsValidated = True
 
-                    diameterMessageType = await(self.diameterLibrary.getDiameterMessageType(binaryData=inboundData))
-                    diameterMessageType = diameterMessageType.get('inbound', '')
-
-                    inboundQueueName = f"diameter-inbound-{clientAddress}-{clientPort}-{diameterMessageType}-{time.time_ns()}"
-                    inboundHexString = json.dumps({f"diameter-inbound": inboundData.hex()})
-                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] [{diameterMessageType}] Queueing {inboundHexString}"))
+                    inboundQueueName = f"diameter-inbound"
+                    inboundHexString = json.dumps({"diameter-inbound": inboundData.hex(), "inbound-received-timestamp": time.time_ns(), "clientAddress": clientAddress, "clientPort": clientPort})
+                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Queueing {inboundHexString}"))
                     await(self.redisReaderMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=self.diameterRequestTimeout))
                     if self.benchmarking:
-                        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
-                    await(asyncio.sleep(0.001))
+                        self.diameterRequests += 1
+                    await(asyncio.sleep(0))
                         
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Exception for {clientAddress} on port {clientPort}, closing connection.\n{e}"))
@@ -158,44 +160,24 @@ class DiameterService:
 
     async def writeOutboundData(self, writer, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
-        Continually polls the Redis queue for outbound messages. Received messages from the queue are validated against the connected client, and sent.
+        Waits for a message to be received from Redis, then sends to the connected client.
         """
         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] writeOutboundData with host {clientAddress} on port {clientPort}"))
-        while True:
+        while not writer.transport.is_closing():
             try:
+                await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Waiting for messages for host {clientAddress} on port {clientPort}"))
+                pendingOutboundMessage = json.loads((await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}")))[1])
+                await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Received message: {pendingOutboundMessage} for host {clientAddress} on port {clientPort}"))
+                diameterOutboundBinary = bytes.fromhex(pendingOutboundMessage.get('diameter-outbound', ''))
+                await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
+                writer.write(diameterOutboundBinary)
+                await(writer.drain())
                 if self.benchmarking:
-                    startTime = time.perf_counter()
-
-                if writer.transport.is_closing():
-                    return False
-                
-                pendingOutboundQueue = await(self.redisWriterMessaging.getNextQueue(pattern=f'diameter-outbound-{clientAddress.replace(".", "*")}-{clientPort}-*'))
-                if not len(pendingOutboundQueue) > 0:
-                    await(asyncio.sleep(0.01))
-                    continue
-                pendingOutboundQueue = pendingOutboundQueue
-                outboundQueueSplit = str(pendingOutboundQueue).split('-')
-                queuedMessageType = outboundQueueSplit[1]
-                diameterOutboundHost = outboundQueueSplit[2]
-                diameterOutboundPort = outboundQueueSplit[3]
-
-                if str(diameterOutboundHost) == str(clientAddress) and str(diameterOutboundPort) == str(clientPort) and queuedMessageType == 'outbound':
-                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Matched {pendingOutboundQueue} to host {clientAddress} on port {clientPort}"))
-                    diameterOutbound = json.loads(await(self.redisWriterMessaging.getMessage(queue=pendingOutboundQueue)))
-                    diameterOutboundBinary = bytes.fromhex(next(iter(diameterOutbound.values())))
-                    diameterMessageType = await(self.diameterLibrary.getDiameterMessageType(binaryData=diameterOutboundBinary))
-                    diameterMessageType = diameterMessageType.get('outbound', '')
-                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] [{diameterMessageType}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
-                    writer.write(diameterOutboundBinary)
-                    await(writer.drain())
-                    await(asyncio.sleep(0.001))
-                    if self.benchmarking:
-                        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Time taken to write response: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
-
+                    self.diameterResponses += 1
+                await(asyncio.sleep(0))
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer."))
                 return False
-            await(asyncio.sleep(0.001))
 
     async def handleConnection(self, reader, writer):
         """
@@ -214,7 +196,6 @@ class DiameterService:
                                                                         "ipAddress":'',
                                                                         "port":'',
                                                                         "connectionStatus": '',
-                                                                        "lastDwrTimestamp": '',
                                                                         "diameterHostname": '',
                                                                         "peerType": '',
                                                                         }
@@ -262,7 +243,7 @@ class DiameterService:
     async def startServer(self, host: str=None, port: int=None, type: str=None):
         """
         Start a server with the given parameters and handle new clients with self.handleConnection.
-        Also create a single instance of self.handleActiveDiameterPeers.
+        Also create a single instance of self.handleActiveDiameterPeers and self.logProcessedMessages.
         """
 
         if host is None:
@@ -283,6 +264,8 @@ class DiameterService:
         servingAddresses = ', '.join(str(sock.getsockname()) for sock in server.sockets)
         await(self.logTool.logAsync(service='Diameter', level='info', message=f"{self.banners.diameterService()}\n[Diameter] Serving on {servingAddresses}"))
         handleActiveDiameterPeerTask = asyncio.create_task(self.handleActiveDiameterPeers())
+        if self.benchmarking:
+            logProcessedMessagesTask = asyncio.create_task(self.logProcessedMessages())
 
         async with server:
             await(server.serve_forever())

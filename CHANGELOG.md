@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Configurable redis connection (Unix socket or TCP)
  - Basic database upgrade support in tools/databaseUpgrade
  - PCSCF state storage in ims_subscriber
+ - (Experimental) Working horizontal scalability
 
 ### Changed
 
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logtool no longer handles metric processing
 - Updated config.yaml
 - Gx CCR-T now flushes PGW / IMS data, depending on Called-Station-Id
+- Benchmarked lossless at ~100 diameter requests per second, per hssService.
 
 ### Fixed
 
@@ -37,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - Gx CCA now supports apn inside a plmn based uri
  - AVP_Preemption_Capability and AVP_Preemption_Vulnerability now presents correctly in all diameter messages
  - Crash when webhook or geored endpoints enabled and no peers defined
+ - CPU overutilization on all services
 
 ### Removed
 

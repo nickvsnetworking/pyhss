@@ -37,6 +37,8 @@ class RedisMessagingAsync:
             return 'Invalid Argument: metricValue must be a digit'
         metricValue = float(metricValue)
         prometheusMetricBody = json.dumps([{
+        'serviceName': serviceName,
+        'timestamp': metricTimestamp,
         'NAME': metricName,
         'TYPE': metricType,
         'HELP': metricHelp,
@@ -46,7 +48,7 @@ class RedisMessagingAsync:
         }
         ])
 
-        metricQueueName = f"metric-{serviceName}-{metricTimestamp}-{uuid.uuid4()}"
+        metricQueueName = f"metric"
         
         try:
             async with self.redisClient.pipeline(transaction=True) as redisPipe:
@@ -63,8 +65,8 @@ class RedisMessagingAsync:
         Stores a log message in a given Queue (Key) asynchronously and sets an expiry (in seconds) if provided.
         """
         try:
-            logQueueName = f"log-{serviceName}-{logLevel}-{logTimestamp}-{uuid.uuid4()}"
-            logMessage = json.dumps({"message": message})
+            logQueueName = f"log"
+            logMessage = json.dumps({"message": message, "service": serviceName, "level": logLevel, "timestamp": logTimestamp})
             async with self.redisClient.pipeline(transaction=True) as redisPipe:
                 await redisPipe.rpush(logQueueName, logMessage)
                 if logExpiry is not None:
@@ -116,6 +118,16 @@ class RedisMessagingAsync:
         except Exception as e:
             print(e)
         return ''
+
+    async def awaitMessage(self, key: str):
+        """
+        Asynchronously blocks until a message is received at the given key, then returns the message.
+        """
+        try:
+            message =  (await(self.redisClient.blpop(key)))
+            return tuple(data.decode() for data in message)
+        except Exception as e:
+            return ''
 
     async def deleteQueue(self, queue: str) -> bool:
         """
