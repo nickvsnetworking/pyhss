@@ -20,12 +20,29 @@ class RedisMessagingAsync:
         Stores a message in a given Queue (Key) asynchronously and sets an expiry (in seconds) if provided.
         """
         try:
-            async with self.redisClient.pipeline(transaction=True) as redisPipe:
-                await redisPipe.rpush(queue, message)
-                if queueExpiry is not None:
-                    await redisPipe.expire(queue, queueExpiry)
-                sendMessageResult, expireKeyResult = await redisPipe.execute()
+            await(self.redisClient.rpush(queue, message))
+            if queueExpiry is not None:
+                 await(self.redisClient.expire(queue, queueExpiry))
             return f'{message} stored in {queue} successfully.'
+        except Exception as e:
+            return ''
+
+    async def sendBulkMessage(self, queue: str, messageList: list, queueExpiry: int=None) -> str:
+        """
+        Empties a given asyncio queue into a redis pipeline, then sends to redis.
+        """
+        try:
+            redisPipe = self.redisClient.pipeline()
+
+            for message in messageList:
+                redisPipe.rpush(queue, message)
+                if queueExpiry is not None:
+                    redisPipe.expire(queue, queueExpiry)
+                
+            await(redisPipe.execute())
+            
+            return f'Messages stored in {queue} successfully.'
+        
         except Exception as e:
             return ''
 

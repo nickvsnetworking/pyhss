@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - /oam/deregister/{imsi} endpoint
  - /geored/peers endpoint
  - /geored/webhooks endpoint
- - Dependency on Redis for inter-service messaging
+ - Dependency on Redis 7 for inter-service messaging
  - Significant performance improvements under load
  - Basic Rx support for RAA, AAA, ASA and STA
  - Rx MO call flow support (AAR -> RAR -> RAA -> AAA)
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logtool no longer handles metric processing
 - Updated config.yaml
 - Gx CCR-T now flushes PGW / IMS data, depending on Called-Station-Id
-- Benchmarked lossless at ~100 diameter requests per second, per hssService.
+- Benchmarked capability of at least ~500 diameter requests per second with a response time of under 2 seconds on a local network.
 
 ### Fixed
 

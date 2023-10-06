@@ -115,6 +115,16 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
+    def awaitBulkMessage(self, key: str, count: int=100):
+        """
+        Blocks until one or more messages are received at the given key, then returns the amount of messages specified by count.
+        """
+        try:
+            message =  self.redisClient.blmpop(0, 1, key, direction='RIGHT', count=count)
+            return message
+        except Exception as e:
+            print(traceback.format_exc())
+            return ''
 
     def deleteQueue(self, queue: str) -> bool:
         """

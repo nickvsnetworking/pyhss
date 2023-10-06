@@ -40,53 +40,60 @@ class HssService:
                 if self.benchmarking:
                     startTime = time.perf_counter()
 
-                inboundMessage = json.loads(self.redisMessaging.awaitMessage(key='diameter-inbound')[1])
+                inboundMessageList = self.redisMessaging.awaitBulkMessage(key='diameter-inbound')
 
-                inboundBinary = bytes.fromhex(inboundMessage.get('diameter-inbound', None))
-                if inboundBinary == None:
+                if inboundMessageList == None:
                     continue
-                inboundHost = inboundMessage.get('clientAddress', None)
-                inboundPort = inboundMessage.get('clientPort', None)
-                inboundTimestamp = inboundMessage.get('inbound-received-timestamp', None)
+                for inboundMessage in inboundMessageList[1]:
+                    self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] Message: {inboundMessage}", redisClient=self.redisMessaging)
 
-                try:
-                    diameterOutbound = self.diameterLibrary.generateDiameterResponse(binaryData=inboundBinary)
+                    inboundMessage = json.loads(inboundMessage.decode('ascii'))
+                    inboundBinary = bytes.fromhex(inboundMessage.get('diameter-inbound', None))
 
-                    if diameterOutbound == None:
+                    if inboundBinary == None:
                         continue
-                    if not len(diameterOutbound) > 0:
+                    inboundHost = inboundMessage.get('clientAddress', None)
+                    inboundPort = inboundMessage.get('clientPort', None)
+                    inboundTimestamp = inboundMessage.get('inbound-received-timestamp', None)
+
+                    try:
+                        diameterOutbound = self.diameterLibrary.generateDiameterResponse(binaryData=inboundBinary)
+
+                        if diameterOutbound == None:
+                            continue
+                        if not len(diameterOutbound) > 0:
+                            continue
+
+                        diameterMessageTypeDict = self.diameterLibrary.getDiameterMessageType(binaryData=inboundBinary)
+                        
+                        if diameterMessageTypeDict == None:
+                            continue
+                        if not len(diameterMessageTypeDict) > 0:
+                            continue
+
+                        diameterMessageTypeInbound = diameterMessageTypeDict.get('inbound', '')
+                        diameterMessageTypeOutbound = diameterMessageTypeDict.get('outbound', '')
+                    except Exception as e:
+                        self.logTool.log(service='HSS', level='warning', message=f"[HSS] [handleQueue] Failed to generate diameter outbound: {e}", redisClient=self.redisMessaging)
                         continue
 
-                    diameterMessageTypeDict = self.diameterLibrary.getDiameterMessageType(binaryData=inboundBinary)
+                    self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound: {inboundMessage}", redisClient=self.redisMessaging)
                     
-                    if diameterMessageTypeDict == None:
-                        continue
-                    if not len(diameterMessageTypeDict) > 0:
-                        continue
+                    outboundQueue = f"diameter-outbound-{inboundHost}-{inboundPort}"
+                    outboundMessage = json.dumps({"diameter-outbound": diameterOutbound, "inbound-received-timestamp": inboundTimestamp})
 
-                    diameterMessageTypeInbound = diameterMessageTypeDict.get('inbound', '')
-                    diameterMessageTypeOutbound = diameterMessageTypeDict.get('outbound', '')
-                except Exception as e:
-                    self.logTool.log(service='HSS', level='warning', message=f"[HSS] [handleQueue] Failed to generate diameter outbound: {e}", redisClient=self.redisMessaging)
-                    continue
+                    self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Generated Diameter Outbound: {diameterOutbound}", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound Queue: {outboundQueue}", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound: {outboundMessage}", redisClient=self.redisMessaging)
 
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Inbound Diameter Inbound: {inboundMessage}", redisClient=self.redisMessaging)
-                
-                outboundQueue = f"diameter-outbound-{inboundHost}-{inboundPort}"
-                outboundMessage = json.dumps({"diameter-outbound": diameterOutbound, "inbound-received-timestamp": inboundTimestamp})
-
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Generated Diameter Outbound: {diameterOutbound}", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound Queue: {outboundQueue}", redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] [{diameterMessageTypeOutbound}] Outbound Diameter Outbound: {outboundMessage}", redisClient=self.redisMessaging)
-
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60)
-                if self.benchmarking:
-                    self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
+                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60)
+                    if self.benchmarking:
+                        self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
 
             except Exception as e:
                 self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 continue
-        
+            
 
 
 if __name__ == '__main__':

@@ -55,7 +55,7 @@ class LogTool:
         timestamp = time.time()
         dateTimeString = datetime.fromtimestamp(timestamp).strftime("%m/%d/%Y %H:%M:%S %Z").strip()
         print(f"[{dateTimeString}] [{level.upper()}] {message}")
-        asyncio.ensure_future(redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60))
+        await(redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60))
         return True
     
     def log(self, service: str, level: str, message: str, redisClient=None) -> bool:

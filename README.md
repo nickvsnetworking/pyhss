@@ -79,6 +79,8 @@ Dependencies can be installed using Pip3:
 pip3 install -r requirements.txt
 ```
 
+PyHSS also requires [Redis 7.0.0](https://redis.io/docs/getting-started/installation/install-redis-on-linux/) or above.
+
 Then after setting up the config, you can fire up the necessary PyHSS services by running:
 ```shell
 python3 diameterService.py

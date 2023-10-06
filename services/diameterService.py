@@ -13,7 +13,7 @@ class DiameterService:
     """
     PyHSS Diameter Service
     A class for handling diameter inbounds and replies on Port 3868, via TCP.
-    Functions in this class are high-performance, please edit with care. Last profiled on 20-09-2023.
+    Functions in this class are high-performance, please edit with care. Last profiled October 6th, 2023.
     """
 
     def __init__(self):
@@ -40,6 +40,7 @@ class DiameterService:
         self.benchmarkingInterval = self.config.get('benchmarking', {}).get('reporting_interval', 3600)
         self.diameterRequests = 0
         self.diameterResponses = 0
+        self.workerPoolSize = int(self.config.get('hss', {}).get('diameter_service_workers', 10))
     
     async def validateDiameterInbound(self, clientAddress: str, clientPort: str, inboundData) -> bool:
         """
@@ -51,7 +52,7 @@ class DiameterService:
             originHost = bytes.fromhex(originHost).decode("utf-8")
             peerType = await(self.diameterLibrary.getPeerType(originHost))
             self.activePeers[f"{clientAddress}-{clientPort}"].update({'diameterHostname': originHost,
-                                                                      'peerType': peerType,
+                                                                      'peerType': (peerType if peerType != None else 'Unknown'),
                                                                      })
             return True
         except Exception as e:
@@ -120,43 +121,65 @@ class DiameterService:
 
     async def readInboundData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
-        Reads and parses incoming data from a connected client. Validated diameter messages are sent to the redis queue for processing.
-        Terminates the connection if diameter traffic is not received, or if the client disconnects.
+        Reads incoming data from a connected client. Data is sent to a shared memory-based queue, to be polled and processed by a worker coroutine.
+        Terminates the connection if the client disconnects, the queue fills or another exception occurs.
         """
         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] New connection from {clientAddress} on port {clientPort}"))
-        peerIsValidated = False
+        clientConnection = f"{clientAddress}-{clientPort}"
         while True:
             try:
 
                 inboundData = await(asyncio.wait_for(reader.read(8192), timeout=socketTimeout))
 
                 if reader.at_eof():
-                    await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Timeout for {clientAddress} on port {clientPort}, closing connection."))
                     return False
-                
-                if len(inboundData) > 0:
-                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Received data from {clientAddress} on port {clientPort}"))
-                    
-                    if not peerIsValidated:
-                        if not await(self.validateDiameterInbound(clientAddress, clientPort, inboundData)):
-                            await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter Inbound, discarding data."))
-                            await(asyncio.sleep(0))
-                            continue
-                        else:
-                            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Validated peer: {clientAddress} on port {clientPort}"))
-                            peerIsValidated = True
 
-                    inboundQueueName = f"diameter-inbound"
-                    inboundHexString = json.dumps({"diameter-inbound": inboundData.hex(), "inbound-received-timestamp": time.time_ns(), "clientAddress": clientAddress, "clientPort": clientPort})
-                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Queueing {inboundHexString}"))
-                    await(self.redisReaderMessaging.sendMessage(queue=inboundQueueName, message=inboundHexString, queueExpiry=self.diameterRequestTimeout))
-                    if self.benchmarking:
-                        self.diameterRequests += 1
-                    await(asyncio.sleep(0))
-                        
+                if len(inboundData) > 0:
+                    self.sharedQueue.put_nowait({"diameter-inbound": inboundData, "inbound-received-timestamp": time.time(), "clientAddress": clientAddress, "clientPort": clientPort})
+
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Exception for {clientAddress} on port {clientPort}, closing connection.\n{e}"))
                 return False
+
+    async def inboundDataWorker(self, coroutineUuid: str) -> bool:
+        """
+        Collects messages from the memory queue, performs peer validation and fires off to redis every 0.1 seconds.
+        """
+        batchInterval = 0.1
+        inboundQueueName = f"diameter-inbound"
+        while True:
+            try:
+                nextSendTime = time.time() + batchInterval
+                messageList = []
+                while time.time() < nextSendTime:
+                    try:
+                        inboundData = await(asyncio.wait_for(self.sharedQueue.get(), timeout=nextSendTime - time.time()))
+                        inboundHex = inboundData.get('diameter-inbound', '').hex()
+                        inboundData['diameter-inbound'] = inboundHex
+                        clientAddress = inboundData.get('clientAddress', '')
+                        clientPort = inboundData.get('clientPort', '')
+
+                        if len(self.activePeers.get(f'{clientAddress}-{clientPort}', {}).get('peerType', '')) == 0:
+                            if not await(self.validateDiameterInbound(clientAddress, clientPort, inboundHex)):
+                                await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [inboundDataWorker] [{coroutineUuid}] Invalid Diameter Inbound, discarding data."))
+                                continue
+                            else:
+                                await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [inboundDataWorker] [{coroutineUuid}] Validated peer: {clientAddress} on port {clientPort}"))
+
+                        await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [inboundDataWorker] [{coroutineUuid}] Queueing to redis: {inboundData}"))
+                        messageList.append(json.dumps(inboundData))
+                        if self.benchmarking:
+                            self.diameterRequests += 1
+                    except asyncio.TimeoutError:
+                        break
+
+                if messageList:
+                    await self.redisReaderMessaging.sendBulkMessage(queue=inboundQueueName, messageList=messageList, queueExpiry=self.diameterRequestTimeout)
+                    messageList = []
+
+            except Exception as e:
+                await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [inboundDataWorker] [{coroutineUuid}] Exception for inboundDataWorker, continuing.\n{e}"))
+                pass
 
     async def writeOutboundData(self, writer, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
@@ -167,14 +190,13 @@ class DiameterService:
             try:
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Waiting for messages for host {clientAddress} on port {clientPort}"))
                 pendingOutboundMessage = json.loads((await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}")))[1])
-                await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Received message: {pendingOutboundMessage} for host {clientAddress} on port {clientPort}"))
                 diameterOutboundBinary = bytes.fromhex(pendingOutboundMessage.get('diameter-outbound', ''))
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
+
                 writer.write(diameterOutboundBinary)
                 await(writer.drain())
                 if self.benchmarking:
                     self.diameterResponses += 1
-                await(asyncio.sleep(0))
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer."))
                 return False
@@ -190,15 +212,15 @@ class DiameterService:
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] New Connection from: {clientAddress} on port {clientPort}"))
             if f"{clientAddress}-{clientPort}" not in self.activePeers:
                 self.activePeers[f"{clientAddress}-{clientPort}"] = {
-                                                                        "connectTimestamp": '',
-                                                                        "disconnectTimestamp": '',
-                                                                        "reconnectionCount": 0,
-                                                                        "ipAddress":'',
-                                                                        "port":'',
-                                                                        "connectionStatus": '',
-                                                                        "diameterHostname": '',
-                                                                        "peerType": '',
-                                                                        }
+                                                                    "connectTimestamp": '',
+                                                                    "disconnectTimestamp": '',
+                                                                    "reconnectionCount": 0,
+                                                                    "ipAddress":'',
+                                                                    "port":'',
+                                                                    "connectionStatus": '',
+                                                                    "diameterHostname": '',
+                                                                    "peerType": '',
+                                                                    }
             else:
                 reconnectionCount = self.activePeers.get(f"{clientAddress}-{clientPort}", {}).get('reconnectionCount', 0)
                 reconnectionCount += 1
@@ -245,6 +267,11 @@ class DiameterService:
         Start a server with the given parameters and handle new clients with self.handleConnection.
         Also create a single instance of self.handleActiveDiameterPeers and self.logProcessedMessages.
         """
+
+        self.sharedQueue = asyncio.Queue(maxsize=1024)
+
+        for i in range(self.workerPoolSize):
+            asyncio.create_task(self.inboundDataWorker(coroutineUuid=f'inboundDataWorker-{i}'))
 
         if host is None:
             host=str(self.config.get('hss', {}).get('bind_ip', '0.0.0.0')[0])
