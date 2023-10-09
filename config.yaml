@@ -104,7 +104,7 @@ database:
 webhooks:
   enabled: False
   endpoints:
-  - http://10.5.5.66:8080
+  - http://127.0.0.1:8181
 
 ## Geographic Redundancy Parameters
 geored:
