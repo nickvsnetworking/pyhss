@@ -4,33 +4,54 @@ from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
-import datetime
+import os
+sys.path.append(os.path.realpath('../lib'))
+import time
+import requests
 import traceback
 import sqlalchemy
 import socket
-
-
-import logging
+from logtool import LogTool
+from diameter import Diameter
+from messaging import RedisMessaging
+import database
 import yaml
 
-with open("config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
+with open("../config.yaml", 'r') as stream:
+    config = (yaml.safe_load(stream))
 
-import os
-import sys
-sys.path.append(os.path.realpath('lib'))
+siteName = config.get("hss", {}).get("site_name", "")
+originHostname = socket.gethostname()
+lockProvisioning = config.get('hss', {}).get('lock_provisioning', False)
+provisioningKey = config.get('hss', {}).get('provisioning_key', '')
+mnc = config.get('hss', {}).get('MNC', '999')
+mcc = config.get('hss', {}).get('MCC', '999')
+originRealm = config.get('hss', {}).get('OriginRealm', f'mnc{mnc}.mcc{mcc}.3gppnetwork.org')
+originHost = config.get('hss', {}).get('OriginHost', f'hss01')
+productName = config.get('hss', {}).get('ProductName', f'PyHSS')
 
-#Setup Logging
-import logtool
+redisHost = config.get("redis", {}).get("host", "127.0.0.1")
+redisPort = int(config.get("redis", {}).get("port", 6379))
+redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
 
+redisMessaging = RedisMessaging(host=redisHost, port=redisPort, useUnixSocket=redisUseUnixSocket, unixSocketPath=redisUnixSocketPath)
 
-import database
+logTool = LogTool(config)
 
-from prometheus_flask_exporter import PrometheusMetrics
-app = Flask(__name__)
-metrics = PrometheusMetrics.for_app_factory()
-metrics.init_app(app)
-from logtool import prom_flask_http_geored_endpoints
+diameterClient = Diameter(
+                    redisMessaging=redisMessaging, 
+                    logTool=logTool,
+                    originHost=originHost, 
+                    originRealm=originRealm, 
+                    mnc=mnc,
+                    mcc=mcc,
+                    productName='PyHSS-client-API'
+                )
+
+databaseClient = database.Database(logTool=logTool, redisMessaging=redisMessaging)
+
+apiService = Flask(__name__)
 
 APN = database.APN
 Serving_APN = database.SERVING_APN
@@ -45,12 +66,8 @@ SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
 OPERATION_LOG = database.OPERATION_LOG_BASE
 SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
 
-
-site_name = yaml_config.get("hss", {}).get("site_name", "")
-origin_host_name = socket.gethostname()
-
-app.wsgi_app = ProxyFix(app.wsgi_app)
-api = Api(app, version='1.0', title=f'{site_name + " - " if site_name else ""}{origin_host_name} - PyHSS OAM API',
+apiService.wsgi_app = ProxyFix(apiService.wsgi_app)
+api = Api(apiService, version='1.0', title=f'{siteName + " - " if siteName else ""}{originHostname} - PyHSS OAM API',
     description='Restful API for working with PyHSS',
     doc='/docs/'
 )
@@ -76,41 +93,40 @@ parser.add_argument('operation_id', type=str, help='Operation ID', location='arg
 
 paginatorParser = reqparse.RequestParser()
 paginatorParser.add_argument('page', type=int, required=False, default=0, help='Page number for pagination')
-paginatorParser.add_argument('page_size', type=int, required=False, default=yaml_config['api'].get('page_size', 100), help='Number of items per page for pagination')
-
+paginatorParser.add_argument('page_size', type=int, required=False, default=config['api'].get('page_size', 100), help='Number of items per page for pagination')
 
 APN_model = api.schema_model('APN JSON', 
-    database.Generate_JSON_Model_for_Flask(APN)
+    databaseClient.Generate_JSON_Model_for_Flask(APN)
 )
 Serving_APN_model = api.schema_model('Serving APN JSON', 
-    database.Generate_JSON_Model_for_Flask(Serving_APN)
+    databaseClient.Generate_JSON_Model_for_Flask(Serving_APN)
 )
 AUC_model = api.schema_model('AUC JSON', 
-    database.Generate_JSON_Model_for_Flask(AUC)
+    databaseClient.Generate_JSON_Model_for_Flask(AUC)
 )
 SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON', 
-    database.Generate_JSON_Model_for_Flask(SUBSCRIBER)
+    databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER)
 )
 SUBSCRIBER_ROUTING_model = api.schema_model('SUBSCRIBER_ROUTING JSON', 
-    database.Generate_JSON_Model_for_Flask(SUBSCRIBER_ROUTING)
+    databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER_ROUTING)
 )
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
-    database.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
+    databaseClient.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
 )
 TFT_model = api.schema_model('TFT JSON', 
-    database.Generate_JSON_Model_for_Flask(TFT)
+    databaseClient.Generate_JSON_Model_for_Flask(TFT)
 )
 CHARGING_RULE_model = api.schema_model('CHARGING_RULE JSON', 
-    database.Generate_JSON_Model_for_Flask(CHARGING_RULE)
+    databaseClient.Generate_JSON_Model_for_Flask(CHARGING_RULE)
 )
 EIR_model = api.schema_model('EIR JSON', 
-    database.Generate_JSON_Model_for_Flask(EIR)
+    databaseClient.Generate_JSON_Model_for_Flask(EIR)
 )
 IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON', 
-    database.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
+    databaseClient.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
 )
 SUBSCRIBER_ATTRIBUTES_model = api.schema_model('SUBSCRIBER_ATTRIBUTES JSON', 
-    database.Generate_JSON_Model_for_Flask(SUBSCRIBER_ATTRIBUTES)
+    databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER_ATTRIBUTES)
 )
 
 PCRF_Push_model = api.model('PCRF_Rule', {
@@ -134,6 +150,11 @@ GeoRed_model = api.model('GeoRed', {
     'serving_mme_timestamp' : fields.String(description=SUBSCRIBER.serving_mme_timestamp.doc),
     'serving_apn' : fields.String(description='Access Point Name of APN'),
     'pcrf_session_id' : fields.String(description=Serving_APN.pcrf_session_id.doc),
+    'pcscf' : fields.String(description=IMS_SUBSCRIBER.pcscf.doc),
+    'pcscf_realm' : fields.String(description=IMS_SUBSCRIBER.pcscf_realm.doc),
+    'pcscf_peer' : fields.String(description=IMS_SUBSCRIBER.pcscf_peer.doc),
+    'pcscf_timestamp' : fields.String(description=IMS_SUBSCRIBER.pcscf_timestamp.doc),
+    'pcscf_active_session' : fields.String(description=IMS_SUBSCRIBER.pcscf_active_session.doc),
     'subscriber_routing' : fields.String(description=Serving_APN.subscriber_routing.doc),
     'serving_pgw' : fields.String(description=Serving_APN.serving_pgw.doc),
     'serving_pgw_realm' : fields.String(description=Serving_APN.serving_pgw_realm.doc),
@@ -163,9 +184,6 @@ Geored_schema = {
 }
 
 
-lock_provisioning = yaml_config.get('hss', {}).get('lock_provisioning', False)
-provisioning_key = yaml_config.get('hss', {}).get('provisioning_key', '')
-
 def no_auth_required(f):
     f.no_auth_required = True
     return f
@@ -173,9 +191,9 @@ def no_auth_required(f):
 def auth_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if getattr(f, 'no_auth_required', False) or (lock_provisioning == False):
+        if getattr(f, 'no_auth_required', False) or (lockProvisioning == False):
             return f(*args, **kwargs)
-        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
+        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != config['hss']['provisioning_key']:
             return {'Result': 'Unauthorized - Provisioning-Key Invalid'}, 401
         return f(*args, **kwargs)
     return decorated_function
@@ -184,12 +202,12 @@ def auth_before_request():
     if request.path.startswith('/docs') or request.path.startswith('/swagger') or request.path.startswith('/metrics'):
         return None
     if request.endpoint and 'static' not in request.endpoint:
-        view_function = app.view_functions[request.endpoint]
+        view_function = apiService.view_functions[request.endpoint]
         if hasattr(view_function, 'view_class'):
             view_class = view_function.view_class
             view_method = getattr(view_class, request.method.lower(), None)
             if view_method:
-                if(lock_provisioning == False):
+                if(lockProvisioning == False):
                     return None
                 if request.method == 'GET' and not getattr(view_method, 'auth_required', False):
                     return None
@@ -198,12 +216,13 @@ def auth_before_request():
                 else:
                     return None
 
-        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != yaml_config['hss']['provisioning_key']:
+        if 'Provisioning-Key' not in request.headers or request.headers['Provisioning-Key'] != config['hss']['provisioning_key']:
             return {'Result': 'Unauthorized - Provisioning-Key Invalid'}, 401
     return None
 
 def handle_exception(e):
-    logging.error(f"An error occurred: {e}")
+
+    logTool.log(service='API', level='error', message=f"[API] An error occurred: {e}", redisClient=redisMessaging)
     response_json = {'result': 'Failed'}
 
     if isinstance(e, sqlalchemy.exc.SQLAlchemyError):
@@ -222,19 +241,18 @@ def handle_exception(e):
             return response_json, 410
     else:
         response_json['reason'] = f'An internal server error occurred: {e}'
-        logging.error(f'{traceback.format_exc()}')
-        logging.error(f'{sys.exc_info()[2]}')
+        logTool.log(service='API', level='error', message=f"[API] Additional Error Information: {traceback.format_exc()}\n{sys.exc_info()[2]}", redisClient=redisMessaging)
         return response_json, 500
 
-app.before_request(auth_before_request)
+apiService.before_request(auth_before_request)
 
-@app.errorhandler(404)
+@apiService.errorhandler(404)
 def page_not_found(e):
     return  {"Result": "Not Found"}, 404
 
-@app.after_request
+@apiService.after_request
 def apply_caching(response):
-    response.headers["HSS"] = str(yaml_config['hss']['OriginHost'])
+    response.headers["HSS"] = str(config['hss']['OriginHost'])
     return response
 
 @ns_apn.route('/<string:apn_id>')
@@ -242,7 +260,7 @@ class PyHSS_APN_Get(Resource):
     def get(self, apn_id):
         '''Get all APN data for specified APN ID'''
         try:
-            apn_data = database.GetObj(APN, apn_id)
+            apn_data = databaseClient.GetObj(APN, apn_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -253,7 +271,7 @@ class PyHSS_APN_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(APN, apn_id, False, operation_id)
+            data = databaseClient.DeleteObj(APN, apn_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -268,7 +286,7 @@ class PyHSS_APN_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            apn_data = database.UpdateObj(APN, json_data, apn_id, False, operation_id)
+            apn_data = databaseClient.UpdateObj(APN, json_data, apn_id, False, operation_id)
 
             print("Updated object")
             print(apn_data)
@@ -288,7 +306,7 @@ class PyHSS_APN(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            apn_id = database.CreateObj(APN, json_data, False, operation_id)
+            apn_id = databaseClient.CreateObj(APN, json_data, False, operation_id)
 
             return apn_id, 200
         except Exception as E:
@@ -302,7 +320,7 @@ class PyHSS_OAM_All_APNs(Resource):
         '''Get all APNs'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(APN, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(APN, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -313,8 +331,8 @@ class PyHSS_AUC_Get(Resource):
     def get(self, auc_id):
         '''Get all AuC data for specified AuC ID'''
         try:
-            auc_data = database.GetObj(AUC, auc_id)
-            auc_data = database.Sanitize_Keys(auc_data)
+            auc_data = databaseClient.GetObj(AUC, auc_id)
+            auc_data = databaseClient.Sanitize_Keys(auc_data)
             return auc_data, 200
         except Exception as E:
             print(E)
@@ -325,7 +343,7 @@ class PyHSS_AUC_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(AUC, auc_id, False, operation_id)
+            data = databaseClient.DeleteObj(AUC, auc_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -340,8 +358,8 @@ class PyHSS_AUC_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            auc_data = database.UpdateObj(AUC, json_data, auc_id, False, operation_id)
-            auc_data = database.Sanitize_Keys(auc_data)
+            auc_data = databaseClient.UpdateObj(AUC, json_data, auc_id, False, operation_id)
+            auc_data = databaseClient.Sanitize_Keys(auc_data)
             print("Updated object")
             print(auc_data)
             
@@ -355,8 +373,8 @@ class PyHSS_AUC_Get_ICCID(Resource):
     def get(self, iccid):
         '''Get all AuC data for specified ICCID'''
         try:
-            auc_data = database.Get_AuC(iccid=iccid)
-            auc_data = database.Sanitize_Keys(auc_data)
+            auc_data = databaseClient.Get_AuC(iccid=iccid)
+            auc_data = databaseClient.Sanitize_Keys(auc_data)
             return auc_data, 200
         except Exception as E:
             print(E)
@@ -367,8 +385,8 @@ class PyHSS_AUC_Get_IMSI(Resource):
     def get(self, imsi):
         '''Get all AuC data for specified IMSI'''
         try:
-            auc_data = database.Get_AuC(imsi=imsi)
-            auc_data = database.Sanitize_Keys(auc_data)
+            auc_data = databaseClient.Get_AuC(imsi=imsi)
+            auc_data = databaseClient.Sanitize_Keys(auc_data)
             return auc_data, 200
         except Exception as E:
             print(E)
@@ -385,7 +403,7 @@ class PyHSS_AUC(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(AUC, json_data, False, operation_id)
+            data = databaseClient.CreateObj(AUC, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -399,7 +417,7 @@ class PyHSS_AUC_All(Resource):
         '''Get all AuC Data (except keys)'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(AUC, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(AUC, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -410,7 +428,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
     def get(self, subscriber_id):
         '''Get all SUBSCRIBER data for specified subscriber_id'''
         try:
-            apn_data = database.GetObj(SUBSCRIBER, subscriber_id)
+            apn_data = databaseClient.GetObj(SUBSCRIBER, subscriber_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -421,7 +439,7 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(SUBSCRIBER, subscriber_id, False, operation_id)
+            data = databaseClient.DeleteObj(SUBSCRIBER, subscriber_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -436,7 +454,27 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
+            data = databaseClient.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
+
+            #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
+            if 'enabled' in json_data and json_data['enabled'] == False:
+                print("Subscriber is now disabled, checking to see if we need to trigger a CLR")
+                #See if we have a serving MME set
+                try:
+                    assert(json_data['serving_mme'])
+                    print("Serving MME set - Sending CLR")
+
+                    diameterClient.sendDiameterRequest(
+                        requestType='CLR',
+                        hostname=json_data['serving_mme'],
+                        imsi=json_data['imsi'], 
+                        DestinationHost=json_data['serving_mme'], 
+                        DestinationRealm=json_data['serving_mme_realm'], 
+                        CancellationType=1
+                    )
+                    print("Sent CLR via Peer " + str(json_data['serving_mme']))
+                except:
+                    print("No serving MME set - Not sending CLR")
 
 
             #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
@@ -484,7 +522,7 @@ class PyHSS_SUBSCRIBER(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(SUBSCRIBER, json_data, False, operation_id)
+            data = databaseClient.CreateObj(SUBSCRIBER, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -496,7 +534,7 @@ class PyHSS_SUBSCRIBER_IMSI(Resource):
     def get(self, imsi):
         '''Get data for IMSI'''
         try:
-            data = database.Get_Subscriber(imsi=imsi, get_attributes=True)
+            data = databaseClient.Get_Subscriber(imsi=imsi, get_attributes=True)
             return data, 200
         except Exception as E:
             print(E)
@@ -507,7 +545,7 @@ class PyHSS_SUBSCRIBER_MSISDN(Resource):
     def get(self, msisdn):
         '''Get data for MSISDN'''
         try:
-            data = database.Get_Subscriber(msisdn=msisdn, get_attributes=True)
+            data = databaseClient.Get_Subscriber(msisdn=msisdn, get_attributes=True)
             return data, 200
         except Exception as E:
             print(E)
@@ -520,7 +558,7 @@ class PyHSS_SUBSCRIBER_All(Resource):
         '''Get all Subscribers'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(SUBSCRIBER, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(SUBSCRIBER, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -537,7 +575,7 @@ class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(SUBSCRIBER_ROUTING, json_data, False, operation_id)
+            data = databaseClient.CreateObj(SUBSCRIBER_ROUTING, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -549,7 +587,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
     def get(self, subscriber_id, apn_id):
         '''Get Subscriber Routing for specified subscriber_id & apn_id'''
         try:
-            apn_data = database.Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id)
+            apn_data = databaseClient.Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -560,8 +598,8 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            apn_data = database.Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id)
-            data = database.DeleteObj(SUBSCRIBER_ROUTING, apn_data['subscriber_routing_id'], False, operation_id)
+            apn_data = databaseClient.Get_SUBSCRIBER_ROUTING(subscriber_id, apn_id)
+            data = databaseClient.DeleteObj(SUBSCRIBER_ROUTING, apn_data['subscriber_routing_id'], False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -578,7 +616,7 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(SUBSCRIBER_ROUTING, json_data, subscriber_routing_id, False, operation_id)
+            data = databaseClient.UpdateObj(SUBSCRIBER_ROUTING, json_data, subscriber_routing_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -592,7 +630,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
     def get(self, ims_subscriber_id):
         '''Get all SUBSCRIBER data for specified ims_subscriber_id'''
         try:
-            apn_data = database.GetObj(IMS_SUBSCRIBER, ims_subscriber_id)
+            apn_data = databaseClient.GetObj(IMS_SUBSCRIBER, ims_subscriber_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -603,7 +641,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id, False, operation_id)
+            data = databaseClient.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -618,7 +656,7 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id, False, operation_id)
+            data = databaseClient.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -638,7 +676,7 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(IMS_SUBSCRIBER, json_data, False, operation_id)
+            data = databaseClient.CreateObj(IMS_SUBSCRIBER, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -650,7 +688,7 @@ class PyHSS_IMS_SUBSCRIBER_MSISDN(Resource):
     def get(self, msisdn):
         '''Get IMS data for MSISDN'''
         try:
-            data = database.Get_IMS_Subscriber(msisdn=msisdn)
+            data = databaseClient.Get_IMS_Subscriber(msisdn=msisdn)
             print("Got back: " + str(data))
             return data, 200
         except Exception as E:
@@ -662,7 +700,7 @@ class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
     def get(self, imsi):
         '''Get IMS data for imsi'''
         try:
-            data = database.Get_IMS_Subscriber(imsi=imsi)
+            data = databaseClient.Get_IMS_Subscriber(imsi=imsi)
             print("Got back: " + str(data))
             return data, 200
         except Exception as E:
@@ -676,7 +714,7 @@ class PyHSS_IMS_Subscriber_All(Resource):
         '''Get all IMS Subscribers'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(IMS_SUBSCRIBER, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(IMS_SUBSCRIBER, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -687,7 +725,7 @@ class PyHSS_TFT_Get(Resource):
     def get(self, tft_id):
         '''Get all TFT data for specified tft_id'''
         try:
-            apn_data = database.GetObj(TFT, tft_id)
+            apn_data = databaseClient.GetObj(TFT, tft_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -698,7 +736,7 @@ class PyHSS_TFT_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(TFT, tft_id, False, operation_id)
+            data = databaseClient.DeleteObj(TFT, tft_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -713,7 +751,7 @@ class PyHSS_TFT_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(TFT, json_data, tft_id, False, operation_id)
+            data = databaseClient.UpdateObj(TFT, json_data, tft_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -733,7 +771,7 @@ class PyHSS_TFT(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(TFT, json_data, False, operation_id)
+            data = databaseClient.CreateObj(TFT, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -747,7 +785,7 @@ class PyHSS_TFT_All(Resource):
         '''Get all TFTs'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(TFT, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(TFT, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -758,7 +796,7 @@ class PyHSS_Charging_Rule_Get(Resource):
     def get(self, charging_rule_id):
         '''Get all Charging Rule data for specified charging_rule_id'''
         try:
-            apn_data = database.GetObj(CHARGING_RULE, charging_rule_id)
+            apn_data = databaseClient.GetObj(CHARGING_RULE, charging_rule_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -769,7 +807,7 @@ class PyHSS_Charging_Rule_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(CHARGING_RULE, charging_rule_id, False, operation_id)
+            data = databaseClient.DeleteObj(CHARGING_RULE, charging_rule_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -784,7 +822,7 @@ class PyHSS_Charging_Rule_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(CHARGING_RULE, json_data, charging_rule_id, False, operation_id)
+            data = databaseClient.UpdateObj(CHARGING_RULE, json_data, charging_rule_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -804,7 +842,7 @@ class PyHSS_Charging_Rule(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(CHARGING_RULE, json_data, False, operation_id)
+            data = databaseClient.CreateObj(CHARGING_RULE, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -818,7 +856,7 @@ class PyHSS_Charging_Rule_All(Resource):
         '''Get all Charging Rules'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(CHARGING_RULE, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(CHARGING_RULE, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -829,7 +867,7 @@ class PyHSS_EIR_Get(Resource):
     def get(self, eir_id):
         '''Get all EIR data for specified eir_id'''
         try:
-            eir_data = database.GetObj(EIR, eir_id)
+            eir_data = databaseClient.GetObj(EIR, eir_id)
             return eir_data, 200
         except Exception as E:
             print(E)
@@ -840,7 +878,7 @@ class PyHSS_EIR_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(EIR, eir_id, False, operation_id)
+            data = databaseClient.DeleteObj(EIR, eir_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -855,7 +893,7 @@ class PyHSS_EIR_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(EIR, json_data, eir_id, False, operation_id)
+            data = databaseClient.UpdateObj(EIR, json_data, eir_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -875,7 +913,7 @@ class PyHSS_EIR(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(EIR, json_data, False, operation_id)
+            data = databaseClient.CreateObj(EIR, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -887,11 +925,11 @@ class PyHSS_EIR_HISTORY(Resource):
     def get(self, attribute):
         '''Get history for IMSI or IMEI'''
         try:
-            data = database.Get_IMEI_IMSI_History(attribute=attribute)
+            data = databaseClient.Get_IMEI_IMSI_History(attribute=attribute)
             #Add device info for each entry
             data_w_device_info = []
             for record in data:
-                record['imei_result'] = database.get_device_info_from_TAC(imei=str(record['imei']))
+                record['imei_result'] = databaseClient.get_device_info_from_TAC(imei=str(record['imei']))
                 data_w_device_info.append(record)
             return data_w_device_info, 200
         except Exception as E:
@@ -901,9 +939,9 @@ class PyHSS_EIR_HISTORY(Resource):
     def delete(self, attribute):
         '''Get Delete for IMSI or IMEI'''
         try:
-            data = database.Get_IMEI_IMSI_History(attribute=attribute)
+            data = databaseClient.Get_IMEI_IMSI_History(attribute=attribute)
             for record in data:
-                database.DeleteObj(IMSI_IMEI_HISTORY, record['imsi_imei_history_id'])
+                databaseClient.DeleteObj(IMSI_IMEI_HISTORY, record['imsi_imei_history_id'])
             return data, 200
         except Exception as E:
             print(E)
@@ -916,7 +954,7 @@ class PyHSS_EIR_All_History(Resource):
         '''Get EIR history for all subscribers'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(IMSI_IMEI_HISTORY, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(IMSI_IMEI_HISTORY, args['page'], args['page_size'])
             for record in data:
                 record['imsi'] = record['imsi_imei'].split(',')[0]
                 record['imei'] = record['imsi_imei'].split(',')[1]
@@ -932,7 +970,7 @@ class PyHSS_EIR_All(Resource):
         '''Get all EIR Rules'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(EIR, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(EIR, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -943,12 +981,11 @@ class PyHSS_EIR_TAC(Resource):
     def get(self, imei):
         '''Get Device Info from IMEI'''
         try:
-            data = database.get_device_info_from_TAC(imei=imei)
+            data = databaseClient.get_device_info_from_TAC(imei=imei)
             return (data), 200
         except Exception as E:
             print(E)
             return handle_exception(E)
-
 
 @ns_subscriber_attributes.route('/list')
 class PyHSS_Subscriber_Attributes_All(Resource):
@@ -957,7 +994,7 @@ class PyHSS_Subscriber_Attributes_All(Resource):
         '''Get all Subscriber Attributes'''
         try:
             args = paginatorParser.parse_args()
-            data = database.getAllPaginated(SUBSCRIBER_ATTRIBUTES, args['page'], args['page_size'])
+            data = databaseClient.getAllPaginated(SUBSCRIBER_ATTRIBUTES, args['page'], args['page_size'])
             return (data), 200
         except Exception as E:
             print(E)
@@ -968,7 +1005,7 @@ class PyHSS_Attributes_Get(Resource):
     def get(self, subscriber_id):
         '''Get all attributes / values for specified Subscriber ID'''
         try:
-            apn_data = database.Get_Subscriber_Attributes(subscriber_id)
+            apn_data = databaseClient.Get_Subscriber_Attributes(subscriber_id)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -981,7 +1018,7 @@ class PyHSS_Attributes_Get(Resource):
         try:
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.DeleteObj(SUBSCRIBER_ATTRIBUTES, subscriber_attributes_id, False, operation_id)
+            data = databaseClient.DeleteObj(SUBSCRIBER_ATTRIBUTES, subscriber_attributes_id, False, operation_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -996,7 +1033,7 @@ class PyHSS_Attributes_Get(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.UpdateObj(SUBSCRIBER_ATTRIBUTES, json_data, subscriber_attributes_id, False, operation_id)
+            data = databaseClient.UpdateObj(SUBSCRIBER_ATTRIBUTES, json_data, subscriber_attributes_id, False, operation_id)
 
             print("Updated object")
             print(data)
@@ -1016,7 +1053,7 @@ class PyHSS_Attributes(Resource):
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
-            data = database.CreateObj(SUBSCRIBER_ATTRIBUTES, json_data, False, operation_id)
+            data = databaseClient.CreateObj(SUBSCRIBER_ATTRIBUTES, json_data, False, operation_id)
 
             return data, 200
         except Exception as E:
@@ -1030,7 +1067,7 @@ class PyHSS_Operation_Log_List(Resource):
         '''Get all Operation Logs'''
         try:
             args = paginatorParser.parse_args()
-            OperationLogs = database.get_all_operation_logs(args['page'], args['page_size'])
+            OperationLogs = databaseClient.get_all_operation_logs(args['page'], args['page_size'])
             return OperationLogs, 200
         except Exception as E:
             print(E)
@@ -1041,7 +1078,7 @@ class PyHSS_Operation_Log_Last(Resource):
     def get(self):
         '''Get the most recent Operation Log'''
         try:
-            OperationLogs = database.get_last_operation_log()
+            OperationLogs = databaseClient.get_last_operation_log()
             return OperationLogs, 200
         except Exception as E:
             print(E)
@@ -1054,7 +1091,7 @@ class PyHSS_Operation_Log_List_Table(Resource):
         '''Get all Operation Logs for a given table'''
         try:
             args = paginatorParser.parse_args()
-            OperationLogs = database.get_all_operation_logs_by_table(table_name, args['page'], args['page_size'])
+            OperationLogs = databaseClient.get_all_operation_logs_by_table(table_name, args['page'], args['page_size'])
             return OperationLogs, 200
         except Exception as E:
             print(E)
@@ -1063,11 +1100,153 @@ class PyHSS_Operation_Log_List_Table(Resource):
 @ns_oam.route('/diameter_peers')
 class PyHSS_OAM_Peers(Resource):
     def get(self):
-        '''Get all Diameter Peers'''
+        '''Get active Diameter Peers'''
         try:
-            logObj = logtool.LogTool()
-            DiameterPeers = logObj.GetDiameterPeers()
-            return DiameterPeers, 200
+            diameterPeers = json.loads(redisMessaging.getValue("ActiveDiameterPeers"))
+            return diameterPeers, 200
+        except Exception as E:
+            logTool.log(service='API', level='error', message=f"[API] An error occurred: {traceback.format_exc()}", redisClient=redisMessaging)
+            print(E)
+            return handle_exception(E)
+
+@ns_oam.route('/deregister/<string:imsi>')
+class PyHSS_OAM_Deregister(Resource):
+    def get(self, imsi):
+        '''Deregisters a given IMSI from the entire network.'''
+        try:
+            subscriberInfo = databaseClient.Get_Subscriber(imsi=str(imsi))
+            imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
+            subscriberId = subscriberInfo.get('subscriber_id', None)
+            servingMmePeer = subscriberInfo.get('serving_mme_peer', None)
+            servingMme = subscriberInfo.get('serving_mme', None)
+            servingMmeRealm = subscriberInfo.get('serving_mme_realm', None)
+            servingScscf = subscriberInfo.get('scscf', None)
+            servingScscfPeer = imsSubscriberInfo.get('scscf_peer', None)
+            servingScscfRealm = imsSubscriberInfo.get('scscf_realm', None)
+            
+            if servingMmePeer is not None and servingMmeRealm is not None and servingMme is not None:
+                if ';' in servingMmePeer:
+                    servingMmePeer = servingMmePeer.split(';')[0]
+
+                # Send the CLR to the serving MME
+                diameterClient.sendDiameterRequest(
+                requestType='CLR',
+                hostname=servingMmePeer,
+                imsi=imsi, 
+                DestinationHost=servingMme, 
+                DestinationRealm=servingMmeRealm, 
+                CancellationType=2
+                )
+            
+            #Broadcast the CLR to all connected MME's, regardless of whether the subscriber is attached.
+            diameterClient.broadcastDiameterRequest(
+            requestType='CLR',
+            peerType='MME',
+            imsi=imsi, 
+            DestinationHost=servingMme, 
+            DestinationRealm=servingMmeRealm, 
+            CancellationType=2
+            )
+
+            databaseClient.Update_Serving_MME(imsi=imsi, serving_mme=None)
+
+            if servingScscfPeer is not None and servingScscfRealm is not None and servingScscf is not None:
+                if ';' in servingScscfPeer:
+                    servingScscfPeer = servingScscfPeer.split(';')[0]
+                servingScscf = servingScscf.replace('sip:', '')
+                if ';' in servingScscf:
+                    servingScscf = servingScscf.split(';')[0]
+                diameterClient.sendDiameterRequest(
+                requestType='RTR',
+                peerType=servingScscfPeer,
+                imsi=imsi,
+                destinationHost=servingScscf, 
+                destinationRealm=servingScscfRealm, 
+                domain=servingScscfRealm
+                )
+
+            #Broadcast the RTR to all connected SCSCF's, regardless of whether the subscriber is attached.
+            diameterClient.broadcastDiameterRequest(
+            requestType='RTR',
+            peerType='SCSCF',
+            imsi=imsi,
+            destinationHost=servingScscf, 
+            destinationRealm=servingScscfRealm, 
+            domain=servingScscfRealm
+            )
+
+            databaseClient.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)
+
+            # If a subscriber has an active serving apn, grab the pcrf session id for that apn and send a CCR-T, then a Registration Termination Request to the serving pgw peer.
+            if subscriberId is not None:
+                servingApns = databaseClient.Get_Serving_APNs(subscriber_id=subscriberId)
+                if len(servingApns.get('apns', {})) > 0:
+                    for apnKey, apnDict in servingApns['apns'].items():
+                        pcrfSessionId = None
+                        servingPgwPeer = None
+                        servingPgwRealm = None
+                        servingPgw = None
+                        for apnDataKey, apnDataValue in servingApns['apns'][apnKey].items():
+                            if apnDataKey == 'pcrf_session_id':
+                                pcrfSessionId = apnDataValue
+                            if apnDataKey == 'serving_pgw_peer':
+                                servingPgwPeer = apnDataValue
+                            if apnDataKey == 'serving_pgw_realm':
+                                servingPgwRealm = apnDataValue
+                            if apnDataKey == 'serving_pgw':
+                                servingPgwRealm = apnDataValue
+                            
+                        if pcrfSessionId is not None and servingPgwPeer is not None and servingPgwRealm is not None and servingPgw is not None:
+                            if ';' in servingPgwPeer:
+                                servingPgwPeer = servingPgwPeer.split(';')[0]
+
+                            diameterClient.sendDiameterRequest(
+                            requestType='CCR',
+                            hostname=servingPgwPeer,
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm,
+                            ccr_type=3,
+                            sessionId=pcrfSessionId,
+                            domain=servingPgwRealm
+                            )
+
+                            diameterClient.sendDiameterRequest(
+                            requestType='RTR',
+                            hostname=servingPgwPeer,
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm, 
+                            domain=servingPgwRealm
+                            )
+                        
+                        diameterClient.broadcastDiameterRequest(
+                            requestType='CCR',
+                            peerType='PGW',
+                            imsi=imsi,
+                            destinationHost=servingPgw, 
+                            destinationRealm=servingPgwRealm,
+                            ccr_type=3,
+                            sessionId = pcrfSessionId,
+                            domain=servingPgwRealm
+                            )
+                        
+                        diameterClient.broadcastDiameterRequest(
+                        requestType='RTR',
+                        peerType='PGW',
+                        imsi=imsi,
+                        destinationHost=servingPgw, 
+                        destinationRealm=servingPgwRealm, 
+                        domain=servingPgwRealm
+                        )
+
+                        databaseClient.Update_Serving_APN(imsi=imsi, apn=apnKey, pcrf_session_id=None, serving_pgw=None, subscriber_routing='')
+
+            subscriberInfo = databaseClient.Get_Subscriber(imsi=str(imsi))
+            imsSubscriberInfo = databaseClient.Get_IMS_Subscriber(imsi=str(imsi))
+            servingApns = databaseClient.Get_Serving_APNs(subscriber_id=subscriberId)
+
+            return {'subscriber': subscriberInfo, 'ims_subscriber': imsSubscriberInfo, 'pcrf': servingApns}, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
@@ -1089,7 +1268,7 @@ class PyHSS_OAM_Rollback_Last(Resource):
     def get(self):
         '''Undo the last Insert/Update/Delete operation'''
         try:
-            RollbackResponse = database.rollback_last_change()
+            RollbackResponse = databaseClient.rollback_last_change()
             return RollbackResponse, 200
         except Exception as E:
             print(E)
@@ -1101,7 +1280,7 @@ class PyHSS_OAM_Rollback_Last_Table(Resource):
     def get(self, operation_id):
         '''Undo the last Insert/Update/Delete operation for a given operation id'''
         try:
-            RollbackResponse = database.rollback_change_by_operation_id(operation_id)
+            RollbackResponse = databaseClient.rollback_change_by_operation_id(operation_id)
             return RollbackResponse, 200
         except Exception as E:
             print(E)
@@ -1112,7 +1291,7 @@ class PyHSS_OAM_Serving_Subs(Resource):
     def get(self):
         '''Get all Subscribers served by HSS'''
         try:
-            data = database.Get_Served_Subscribers()
+            data = databaseClient.Get_Served_Subscribers()
             print("Got back served Subs: " + str(data))
             return data, 200
         except Exception as E:
@@ -1124,7 +1303,7 @@ class PyHSS_OAM_Serving_Subs_PCRF(Resource):
     def get(self):
         '''Get all Subscribers served by PCRF'''
         try:
-            data = database.Get_Served_PCRF_Subscribers()
+            data = databaseClient.Get_Served_PCRF_Subscribers()
             print("Got back served Subs: " + str(data))
             return data, 200
         except Exception as E:
@@ -1136,7 +1315,7 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
     def get(self):
         '''Get all Subscribers served by IMS'''
         try:
-            data = database.Get_Served_IMS_Subscribers()
+            data = databaseClient.Get_Served_IMS_Subscribers()
             print("Got back served Subs: " + str(data))
             return data, 200
         except Exception as E:
@@ -1148,16 +1327,15 @@ class PyHSS_OAM_Reconcile_IMS(Resource):
     def get(self, imsi):
         '''Get current location of IMS Subscriber from all linked HSS nodes'''
         response_dict = {}
-        import requests
         try:
             #Get local database result
-            local_result = database.Get_IMS_Subscriber(imsi=imsi)
+            local_result = databaseClient.Get_IMS_Subscriber(imsi=imsi)
             response_dict['localhost'] = {}
             for keys in local_result:
                 if 'cscf' in keys:
                     response_dict['localhost'][keys] = local_result[keys]
 
-            for remote_HSS in yaml_config['geored']['sync_endpoints']:
+            for remote_HSS in config['geored']['sync_endpoints']:
                 print("Pulling data from remote HSS: " + str(remote_HSS))
                 try:
                     response = requests.get(remote_HSS + '/ims_subscriber/ims_subscriber_imsi/' + str(imsi))
@@ -1200,9 +1378,9 @@ class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
             serving_sub_final['apns'] = {}
 
             #Resolve Subscriber ID
-            subscriber_data = database.Get_Subscriber(imsi=str(imsi))
+            subscriber_data = databaseClient.Get_Subscriber(imsi=str(imsi))
             print("subscriber_data: " + str(subscriber_data))
-            serving_sub_final['subscriber_data'] = database.Sanitize_Datetime(subscriber_data)
+            serving_sub_final['subscriber_data'] = databaseClient.Sanitize_Datetime(subscriber_data)
 
             #Split the APN list into a list
             apn_list = subscriber_data['apn_list'].split(',')
@@ -1220,11 +1398,11 @@ class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
             #Get APN ID from APN
             for list_apn_id in apn_list:
                 print("Getting APN ID " + str(list_apn_id))
-                apn_data = database.Get_APN(list_apn_id)
+                apn_data = databaseClient.Get_APN(list_apn_id)
                 print(apn_data)
                 try:
                     serving_sub_final['apns'][str(apn_data['apn'])] = {}
-                    serving_sub_final['apns'][str(apn_data['apn'])] = database.Sanitize_Datetime(database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=list_apn_id))
+                    serving_sub_final['apns'][str(apn_data['apn'])] = databaseClient.Sanitize_Datetime(databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=list_apn_id))
                 except:
                     serving_sub_final['apns'][str(apn_data['apn'])] = {}
                     print("Failed to get Serving APN for APN ID " + str(list_apn_id))
@@ -1246,7 +1424,7 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
             apn_id_final = None
 
             #Resolve Subscriber ID
-            subscriber_data = database.Get_Subscriber(imsi=str(imsi))
+            subscriber_data = databaseClient.Get_Subscriber(imsi=str(imsi))
             print("subscriber_data: " + str(subscriber_data))
 
             #Split the APN list into a list
@@ -1265,14 +1443,14 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
             for list_apn_id in apn_list:
                 print("Getting APN ID " + str(list_apn_id) + " to see if it matches APN " + str(apn_id))
                 #Get each APN in List
-                apn_data = database.Get_APN(list_apn_id)
+                apn_data = databaseClient.Get_APN(list_apn_id)
                 print(apn_data)
                 if str(apn_data['apn_id']).lower() == str(apn_id).lower():
                     print("Matched named APN with APN ID")
                     apn_id_final = apn_data['apn_id']
 
-            data = database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=apn_id_final)
-            data = database.Sanitize_Datetime(data)
+            data = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=apn_id_final)
+            data = databaseClient.Sanitize_Datetime(data)
             print("Got back: " + str(data))
             return data, 200
         except Exception as E:
@@ -1290,37 +1468,45 @@ class PyHSS_PCRF(Resource):
         json_data = request.get_json(force=True)
         print("JSON Data sent: " + str(json_data))
         #Get IMSI
-        subscriber_data = database.Get_Subscriber(imsi=str(json_data['imsi']))
+        subscriber_data = databaseClient.Get_Subscriber(imsi=str(json_data['imsi']))
         print("subscriber_data: " + str(subscriber_data))
 
         #Get PCRF Session
-        pcrf_session_data = database.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
-        print("pcrf_session_data: " + str(pcrf_session_data))
+        servingApn = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=json_data['apn_id'])          
+        print("pcrf_session_data: " + str(servingApn))
 
         #Get Charging Rules
-        ChargingRule = database.Get_Charging_Rule(json_data['charging_rule_id'])
-        ChargingRule['apn_data'] = database.Get_APN(json_data['apn_id'])
+        ChargingRule = databaseClient.Get_Charging_Rule(json_data['charging_rule_id'])
+        ChargingRule['apn_data'] = databaseClient.Get_APN(json_data['apn_id'])
         print("Got ChargingRule: " + str(ChargingRule))
 
-        diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
-        OriginRealm = yaml_config['hss']['OriginRealm']
-        DestinationRealm = OriginRealm
-        mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
-        mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
-        import diameter
-        diameter = diameter.Diameter(diameter_host, DestinationRealm, 'PyHSS-client-API', str(mcc), str(mnc))
-        diam_hex = diameter.Request_16777238_258(pcrf_session_data['pcrf_session_id'], ChargingRule, pcrf_session_data['subscriber_routing'], pcrf_session_data['serving_pgw'], 'ServingRealm.com')
-        import time
-        logObj = logtool.LogTool()
-        logObj.Async_SendRequest(diam_hex, str(pcrf_session_data['serving_pgw']))
-        return diam_hex, 200
+        subscriberId = subscriber_data.get('subscriber_id', None)
+        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+        servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+        servingPgw = servingApn.get('serving_pgw', None)
+        servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+        pcrfSessionId = servingApn.get('pcrf_session_id', None)
+        ueIp = servingApn.get('subscriber_routing', None)
+
+        diameterResponse = diameterClient.sendDiameterRequest(
+                requestType='RAR',
+                hostname=servingPgwPeer,
+                sessionId=pcrfSessionId,
+                chargingRules=ChargingRule,
+                ueIp=ueIp,
+                servingPgw=servingPgw,
+                servingRealm=servingPgwRealm
+            )
+        
+        result = {"Result": "Successfully sent Gx RAR", "destinationClients": str(servingPgw)}
+        return result, 200
 
 @ns_pcrf.route('/<string:charging_rule_id>')
 class PyHSS_PCRF_Complete(Resource):
     def get(self, charging_rule_id):
         '''Get full Charging Rule + TFTs'''
         try:
-            data = database.Get_Charging_Rule(charging_rule_id)
+            data = databaseClient.Get_Charging_Rule(charging_rule_id)
             return data, 200
         except Exception as E:
             print(E)
@@ -1331,38 +1517,43 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
     def get(self, subscriber_routing):
         '''Get Subscriber info from Subscriber Routing'''
         try:
-            data = database.Get_UE_by_IP(subscriber_routing)
+            data = databaseClient.Get_UE_by_IP(subscriber_routing)
             return data, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
 
 @ns_geored.route('/')
-
 class PyHSS_Geored(Resource):
     @ns_geored.doc('Create ChargingRule Object')
     @ns_geored.expect(GeoRed_model)
-    # @metrics.counter('flask_http_geored_pushes', 'Count of GeoRed Pushes to this API',
-    #      labels={'status': lambda r: r.status_code, 'source_endpoint': lambda r: r.remote_addr})
     @no_auth_required
     def patch(self):
         '''Get Geored data Pushed'''
         try:
             json_data = request.get_json(force=True)
             print("JSON Data sent in Geored request: " + str(json_data))
-            #Determine what actions to take / update based on keys returned
             response_data = []
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
-                response_data.append(database.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='HSS', geored_host=request.remote_addr).inc()
+                response_data.append(databaseClient.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "HSS",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
                 if 'serving_pgw_realm' not in json_data:
                     json_data['serving_pgw_realm'] = None
                 if 'serving_pgw_peer' not in json_data:
                     json_data['serving_pgw_peer'] = None
-                response_data.append(database.Update_Serving_APN(
+                if 'serving_pgw_timestamp' not in json_data:
+                    json_data['serving_pgw_timestamp'] = None
+                response_data.append(databaseClient.Update_Serving_APN(
                     imsi=str(json_data['imsi']), 
                     apn=json_data['serving_apn'],
                     pcrf_session_id=json_data['pcrf_session_id'],
@@ -1370,20 +1561,63 @@ class PyHSS_Geored(Resource):
                     subscriber_routing=json_data['subscriber_routing'],
                     serving_pgw_realm=json_data['serving_pgw_realm'],
                     serving_pgw_peer=json_data['serving_pgw_peer'],
+                    serving_pgw_timestamp=json_data['serving_pgw_timestamp'],
                     propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='PCRF', geored_host=request.remote_addr).inc()
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "PCRF",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
             if 'scscf' in json_data:
-                print("Updating serving SCSCF")
+                print("Updating Serving SCSCF")
                 if 'scscf_realm' not in json_data:
                     json_data['scscf_realm'] = None
                 if 'scscf_peer' not in json_data:
                     json_data['scscf_peer'] = None
-                response_data.append(database.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=str(json_data['scscf_realm']), scscf_peer=str(json_data['scscf_peer']), propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='IMS', geored_host=request.remote_addr).inc()
+                if 'scscf_timestamp' not in json_data:
+                    json_data['scscf_timestamp'] = None
+                response_data.append(databaseClient.Update_Serving_CSCF(imsi=str(json_data['imsi']), serving_cscf=json_data['scscf'], scscf_realm=json_data['scscf_realm'], scscf_peer=json_data['scscf_peer'], scscf_timestamp=json_data['scscf_timestamp'], propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "IMS_SCSCF",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
+            if 'pcscf' in json_data:
+                print("Updating Proxy SCSCF")
+                if 'pcscf_realm' not in json_data:
+                    json_data['pcscf_realm'] = None
+                if 'pcscf_peer' not in json_data:
+                    json_data['pcscf_peer'] = None
+                if 'pcscf_timestamp' not in json_data:
+                    json_data['pcscf_timestamp'] = None
+                if 'pcscf_active_session' not in json_data:
+                    json_data['pcscf_active_session'] = None
+                response_data.append(databaseClient.Update_Proxy_CSCF(imsi=str(json_data['imsi']), proxy_cscf=json_data['pcscf'], pcscf_realm=json_data['pcscf_realm'], pcscf_peer=json_data['pcscf_peer'], pcscf_timestamp=json_data['pcscf_timestamp'], pcscf_active_session=json_data['pcscf_active_session'], propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "IMS_PCSCF",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
             if 'imei' in json_data:
                 print("Updating EIR")
-                response_data.append(database.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
-                prom_flask_http_geored_endpoints.labels(endpoint='EIR', geored_host=request.remote_addr).inc()
+                response_data.append(databaseClient.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "IMEI",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
@@ -1402,34 +1636,68 @@ class PyHSS_Geored(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
             return response_json
 
+@ns_geored.route('/peers')
+class PyHSS_Geored_Peers(Resource):
+    def get(self):
+        '''Return the configured geored peers'''
+        try:
+            georedEnabled = config.get('geored', {}).get('enabled', False)
+            if not georedEnabled:
+                return {'result': 'Failed', 'Reason' : "Geored not enabled"}
+            georedPeers = config.get('geored', {}).get('endpoints', [])
+            return {'peers': georedPeers}, 200
+        except Exception as E:
+            print("Exception when returning geored peers: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored peers: " + str(E)}
+            return response_json
+
+@ns_geored.route('/webhooks')
+class PyHSS_Geored_Webhooks(Resource):
+    def get(self):
+        '''Return the configured geored webhooks'''
+        try:
+            georedEnabled = config.get('webhooks', {}).get('enabled', False)
+            if not georedEnabled:
+                return {'result': 'Failed', 'Reason' : "Webhooks not enabled"}
+            georedWebhooks = config.get('webhooks', {}).get('endpoints', [])
+            return {'endpoints': georedWebhooks}, 200
+        except Exception as E:
+            print("Exception when returning geored webhooks: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored webhooks: " + str(E)}
+            return response_json
+
 @ns_push.route('/clr/<string:imsi>')
 class PyHSS_Push_CLR(Resource):
     @ns_push.expect(Push_CLR_Model)
     @ns_push.doc('Push CLR (Cancel Location Request) to MME')
     def put(self, imsi):
-        '''Push CLR (Cancel Location Request) to MME'''
-        json_data = request.get_json(force=True)
-        print("JSON Data sent: " + str(json_data))
-        if 'DestinationHost' not in json_data:
-            json_data['DestinationHost'] = None
-        import diameter
-        diameter = diameter.Diameter(
-            OriginHost=yaml_config['hss']['OriginHost'], 
-            OriginRealm=yaml_config['hss']['OriginRealm'], 
-            MNC=yaml_config['hss']['MNC'],
-            MCC=yaml_config['hss']['MCC'],
-            ProductName='PyHSS-client-API'
-        )
-        diam_hex = diameter.Request_16777251_317(
-            imsi=imsi, 
-            DestinationHost=json_data['DestinationHost'], 
-            DestinationRealm=json_data['DestinationRealm'], 
-            CancellationType=json_data['cancellationType']
-        )
-        logObj = logtool.LogTool()
-        logObj.Async_SendRequest(diam_hex, str(json_data['diameterPeer']))
-        return diam_hex, 200
+        try:
+            '''Push CLR (Cancel Location Request) to MME'''
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            if 'DestinationHost' not in json_data:
+                json_data['DestinationHost'] = None
+            diameterRequest = diameterClient.sendDiameterRequest(
+                requestType='CLR',
+                hostname=json_data['diameterPeer'],
+                imsi=imsi, 
+                DestinationHost=json_data['DestinationHost'], 
+                DestinationRealm=json_data['DestinationRealm'], 
+                CancellationType=json_data['cancellationType']
+            )
+            if not len(diameterRequest) > 0:
+                return {'result': f'Failed queueing CLR to {json_data["diameterPeer"]}'}, 400
+
+            subscriber_details = databaseClient.Get_Subscriber(imsi=str(imsi))
+            if subscriber_details['serving_mme'] == json_data['DestinationHost']:
+                databaseClient.Update_Serving_MME(imsi=imsi, serving_mme=None)
+
+            return {'result': f'Successfully queued CLR to {json_data["diameterPeer"]}'}, 200
+        except Exception as E:
+            print("Exception when sending CLR: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to send CLR: " + str(E)}
+            return response_json
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    apiService.run(debug=False, host='0.0.0.0', port=8080)
 

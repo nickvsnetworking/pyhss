@@ -41,20 +41,28 @@ Basic configuration is set in the ``config.yaml`` file,
 
 You will need to set the IP address to bind to (IPv4 or IPv6), the Diameter hostname, realm, your PLMN and transport type to use (SCTP or TCP).
 
-Once the configuration is done you can run the HSS by running ``hss.py`` and the server will run using whichever transport (TCP/SCTP) you have selected.
+The diameter service runs in a trusting mode allowing Diameter connections from any other Diameter hosts.
 
-The service runs in a trusting mode allowing Diameter connections from any other Diameter hosts.
+To perform as a functioning HSS, the following services must be run as a minimum:
+- diameterService.py
+- hssService.py
+
+If you're provisioning the HSS for the first time, you'll also want to run:
+ - apiService.py
+
+The rest of the services aren't strictly necessary, however your own configuration will dictate whether or not they are required.
 
 ## Structure
 
-The file *hss.py* runs a threaded Sockets based listener (SCTP or TCP) to receive Diameter requests, process them and send back Diameter responses.
+PyHSS uses a queued microservices model. Each service performs a specific set of tasks, and uses redis messages to communicate with other services.
 
-Most of the heavy lifting in this is managed by the Diameter class, in ``diameter.py``. This:
-
- * Decodes incoming packets (Requests)(Returns AVPs as an array, called *avp*, and a Dict containing the packet variables (called *packet_vars*)
- * Generates responses (Answer messages) to Requests (when provided with the AVP and packet_vars of the original Request)
- * Generates Requests to send to other peers
-
+The following services make up PyHSS:
+ - diameterService.py: Handles receiving and sending of diameter messages, and diameter client connection state.
+ - hssService.py: Provides decoding and encoding of diameter requests and responses, as well as logic to perform as a HSS.
+ - apiService.py: Provides the API, to allow management of PyHSS.
+ - georedService.py: Sends georaphic redundancy messages to geored peers when defined. Also handles webhook messages.
+ - logService.py: Handles logging for all services.
+ - metricService.py: Exposes prometheus metrics from other services.
  
 ## Subscriber Information Storage
 
@@ -71,12 +79,17 @@ Dependencies can be installed using Pip3:
 pip3 install -r requirements.txt
 ```
 
-Then after setting up the config, you can fire up the HSS itself by running:
+PyHSS also requires [Redis 7.0.0](https://redis.io/docs/getting-started/installation/install-redis-on-linux/) or above.
+
+Then after setting up the config, you can fire up the necessary PyHSS services by running:
 ```shell
-python3 hss.py
+python3 diameterService.py
+python3 hssService.py
+python3 apiService.py
 ```
 
-All going well you'll have a functioning HSS at this point.
+All going well you'll have a functioning HSS at this point. For production use, systemd scripts are located in `./systemd`
+PyHSS API uses Flask, and can be configured with your favourite WSGI server.
 
 To get everything more production ready checkout [Monit with PyHSS](docs/monit.md) for more info.
 

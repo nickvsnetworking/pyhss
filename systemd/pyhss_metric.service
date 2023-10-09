@@ -1,0 +1,13 @@
+[Unit]
+Description=PyHSS Metric Service
+PartOf=pyhss.service
+
+
+[Service]
+User=root
+WorkingDirectory=/etc/pyhss/services/
+ExecStart=python3 metricService.py
+Restart=always
+
+[Install]
+WantedBy=pyhss.service
