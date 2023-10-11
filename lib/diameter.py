@@ -1183,12 +1183,12 @@ class Diameter:
                 return response
 
         except ValueError as e:
-            self.logTool.log(service='HSS', level='info', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='info', message="Error is " + str(e), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='info', message="Responding with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Error is " + str(e), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Responding with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            self.logTool.log(service='HSS', level='info', message="Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             return response
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
@@ -1745,7 +1745,6 @@ class Diameter:
         except Exception as e:                                             #Get subscriber details
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Subscriber " + str(imsi) + " unknown in HSS for CCR", redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='debug', message=traceback.format_exc(), redisClient=self.redisMessaging)
 
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                             metricType='counter', metricAction='inc', 
@@ -1797,8 +1796,8 @@ class Diameter:
             self.logTool.log(service='HSS', level='debug', message="Extracted imsi: " + str(imsi) + " now checking backend for this IMSI", redisClient=self.redisMessaging)
             ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=imsi)
         except Exception as E:
-            self.logTool.log(service='HSS', level='error', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='error', message="No known MSISDN or IMSI in Answer_16777216_300() input", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"No known MSISDN or IMSI in Answer_16777216_300()", redisClient=self.redisMessaging)
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                             metricType='counter', metricAction='inc', 
                                             metricValue=1.0, 
@@ -1897,8 +1896,8 @@ class Diameter:
             imsi = ims_subscriber_details['imsi']
             domain = "ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org"
         except Exception as E:
-            self.logTool.log(service='HSS', level='error', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='error', message="No known MSISDN or IMSI in Answer_16777216_301() input", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"No known MSISDN or IMSI in Answer_16777216_301()", redisClient=self.redisMessaging)
             result_code = 5005
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -1958,8 +1957,6 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth Session State
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000000")            #Vendor-Specific-Application-ID for Cx
         
-
-
         try:
             self.logTool.log(service='HSS', level='debug', message="Checking if username present", redisClient=self.redisMessaging)
             username = self.get_avp_data(avps, 601)[0] 
@@ -1982,8 +1979,8 @@ class Diameter:
                     avp += self.generate_vendor_avp(602, "c0", 10415, str(binascii.hexlify(str.encode("sip:scscf.ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org")),'ascii'))
                     self.logTool.log(service='HSS', level='debug', message="Using generated iFC", redisClient=self.redisMessaging)
         except Exception as E:
-            self.logTool.log(service='HSS', level='error', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='error', message="No known MSISDN or IMSI in Answer_16777216_302() input", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"No known MSISDN or IMSI in Answer_16777216_302()", redisClient=self.redisMessaging)
             result_code = 5001
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                             metricType='counter', metricAction='inc', 
@@ -2749,12 +2746,12 @@ class Diameter:
                     subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
                     self.logTool.log(service='HSS', level='debug', message="Got subscriber_details from MSISDN: " + str(subscriber_details), redisClient=self.redisMessaging)
         except Exception as E:
-            self.logTool.log(service='HSS', level='info', message="No MSISDN or IMSI returned in Answer_16777291_8388622 input", redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='info', message="Error is " + str(E), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='info', message="Responding with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="No MSISDN or IMSI returned in Answer_16777291_8388622 input", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Error is " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Responding with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))
             response = self.generate_diameter_packet("01", "40", 8388622, 16777291, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-            self.logTool.log(service='HSS', level='info', message="Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Diameter user unknown - Sending ULA with DIAMETER_ERROR_USER_UNKNOWN", redisClient=self.redisMessaging)
             return response
 
 
@@ -2999,8 +2996,8 @@ class Diameter:
         try:
             subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
         except ValueError as e:
-            self.logTool.log(service='HSS', level='error', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='error', message="Error is " + str(e), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Error is " + str(e), redisClient=self.redisMessaging)
             raise
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"

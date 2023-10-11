@@ -5,6 +5,13 @@ All notable changes to PyHSS are documented in this file, beginning from [Servic
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - Unreleased
+
+### Changed
+
+- Reduced verbosity of failing subscriber lookups to debug
+
+
 ## [1.0.0] - 2023-09-27
 
 ### Added
@@ -45,4 +52,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Multithreading in all services, except for metricService
 
-[1.0.0]: https://github.com/nickvsnetworking/pyhss/releases/tag/v1.0.0
+[1.0.0]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.0
