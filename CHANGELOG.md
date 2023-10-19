@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reduced verbosity of failing subscriber lookups to debug
 
+### Fixed
+
+- Geored failing when multiple peers defined and socket closes.
 
 ## [1.0.0] - 2023-09-27
 
