@@ -1602,14 +1602,11 @@ class Database:
                 result.serving_mme_timestamp = None
                 result.serving_mme_realm = None
                 result.serving_mme_peer = None
-                serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ') if serving_mme_timestamp is not None else datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
             session.commit()
             objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
             self.handleWebhook(objectData, 'PATCH')
-
-            if result.serving_mme_timestamp is not None:
-                result.serving_mme_timestamp = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
 
             #Sync state change with geored
             if propagate == True:
@@ -1666,8 +1663,8 @@ class Database:
                 result.pcscf_realm = None
                 result.pcscf_peer = None
                 result.pcscf_active_session = None
-                pcscf_timestamp_string = None
-            
+                pcscf_timestamp_string = result.pcscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ') if pcscf_timestamp is not None else datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
             self.handleWebhook(objectData, 'PATCH')
@@ -1720,7 +1717,7 @@ class Database:
                 result.scscf_timestamp = None
                 result.scscf_realm = None
                 result.scscf_peer = None
-                scscf_timestamp_string = None
+                scscf_timestamp_string = result.scscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ') if scscf_timestamp is not None else datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)

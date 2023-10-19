@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Geored failing when multiple peers defined and socket closes.
+- Error in Update_Serving_MME when supplied with a NoneType timestamp.
 
 ## [1.0.0] - 2023-09-27
 
