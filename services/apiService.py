@@ -201,6 +201,10 @@ def auth_required(f):
 def auth_before_request():
     if request.path.startswith('/docs') or request.path.startswith('/swagger') or request.path.startswith('/metrics'):
         return None
+    if request.method == "OPTIONS":
+        res = Response()
+        res.headers['X-Content-Type-Options'] = '*'
+        return res
     if request.endpoint and 'static' not in request.endpoint:
         view_function = apiService.view_functions[request.endpoint]
         if hasattr(view_function, 'view_class'):
@@ -253,6 +257,9 @@ def page_not_found(e):
 @apiService.after_request
 def apply_caching(response):
     response.headers["HSS"] = str(config['hss']['OriginHost'])
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE,PATCH,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Content-Length, X-Requested-With, Provisioning-Key"
     return response
 
 @ns_apn.route('/<string:apn_id>')
