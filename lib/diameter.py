@@ -710,7 +710,7 @@ class Diameter:
                                         messageHex = queuedMessage.get('diameter-inbound')
                                         messageType = self.getDiameterMessageType(messageHex)
                                         if messageType['inbound'].upper() == responseType.upper():
-                                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Found inbound response: {inboundResponse}", redisClient=self.redisMessaging)
+                                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Found inbound response: {messageHex}", redisClient=self.redisMessaging)
                                             return messageHex
                                 time.sleep(0.02)
                             else:
