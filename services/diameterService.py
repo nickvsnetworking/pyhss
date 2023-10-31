@@ -90,7 +90,7 @@ class DiameterService:
 
                 await(asyncio.sleep(1))
             except Exception as e:
-                print(e)
+                await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleActiveDiameterPeers] Exception: {e}\n{traceback.format_exc()}"))
                 await(asyncio.sleep(1))
                 continue
 

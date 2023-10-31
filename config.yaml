@@ -77,7 +77,8 @@ benchmarking:
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
   no_match_response: 2       #Greylist
-  tac_database_csv: '/etc/pyhss/tac_database_Nov2022.csv'
+  # Define an optional TAC csv file path
+  #tac_database_csv: '/etc/pyhss/tac_database.csv'
 
 logging:
   level: INFO

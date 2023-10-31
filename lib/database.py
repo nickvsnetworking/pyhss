@@ -1280,6 +1280,30 @@ class Database:
         self.safe_close(session)
         return result
 
+    def Get_Subscribers_By_Pcscf(self, pcscf: str):
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Subscribers_By_Pcscf] Get_Subscribers_By_Pcscf for PCSCF: {pcscf}", redisClient=self.redisMessaging)
+        try:
+            result = session.query(IMS_SUBSCRIBER).filter_by(pcscf=pcscf).all()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        returnList = []
+        for item in result:
+            try:
+                returnList.append(item.__dict__)
+            except Exception as e:
+                self.logTool.log(service='Database', level='warning', message=f"[database.py] [Get_Subscribers_By_Pcscf] Error getting ims_subscriber: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                pass
+        for item in returnList:
+            try:
+                item.pop('_sa_instance_state')
+            except Exception as e:
+                pass
+        self.safe_close(session)
+        return returnList
+
     def Get_SUBSCRIBER_ROUTING(self, subscriber_id, apn_id):
         Session = sessionmaker(bind = self.engine)
         session = Session()
@@ -2494,6 +2518,7 @@ if __name__ == "__main__":
 
     print("\n\n\n")
     print(database.Generate_JSON_Model_for_Flask(SUBSCRIBER))
+
 
 
 

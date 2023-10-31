@@ -135,6 +135,15 @@ PCRF_Push_model = api.model('PCRF_Rule', {
     'charging_rule_id' : fields.Integer(required=True, description='charging_rule_id to push'),
 })
 
+PCRF_PCSCF_Restoration_Subscriber_model = api.model('PCRF_PCSCF_Restoration_Subscriber', {
+    'imsi': fields.String(required=True, description='IMSI of IMS Subscriber'),
+    'msisdn': fields.String(required=True, description='MSISDN of IMS Subscriber'),
+})
+
+PCRF_PCSCF_Restoration_model = api.model('PCRF_PCSCF_Restoration', {
+    'pcscf': fields.String(required=True, description='Serving PCSCF to send restoration for'),
+})
+
 Push_CLR_Model = api.model('CLR', {
     'DestinationRealm': fields.String(required=True, description='Destination Realm to set'),
     'DestinationHost': fields.String(required=False, description='Destination Host (Optional)'),
@@ -201,6 +210,10 @@ def auth_required(f):
 def auth_before_request():
     if request.path.startswith('/docs') or request.path.startswith('/swagger') or request.path.startswith('/metrics'):
         return None
+    if request.method == "OPTIONS":
+        res = Response()
+        res.headers['X-Content-Type-Options'] = '*'
+        return res
     if request.endpoint and 'static' not in request.endpoint:
         view_function = apiService.view_functions[request.endpoint]
         if hasattr(view_function, 'view_class'):
@@ -253,6 +266,9 @@ def page_not_found(e):
 @apiService.after_request
 def apply_caching(response):
     response.headers["HSS"] = str(config['hss']['OriginHost'])
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE,PATCH,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Content-Length, X-Requested-With, Provisioning-Key"
     return response
 
 @ns_apn.route('/<string:apn_id>')
@@ -1500,6 +1516,108 @@ class PyHSS_PCRF(Resource):
         
         result = {"Result": "Successfully sent Gx RAR", "destinationClients": str(servingPgw)}
         return result, 200
+
+@ns_pcrf.route('/pcscf_restoration_subscriber')
+class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
+    @ns_pcrf.doc('Trigger PCSCF Restoration for an IMS Subscriber')
+    @ns_pcrf.expect(PCRF_PCSCF_Restoration_Subscriber_model)
+    def put(self):
+        '''Trigger PCSCF Restoration for an IMS Subscriber'''
+
+        try:        
+            jsonData = request.get_json(force=True)
+            #Get IMSI
+
+            imsi = jsonData.get('imsi', None)
+            msisdn = jsonData.get('msisdn', None)
+
+            if not imsi and not msisdn:
+                result = {"Result": "Error: IMSI or MSISDN Required"}
+                return result, 400
+            
+            if imsi:
+                subscriberData = databaseClient.Get_Subscriber(imsi=imsi)
+                imsSubscriberData = databaseClient.Get_IMS_Subscriber(imsi=imsi)
+            else:
+                imsSubscriberData = databaseClient.Get_IMS_Subscriber(msisdn=msisdn)
+                subscriberData = databaseClient.Get_Subscriber(imsi=imsSubscriberData.get('imsi', None))
+            
+            try:
+                servingMmePeer = subscriberData.get('serving_mme_peer').split(';')[0]
+            except Exception as e:
+                result = {"Result": "Error: Subscriber is not currently served by an MME"}
+                return result, 400
+            
+            imsi = imsSubscriberData.get('imsi', None)
+            servingMmeRealm = subscriberData.get('serving_mme_realm', None)
+            servingMme = subscriberData.get('serving_mme', None)
+
+            diameterResponse = diameterClient.sendDiameterRequest(
+                    requestType='ISD',
+                    hostname=servingMmePeer,
+                    imsi=imsi,
+                    DestinationRealm=servingMmeRealm,
+                    DestinationHost=servingMme,
+                    PcscfRestoration=True
+                    )
+            
+            result = {"Result": f"Successfully sent PCSCF Restoration request via {servingMmePeer} for IMSI {imsi}"}
+            return result, 200
+
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            return handle_exception(E)
+
+@ns_pcrf.route('/pcscf_restoration')
+class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
+    @ns_pcrf.doc('Trigger PCSCF Restoration for all IMS Subscribers attached to PCSCF')
+    @ns_pcrf.expect(PCRF_PCSCF_Restoration_model)
+    def put(self):
+        '''Trigger PCSCF Restoration for all IMS Subscribers attached to PCSCF'''
+
+        try:        
+            jsonData = request.get_json(force=True)
+
+            pcscf = jsonData.get('pcscf', None)
+
+            if not pcscf:
+                result = {"Result": "Error: PCSCF Required"}
+                return result, 400
+
+            activeSubscribers = databaseClient.Get_Subscribers_By_Pcscf(pcscf=pcscf)
+            logTool.log(service='API', level='debug', message=f"[API] Active Subscribers for {pcscf}: {activeSubscribers}", redisClient=redisMessaging)
+
+            if len(activeSubscribers) > 0:
+                for imsSubscriber in activeSubscribers:
+                    try:
+                        imsi = imsSubscriber.get('imsi', None)
+                        if not imsi:
+                            continue
+                        subscriberData = databaseClient.Get_Subscriber(imsi=imsi)
+                        servingMmePeer = subscriberData.get('serving_mme_peer').split(';')[0]
+
+                        imsi = subscriberData.get('imsi', None)
+                        servingMmeRealm = subscriberData.get('serving_mme_realm', None)
+                        servingMme = subscriberData.get('serving_mme', None)
+
+                        diameterResponse = diameterClient.sendDiameterRequest(
+                                requestType='ISD',
+                                hostname=servingMmePeer,
+                                imsi=imsi,
+                                DestinationRealm=servingMmeRealm,
+                                DestinationHost=servingMme,
+                                PcscfRestoration=True
+                                )
+
+                    except Exception as e:
+                        continue
+            
+            result = {"Result": f"Successfully sent PCSCF Restoration request for PCSCF: {pcscf}"}
+            return result, 200
+
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            return handle_exception(E)
 
 @ns_pcrf.route('/<string:charging_rule_id>')
 class PyHSS_PCRF_Complete(Resource):

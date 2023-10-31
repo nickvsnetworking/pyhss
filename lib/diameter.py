@@ -2183,6 +2183,7 @@ class Diameter:
 
         #Define values so we can check if they've been changed
         msisdn = None
+        imsi = None
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
@@ -2380,6 +2381,21 @@ class Diameter:
                         pcrfSessionId = servingApn.get('pcrf_session_id', None)
                         ueIp = servingApn.get('subscriber_routing', None)
 
+                        ulBandwidth = 512000
+                        dlBandwidth = 512000
+
+                        try:
+                            avpUlBandwidth = int((self.get_avp_data(avps, 516)[0]), 16)
+                            avpDlBandwidth = int((self.get_avp_data(avps, 515)[0]), 16)
+
+                            if avpUlBandwidth <= ulBandwidth:
+                                ulBandwidth = avpUlBandwidth
+                    
+                            if avpDlBandwidth <= dlBandwidth:
+                                dlBandwidth = avpDlBandwidth
+                        except Exception as e:
+                            pass
+
                         """
                         The below charging rule needs to be replaced by the following logic:
                         1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
@@ -2394,14 +2410,14 @@ class Diameter:
                         "charging_rule_id": 1000,
                         "qci": 1,
                         "arp_preemption_capability": True,
-                        "mbr_dl": 128000,
-                        "mbr_ul": 128000,
-                        "gbr_ul": 128000,
+                        "mbr_dl": dlBandwidth,
+                        "mbr_ul": ulBandwidth,
+                        "gbr_ul": ulBandwidth,
                         "precedence": 100,
                         "arp_priority": 2,
                         "rule_name": "GBR-Voice",
                         "arp_preemption_vulnerability": False,
-                        "gbr_dl": 128000,
+                        "gbr_dl": dlBandwidth,
                         "tft_group_id": 1,
                         "rating_group": None,
                         "tft": [
@@ -2920,28 +2936,28 @@ class Diameter:
         return response
 
     #3GPP S6a/S6d Insert Subscriber Data Request (ISD)
-    def Request_16777251_319(self, packet_vars, avps, **kwargs):
+    def Request_16777251_319(self, imsi, DestinationRealm, DestinationHost=None, PcscfRestoration=False, GetLocation=False, **kwargs):
         avp = ''                                                                                    #Initiate empty var AVP
-        avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
         sessionid = str(bytes.fromhex(self.OriginHost).decode('ascii')) + ';' + self.generate_id(5) + ';1;app_s6a'                 #Session ID generate
         avp += self.generate_avp(263, 40, str(binascii.hexlify(str.encode(sessionid)),'ascii'))     #Session ID set AVP
+        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a) 
+        avp += self.generate_avp(277, 40, "00000001")                                               #Auth-Session-State
+        avp += self.generate_avp(264, 40, self.OriginHost)                                          #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                         #Origin Realm
         avp += self.generate_vendor_avp(266, 40, 10415, '')                                         #AVP Vendor ID
         #AVP: Vendor-Specific-Application-Id(260) l=32 f=-M-
         VendorSpecificApplicationId = ''
         VendorSpecificApplicationId += self.generate_vendor_avp(266, 40, 10415, '')                 #AVP Vendor ID
-        avp += self.generate_avp(277, 40, "00000001")                                               #Auth-Session-State
+        domain = "ims.mnc" + str(self.MNC).zfill(3) + ".mcc" + str(self.MCC).zfill(3) + ".3gppnetwork.org"
 
-
-        avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a) 
 
         #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
         SupportedFeatures = ''
         SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
         SupportedFeatures += self.generate_vendor_avp(629, 80, 10415, self.int_to_hex(1, 4))  #Feature-List ID
         SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
-        if 'GetLocation' in kwargs:
-            self.logTool.log(service='HSS', level='debug', message="Requsted Get Location ISD", redisClient=self.redisMessaging)
+        if GetLocation:
+            self.logTool.log(service='HSS', level='debug', message="Requested Get Location ISD", redisClient=self.redisMessaging)
             #AVP: Supported-Features(628) l=36 f=V-- vnd=TGPP
             SupportedFeatures = ''
             SupportedFeatures += self.generate_vendor_avp(266, 40, 10415, '')                     #AVP Vendor ID
@@ -2949,68 +2965,34 @@ class Diameter:
             SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "18000007")             #Feature-List Flags
             avp += self.generate_vendor_avp(1490, "c0", 10415, "00000018")                        #IDR-Flags
             avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
-
-            try:
-                user_identity_avp = self.get_avp_data(avps, 700)[0]
-                self.logTool.log(service='HSS', level='debug', message=user_identity_avp, redisClient=self.redisMessaging)
-                msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                          #Get MSISDN from AVP in request
-                msisdn = self.TBCD_decode(msisdn)
-                self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
-            except:
-                self.logTool.log(service='HSS', level='error', message="No MSISDN present", redisClient=self.redisMessaging)
-                return
-            #Get Subscriber Location from Database
-            subscriber_location = self.database.GetSubscriberLocation(msisdn=msisdn)
-            self.logTool.log(service='HSS', level='debug', message="Got subscriber location: " + subscriber_location, redisClient=self.redisMessaging)
-
-
-            self.logTool.log(service='HSS', level='debug', message="Getting IMSI for MSISDN " + str(msisdn), redisClient=self.redisMessaging)
-            imsi = self.database.Get_IMSI_from_MSISDN(msisdn)
-            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
-
-            self.logTool.log(service='HSS', level='debug', message="Got back location data: " + str(subscriber_location), redisClient=self.redisMessaging)
-
-            #Populate Destination Host & Realm
-            avp += self.generate_avp(293, 40, self.string_to_hex(subscriber_location))      #Destination Host                                                      #Destination-Host
-            avp += self.generate_avp(283, 40, self.string_to_hex('epc.mnc001.mcc214.3gppnetwork.org'))     #Destination Realm
-
-        else:
-            #APNs from DB
-            imsi = self.get_avp_data(avps, 1)[0]                                                        #Get IMSI from User-Name AVP in request
-            imsi = binascii.unhexlify(imsi).decode('utf-8')                                             #Convert IMSI
-            avp += self.generate_avp(1, 40, self.string_to_hex(imsi))                                   #Username (IMSI)
-            avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
-            avp += self.generate_vendor_avp(1490, "c0", 10415, "00000000")                              #IDR-Flags
-
-            destinationHost = self.get_avp_data(avps, 264)[0]                               #Get OriginHost from AVP
-            destinationHost = binascii.unhexlify(destinationHost).decode('utf-8')           #Format it
-            self.logTool.log(service='HSS', level='debug', message="Received originHost to use as destinationHost is " + str(destinationHost), redisClient=self.redisMessaging)
-            destinationRealm = self.get_avp_data(avps, 296)[0]                                #Get OriginRealm from AVP
-            destinationRealm = binascii.unhexlify(destinationRealm).decode('utf-8')           #Format it
-            self.logTool.log(service='HSS', level='debug', message="Received originRealm to use as destinationRealm is " + str(destinationRealm), redisClient=self.redisMessaging)
-            avp += self.generate_avp(293, 40, self.string_to_hex(destinationHost))                                                         #Destination-Host
-            avp += self.generate_avp(283, 40, self.string_to_hex(destinationRealm))
+        if PcscfRestoration:
+            avp += self.generate_vendor_avp(1490, "c0", 10415, "00000100")                        #IDR-Flags - 8th bit set
+    
+        avp += self.generate_avp(1, 40, self.string_to_hex(f"{imsi}"))                                   #Username (IMSI)
+        avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
+        avp += self.generate_avp(293, 40, self.string_to_hex(DestinationHost))                                                         #Destination-Host
+        avp += self.generate_avp(283, 40, self.string_to_hex(DestinationRealm))
 
         APN_Configuration = ''
 
         try:
             subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Request_16777251_319] [ISD] Got subscriber data: {subscriber_details}", redisClient=self.redisMessaging)
+
         except ValueError as e:
-            self.logTool.log(service='HSS', level='debug', message="failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
-            self.logTool.log(service='HSS', level='debug', message="Error is " + str(e), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Request_16777251_319] [ISD]failed to get data backfrom database for imsi " + str(imsi), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Request_16777251_319] [ISD] Error is " + str(e), redisClient=self.redisMessaging)
             raise
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}"
             message = template.format(type(ex).__name__, ex.args)
             raise
 
-
-
         #Subscription Data: 
         subscription_data = ''
         subscription_data += self.generate_vendor_avp(1426, "c0", 10415, "00000000")                     #Access Restriction Data
         subscription_data += self.generate_vendor_avp(1424, "c0", 10415, "00000000")                     #Subscriber-Status (SERVICE_GRANTED)
-        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000000")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
+        subscription_data += self.generate_vendor_avp(1417, "c0", 10415, "00000002")                     #Network-Access-Mode (PACKET_AND_CIRCUIT)
 
         #AMBR is a sub-AVP of Subscription Data
         AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -3037,119 +3019,115 @@ class Diameter:
 
 
 
-        apn_list = subscriber_details['pdn']
-        self.logTool.log(service='HSS', level='debug', message="APN list: " + str(apn_list), redisClient=self.redisMessaging)
-        APN_context_identifer_count = 1
-        for apn_profile in apn_list:
-            self.logTool.log(service='HSS', level='debug', message="Processing APN profile " + str(apn_profile), redisClient=self.redisMessaging)
-            APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
+        # apn_list = subscriber_details['pdn']
+        # self.logTool.log(service='HSS', level='debug', message="APN list: " + str(apn_list), redisClient=self.redisMessaging)
+        # APN_context_identifer_count = 1
+        # for apn_profile in apn_list:
+        #     self.logTool.log(service='HSS', level='debug', message="Processing APN profile " + str(apn_profile), redisClient=self.redisMessaging)
+        #     APN_Service_Selection = self.generate_avp(493, "40",  self.string_to_hex(str(apn_profile['apn'])))
 
-            self.logTool.log(service='HSS', level='debug', message="Setting APN Configuration Profile", redisClient=self.redisMessaging)
-            #Sub AVPs of APN Configuration Profile
-            APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
-            APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
+        #     self.logTool.log(service='HSS', level='debug', message="Setting APN Configuration Profile", redisClient=self.redisMessaging)
+        #     #Sub AVPs of APN Configuration Profile
+        #     APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
+        #     APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(0, 4))
             
-            self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
-            #AMBR
-            AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
-            if 'AMBR' in apn_profile:
-                ue_ambr_ul = int(apn_profile['AMBR']['apn_ambr_ul'])
-                ue_ambr_dl = int(apn_profile['AMBR']['apn_ambr_dl'])
-            else:
-                #use default AMBR of unlimited if no value in subscriber_details
-                ue_ambr_ul = 50000000
-                ue_ambr_dl = 100000000
+        #     self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
+        #     #AMBR
+        #     AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+        #     if 'AMBR' in apn_profile:
+        #         ue_ambr_ul = int(apn_profile['AMBR']['apn_ambr_ul'])
+        #         ue_ambr_dl = int(apn_profile['AMBR']['apn_ambr_dl'])
+        #     else:
+        #         #use default AMBR of unlimited if no value in subscriber_details
+        #         ue_ambr_ul = 50000000
+        #         ue_ambr_dl = 100000000
 
-            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
-            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
-            APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+        #     AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(ue_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+        #     AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(ue_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+        #     APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
-            self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
-            #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
-            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
-            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
-            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_vulnerability']), 4))
-            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['qci']), 4))
-            APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
+        #     self.logTool.log(service='HSS', level='debug', message="Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
+        #     #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+        #     AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['priority_level']), 4))
+        #     AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_capability']), 4))
+        #     AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['arp']['pre_emption_vulnerability']), 4))
+        #     AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+        #     AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_profile['qos']['qci']), 4))
+        #     APN_EPS_Subscribed_QoS_Profile = self.generate_vendor_avp(1431, "c0", 10415, AVP_QoS + AVP_ARP)
 
 
-            #If static UE IP is specified
-            try:
-                apn_ip = apn_profile['ue']['addr']
-                self.logTool.log(service='HSS', level='debug', message="Found static IP for UE " + str(apn_ip), redisClient=self.redisMessaging)
-                Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
-            except:
-                Served_Party_Address = ""
+        #     #If static UE IP is specified
+        #     try:
+        #         apn_ip = apn_profile['ue']['addr']
+        #         self.logTool.log(service='HSS', level='debug', message="Found static IP for UE " + str(apn_ip), redisClient=self.redisMessaging)
+        #         Served_Party_Address = self.generate_vendor_avp(848, "c0", 10415, self.ip_to_hex(apn_ip))
+        #     except:
+        #         Served_Party_Address = ""
 
-            if 'MIP6-Agent-Info' in apn_profile:
-                self.logTool.log(service='HSS', level='debug', message="MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']), redisClient=self.redisMessaging)
-                MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
-                MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
-                MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
-                MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
-                self.logTool.log(service='HSS', level='debug', message="MIP6 value is " + str(MIP6_Agent_Info), redisClient=self.redisMessaging)
-            else:
-                MIP6_Agent_Info = ''
+        #     if 'MIP6-Agent-Info' in apn_profile:
+        #         self.logTool.log(service='HSS', level='debug', message="MIP6-Agent-Info present, value " + str(apn_profile['MIP6-Agent-Info']), redisClient=self.redisMessaging)
+        #         MIP6_Destination_Host = self.generate_avp(293, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_HOST'])))
+        #         MIP6_Destination_Realm = self.generate_avp(283, '40', self.string_to_hex(str(apn_profile['MIP6-Agent-Info']['MIP6_DESTINATION_REALM'])))
+        #         MIP6_Home_Agent_Host = self.generate_avp(348, '40', MIP6_Destination_Host + MIP6_Destination_Realm)
+        #         MIP6_Agent_Info = self.generate_avp(486, '40', MIP6_Home_Agent_Host)
+        #         self.logTool.log(service='HSS', level='debug', message="MIP6 value is " + str(MIP6_Agent_Info), redisClient=self.redisMessaging)
+        #     else:
+        #         MIP6_Agent_Info = ''
 
-            if 'PDN_GW_Allocation_Type' in apn_profile:
-                self.logTool.log(service='HSS', level='debug', message="PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']), redisClient=self.redisMessaging)
-                PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
-                self.logTool.log(service='HSS', level='debug', message="PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type), redisClient=self.redisMessaging)
-            else:
-                PDN_GW_Allocation_Type = ''
+        #     if 'PDN_GW_Allocation_Type' in apn_profile:
+        #         self.logTool.log(service='HSS', level='debug', message="PDN_GW_Allocation_Type present, value " + str(apn_profile['PDN_GW_Allocation_Type']), redisClient=self.redisMessaging)
+        #         PDN_GW_Allocation_Type = self.generate_vendor_avp(1438, 'c0', 10415, self.int_to_hex(int(apn_profile['PDN_GW_Allocation_Type']), 4))
+        #         self.logTool.log(service='HSS', level='debug', message="PDN_GW_Allocation_Type value is " + str(PDN_GW_Allocation_Type), redisClient=self.redisMessaging)
+        #     else:
+        #         PDN_GW_Allocation_Type = ''
 
-            if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
-                self.logTool.log(service='HSS', level='debug', message="VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']), redisClient=self.redisMessaging)
-                VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
-                self.logTool.log(service='HSS', level='debug', message="VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed), redisClient=self.redisMessaging)
-            else:
-                VPLMN_Dynamic_Address_Allowed = ''
+        #     if 'VPLMN_Dynamic_Address_Allowed' in apn_profile:
+        #         self.logTool.log(service='HSS', level='debug', message="VPLMN_Dynamic_Address_Allowed present, value " + str(apn_profile['VPLMN_Dynamic_Address_Allowed']), redisClient=self.redisMessaging)
+        #         VPLMN_Dynamic_Address_Allowed = self.generate_vendor_avp(1432, 'c0', 10415, self.int_to_hex(int(apn_profile['VPLMN_Dynamic_Address_Allowed']), 4))
+        #         self.logTool.log(service='HSS', level='debug', message="VPLMN_Dynamic_Address_Allowed value is " + str(VPLMN_Dynamic_Address_Allowed), redisClient=self.redisMessaging)
+        #     else:
+        #         VPLMN_Dynamic_Address_Allowed = ''
 
-            APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
-                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info + PDN_GW_Allocation_Type + VPLMN_Dynamic_Address_Allowed
+        #     APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
+        #         + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info + PDN_GW_Allocation_Type + VPLMN_Dynamic_Address_Allowed
             
-            APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
+        #     APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
             
-            #Incriment Context Identifier Count to keep track of how many APN Profiles returned
-            APN_context_identifer_count = APN_context_identifer_count + 1  
-            self.logTool.log(service='HSS', level='debug', message="Processed APN profile " + str(apn_profile['apn']), redisClient=self.redisMessaging)
+        #     #Incriment Context Identifier Count to keep track of how many APN Profiles returned
+        #     APN_context_identifer_count = APN_context_identifer_count + 1  
+        #     self.logTool.log(service='HSS', level='debug', message="Processed APN profile " + str(apn_profile['apn']), redisClient=self.redisMessaging)
         
-        subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
-        subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
-            self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
+        # subscription_data += self.generate_vendor_avp(1619, "80", 10415, self.int_to_hex(720, 4))                                   #Subscribed-Periodic-RAU-TAU-Timer (value 720)
+        # subscription_data += self.generate_vendor_avp(1429, "c0", 10415, APN_context_identifer + \
+        #     self.generate_vendor_avp(1428, "c0", 10415, self.int_to_hex(0, 4)) + APN_Configuration)
 
         #If MSISDN is present include it in Subscription Data
         if 'msisdn' in subscriber_details:
-            self.logTool.log(service='HSS', level='debug', message="MSISDN is " + str(subscriber_details['msisdn']) + " - adding in ULA", redisClient=self.redisMessaging)
-            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, str(subscriber_details['msisdn']))                     #MSISDN
+            self.logTool.log(service='HSS', level='debug', message="MSISDN is " + str(subscriber_details['msisdn']) + " - adding in IDR", redisClient=self.redisMessaging)
+            msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.string_to_hex(str(subscriber_details['msisdn'])))                     #MSISDN
             self.logTool.log(service='HSS', level='debug', message=msisdn_avp, redisClient=self.redisMessaging)
             subscription_data += msisdn_avp
 
         if 'RAT_freq_priorityID' in subscriber_details:
-            self.logTool.log(service='HSS', level='debug', message="RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in ULA", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="RAT_freq_priorityID is " + str(subscriber_details['RAT_freq_priorityID']) + " - Adding in IDR", redisClient=self.redisMessaging)
             rat_freq_priorityID = self.generate_vendor_avp(1440, "C0", 10415, self.int_to_hex(int(subscriber_details['RAT_freq_priorityID']), 4))                              #RAT-Frequency-Selection-Priority ID
             self.logTool.log(service='HSS', level='debug', message=rat_freq_priorityID, redisClient=self.redisMessaging)
             subscription_data += rat_freq_priorityID
 
         if '3gpp-charging-characteristics' in subscriber_details:
-            self.logTool.log(service='HSS', level='debug', message="3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in ULA", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="3gpp-charging-characteristics " + str(subscriber_details['3gpp-charging-characteristics']) + " - Adding in IDR", redisClient=self.redisMessaging)
             _3gpp_charging_characteristics = self.generate_vendor_avp(13, "80", 10415, self.string_to_hex(str(subscriber_details['3gpp-charging-characteristics'])))
             subscription_data += _3gpp_charging_characteristics
             self.logTool.log(service='HSS', level='debug', message=_3gpp_charging_characteristics, redisClient=self.redisMessaging)
 
             
         if 'APN_OI_replacement' in subscriber_details:
-            self.logTool.log(service='HSS', level='debug', message="APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in ULA", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="APN_OI_replacement " + str(subscriber_details['APN_OI_replacement']) + " - Adding in IDR", redisClient=self.redisMessaging)
             subscription_data += self.generate_vendor_avp(1427, "C0", 10415, self.string_to_hex(str(subscriber_details['APN_OI_replacement'])))
 
+        avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
 
-        if 'GetLocation' in kwargs:
-            avp += self.generate_vendor_avp(1400, "c0", 10415, "")                            #Subscription-Data
-        else:
-            avp += self.generate_vendor_avp(1400, "c0", 10415, subscription_data)                            #Subscription-Data
-
-        response = self.generate_diameter_packet("01", "C0", 319, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        response = self.generate_diameter_packet("01", "C0", 319, 16777251, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
     #3GPP Cx Location Information Request (LIR)

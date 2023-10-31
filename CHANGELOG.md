@@ -10,11 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reduced verbosity of failing subscriber lookups to debug
+- Added CORS headers: [Zarya/171](https://github.com/nickvsnetworking/pyhss/pull/171)
+- Gx RAR now dynamically creates TFT up to 512k based on UE request.
 
 ### Fixed
 
 - Geored failing when multiple peers defined and socket closes.
 - Error in Update_Serving_MME when supplied with a NoneType timestamp.
+
+### Added
+
+- Support for IDR-based PCSCF restoration via /pcrf/pcscf_restoration and /pcrf/pcscf_restoration_subscriber in API.
 
 ## [1.0.0] - 2023-09-27
 
