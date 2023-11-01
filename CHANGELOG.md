@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for IDR-based PCSCF restoration via /pcrf/pcscf_restoration and /pcrf/pcscf_restoration_subscriber in API.
+- Support for CLR-based PCSCF restoration via /pcrf/pcscf_restoration and /pcrf/pcscf_restoration_subscriber in API.
+- Optional immediateReattach parameter in Request_16777251_317, via CLR-Flags
 
 ## [1.0.0] - 2023-09-27
 
