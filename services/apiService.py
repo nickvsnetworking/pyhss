@@ -149,6 +149,7 @@ Push_CLR_Model = api.model('CLR', {
     'DestinationHost': fields.String(required=False, description='Destination Host (Optional)'),
     'cancellationType' : fields.Integer(required=True, default=2, description='Cancellation Type as per 3GPP TS 29.272 / 7.3.24'),
     'diameterPeer': fields.String(required=True, description='Diameter peer to send to'),
+    'immediateReattach': fields.Boolean(required=True, default=True, description='Whether or not the UE should reattach immediately')
 })
 
 GeoRed_model = api.model('GeoRed', {
@@ -491,37 +492,6 @@ class PyHSS_SUBSCRIBER_Get(Resource):
                     print("Sent CLR via Peer " + str(json_data['serving_mme']))
                 except:
                     print("No serving MME set - Not sending CLR")
-
-
-            #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
-            if 'enabled' in json_data and json_data['enabled'] == False:
-                print("Subscriber is now disabled, checking to see if we need to trigger a CLR")
-                #See if we have a serving MME set
-                try:
-                    assert(json_data['serving_mme'])
-                    print("Serving MME set - Sending CLR")
-                    import diameter
-                    diameter = diameter.Diameter(
-                        OriginHost=yaml_config['hss']['OriginHost'], 
-                        OriginRealm=yaml_config['hss']['OriginRealm'], 
-                        MNC=yaml_config['hss']['MNC'],
-                        MCC=yaml_config['hss']['MCC'],
-                        ProductName='PyHSS-API-Disabled-CLR'
-                    )
-                    diam_hex = diameter.Request_16777251_317(
-                        imsi=json_data['imsi'], 
-                        DestinationHost=json_data['serving_mme'], 
-                        DestinationRealm=json_data['serving_mme_realm'], 
-                        CancellationType=1
-                    )
-                    logObj = logtool.LogTool()
-                    diameter_next_hop = str(json_data['serving_mme_peer']).split(';')[0]
-                    logObj.Async_SendRequest(diam_hex, diameter_next_hop)
-                    print("Sent CLR via Peer " + str(diameter_next_hop))
-                except:
-                    print("No serving MME set - Not sending CLR")
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -1552,14 +1522,15 @@ class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
             servingMmeRealm = subscriberData.get('serving_mme_realm', None)
             servingMme = subscriberData.get('serving_mme', None)
 
-            diameterResponse = diameterClient.sendDiameterRequest(
-                    requestType='ISD',
-                    hostname=servingMmePeer,
-                    imsi=imsi,
-                    DestinationRealm=servingMmeRealm,
-                    DestinationHost=servingMme,
-                    PcscfRestoration=True
-                    )
+            diameterRequest = diameterClient.sendDiameterRequest(
+                requestType='CLR',
+                hostname=servingMmePeer,
+                imsi=imsi, 
+                DestinationHost=servingMme, 
+                DestinationRealm=servingMmeRealm, 
+                CancellationType=2,
+                immediateReattach=True
+            )
             
             result = {"Result": f"Successfully sent PCSCF Restoration request via {servingMmePeer} for IMSI {imsi}"}
             return result, 200
@@ -1600,14 +1571,15 @@ class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
                         servingMmeRealm = subscriberData.get('serving_mme_realm', None)
                         servingMme = subscriberData.get('serving_mme', None)
 
-                        diameterResponse = diameterClient.sendDiameterRequest(
-                                requestType='ISD',
-                                hostname=servingMmePeer,
-                                imsi=imsi,
-                                DestinationRealm=servingMmeRealm,
-                                DestinationHost=servingMme,
-                                PcscfRestoration=True
-                                )
+                        diameterRequest = diameterClient.sendDiameterRequest(
+                            requestType='CLR',
+                            hostname=servingMmePeer,
+                            imsi=imsi, 
+                            DestinationHost=servingMme, 
+                            DestinationRealm=servingMmeRealm, 
+                            CancellationType=2,
+                            immediateReattach=True
+                        )
 
                     except Exception as e:
                         continue
@@ -1801,7 +1773,8 @@ class PyHSS_Push_CLR(Resource):
                 imsi=imsi, 
                 DestinationHost=json_data['DestinationHost'], 
                 DestinationRealm=json_data['DestinationRealm'], 
-                CancellationType=json_data['cancellationType']
+                CancellationType=json_data['cancellationType'],
+                immediateReattach=json_data['immediateReattach']
             )
             if not len(diameterRequest) > 0:
                 return {'result': f'Failed queueing CLR to {json_data["diameterPeer"]}'}, 400
