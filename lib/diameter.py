@@ -2206,6 +2206,7 @@ class Diameter:
         #Define values so we can check if they've been changed
         msisdn = None
         imsi = None
+        scscf = None
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
@@ -2226,8 +2227,13 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message="Getting susbcriber info based on MSISDN", redisClient=self.redisMessaging)
                 subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
                 imsi = subscriber_details.get('imsi', None)
+                scscf = subscriber_ims_details.get('scscf', None)
+                if scscf is not None:
+                    imsUserState = 1
+                else:
+                    imsUserState = 0
                 self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
-                subscriber_details = {**subscriber_details, **subscriber_ims_details}
+                subscriber_details = {**subscriber_details, **subscriber_ims_details, 'imsUserState': imsUserState}
                 self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
         else:
             self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI in Answer_16777217_306() input", redisClient=self.redisMessaging)
