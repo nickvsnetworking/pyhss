@@ -782,6 +782,28 @@ class Diameter:
                                                 metricExpiry=60)
                 return ''
 
+    def generateDiameterRequest(self, requestType: str, **kwargs) -> str:
+        """
+        Returns a given diameter request of requestType in a hex string.
+        """
+        try:
+            request = ''
+            requestType = requestType.upper()
+            self.logTool.log(service='AS', level='debug', message=f"[diameter.py] [generateDiameterRequest] [{requestType}] Generating a diameter outbound request", redisClient=self.redisMessaging)
+            
+            for diameterApplication in self.diameterRequestList:
+                try:
+                    assert(requestType == diameterApplication["requestAcronym"])
+                except Exception as e:
+                    continue
+
+                request = diameterApplication["requestMethod"](**kwargs)
+                self.logTool.log(service='AS', level='debug', message=f"[diameter.py] [generateDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                return request
+        except Exception as e:
+            self.logTool.log(service='AS', level='error', message=f"[diameter.py] [generateDiameterRequest] [{requestType}] Error generating diameter outbound request: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return ''
+
     def validateImsSubscriber(self, imsi=None, msisdn=None) -> bool:
         """
         Ensures that a given IMSI or MSISDN (Or both, if specified) are associated with a subscriber that is enabled, and has an associated IMS Subscriber record.
@@ -2203,6 +2225,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
                 self.logTool.log(service='HSS', level='debug', message="Getting susbcriber info based on MSISDN", redisClient=self.redisMessaging)
                 subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
+                imsi = subscriber_details.get('imsi', None)
                 self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
                 subscriber_details = {**subscriber_details, **subscriber_ims_details}
                 self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
