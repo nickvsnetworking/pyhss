@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for CLR-based PCSCF restoration via /pcrf/pcscf_restoration and /pcrf/pcscf_restoration_subscriber in API.
 - Optional immediateReattach parameter in Request_16777251_317, via CLR-Flags
+- Sh-IMS-Data and IMSPrivateUserIdentity to default_sh_user_data.xml
 
 ## [1.0.0] - 2023-09-27
 
