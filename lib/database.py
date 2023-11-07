@@ -991,7 +991,6 @@ class Database:
             record = record.__dict__
             record.pop('_sa_instance_state')
             record = self.Sanitize_Datetime(record)
-            record = self.Sanitize_Keys(record)
             final_result_list.append(record)
 
         self.safe_close(session)
@@ -1023,7 +1022,6 @@ class Database:
                 record = record.__dict__
                 record.pop('_sa_instance_state')
                 record = self.Sanitize_Datetime(record)
-                record = self.Sanitize_Keys(record)
                 final_result_list.append(record)
                 
             self.safe_close(session)
@@ -1056,7 +1054,6 @@ class Database:
             record = record.__dict__
             record.pop('_sa_instance_state')
             record = self.Sanitize_Datetime(record)
-            record = self.Sanitize_Keys(record)
             final_result_list.append(record)
 
         self.safe_close(session)

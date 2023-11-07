@@ -35,6 +35,8 @@ redisPort = int(config.get("redis", {}).get("port", 6379))
 redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
 redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
 
+insecureAuc = config.get('api', {}).get('enable_insecure_auc', False)
+
 redisMessaging = RedisMessaging(host=redisHost, port=redisPort, useUnixSocket=redisUseUnixSocket, unixSocketPath=redisUnixSocketPath)
 
 logTool = LogTool(config)
@@ -351,7 +353,9 @@ class PyHSS_AUC_Get(Resource):
         '''Get all AuC data for specified AuC ID'''
         try:
             auc_data = databaseClient.GetObj(AUC, auc_id)
-            auc_data = databaseClient.Sanitize_Keys(auc_data)
+
+            if not insecureAuc:
+                auc_data = databaseClient.Sanitize_Keys(auc_data)
             return auc_data, 200
         except Exception as E:
             print(E)
@@ -378,7 +382,8 @@ class PyHSS_AUC_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             auc_data = databaseClient.UpdateObj(AUC, json_data, auc_id, False, operation_id)
-            auc_data = databaseClient.Sanitize_Keys(auc_data)
+            if not insecureAuc:
+                auc_data = databaseClient.Sanitize_Keys(auc_data)
             print("Updated object")
             print(auc_data)
             
@@ -393,7 +398,8 @@ class PyHSS_AUC_Get_ICCID(Resource):
         '''Get all AuC data for specified ICCID'''
         try:
             auc_data = databaseClient.Get_AuC(iccid=iccid)
-            auc_data = databaseClient.Sanitize_Keys(auc_data)
+            if not insecureAuc:
+                auc_data = databaseClient.Sanitize_Keys(auc_data)
             return auc_data, 200
         except Exception as E:
             print(E)
@@ -405,7 +411,8 @@ class PyHSS_AUC_Get_IMSI(Resource):
         '''Get all AuC data for specified IMSI'''
         try:
             auc_data = databaseClient.Get_AuC(imsi=imsi)
-            auc_data = databaseClient.Sanitize_Keys(auc_data)
+            if not insecureAuc:
+                auc_data = databaseClient.Sanitize_Keys(auc_data)
             return auc_data, 200
         except Exception as E:
             print(E)
@@ -423,7 +430,6 @@ class PyHSS_AUC(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(AUC, json_data, False, operation_id)
-
             return data, 200
         except Exception as E:
             print(E)
@@ -437,6 +443,12 @@ class PyHSS_AUC_All(Resource):
         try:
             args = paginatorParser.parse_args()
             data = databaseClient.getAllPaginated(AUC, args['page'], args['page_size'])
+            if not insecureAuc:
+                sanitizedData = []
+                for aucRecord in data:
+                    databaseClient.Sanitize_Keys(aucRecord)
+                    sanitizedData.append(aucRecord)
+                return sanitizedData
             return (data), 200
         except Exception as E:
             print(E)
