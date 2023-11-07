@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduced verbosity of failing subscriber lookups to debug
 - Added CORS headers: [Zarya/171](https://github.com/nickvsnetworking/pyhss/pull/171)
 - Gx RAR now dynamically creates TFT up to 512k based on UE request.
+- SQN Resync now propogates via Geored when enabled 
 
 ### Fixed
 

@@ -1556,9 +1556,19 @@ class Database:
         self.safe_close(session)
         return result 
 
-    def Update_AuC(self, auc_id, sqn=1):
-        self.logTool.log(service='Database', level='debug', message="Updating AuC record for sub " + str(auc_id), redisClient=self.redisMessaging)
+    def Update_AuC(self, auc_id, sqn=1, propagate=True):
+        self.logTool.log(service='Database', level='debug', message=f"Updating AuC record for ID: {auc_id}", redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message=self.UpdateObj(AUC, {'sqn': sqn}, auc_id, True), redisClient=self.redisMessaging)
+
+        if propagate:
+            if self.config['geored'].get('enabled', False) == True:
+                aucBody = {
+                    "auc_id": auc_id,
+                    "sqn": sqn,
+                }
+                self.handleGeored(aucBody)
+        self.logTool.log(service='Database', level='debug', message=f"Sent Geored update for AuC: {auc_id} with SQN {sqn}", redisClient=self.redisMessaging)
+
         return
 
     def Update_Serving_MME(self, imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, serving_mme_timestamp=None, propagate=True):
@@ -1626,7 +1636,7 @@ class Database:
                 result.serving_mme_timestamp = None
                 result.serving_mme_realm = None
                 result.serving_mme_peer = None
-                serving_mme_timestamp_string = result.serving_mme_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ') if serving_mme_timestamp is not None else datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                serving_mme_timestamp_string = datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
             session.commit()
             objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
@@ -1687,7 +1697,7 @@ class Database:
                 result.pcscf_realm = None
                 result.pcscf_peer = None
                 result.pcscf_active_session = None
-                pcscf_timestamp_string = result.pcscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ') if pcscf_timestamp is not None else datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                pcscf_timestamp_string = datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)
@@ -1741,7 +1751,7 @@ class Database:
                 result.scscf_timestamp = None
                 result.scscf_realm = None
                 result.scscf_peer = None
-                scscf_timestamp_string = result.scscf_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ') if scscf_timestamp is not None else datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                scscf_timestamp_string = datetime.datetime.now(tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             
             session.commit()
             objectData = self.GetObj(IMS_SUBSCRIBER, result.ims_subscriber_id)

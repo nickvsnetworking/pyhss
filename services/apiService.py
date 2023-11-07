@@ -190,7 +190,9 @@ Geored_schema = {
     'serving_pgw_timestamp' : "string",
     'scscf' : "string",
     'imei' : "string",
-    'match_response_code' : "string"
+    'match_response_code' : "string",
+    'auc_id': "int",
+    'sqn': "int",
 }
 
 
@@ -1615,7 +1617,7 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
 
 @ns_geored.route('/')
 class PyHSS_Geored(Resource):
-    @ns_geored.doc('Create ChargingRule Object')
+    @ns_geored.doc('Receive GeoRed data')
     @ns_geored.expect(GeoRed_model)
     @no_auth_required
     def patch(self):
@@ -1705,6 +1707,17 @@ class PyHSS_Geored(Resource):
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
                                     metricLabels={
                                         "endpoint": "IMEI",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
+            if 'auc_id' in json_data:
+                print("Updating AuC")
+                response_data.append(databaseClient.Update_AuC(json_data['auc_id'], json_data['sqn'], propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "SQN",
                                         "geored_host": request.remote_addr,
                                     },
                                     metricExpiry=60)
