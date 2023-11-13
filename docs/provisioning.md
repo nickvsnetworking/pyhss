@@ -74,6 +74,6 @@ curl -X 'PUT' \
   "msisdn_list": "12341235",
   "imsi": "001010000000002",
   "ifc_path": "string",
-  "sh_profile": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><simservs>Your XCAP Data...</simservs>"
+  "xcap_profile": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><simservs>Your XCAP Data...</simservs>"
 }'
 ```

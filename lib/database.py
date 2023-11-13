@@ -190,17 +190,18 @@ class IMS_SUBSCRIBER(Base):
     msisdn = Column(String(18), unique=True, doc=SUBSCRIBER.msisdn.doc)
     msisdn_list = Column(String(1200), doc='Comma Separated list of additional MSISDNs for Subscriber')
     imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
-    ifc_path = Column(String(18), doc='Path to template file for the Initial Filter Criteria')
+    ifc_path = Column(String(512), doc='Path to template file for the Initial Filter Criteria')
     pcscf = Column(String(512), doc='Proxy-CSCF serving this subscriber')
     pcscf_realm = Column(String(512), doc='Realm of PCSCF')
     pcscf_active_session = Column(String(512), doc='Session Id for the PCSCF when in a call')
     pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
-    pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF') 
-    sh_profile = Column(Text(12000), doc='Sh Subscriber Profile')
+    pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF')
+    xcap_profile = Column(Text(12000), doc='XCAP Subscriber Profile')
     scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to SCSCF')
     scscf_realm = Column(String(512), doc='Realm of SCSCF')
-    scscf_peer = Column(String(512), doc='Diameter peer used to reach SCSCF') 
+    scscf_peer = Column(String(512), doc='Diameter peer used to reach SCSCF')
+    sh_template_path = Column(String(512), doc='Path to template file for the Sh Profile')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
@@ -2432,9 +2433,8 @@ if __name__ == "__main__":
         "msisdn": newObj['msisdn'], 
         "msisdn_list": newObj['msisdn'],
         "imsi": subscriber_json['imsi'],
-        "ifc_path" : "default_ifc.xml",
-        "sh_profile" : "default_sh_user_data.xml"
-    }
+        "ifc_path" : "default_ifc.xml"
+        }
     print(ims_subscriber_json)
     newObj = database.CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
     print(newObj)

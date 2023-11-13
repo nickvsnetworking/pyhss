@@ -2274,7 +2274,7 @@ class Diameter:
         subscriber_details['mcc'] = self.MCC.zfill(3)
 
         self.logTool.log(service='HSS', level='debug', message="Rendering template with values: " + str(subscriber_details), redisClient=self.redisMessaging)
-        xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
+        xmlbody = template.render(Sh_template_vars=subscriber_details)
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -2300,7 +2300,7 @@ class Diameter:
         #Push updated User Data into IMS Backend
         #Start with the Current User Data
         subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
-        self.database.UpdateObj(self.database.IMS_SUBSCRIBER, {'sh_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
+        self.database.UpdateObj(self.database.IMS_SUBSCRIBER, {'xcap_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
 
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -2426,13 +2426,12 @@ class Diameter:
                             pass
 
                         """
-                        The below charging rule needs to be replaced by the following logic:
+                        The below logic is applied:
                         1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
                         2. Compare it to a given backup rule
                         - If the flowrates are greater than the backup rule (UE is asking for more than allowed), use the backup rule
-                        - If the flowrates are lesser than the backup rule, use the requested flowrates. This will allow for better utilization of radio resources.
-                        3. Maybe something to do with the TFT's
-                        4. Send the winning rule.
+                        - If the flowrates are lesser than the backup rule, use the requested flowrates.
+                        3. Send the winning rule.
                         """
 
                         chargingRule = {
