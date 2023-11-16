@@ -184,6 +184,7 @@ class SERVING_APN(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
 
+# Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
 class IMS_SUBSCRIBER(Base):
     __tablename__ = 'ims_subscriber'
     ims_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of IMS_Subscriber entry')
@@ -197,6 +198,7 @@ class IMS_SUBSCRIBER(Base):
     pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
     pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF')
     xcap_profile = Column(Text(12000), doc='XCAP Subscriber Profile')
+    sh_profile = Column(Text(12000), doc='Deprecated - XCAP Subscriber Profile')
     scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to SCSCF')
     scscf_realm = Column(String(512), doc='Realm of SCSCF')
