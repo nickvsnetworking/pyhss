@@ -3286,7 +3286,7 @@ class Diameter:
         
         if "msisdn" in kwargs:
             msisdn = kwargs['msisdn']
-            msisdn.replace('+', '')
+            msisdn = msisdn.replace('+', '')
             msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn)))                                             #MSISDN
             avp += self.generate_vendor_avp(700, "c0", 10415, msisdn_avp)                         #User-Identity
             avp += self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn))) 
