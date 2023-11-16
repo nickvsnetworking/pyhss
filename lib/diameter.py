@@ -2239,7 +2239,7 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
                 except Exception as e:
                     self.logTool.log(service='HSS', level='debug', message=f"No subscriber found for MSISDN {msisdn}", redisClient=self.redisMessaging)
-                    result_code = 5005
+                    result_code = 5001
                     #Experimental Result AVP
                     avp_experimental_result = ''
                     avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
@@ -2260,7 +2260,7 @@ class Diameter:
                                                             "imsi_prefix": str(username[0:6])},
                                                 metricHelp='Diameter Authentication related Counters',
                                                 metricExpiry=60)
-            result_code = 5005
+            result_code = 5001
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
@@ -3526,7 +3526,6 @@ class Diameter:
         "0000036ac00000d8000028af00000002c0000010000028af0000010400000003c0000010000028af00000000000004cbc0000012000028af00010a2d01050000000004ccc0000012000028af0001ac1212ca00000000034fc0000012000028af0001ac12120400000000001e40000010696e7465726e65740000000cc000000d000028af300000000000000dc0000010000028af3030303000000012c0000011000028af30303130310000000000000ac000000d000028af0100000000000016c0000019000028af8200f110000100f11000000017000000")
         response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
-
 
     #3GPP Sh - Profile Update Request
     def Request_16777217_307(self, msisdn):
