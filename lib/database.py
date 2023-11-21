@@ -1515,6 +1515,18 @@ class Database:
             self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
             return vector_dict
 
+        elif action == "eap_aka":
+            rand, xres, autn, mac_a, ak = S6a_crypt.generate_eap_aka_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+            self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
+            vector_dict['rand'] = binascii.hexlify(rand).decode("utf-8")
+            vector_dict['autn'] = binascii.hexlify(autn).decode("utf-8")
+            vector_dict['xres'] = binascii.hexlify(xres).decode("utf-8")
+            vector_dict['mac'] = binascii.hexlify(mac_a).decode("utf-8")
+            vector_dict['ak'] = binascii.hexlify(ak).decode("utf-8")
+            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
+            return vector_dict
+
         elif action == "Digest-MD5":
             self.logTool.log(service='Database', level='debug', message="Generating Digest-MD5 Auth vectors", redisClient=self.redisMessaging)
             self.logTool.log(service='Database', level='debug', message="key_data: " + str(key_data), redisClient=self.redisMessaging)
@@ -1523,6 +1535,8 @@ class Database:
             vector_dict['nonce'] = nonce
             vector_dict['SIP_Authenticate'] = key_data['ki']
             return vector_dict
+        else:
+            self.logTool.log(service='Database', level='error', message="Invalid action: " + str(action), redisClient=self.redisMessaging)
 
     def Get_APN(self, apn_id):
         self.logTool.log(service='Database', level='debug', message="Getting APN " + str(apn_id), redisClient=self.redisMessaging)
