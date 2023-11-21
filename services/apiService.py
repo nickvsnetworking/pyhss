@@ -481,6 +481,23 @@ class PyHSS_AUC_Get_EAP_AKA_Vectors(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_auc.route('/aka/vector_count/<string:vector_count>/imsi/<string:imsi>')
+class PyHSS_AUC_Get_AKA_Vectors(Resource):
+    def get(self, imsi, vector_count):
+        '''Get AKA vectors for specified IMSI and PLMN'''
+        try:
+            #Get data from AuC
+            auc_data = databaseClient.Get_AuC(imsi=imsi)
+            print("Got AuC Data OK - Generating " + str(vector_count) + " Vectors")
+            
+            plmn = diameterClient.EncodePLMN(mcc=config['hss']['MCC'], mnc=config['hss']['MNC'])
+            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='2g3g', plmn=plmn, requested_vectors=int(vector_count))
+            print("Got Vectors: " + str(vector_dict))
+            return vector_dict, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
 @ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_SUBSCRIBER_Get(Resource):
     def get(self, subscriber_id):
