@@ -282,11 +282,11 @@ class Database:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
         if str(self.config['database']['db_type']) == 'postgresql':
-            db_uri_base = 'postgresql+psycopg2'
+            db_string = 'postgresql+psycopg2://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'])
         else:
-            db_uri_base = 'mysql'
+            db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
 
-        db_string = str(db_uri_base) + '://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
+        
         self.engine = create_engine(
             db_string, 
             echo = self.config['logging'].get('sqlalchemy_sql_echo', True), 
