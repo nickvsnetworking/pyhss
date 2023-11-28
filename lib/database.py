@@ -20,6 +20,10 @@ import yaml
 import json
 import traceback
 
+with open("../config.yaml", 'r') as stream:
+    config = (yaml.safe_load(stream))
+
+
 Base = declarative_base()
 class APN(Base):
     __tablename__ = 'apn'
@@ -131,8 +135,13 @@ class IMS_SUBSCRIBER(Base):
     pcscf_active_session = Column(String(512), doc='Session Id for the PCSCF when in a call')
     pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
     pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF')
-    xcap_profile = Column(Text(12000), doc='XCAP Subscriber Profile')
-    sh_profile = Column(Text(12000), doc='Deprecated - XCAP Subscriber Profile')
+    # Conditional column definition based on the database type
+    if 'mysql' in str(config['database']['db_type']).lower():
+        xcap_profile = Column(Text(12000), doc='XCAP Subscriber Profile')
+        sh_profile = Column(Text(12000), doc='Deprecated - XCAP Subscriber Profile')
+    else:
+        xcap_profile = Column(Text, doc='XCAP Subscriber Profile')
+        sh_profile = Column(Text, doc='Deprecated - XCAP Subscriber Profile')
     scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
     scscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to SCSCF')
     scscf_realm = Column(String(512), doc='Realm of SCSCF')
