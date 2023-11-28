@@ -21,74 +21,6 @@ import json
 import traceback
 
 Base = declarative_base()
-
-class OPERATION_LOG_BASE(Base):
-    __tablename__ = 'operation_log'
-    id = Column(Integer, primary_key=True)
-    item_id = Column(Integer, nullable=False)
-    operation_id = Column(String(36), nullable=False)
-    operation = Column(String(10))
-    changes = Column(Text)
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc))
-    timestamp = Column(DateTime, default=func.now())
-    table_name = Column('table_name', String(255))
-    __mapper_args__ = {'polymorphic_on': table_name}
-
-class APN_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'apn'}
-    apn = relationship("APN", back_populates="operation_logs")
-    apn_id = Column(Integer, ForeignKey('apn.apn_id'))
-
-class SUBSCRIBER_ROUTING_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'subscriber_routing'}
-    subscriber_routing = relationship("SUBSCRIBER_ROUTING", back_populates="operation_logs")
-    subscriber_routing_id = Column(Integer, ForeignKey('subscriber_routing.subscriber_routing_id'))
-
-class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
-    serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
-    serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
-
-class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'auc'}
-    auc = relationship("AUC", back_populates="operation_logs")
-    auc_id = Column(Integer, ForeignKey('auc.auc_id'))
-
-class SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'subscriber'}
-    subscriber = relationship("SUBSCRIBER", back_populates="operation_logs")
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
-
-class IMS_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'ims_subscriber'}
-    ims_subscriber = relationship("IMS_SUBSCRIBER", back_populates="operation_logs")
-    ims_subscriber_id = Column(Integer, ForeignKey('ims_subscriber.ims_subscriber_id'))
-
-class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
-    charging_rule = relationship("CHARGING_RULE", back_populates="operation_logs")
-    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
-
-class TFT_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'tft'}
-    tft = relationship("TFT", back_populates="operation_logs")
-    tft_id = Column(Integer, ForeignKey('tft.tft_id'))
-
-class EIR_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'eir'}
-    eir = relationship("EIR", back_populates="operation_logs")
-    eir_id = Column(Integer, ForeignKey('eir.eir_id'))
-
-class IMSI_IMEI_HISTORY_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'eir_history'}
-    eir_history = relationship("IMSI_IMEI_HISTORY", back_populates="operation_logs")
-    imsi_imei_history_id = Column(Integer, ForeignKey('eir_history.imsi_imei_history_id'))
-
-class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'subscriber_attributes'}
-    subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
-    subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
-
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -263,6 +195,75 @@ class SUBSCRIBER_ATTRIBUTES(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     value = Column(String(12000), doc='Arbitrary value')
     operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
+
+
+class OPERATION_LOG_BASE(Base):
+    __tablename__ = 'operation_log'
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, nullable=False)
+    operation_id = Column(String(36), nullable=False)
+    operation = Column(String(10))
+    changes = Column(Text)
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc))
+    timestamp = Column(DateTime, default=func.now())
+    table_name = Column('table_name', String(255))
+    __mapper_args__ = {'polymorphic_on': table_name}
+
+class APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'apn'}
+    apn = relationship("APN", back_populates="operation_logs")
+    apn_id = Column(Integer, ForeignKey('apn.apn_id'))
+
+class SUBSCRIBER_ROUTING_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_routing'}
+    subscriber_routing = relationship("SUBSCRIBER_ROUTING", back_populates="operation_logs")
+    subscriber_routing_id = Column(Integer, ForeignKey('subscriber_routing.subscriber_routing_id'))
+
+class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
+    serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
+    serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
+
+class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'auc'}
+    auc = relationship("AUC", back_populates="operation_logs")
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'))
+
+class SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber'}
+    subscriber = relationship("SUBSCRIBER", back_populates="operation_logs")
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id'))
+
+class IMS_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'ims_subscriber'}
+    ims_subscriber = relationship("IMS_SUBSCRIBER", back_populates="operation_logs")
+    ims_subscriber_id = Column(Integer, ForeignKey('ims_subscriber.ims_subscriber_id'))
+
+class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
+    charging_rule = relationship("CHARGING_RULE", back_populates="operation_logs")
+    charging_rule_id = Column(Integer, ForeignKey('charging_rule.charging_rule_id'))
+
+class TFT_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'tft'}
+    tft = relationship("TFT", back_populates="operation_logs")
+    tft_id = Column(Integer, ForeignKey('tft.tft_id'))
+
+class EIR_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir'}
+    eir = relationship("EIR", back_populates="operation_logs")
+    eir_id = Column(Integer, ForeignKey('eir.eir_id'))
+
+class IMSI_IMEI_HISTORY_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'eir_history'}
+    eir_history = relationship("IMSI_IMEI_HISTORY", back_populates="operation_logs")
+    imsi_imei_history_id = Column(Integer, ForeignKey('eir_history.imsi_imei_history_id'))
+
+class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'subscriber_attributes'}
+    subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
+    subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
+
 
 class Database:
 
