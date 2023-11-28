@@ -2207,6 +2207,7 @@ class Diameter:
         msisdn = None
         imsi = None
         scscf = None
+        username = None
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
@@ -2214,40 +2215,52 @@ class Diameter:
             msisdn = self.TBCD_decode(msisdn)
             self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
         except:
-            self.logTool.log(service='HSS', level='error', message="No MSISDN", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="No MSISDN", redisClient=self.redisMessaging)
         try:
             username = self.get_avp_data(avps, 601)[0]
         except Exception as e: 
-            self.logTool.log(service='HSS', level='error', message="No Username", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="No Username", redisClient=self.redisMessaging)
 
         if msisdn is not None:
-                self.logTool.log(service='HSS', level='debug', message="Getting susbcriber IMS info based on MSISDN", redisClient=self.redisMessaging)
-                subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
-                self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
-                self.logTool.log(service='HSS', level='debug', message="Getting susbcriber info based on MSISDN", redisClient=self.redisMessaging)
-                subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
-                imsi = subscriber_details.get('imsi', None)
-                scscf = subscriber_ims_details.get('scscf', None)
-                if scscf is not None:
-                    imsUserState = 1
-                else:
-                    imsUserState = 0
-                self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
-                subscriber_details = {**subscriber_details, **subscriber_ims_details, 'imsUserState': imsUserState}
-                self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on MSISDN", redisClient=self.redisMessaging)
+                try:
+                    subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+                    self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="Getting subscriber info based on MSISDN", redisClient=self.redisMessaging)
+                    subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
+                    imsi = subscriber_details.get('imsi', None)
+                    scscf = subscriber_ims_details.get('scscf', None)
+                    if scscf is not None:
+                        imsUserState = 1
+                    else:
+                        imsUserState = 0
+                    self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
+                    subscriber_details = {**subscriber_details, **subscriber_ims_details, 'imsUserState': imsUserState}
+                    self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
+                except Exception as e:
+                    self.logTool.log(service='HSS', level='debug', message=f"No subscriber found for MSISDN {msisdn}", redisClient=self.redisMessaging)
+                    result_code = 5001
+                    #Experimental Result AVP
+                    avp_experimental_result = ''
+                    avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                    avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(result_code, 4))          #AVP Experimental-Result-Code
+                    avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                    response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                    return response
         else:
-            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI in Answer_16777217_306() input", redisClient=self.redisMessaging)
-            self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
-                                            metricType='counter', metricAction='inc', 
-                                            metricValue=1.0, 
-                                            metricLabels={
-                                                        "diameter_application_id": 16777216,
-                                                        "diameter_cmd_code": 306,
-                                                        "event": "Unknown User",
-                                                        "imsi_prefix": str(username[0:6])},
-                                            metricHelp='Diameter Authentication related Counters',
-                                            metricExpiry=60)
-            result_code = 5005
+            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI in Sh User-Data-Answer input", redisClient=self.redisMessaging)
+            if username is not None:
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
+                                                metricType='counter', metricAction='inc', 
+                                                metricValue=1.0, 
+                                                metricLabels={
+                                                            "diameter_application_id": 16777216,
+                                                            "diameter_cmd_code": 306,
+                                                            "event": "Unknown User",
+                                                            "imsi_prefix": str(username[0:6])},
+                                                metricHelp='Diameter Authentication related Counters',
+                                                metricExpiry=60)
+            result_code = 5001
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
@@ -2274,7 +2287,7 @@ class Diameter:
         subscriber_details['mcc'] = self.MCC.zfill(3)
 
         self.logTool.log(service='HSS', level='debug', message="Rendering template with values: " + str(subscriber_details), redisClient=self.redisMessaging)
-        xmlbody = template.render(Sh_template_vars=subscriber_details)  # this is where to put args to the template renderer
+        xmlbody = template.render(Sh_template_vars=subscriber_details)
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
@@ -2300,7 +2313,7 @@ class Diameter:
         #Push updated User Data into IMS Backend
         #Start with the Current User Data
         subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
-        self.database.UpdateObj(self.database.IMS_SUBSCRIBER, {'sh_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
+        self.database.UpdateObj(self.database.IMS_SUBSCRIBER, {'xcap_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
 
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -2426,13 +2439,12 @@ class Diameter:
                             pass
 
                         """
-                        The below charging rule needs to be replaced by the following logic:
+                        The below logic is applied:
                         1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
                         2. Compare it to a given backup rule
                         - If the flowrates are greater than the backup rule (UE is asking for more than allowed), use the backup rule
-                        - If the flowrates are lesser than the backup rule, use the requested flowrates. This will allow for better utilization of radio resources.
-                        3. Maybe something to do with the TFT's
-                        4. Send the winning rule.
+                        - If the flowrates are lesser than the backup rule, use the requested flowrates.
+                        3. Send the winning rule.
                         """
 
                         chargingRule = {
@@ -2783,11 +2795,11 @@ class Diameter:
 
         try:
             if imsi is not None:
-                    self.logTool.log(service='HSS', level='debug', message="Getting susbcriber location based on IMSI", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="Getting subscriber location based on IMSI", redisClient=self.redisMessaging)
                     subscriber_details = self.database.Get_Subscriber(imsi=imsi)
                     self.logTool.log(service='HSS', level='debug', message="Got subscriber_details from IMSI: " + str(subscriber_details), redisClient=self.redisMessaging)
             elif msisdn is not None:
-                    self.logTool.log(service='HSS', level='debug', message="Getting susbcriber location based on MSISDN", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="Getting subscriber location based on MSISDN", redisClient=self.redisMessaging)
                     subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
                     self.logTool.log(service='HSS', level='debug', message="Got subscriber_details from MSISDN: " + str(subscriber_details), redisClient=self.redisMessaging)
         except Exception as E:
@@ -3287,6 +3299,7 @@ class Diameter:
         
         if "msisdn" in kwargs:
             msisdn = kwargs['msisdn']
+            msisdn = msisdn.replace('+', '')
             msisdn_avp = self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn)))                                             #MSISDN
             avp += self.generate_vendor_avp(700, "c0", 10415, msisdn_avp)                         #User-Identity
             avp += self.generate_vendor_avp(701, 'c0', 10415, self.TBCD_encode(str(msisdn))) 
@@ -3514,7 +3527,6 @@ class Diameter:
         response = self.generate_diameter_packet("01", "c0", 272, 4, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
         return response
 
-
     #3GPP Sh - Profile Update Request
     def Request_16777217_307(self, msisdn):
         avp = ''                                         
@@ -3530,17 +3542,16 @@ class Diameter:
         avp += self.generate_avp(283, 40, self.OriginRealm)                                              #Destination Realm
         avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
 
-        self.logTool.log(service='HSS', level='debug', message="Getting susbcriber IMS info based on MSISDN", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on MSISDN", redisClient=self.redisMessaging)
         subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
         self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
-        self.logTool.log(service='HSS', level='debug', message="Getting susbcriber info based on MSISDN", redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Getting subscriber info based on MSISDN", redisClient=self.redisMessaging)
         subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
         self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
         subscriber_details = {**subscriber_details, **subscriber_ims_details}
         self.logTool.log(service='HSS', level='debug', message="Merged subscriber details: " + str(subscriber_details), redisClient=self.redisMessaging)
 
         avp += self.generate_avp(1, 40, str(binascii.hexlify(str.encode(subscriber_details['imsi'])),'ascii'))                 #Username AVP
-
 
         #Sh-User-Data (XML)
         #This loads a Jinja XML template containing the Sh-User-Data

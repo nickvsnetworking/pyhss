@@ -117,8 +117,13 @@ SUBSCRIBER_ROUTING_model = api.schema_model('SUBSCRIBER_ROUTING JSON',
     databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER_ROUTING)
 )
 
+
+#Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
+imsSubscriberModel = databaseClient.Generate_JSON_Model_for_Flask(TFT)
+imsSubscriberModel['sh_profile'] = fields.String(required=False, description=IMS_SUBSCRIBER.sh_profile.doc),
+
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
-    databaseClient.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
+    databaseClient.Generate_JSON_Model_for_Flask(TFT)
 )
 
 TFT_model = api.schema_model('TFT JSON', 

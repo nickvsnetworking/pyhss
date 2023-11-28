@@ -26,9 +26,4 @@
         <IMSUserState>{{ Sh_template_vars['imsUserState'] }}</IMSUserState>
     </Sh-IMS-Data>
 
-    <!-- This container for the XCAP Data for the Subscriber -->
-
-    <!-- XCAP data from Database -->
-    {{ Sh_template_vars['sh_profile'] }}
-
 </Sh-Data>

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added CORS headers: [Zarya/171](https://github.com/nickvsnetworking/pyhss/pull/171)
 - Gx RAR now dynamically creates TFT up to 512k based on UE request.
 - SQN Resync now propogates via Geored when enabled 
+- Renamed sh_profile to xcap_profile in ims_subscriber
 
 ### Fixed
 
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional immediateReattach parameter in Request_16777251_317, via CLR-Flags
 - Sh-IMS-Data and IMSPrivateUserIdentity to default_sh_user_data.xml
 - Optional config parameter `api.enable_insecure_auc` to allow retrieval of AuC keys through API
+- sh_template_path in ims_subscriber
 
 ## [1.0.0] - 2023-09-27
 
