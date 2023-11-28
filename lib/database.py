@@ -39,20 +39,6 @@ class APN(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
 
-class SUBSCRIBER_ROUTING(Base):
-    __tablename__ = 'subscriber_routing'
-    __table_args__ = (
-        # this can be db.PrimaryKeyConstraint if you want it to be a primary key
-        UniqueConstraint('subscriber_id', 'apn_id'),
-    )
-    subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
-    apn_id = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the target apn')
-    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
-    ip_address = Column(String(254), doc='IP of the UE')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
-
 class AUC(Base):
     __tablename__ = 'auc'
     auc_id = Column(Integer, primary_key = True, doc='Unique ID of AuC entry')
@@ -100,6 +86,22 @@ class SUBSCRIBER(Base):
     serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME then ; then the HSS the Diameter peer is connected to')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
+
+
+class SUBSCRIBER_ROUTING(Base):
+    __tablename__ = 'subscriber_routing'
+    __table_args__ = (
+        # this can be db.PrimaryKeyConstraint if you want it to be a primary key
+        UniqueConstraint('subscriber_id', 'apn_id'),
+    )
+    subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn_id = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the target apn')
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    ip_address = Column(String(254), doc='IP of the UE')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
+
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
