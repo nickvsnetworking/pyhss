@@ -132,6 +132,35 @@ class Milenage(BaseLTEAuthAlgo):
 
         return rand, xres, autn, ck, ik
 
+    def generate_eap_aka_vector(self, key, opc, sqn, plmn):
+        CryptoLogger.debug("Called milenage.generate_eap_aka_vector")
+
+        CryptoLogger.debug("Generating SQN bytes")
+        CryptoLogger.debug("Current SQN value is " + str(sqn) + " and is " + str(len(str(sqn))) + " long")
+        sqn_bytes = bytearray.fromhex('{:012x}'.format(sqn))
+        #With some inputs a space is added here.
+        #See https://stackoverflow.com/questions/57697983/how-do-i-interpret-spaces-in-python-byte-arrays
+        CryptoLogger.debug("Generated SQN bytes")
+        CryptoLogger.debug("SQN bytes is " + str(sqn_bytes))
+
+        CryptoLogger.debug("Generating rand")
+        rand = Milenage.generate_rand()
+        CryptoLogger.debug("Generated rand")
+
+        CryptoLogger.debug("Generating f1")
+        mac_a, _ = Milenage.f1(key, sqn_bytes, rand, opc, self.amf)
+        CryptoLogger.debug("Generated f1")
+
+
+        CryptoLogger.debug("Generating f2")
+        xres, ak = Milenage.f2_f5(key, rand, opc)
+        CryptoLogger.debug("Generated f2")
+
+        CryptoLogger.debug("Generate generate_autn")
+        autn = Milenage.generate_autn(sqn_bytes, ak, mac_a, self.amf)
+
+        return rand, xres, autn, mac_a, ak
+
     def generate_auts(self, key, opc, rand, sqn):
         """
         Compute AUTS for re-synchronization using the formula

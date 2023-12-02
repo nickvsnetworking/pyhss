@@ -66,7 +66,6 @@ def generate_eutran_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Successfully an S6a_crypt.generate_eutran_vector")
     return (rand, xres, autn, kasme)
  
-
 def generate_maa_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Generating Multimedia Authentication Vector")
     key = key.encode('utf-8')
@@ -112,6 +111,31 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
     # print("ik: " + str(ik))
     return (rand, autn, xres, ck, ik)
 
+def generate_eap_aka_vector(key, op_c, amf, sqn, plmn):
+    CryptoLogger.debug("Generating EAP-AKA Vector")
+    key = key.encode('utf-8')
+    CryptoLogger.debug("Input K:  " + str(key))
+    key = binascii.unhexlify(key)
+    
+    op_c = op_c.encode('utf-8')
+    CryptoLogger.debug("Input OPc:  " + str(op_c))
+    op_c = binascii.unhexlify(op_c)
+    
+    amf = str(amf)
+    amf = amf.encode('utf-8')
+    amf = binascii.unhexlify(amf)
+    CryptoLogger.debug("Input AMF: " + str(amf))
+    
+    sqn = int(sqn)
+    CryptoLogger.debug("Input SQN: " + str(sqn))
+
+    plmn = plmn.encode('utf-8')
+    plmn = binascii.unhexlify(plmn)
+    CryptoLogger.debug("Input PLMN: " + str(plmn))
+    
+    crypto_obj = Milenage(amf)
+
+    return crypto_obj.generate_eap_aka_vector(key, op_c, sqn, plmn)
 
 def generate_resync_s6a(key, op_c, amf, auts, rand):
     CryptoLogger.debug("Generating correct SQN value from AUTS")

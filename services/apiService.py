@@ -100,18 +100,23 @@ paginatorParser.add_argument('page_size', type=int, required=False, default=conf
 APN_model = api.schema_model('APN JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(APN)
 )
+
 Serving_APN_model = api.schema_model('Serving APN JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(Serving_APN)
 )
+
 AUC_model = api.schema_model('AUC JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(AUC)
 )
+
 SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER)
 )
+
 SUBSCRIBER_ROUTING_model = api.schema_model('SUBSCRIBER_ROUTING JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER_ROUTING)
 )
+
 
 #Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
 imsSubscriberModel = databaseClient.Generate_JSON_Model_for_Flask(TFT)
@@ -120,18 +125,23 @@ imsSubscriberModel['sh_profile'] = fields.String(required=False, description=IMS
 IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(TFT)
 )
+
 TFT_model = api.schema_model('TFT JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(TFT)
 )
+
 CHARGING_RULE_model = api.schema_model('CHARGING_RULE JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(CHARGING_RULE)
 )
+
 EIR_model = api.schema_model('EIR JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(EIR)
 )
+
 IMSI_IMEI_HISTORY_model = api.schema_model('IMSI_IMEI_HISTORY JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(IMSI_IMEI_HISTORY)
 )
+
 SUBSCRIBER_ATTRIBUTES_model = api.schema_model('SUBSCRIBER_ATTRIBUTES JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER_ATTRIBUTES)
 )
@@ -455,6 +465,40 @@ class PyHSS_AUC_All(Resource):
                     sanitizedData.append(aucRecord)
                 return sanitizedData
             return (data), 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_auc.route('/eap_aka/plmn/<string:plmn>/imsi/<string:imsi>')
+class PyHSS_AUC_Get_EAP_AKA_Vectors(Resource):
+    def get(self, imsi, plmn):
+        '''Get EAP-AKA vectors for specified IMSI and PLMN'''
+        try:
+            #Get data from AuC
+            auc_data = databaseClient.Get_AuC(imsi=imsi)
+            print("Got AuC Data OK - Generating Vectors")
+            plmn = diameterClient.EncodePLMN(mcc=plmn[0:3], mnc=plmn[3:])
+            print("Encoded PLMN into: " + str(plmn))
+            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='eap_aka', plmn=plmn)
+            print("Got Vectors: " + str(vector_dict))
+            return vector_dict, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_auc.route('/aka/vector_count/<string:vector_count>/imsi/<string:imsi>')
+class PyHSS_AUC_Get_AKA_Vectors(Resource):
+    def get(self, imsi, vector_count):
+        '''Get AKA vectors for specified IMSI and PLMN'''
+        try:
+            #Get data from AuC
+            auc_data = databaseClient.Get_AuC(imsi=imsi)
+            print("Got AuC Data OK - Generating " + str(vector_count) + " Vectors")
+            
+            plmn = diameterClient.EncodePLMN(mcc=config['hss']['MCC'], mnc=config['hss']['MNC'])
+            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='2g3g', plmn=plmn, requested_vectors=int(vector_count))
+            print("Got Vectors: " + str(vector_dict))
+            return vector_dict, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
