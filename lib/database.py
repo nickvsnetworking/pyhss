@@ -20,7 +20,193 @@ import yaml
 import json
 import traceback
 
+with open("../config.yaml", 'r') as stream:
+    config = (yaml.safe_load(stream))
+
+
 Base = declarative_base()
+class APN(Base):
+    __tablename__ = 'apn'
+    apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
+    apn = Column(String(50), nullable=False, doc='Short name of the APN')
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    pgw_address = Column(String(50), doc='IP of the PGW')
+    sgw_address = Column(String(50), doc='IP of the SGW')
+    charging_characteristics = Column(String(4), default='0800', doc='For the encoding of this information element see 3GPP TS 32.298 [9]')
+    apn_ambr_dl = Column(Integer, nullable=False, doc='Downlink Maximum Bit Rate for this APN')
+    apn_ambr_ul = Column(Integer, nullable=False, doc='Uplink Maximum Bit Rate for this APN')
+    qci = Column(Integer, default=9, doc='QoS Class Identifier')
+    arp_priority = Column(Integer, default=4, doc='Allocation and Retention Policy - Bearer priority level (1-15)')
+    arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
+    arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
+    charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
+
+class AUC(Base):
+    __tablename__ = 'auc'
+    auc_id = Column(Integer, primary_key = True, doc='Unique ID of AuC entry')
+    ki = Column(String(32), doc='SIM Key - Authentication Key - Ki', nullable=False)
+    opc = Column(String(32), doc='SIM Key - Network Operators key OPc', nullable=False)
+    amf = Column(String(4), doc='Authentication Management Field', nullable=False)
+    sqn = Column(BigInteger, doc='Authentication sequence number')
+    iccid = Column(String(20), unique=True, doc='Integrated Circuit Card Identification Number')
+    imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
+    batch_name = Column(String(20), doc='Name of SIM Batch')
+    sim_vendor = Column(String(20), doc='SIM Vendor')
+    esim = Column(Boolean, default=0, doc='Card is eSIM')
+    lpa = Column(String(128), doc='LPA URL for activating eSIM')
+    pin1 = Column(String(20), doc='PIN1')
+    pin2 = Column(String(20), doc='PIN2')
+    puk1 = Column(String(20), doc='PUK1')
+    puk2 = Column(String(20), doc='PUK2')
+    kid = Column(String(20), doc='KID')
+    psk = Column(String(128), doc='PSK')
+    des = Column(String(128), doc='DES')
+    adm1 = Column(String(20), doc='ADM1')
+    misc1 = Column(String(128), doc='For misc data storage 1')
+    misc2 = Column(String(128), doc='For misc data storage 2')
+    misc3 = Column(String(128), doc='For misc data storage 3')
+    misc4 = Column(String(128), doc='For misc data storage 4')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("AUC_OPERATION_LOG", back_populates="auc")
+    
+class SUBSCRIBER(Base):
+    __tablename__ = 'subscriber'
+    subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of Subscriber entry')
+    imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
+    enabled = Column(Boolean, default=1, doc='Subscriber enabled/disabled')
+    auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data', nullable=False)
+    default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN', nullable=False)
+    apn_list = Column(String(64), doc='Comma separated list of allowed APNs', nullable=False)
+    msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
+    ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
+    ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
+    nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2] - 0 (PACKET_AND_CIRCUIT) or 2 (ONLY_PACKET)')
+    subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
+    serving_mme = Column(String(512), doc='MME serving this subscriber')
+    serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
+    serving_mme_realm = Column(String(512), doc='Realm of serving mme')
+    serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME then ; then the HSS the Diameter peer is connected to')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
+
+
+class SUBSCRIBER_ROUTING(Base):
+    __tablename__ = 'subscriber_routing'
+    __table_args__ = (
+        # this can be db.PrimaryKeyConstraint if you want it to be a primary key
+        UniqueConstraint('subscriber_id', 'apn_id'),
+    )
+    subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn_id = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the target apn')
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    ip_address = Column(String(254), doc='IP of the UE')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
+
+
+class SERVING_APN(Base):
+    __tablename__ = 'serving_apn'
+    serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
+    apn = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the APN served')
+    pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
+    subscriber_routing = Column(String(100), doc='IP Address allocated to the UE')
+    ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
+    serving_pgw = Column(String(512), doc='PGW serving this subscriber')
+    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
+    serving_pgw_realm = Column(String(512), doc='Realm of serving PGW')
+    serving_pgw_peer = Column(String(512), doc='Diameter peer used to reach PGW')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
+
+# Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
+class IMS_SUBSCRIBER(Base):
+    __tablename__ = 'ims_subscriber'
+    ims_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of IMS_Subscriber entry')
+    msisdn = Column(String(18), unique=True, doc=SUBSCRIBER.msisdn.doc)
+    msisdn_list = Column(String(1200), doc='Comma Separated list of additional MSISDNs for Subscriber')
+    imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
+    ifc_path = Column(String(512), doc='Path to template file for the Initial Filter Criteria')
+    pcscf = Column(String(512), doc='Proxy-CSCF serving this subscriber')
+    pcscf_realm = Column(String(512), doc='Realm of PCSCF')
+    pcscf_active_session = Column(String(512), doc='Session Id for the PCSCF when in a call')
+    pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
+    pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF')
+    # Conditional column definition based on the database type
+    if 'mysql' in str(config['database']['db_type']).lower():
+        xcap_profile = Column(Text(12000), doc='XCAP Subscriber Profile')
+        sh_profile = Column(Text(12000), doc='Deprecated - XCAP Subscriber Profile')
+    else:
+        xcap_profile = Column(Text, doc='XCAP Subscriber Profile')
+        sh_profile = Column(Text, doc='Deprecated - XCAP Subscriber Profile')
+    scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
+    scscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to SCSCF')
+    scscf_realm = Column(String(512), doc='Realm of SCSCF')
+    scscf_peer = Column(String(512), doc='Diameter peer used to reach SCSCF')
+    sh_template_path = Column(String(512), doc='Path to template file for the Sh Profile')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
+
+class CHARGING_RULE(Base):
+    __tablename__ = 'charging_rule'
+    charging_rule_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
+    rule_name = Column(String(20), doc='Name of rule pushed to PGW (Short, no special chars)')
+    
+    qci = Column(Integer, default=9, doc=APN.qci.doc)
+    arp_priority = Column(Integer, default=4, doc=APN.arp_priority.doc)
+    arp_preemption_capability = Column(Boolean, default=False, doc=APN.arp_preemption_capability.doc)
+    arp_preemption_vulnerability = Column(Boolean, default=True, doc=APN.arp_preemption_vulnerability.doc)    
+
+    mbr_dl = Column(Integer, nullable=False, doc='Maximum Downlink Bitrate for traffic matching this rule')
+    mbr_ul = Column(Integer, nullable=False, doc='Maximum Uplink Bitrate for traffic matching this rule')
+    gbr_dl = Column(Integer, nullable=False, doc='Guaranteed Downlink Bitrate for traffic matching this rule')
+    gbr_ul = Column(Integer, nullable=False, doc='Guaranteed Uplink Bitrate for traffic matching this rule')    
+    tft_group_id = Column(Integer, doc='Will match any TFTs using this TFT Group to form the TFT list used in the Charging Rule')
+    precedence = Column(Integer, doc='Precedence of this rule, allows rule to override or be overridden by a higher priority rule')
+    rating_group = Column(Integer, doc='Rating Group in OCS / OFCS that traffic matching this rule will be charged under')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("CHARGING_RULE_OPERATION_LOG", back_populates="charging_rule")
+    
+class TFT(Base):
+    __tablename__ = 'tft'
+    tft_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
+    tft_group_id = Column(Integer, nullable=False, doc=CHARGING_RULE.tft_group_id.doc)
+    tft_string = Column(String(100), nullable=False, doc='IPFilterRules as defined in [RFC 6733] taking the format: action dir proto from src to dst')
+    direction = Column(Integer, nullable=False, doc='Traffic Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("TFT_OPERATION_LOG", back_populates="tft")
+
+class EIR(Base):
+    __tablename__ = 'eir'
+    eir_id = Column(Integer, primary_key = True, doc='Unique ID of EIR entry')
+    imei = Column(String(60), doc='Exact IMEI or Regex to match IMEI (Depending on regex_mode value)')
+    imsi = Column(String(60), doc='Exact IMSI or Regex to match IMSI (Depending on regex_mode value)')
+    regex_mode = Column(Integer, default=1, doc='0 - Exact Match mode, 1 - Regex Mode')
+    match_response_code = Column(Integer, doc='0 - Whitelist, 1 - Blacklist, 2 - Greylist')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("EIR_OPERATION_LOG", back_populates="eir")
+
+class IMSI_IMEI_HISTORY(Base):
+    __tablename__ = 'eir_history'
+    imsi_imei_history_id = Column(Integer, primary_key = True, doc='Unique ID of IMSI_IMEI_HISTORY entry')
+    imsi_imei = Column(String(60), unique=True, doc='Combined IMSI + IMEI value')
+    match_response_code = Column(Integer, doc='Response code that was returned')
+    imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("IMSI_IMEI_HISTORY_OPERATION_LOG", back_populates="eir_history")
+
+class SUBSCRIBER_ATTRIBUTES(Base):
+    __tablename__ = 'subscriber_attributes'
+    subscriber_attributes_id = Column(Integer, primary_key = True, doc='Unique ID of Attribute')
+    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
+    key = Column(String(60), doc='Arbitrary key')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    value = Column(String(12000), doc='Arbitrary value')
+    operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
+
 
 class OPERATION_LOG_BASE(Base):
     __tablename__ = 'operation_log'
@@ -89,180 +275,6 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
     subscriber_attributes = relationship("SUBSCRIBER_ATTRIBUTES", back_populates="operation_logs")
     subscriber_attributes_id = Column(Integer, ForeignKey('subscriber_attributes.subscriber_attributes_id'))
 
-class APN(Base):
-    __tablename__ = 'apn'
-    apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
-    apn = Column(String(50), nullable=False, doc='Short name of the APN')
-    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
-    pgw_address = Column(String(50), doc='IP of the PGW')
-    sgw_address = Column(String(50), doc='IP of the SGW')
-    charging_characteristics = Column(String(4), default='0800', doc='For the encoding of this information element see 3GPP TS 32.298 [9]')
-    apn_ambr_dl = Column(Integer, nullable=False, doc='Downlink Maximum Bit Rate for this APN')
-    apn_ambr_ul = Column(Integer, nullable=False, doc='Uplink Maximum Bit Rate for this APN')
-    qci = Column(Integer, default=9, doc='QoS Class Identifier')
-    arp_priority = Column(Integer, default=4, doc='Allocation and Retention Policy - Bearer priority level (1-15)')
-    arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
-    arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
-    charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
-
-class SUBSCRIBER_ROUTING(Base):
-    __tablename__ = 'subscriber_routing'
-    __table_args__ = (
-        # this can be db.PrimaryKeyConstraint if you want it to be a primary key
-        UniqueConstraint('subscriber_id', 'apn_id'),
-    )
-    subscriber_routing_id = Column(Integer, primary_key=True, doc='Unique ID of Subscriber Routing item')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
-    apn_id = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the target apn')
-    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
-    ip_address = Column(String(254), doc='IP of the UE')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
-
-class AUC(Base):
-    __tablename__ = 'auc'
-    auc_id = Column(Integer, primary_key = True, doc='Unique ID of AuC entry')
-    ki = Column(String(32), doc='SIM Key - Authentication Key - Ki', nullable=False)
-    opc = Column(String(32), doc='SIM Key - Network Operators key OPc', nullable=False)
-    amf = Column(String(4), doc='Authentication Management Field', nullable=False)
-    sqn = Column(BigInteger, doc='Authentication sequence number')
-    iccid = Column(String(20), unique=True, doc='Integrated Circuit Card Identification Number')
-    imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
-    batch_name = Column(String(20), doc='Name of SIM Batch')
-    sim_vendor = Column(String(20), doc='SIM Vendor')
-    esim = Column(Boolean, default=0, doc='Card is eSIM')
-    lpa = Column(String(128), doc='LPA URL for activating eSIM')
-    pin1 = Column(String(20), doc='PIN1')
-    pin2 = Column(String(20), doc='PIN2')
-    puk1 = Column(String(20), doc='PUK1')
-    puk2 = Column(String(20), doc='PUK2')
-    kid = Column(String(20), doc='KID')
-    psk = Column(String(128), doc='PSK')
-    des = Column(String(128), doc='DES')
-    adm1 = Column(String(20), doc='ADM1')
-    misc1 = Column(String(128), doc='For misc data storage 1')
-    misc2 = Column(String(128), doc='For misc data storage 2')
-    misc3 = Column(String(128), doc='For misc data storage 3')
-    misc4 = Column(String(128), doc='For misc data storage 4')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("AUC_OPERATION_LOG", back_populates="auc")
-    
-class SUBSCRIBER(Base):
-    __tablename__ = 'subscriber'
-    subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of Subscriber entry')
-    imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
-    enabled = Column(Boolean, default=1, doc='Subscriber enabled/disabled')
-    auc_id = Column(Integer, ForeignKey('auc.auc_id'), doc='Reference to AuC ID defined with SIM Auth data', nullable=False)
-    default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN', nullable=False)
-    apn_list = Column(String(64), doc='Comma separated list of allowed APNs', nullable=False)
-    msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
-    ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
-    ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
-    nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2] - 0 (PACKET_AND_CIRCUIT) or 2 (ONLY_PACKET)')
-    subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
-    serving_mme = Column(String(512), doc='MME serving this subscriber')
-    serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
-    serving_mme_realm = Column(String(512), doc='Realm of serving mme')
-    serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME then ; then the HSS the Diameter peer is connected to')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
-
-class SERVING_APN(Base):
-    __tablename__ = 'serving_apn'
-    serving_apn_id = Column(Integer, primary_key=True, doc='Unique ID of SERVING_APN')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='subscriber_id of the served subscriber')
-    apn = Column(Integer, ForeignKey('apn.apn_id', ondelete='CASCADE'), doc='apn_id of the APN served')
-    pcrf_session_id = Column(String(100), doc='Session ID from the PCRF')
-    subscriber_routing = Column(String(100), doc='IP Address allocated to the UE')
-    ip_version = Column(Integer, default=0, doc=APN.ip_version.doc)
-    serving_pgw = Column(String(512), doc='PGW serving this subscriber')
-    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of attach to PGW')
-    serving_pgw_realm = Column(String(512), doc='Realm of serving PGW')
-    serving_pgw_peer = Column(String(512), doc='Diameter peer used to reach PGW')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("SERVING_APN_OPERATION_LOG", back_populates="serving_apn")
-
-# Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
-class IMS_SUBSCRIBER(Base):
-    __tablename__ = 'ims_subscriber'
-    ims_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of IMS_Subscriber entry')
-    msisdn = Column(String(18), unique=True, doc=SUBSCRIBER.msisdn.doc)
-    msisdn_list = Column(String(1200), doc='Comma Separated list of additional MSISDNs for Subscriber')
-    imsi = Column(String(18), unique=False, doc=SUBSCRIBER.imsi.doc)
-    ifc_path = Column(String(512), doc='Path to template file for the Initial Filter Criteria')
-    pcscf = Column(String(512), doc='Proxy-CSCF serving this subscriber')
-    pcscf_realm = Column(String(512), doc='Realm of PCSCF')
-    pcscf_active_session = Column(String(512), doc='Session Id for the PCSCF when in a call')
-    pcscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to PCSCF')
-    pcscf_peer = Column(String(512), doc='Diameter peer used to reach PCSCF')
-    xcap_profile = Column(Text(12000), doc='XCAP Subscriber Profile')
-    sh_profile = Column(Text(12000), doc='Deprecated - XCAP Subscriber Profile')
-    scscf = Column(String(512), doc='Serving-CSCF serving this subscriber')
-    scscf_timestamp = Column(DateTime, doc='Timestamp of last ue attach to SCSCF')
-    scscf_realm = Column(String(512), doc='Realm of SCSCF')
-    scscf_peer = Column(String(512), doc='Diameter peer used to reach SCSCF')
-    sh_template_path = Column(String(512), doc='Path to template file for the Sh Profile')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
-
-class CHARGING_RULE(Base):
-    __tablename__ = 'charging_rule'
-    charging_rule_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
-    rule_name = Column(String(20), doc='Name of rule pushed to PGW (Short, no special chars)')
-    
-    qci = Column(Integer, default=9, doc=APN.qci.doc)
-    arp_priority = Column(Integer, default=4, doc=APN.arp_priority.doc)
-    arp_preemption_capability = Column(Boolean, default=False, doc=APN.arp_preemption_capability.doc)
-    arp_preemption_vulnerability = Column(Boolean, default=True, doc=APN.arp_preemption_vulnerability.doc)    
-
-    mbr_dl = Column(Integer, nullable=False, doc='Maximum Downlink Bitrate for traffic matching this rule')
-    mbr_ul = Column(Integer, nullable=False, doc='Maximum Uplink Bitrate for traffic matching this rule')
-    gbr_dl = Column(Integer, nullable=False, doc='Guaranteed Downlink Bitrate for traffic matching this rule')
-    gbr_ul = Column(Integer, nullable=False, doc='Guaranteed Uplink Bitrate for traffic matching this rule')    
-    tft_group_id = Column(Integer, doc='Will match any TFTs using this TFT Group to form the TFT list used in the Charging Rule')
-    precedence = Column(Integer, doc='Precedence of this rule, allows rule to override or be overridden by a higher priority rule')
-    rating_group = Column(Integer, doc='Rating Group in OCS / OFCS that traffic matching this rule will be charged under')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("CHARGING_RULE_OPERATION_LOG", back_populates="charging_rule")
-    
-class TFT(Base):
-    __tablename__ = 'tft'
-    tft_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
-    tft_group_id = Column(Integer, nullable=False, doc=CHARGING_RULE.tft_group_id.doc)
-    tft_string = Column(String(100), nullable=False, doc='IPFilterRules as defined in [RFC 6733] taking the format: action dir proto from src to dst')
-    direction = Column(Integer, nullable=False, doc='Traffic Direction: 0- Unspecified, 1 - Downlink, 2 - Uplink, 3 - Bidirectional')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("TFT_OPERATION_LOG", back_populates="tft")
-
-class EIR(Base):
-    __tablename__ = 'eir'
-    eir_id = Column(Integer, primary_key = True, doc='Unique ID of EIR entry')
-    imei = Column(String(60), doc='Exact IMEI or Regex to match IMEI (Depending on regex_mode value)')
-    imsi = Column(String(60), doc='Exact IMSI or Regex to match IMSI (Depending on regex_mode value)')
-    regex_mode = Column(Integer, default=1, doc='0 - Exact Match mode, 1 - Regex Mode')
-    match_response_code = Column(Integer, doc='0 - Whitelist, 1 - Blacklist, 2 - Greylist')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("EIR_OPERATION_LOG", back_populates="eir")
-
-class IMSI_IMEI_HISTORY(Base):
-    __tablename__ = 'eir_history'
-    imsi_imei_history_id = Column(Integer, primary_key = True, doc='Unique ID of IMSI_IMEI_HISTORY entry')
-    imsi_imei = Column(String(60), unique=True, doc='Combined IMSI + IMEI value')
-    match_response_code = Column(Integer, doc='Response code that was returned')
-    imsi_imei_timestamp = Column(DateTime, doc='Timestamp of last match')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("IMSI_IMEI_HISTORY_OPERATION_LOG", back_populates="eir_history")
-
-class SUBSCRIBER_ATTRIBUTES(Base):
-    __tablename__ = 'subscriber_attributes'
-    subscriber_attributes_id = Column(Integer, primary_key = True, doc='Unique ID of Attribute')
-    subscriber_id = Column(Integer, ForeignKey('subscriber.subscriber_id', ondelete='CASCADE'), doc='Reference to Subscriber ID defined within Subscriber Section', nullable=False)
-    key = Column(String(60), doc='Arbitrary key')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    value = Column(String(12000), doc='Arbitrary value')
-    operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
 
 class Database:
 
@@ -281,7 +293,12 @@ class Database:
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
-        db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
+        if str(self.config['database']['db_type']) == 'postgresql':
+            db_string = 'postgresql+psycopg2://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'])
+        else:
+            db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
+
+        
         self.engine = create_engine(
             db_string, 
             echo = self.config['logging'].get('sqlalchemy_sql_echo', True), 
