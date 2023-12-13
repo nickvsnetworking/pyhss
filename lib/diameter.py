@@ -1182,6 +1182,13 @@ class Diameter:
         SupportedFeatures += self.generate_vendor_avp(630, 80, 10415, "1c000607")             #Feature-List Flags
         avp += self.generate_vendor_avp(628, "80", 10415, SupportedFeatures)                  #Supported-Features(628) l=36 f=V-- vnd=TGPP
 
+        # Check if this is an outbound roaming request - if it is, make sure that the UE is allowed to roam.
+        RequestOriginRealm = bytes.fromhex(self.get_avp_data(avps, 296)[0]).decode('utf-8')
+        if RequestOriginRealm != bytes.fromhex(self.OriginRealm).decode('utf-8'):
+            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULA] Update Location Request origin realm doesn't match home origin realm, treating as roaming request", redisClient=self.redisMessaging)
+            #@@ Add logic here to check subscriber's roaming entitlement
+
+
         #APNs from DB
         APN_Configuration = ''
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
@@ -1231,7 +1238,7 @@ class Diameter:
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
         remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
-        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULA] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         self.database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
 

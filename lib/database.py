@@ -83,6 +83,8 @@ class SUBSCRIBER(Base):
     ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
     nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2] - 0 (PACKET_AND_CIRCUIT) or 2 (ONLY_PACKET)')
+    roaming_enabled = Column(Boolean, default=1, doc='Whether or not to enable roaming on this subscriber', nullable=False)
+    roaming_rule_list = Column(String(512), doc='Comma separated list of roaming rules applicable to this subscriber', nullable=False)
     subscribed_rau_tau_timer = Column(Integer, default=300, doc='Subscribed periodic TAU/RAU timer value in seconds')
     serving_mme = Column(String(512), doc='MME serving this subscriber')
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
@@ -150,6 +152,24 @@ class IMS_SUBSCRIBER(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
+class ROAMING_RULE(Base):
+    __tablename__ = 'roaming_rule'
+    roaming_rule_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_RULE entry')
+    roaming_network_id = Column(Integer, ForeignKey('roaming_network.roaming_network_id', ondelete='CASCADE'), doc='ID of the roaming network to apply the rule for')
+    enabled = Column(Boolean, default=1, doc='Whether the rule is enabled')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("ROAMING_RULE_OPERATION_LOG", back_populates="roaming_rule")
+
+class ROAMING_NETWORK(Base):
+    __tablename__ = 'roaming_network'
+    roaming_network_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_NETWORK entry')
+    name = Column(String(512), doc='Name of the roaming network')
+    preference = Column(Integer, default=1, doc='Preference of the network. Lower numbers are chosen first.')
+    mcc = Column(String(100), doc='MCC to apply the roaming rule for')
+    mnc = Column(String(100), doc='3 digit MNC to apply the roaming rule for')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("ROAMING_NETWORK_OPERATION_LOG", back_populates="roaming_network")
+
 class CHARGING_RULE(Base):
     __tablename__ = 'charging_rule'
     charging_rule_id = Column(Integer, primary_key = True, doc='Unique ID of CHARGING_RULE entry')
@@ -207,7 +227,6 @@ class SUBSCRIBER_ATTRIBUTES(Base):
     value = Column(String(12000), doc='Arbitrary value')
     operation_logs = relationship("SUBSCRIBER_ATTRIBUTES_OPERATION_LOG", back_populates="subscriber_attributes")
 
-
 class OPERATION_LOG_BASE(Base):
     __tablename__ = 'operation_log'
     id = Column(Integer, primary_key=True)
@@ -249,6 +268,16 @@ class IMS_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'ims_subscriber'}
     ims_subscriber = relationship("IMS_SUBSCRIBER", back_populates="operation_logs")
     ims_subscriber_id = Column(Integer, ForeignKey('ims_subscriber.ims_subscriber_id'))
+
+class ROAMING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'roaming_rule'}
+    roaming_rule = relationship("ROAMING_RULE", back_populates="operation_logs")
+    roaming_rule_id = Column(Integer, ForeignKey('roaming_rule.roaming_rule_id'))
+
+class ROAMING_NETWORK_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'roaming_network'}
+    roaming_network = relationship("ROAMING_NETWORK", back_populates="operation_logs")
+    roaming_network_id = Column(Integer, ForeignKey('roaming_network.roaming_network_id'))
 
 class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
