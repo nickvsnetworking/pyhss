@@ -29,7 +29,7 @@ class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
     apn = Column(String(50), nullable=False, doc='Short name of the APN')
-    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 [3GPP TS 29.272 7.3.62]")
+    ip_version = Column(Integer, default=0, doc="IP version used - 0: ipv4, 1: ipv6 2: ipv4+6 3: ipv4 or ipv6 4:  [3GPP TS 29.272 7.3.62]")
     pgw_address = Column(String(50), doc='IP of the PGW')
     sgw_address = Column(String(50), doc='IP of the SGW')
     charging_characteristics = Column(String(4), default='0800', doc='For the encoding of this information element see 3GPP TS 32.298 [9]')
@@ -40,6 +40,11 @@ class APN(Base):
     arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
+    nidd_scef_id = Column(String(100), default=None, doc="ID of SCEF to be used for NIDD for NB-IoT")
+    nidd_scef_realm = Column(String(100), default=None, doc='Realm of the SCEF for NIDD for NB-IoT')
+    nidd_mechanism = Column(Integer, default=None, doc="Mechanism used to transfer Non-IP-Data: SGi-BASED-DATA-DELIVERY (0) or SCEF-BASED-DATA-DELIVERY (1)")
+    nidd_rds = Column(Integer, default=None, doc="Indicates if Reliable Data Service is enabled or disabled for this APN: DISABLED (0) or ENABLED (1)")
+    nidd_preferred_data_mode = Column(Integer, default=None, doc="Preferred-Data-Mode: Data over User Plane Preferred (0) or Data over Control Plane Preferred (1)")
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("APN_OPERATION_LOG", back_populates="apn")
 
