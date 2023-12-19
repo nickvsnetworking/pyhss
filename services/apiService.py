@@ -67,6 +67,8 @@ IMSI_IMEI_HISTORY = database.IMSI_IMEI_HISTORY
 SUBSCRIBER_ATTRIBUTES = database.SUBSCRIBER_ATTRIBUTES
 OPERATION_LOG = database.OPERATION_LOG_BASE
 SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
+ROAMING_NETWORK = database.ROAMING_NETWORK
+ROAMING_RULE = database.ROAMING_RULE
 
 apiService.wsgi_app = ProxyFix(apiService.wsgi_app)
 api = Api(apiService, version='1.0', title=f'{siteName + " - " if siteName else ""}{originHostname} - PyHSS OAM API',
@@ -88,6 +90,7 @@ ns_oam = api.namespace('oam', description='PyHSS OAM Functions')
 ns_pcrf = api.namespace('pcrf', description='PyHSS PCRF Dynamic Functions')
 ns_geored = api.namespace('geored', description='PyHSS GeoRedundancy Functions')
 ns_push = api.namespace('push', description='PyHSS Push Async Diameter Command')
+ns_roaming = api.namespace('roaming', description='PyHSS Roaming Functions')
 
 parser = reqparse.RequestParser()
 parser.add_argument('APN JSON', type=str, help='APN Body')
@@ -115,6 +118,14 @@ SUBSCRIBER_model = api.schema_model('SUBSCRIBER JSON',
 
 SUBSCRIBER_ROUTING_model = api.schema_model('SUBSCRIBER_ROUTING JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(SUBSCRIBER_ROUTING)
+)
+
+ROAMING_NETWORK_model = api.schema_model('ROAMING_NETWORK JSON', 
+    databaseClient.Generate_JSON_Model_for_Flask(ROAMING_NETWORK)
+)
+
+ROAMING_RULE_model = api.schema_model('ROAMING_RULE JSON', 
+    databaseClient.Generate_JSON_Model_for_Flask(ROAMING_RULE)
 )
 
 
@@ -768,6 +779,87 @@ class PyHSS_IMS_Subscriber_All(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E), 400
+
+
+@ns_roaming.route('/rule/<string:roaming_rule_id>')
+class PyHSS_ROAMING_RULE_Get(Resource):
+    def get(self, roaming_rule_id):
+        '''Get all data for specified roaming_rule_id'''
+        try:
+            apn_data = databaseClient.GetObj(ROAMING_RULE, roaming_rule_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    def delete(self, roaming_rule_id):
+        '''Delete all data for specified roaming_rule_id'''
+        try:
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.DeleteObj(ROAMING_RULE, roaming_rule_id, False, operation_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    @ns_roaming.doc('Update ROAMING_RULE Object')
+    @ns_roaming.expect(ROAMING_RULE_model)
+    def patch(self, roaming_rule_id):
+        '''Update data for specified roaming_rule_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.UpdateObj(ROAMING_RULE, json_data, roaming_rule_id, False, operation_id)
+
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_roaming.route('/network/<string:roaming_network_id>')
+class PyHSS_ROAMING_NETWORK_Get(Resource):
+    def get(self, roaming_network_id):
+        '''Get all data for specified roaming_network_id'''
+        try:
+            apn_data = databaseClient.GetObj(ROAMING_NETWORK, roaming_network_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    def delete(self, roaming_network_id):
+        '''Delete all data for specified roaming_network_id'''
+        try:
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.DeleteObj(ROAMING_NETWORK, roaming_network_id, False, operation_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    @ns_roaming.doc('Update ROAMING_NETWORK Object')
+    @ns_roaming.expect(ROAMING_NETWORK_model)
+    def patch(self, roaming_network_id):
+        '''Update data for specified roaming_network_id'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.UpdateObj(ROAMING_NETWORK, json_data, roaming_network_id, False, operation_id)
+
+            print("Updated object")
+            print(data)
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
 
 @ns_tft.route('/<string:tft_id>')
 class PyHSS_TFT_Get(Resource):
