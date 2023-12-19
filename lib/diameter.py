@@ -1291,48 +1291,53 @@ class Diameter:
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(int(apn_data['ip_version']), 4))
+            NIDD_Parameters = ''
             
-            #If int(apn_data['ip_version']) == 4 (Non-IP) then this is NB-IoT and we need to add the NB-IoT specific parameters
-            if int(apn_data['ip_version']) == 4:
-                NIDD_Parameters = ''
-
-                #Add Non-IP-PDN-Type-Indicator
-                NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1681, "c0", 10415, self.int_to_hex(1), 4)
-
-                #Add SCEF ID
-                try:
-                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(3125, "c0", 10415, self.string_to_hex(str(apn_data['nidd_scef_id'])))
-                except: 
-                    pass
-
-                #Add SCEF Realm
-                try:
-                    #Check SCEF Realm is not empty
-                    if apn_data['nidd_scef_realm'] != '':
-                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1684, "c0", 10415, self.string_to_hex(str(apn_data['nidd_scef_realm'])))
-                except:
-                    pass
-
-                #Add Reliable Data Indicator
-                try:
-                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1697, "c0", 10415, self.int_to_hex(int(apn_data['nidd_rds']), 4))
-                except:
-                    pass
-
-                #Add Preferred Data Mode
-                try:
-                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1686, "c0", 10415, self.int_to_hex(int(apn_data['nidd_preferred_data_mode']), 4))
-                except:
-                    pass
-
-                #Add Non-IP-Data-Delivery-Mechanism
-                try:
-                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1682, "c0", 10415, self.int_to_hex(int(apn_data['nidd_mechanism']), 4))
-                except:
-                    pass
-
-            else:
-                NIDD_Parameters = ''
+            try:
+                nbIotEnabled = apn_data.get('nbiot', False)
+                #If int(apn_data['ip_version']) == 4 (Non-IP) then this is NB-IoT and we need to add the NB-IoT specific parameters
+                if nbIotEnabled and int(apn_data['ip_version']) == 4:
+    
+                    #Add Non-IP-PDN-Type-Indicator
+                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1681, "c0", 10415, self.int_to_hex(1), 4)
+    
+                    #Add SCEF ID
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(3125, "c0", 10415, self.string_to_hex(str(apn_data['nidd_scef_id'])))
+                    except: 
+                        pass
+    
+                    #Add SCEF Realm
+                    try:
+                        #Check SCEF Realm is not empty
+                        if apn_data['nidd_scef_realm'] != '':
+                            NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1684, "c0", 10415, self.string_to_hex(str(apn_data['nidd_scef_realm'])))
+                    except:
+                        pass
+    
+                    #Add Reliable Data Indicator
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1697, "c0", 10415, self.int_to_hex(int(apn_data['nidd_rds']), 4))
+                    except:
+                        pass
+    
+                    #Add Preferred Data Mode
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1686, "c0", 10415, self.int_to_hex(int(apn_data['nidd_preferred_data_mode']), 4))
+                    except:
+                        pass
+    
+                    #Add Non-IP-Data-Delivery-Mechanism
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1682, "c0", 10415, self.int_to_hex(int(apn_data['nidd_mechanism']), 4))
+                    except:
+                        pass
+    
+                else:
+                    NIDD_Parameters = ''
+                    
+            except Exception as e:
+                self.logTool.log(service='HSS', level='error', message=f"Error preparing NIDD parameters: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
             self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
             #AMBR
