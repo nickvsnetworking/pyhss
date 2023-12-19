@@ -40,6 +40,7 @@ class APN(Base):
     arp_preemption_capability = Column(Boolean, default=False, doc='Allocation and Retention Policy - Capability to Preempt resources from other Subscribers')
     arp_preemption_vulnerability = Column(Boolean, default=True, doc='Allocation and Retention Policy - Vulnerability to have resources Preempted by other Subscribers')
     charging_rule_list = Column(String(18), doc='Comma separated list of predefined ChargingRules to be installed in CCA-I')
+    nbiot = Column(Boolean, default=0, doc="Whether this APN provides NBIoT")
     nidd_scef_id = Column(String(512), default=None, doc="ID of SCEF to be used for NIDD for NB-IoT")
     nidd_scef_realm = Column(String(512), default=None, doc='Realm of the SCEF for NIDD for NB-IoT')
     nidd_mechanism = Column(Integer, default=None, doc="Mechanism used to transfer Non-IP-Data: SGi-BASED-DATA-DELIVERY (0) or SCEF-BASED-DATA-DELIVERY (1)")
