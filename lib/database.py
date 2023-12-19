@@ -156,6 +156,7 @@ class ROAMING_RULE(Base):
     __tablename__ = 'roaming_rule'
     roaming_rule_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_RULE entry')
     roaming_network_id = Column(Integer, ForeignKey('roaming_network.roaming_network_id', ondelete='CASCADE'), doc='ID of the roaming network to apply the rule for')
+    allow = Column(Boolean, default=1, doc='Whether to allow outbound roaming on the network')
     enabled = Column(Boolean, default=1, doc='Whether the rule is enabled')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("ROAMING_RULE_OPERATION_LOG", back_populates="roaming_rule")

@@ -65,6 +65,12 @@ hss:
   scscf_pool:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
 
+  roaming:
+    outbound:
+      # Whether or not to a subscriber to connect to an undefined network when outbound roaming.
+      allow_undefined_networks: True
+
+
 api:
   page_size: 200
   # Whether or not to return key-based data when querying the AUC. Disable in production systems.
