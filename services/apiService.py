@@ -780,6 +780,36 @@ class PyHSS_IMS_Subscriber_All(Resource):
             print(E)
             return handle_exception(E), 400
 
+@ns_roaming.route('/rule/')
+class PyHSS_ROAMING_RULE(Resource):
+    @ns_roaming.doc('Create Roaming Rule')
+    @ns_roaming.expect(ROAMING_RULE_model)
+    def put(self):
+        '''Create new Roaming Rule'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.CreateObj(ROAMING_RULE, json_data, False, operation_id)
+
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_roaming.route('/rule/list')
+class PyHSS_ROAMING_RULE_All(Resource):
+    @ns_tft.expect(paginatorParser)
+    def get(self):
+        '''Get all roaming rules'''
+        try:
+            args = paginatorParser.parse_args()
+            data = databaseClient.getAllPaginated(ROAMING_RULE, args['page'], args['page_size'])
+            return (data), 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
 
 @ns_roaming.route('/rule/<string:roaming_rule_id>')
 class PyHSS_ROAMING_RULE_Get(Resource):
@@ -817,6 +847,37 @@ class PyHSS_ROAMING_RULE_Get(Resource):
             print("Updated object")
             print(data)
             return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+        
+@ns_roaming.route('/network/')
+class PyHSS_ROAMING_NETWORK(Resource):
+    @ns_roaming.doc('Create Roaming Network')
+    @ns_roaming.expect(ROAMING_NETWORK_model)
+    def put(self):
+        '''Create new Roaming Network'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.CreateObj(ROAMING_NETWORK, json_data, False, operation_id)
+
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_roaming.route('/network/list')
+class PyHSS_ROAMING_NETWORK_All(Resource):
+    @ns_tft.expect(paginatorParser)
+    def get(self):
+        '''Get all roaming networks'''
+        try:
+            args = paginatorParser.parse_args()
+            data = databaseClient.getAllPaginated(ROAMING_NETWORK, args['page'], args['page_size'])
+            return (data), 200
         except Exception as E:
             print(E)
             return handle_exception(E)
