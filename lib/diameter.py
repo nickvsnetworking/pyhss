@@ -2369,9 +2369,30 @@ class Diameter:
                     msisdn = imsSubscriberDetails.get('msisdn', None)
                 except Exception as e:
                     pass
+                if identifier == None:
+                    try:
+                        ueIP = subscriptionId.split('@')[1].split(':')[0]
+                        ue = self.database.Get_UE_by_IP(ueIP)
+                        subId = ue.get('subscriber_id', None)
+                        subscriberDetails = self.database.Get_Subscriber(subscriber_id=subId)
+                        imsi = subscriberDetails.get('imsi', None)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
+                    except Exception as e:
+                        pass
             else:
                 imsi = None
                 msisdn = None
+                try:
+                    ueIP = subscriptionId.split(':')[0]
+                    ue = self.database.Get_UE_by_IP(ueIP)
+                    subId = ue.get('subscriber_id', None)
+                    subscriberDetails = self.database.Get_Subscriber(subscriber_id=subId)
+                    imsi = subscriberDetails.get('imsi', None)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
+                except Exception as e:
+                    pass
+
+
             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
 
@@ -2473,6 +2494,18 @@ class Diameter:
                             "direction": 2,
                             "tft_id": 2,
                             "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            },
+                            {
+                            "tft_group_id": 1,
+                            "direction": 1,
+                            "tft_id": 3,
+                            "tft_string": "permit out 17 from any to {{ UE_IP }} 1-65535"
+                            },
+                            {
+                            "tft_group_id": 1,
+                            "direction": 2,
+                            "tft_id": 4,
+                            "tft_string": "permit out 17 from any to {{ UE_IP }} 1-65535"
                             }
                         ]
                         }
