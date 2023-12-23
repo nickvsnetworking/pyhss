@@ -14,7 +14,7 @@ This includes support for acting as:
  - Generate BSF Credentials
  - Gateway Mobile Location Centre 
 
-Supported database backends include `MySQL`, `Postgresql`, `SQLite`, `Orcale`, `MS-SQL` and more, all provisioned through a Swagger based [RESTful API](docs/api.md) for easy, safe CRUD operations on the subscriber data.
+Supported database backends include `MySQL`, `Postgresql`, `SQLite`, `Orcale`, `MS-SQL` and more, all provisioned through a Swagger based [RESTful API](docs/API.md) for easy, safe CRUD operations on the subscriber data.
 
 The software supports full monitoring through `Prometheus`, and has been tested to over 1m subscribers.
 
