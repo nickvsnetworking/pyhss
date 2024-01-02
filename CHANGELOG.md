@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sh-IMS-Data and IMSPrivateUserIdentity to default_sh_user_data.xml
 - Optional config parameter `api.enable_insecure_auc` to allow retrieval of AuC keys through API
 - sh_template_path in ims_subscriber
+- generateUpgade.sh for generating alembic upgrade scripts
+- Control of outbound roaming S6a AIR and ULA responses through roaming_rule and roaming_network objects.
+- Roaming management on a per-subscriber basis, through subscriber.roaming_enabled and subscriber.roaming_rule_list.
 
 ## [1.0.0] - 2023-09-27
 

@@ -950,6 +950,66 @@ class Diameter:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [deregisterIms] Error deregistering subscriber from IMS: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return False
 
+
+    def validateOutboundRoamingNetwork(self, assignedRoamingRules: str, mcc: str, mnc: str) -> bool:
+        """
+        Ensures that a given PLMN is allowed for outbound roaming.
+        """
+
+        allowUndefinedNetworks = self.config.get('roaming', {}).get('outbound', {}).get('allow_undefined_networks', True)
+        roamingRules = self.database.GetAll(self.database.ROAMING_RULE)
+        subscriberRoamingRules = assignedRoamingRules.split(',')
+
+        """
+        Iterate over every roaming rule, and it's reference roaming network.
+        If the network that it refers to matches the supplied mcc and mnc to this function,
+        then apply the rule action (allow/deny).
+        """
+
+
+        for subscriberRoamingRule in subscriberRoamingRules:
+            for roamingRule in roamingRules:
+                if roamingRule.get('roaming_rule_id') != subscriberRoamingRule:
+                    continue
+                roamingNetworkId = roamingRule.get('roaming_network_id')
+                roamingNetworks = self.database.GetObj(self.database.ROAMING_NETWORK, roamingNetworkId)
+                allowNetwork = roamingRule.get('allow', True)
+                for roamingNetwork in roamingNetworks:
+                    if str(roamingNetwork.get('mcc')) == mcc and str(roamingNetwork.get('mnc') == mnc):
+                        if allowNetwork:
+                            return True
+                        else:
+                            return False
+        
+        """
+        By this point we haven't matched on any rules.
+        If we're allowing undefined networks,
+        return True, otherwise return False.
+        """
+        if allowUndefinedNetworks:
+            return True
+        else:
+            return False
+    
+    def validateSubscriberRoaming(self, subscriber: dict, mcc: str, mnc: str) -> bool:
+        """
+        Ensures that a given subscriber is allowed to roam to the provided PLMN.
+        Checks if a subscriber has roaming_enabled set in the subscriber object, and then evaluates the assigned roaming rules (if any).
+        """
+
+        roamingEnabled = subscriber.get('roaming_enabled', True)
+        if not roamingEnabled:
+            return False
+        
+        assignedRoamingRules = subscriber.get('roaming_rule_list', "")
+
+        outboundNetworkAllowed = self.validateOutboundRoamingNetwork(assignedRoamingRules=assignedRoamingRules, mcc=mcc, mnc=mnc)
+        if not outboundNetworkAllowed:
+            return False
+        
+        return True
+
+
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
             if avp_dicts['avp_code'] == 278:
@@ -1217,6 +1277,41 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             raise
 
+        try:
+            plmn = self.get_avp_data(avps, 1407)[0]                                                          #Visited-PLMN-ID
+            decodedPlmn = self.DecodePLMN(plmn=plmn)
+            mcc = decodedPlmn[0]
+            mnc = decodedPlmn[1]
+            if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
+                subscriberIsRoaming = True
+            
+            if subscriberIsRoaming:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
+                subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
+
+            if not subscriberRoamingAllowed:
+                avp = ''
+                session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+                avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+                avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+                avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+
+                #Experimental Result AVP(Parent AVP for Roaming Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5004, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_ROAMING_NOT_ALLOWED (5004)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                
+                avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+                avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+                response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                return response
+            
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} passed roaming validation for {decodedPlmn}", redisClient=self.redisMessaging)
+            
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777251_318] [AIA] Error when validating subscriber roaming: {traceback.format_exc()}", redisClient=self.redisMessaging)
+
         #Store MME Location into Database
         OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
         OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
@@ -1231,7 +1326,7 @@ class Diameter:
         except:     #If we don't have a record-route set, we'll send the response to the OriginHost
             remote_peer = OriginHost
         remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
-        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULR] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777251_316] [ULA] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
 
         self.database.Update_Serving_MME(imsi=imsi, serving_mme=OriginHost, serving_mme_peer=remote_peer, serving_mme_realm=OriginRealm)
 
@@ -1291,7 +1386,54 @@ class Diameter:
             #Sub AVPs of APN Configuration Profile
             APN_context_identifer = self.generate_vendor_avp(1423, "c0", 10415, self.int_to_hex(APN_context_identifer_count, 4))
             APN_PDN_type = self.generate_vendor_avp(1456, "c0", 10415, self.int_to_hex(int(apn_data['ip_version']), 4))
+            NIDD_Parameters = ''
             
+            try:
+                nbIotEnabled = apn_data.get('nbiot', False)
+                #If int(apn_data['ip_version']) == 4 (Non-IP) then this is NB-IoT and we need to add the NB-IoT specific parameters
+                if nbIotEnabled and int(apn_data['ip_version']) == 4:
+    
+                    #Add Non-IP-PDN-Type-Indicator
+                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1681, "c0", 10415, self.int_to_hex(1), 4)
+    
+                    #Add SCEF ID
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(3125, "c0", 10415, self.string_to_hex(str(apn_data['nidd_scef_id'])))
+                    except: 
+                        pass
+    
+                    #Add SCEF Realm
+                    try:
+                        #Check SCEF Realm is not empty
+                        if apn_data['nidd_scef_realm'] != '':
+                            NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1684, "c0", 10415, self.string_to_hex(str(apn_data['nidd_scef_realm'])))
+                    except:
+                        pass
+    
+                    #Add Reliable Data Indicator
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1697, "c0", 10415, self.int_to_hex(int(apn_data['nidd_rds']), 4))
+                    except:
+                        pass
+    
+                    #Add Preferred Data Mode
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1686, "c0", 10415, self.int_to_hex(int(apn_data['nidd_preferred_data_mode']), 4))
+                    except:
+                        pass
+    
+                    #Add Non-IP-Data-Delivery-Mechanism
+                    try:
+                        NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1682, "c0", 10415, self.int_to_hex(int(apn_data['nidd_mechanism']), 4))
+                    except:
+                        pass
+    
+                else:
+                    NIDD_Parameters = ''
+                    
+            except Exception as e:
+                self.logTool.log(service='HSS', level='error', message=f"Error preparing NIDD parameters: {traceback.format_exc()}", redisClient=self.redisMessaging)
+
             self.logTool.log(service='HSS', level='debug', message="Setting APN AMBR", redisClient=self.redisMessaging)
             #AMBR
             AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
@@ -1345,7 +1487,7 @@ class Diameter:
                 MIP6_Agent_Info = ''
 
             APN_Configuration_AVPS = APN_context_identifer + APN_PDN_type + APN_AMBR + APN_Service_Selection \
-                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info + PDN_GW_Allocation_Type + VPLMN_Dynamic_Address_Allowed
+                + APN_EPS_Subscribed_QoS_Profile + Served_Party_Address + MIP6_Agent_Info + PDN_GW_Allocation_Type + VPLMN_Dynamic_Address_Allowed + NIDD_Parameters
             
             APN_Configuration += self.generate_vendor_avp(1430, "c0", 10415, APN_Configuration_AVPS)
             
@@ -1462,7 +1604,41 @@ class Diameter:
             message = template.format(type(ex).__name__, ex.args)
             raise
 
+        try:
+            decodedPlmn = self.DecodePLMN(plmn=plmn)
+            mcc = decodedPlmn[0]
+            mnc = decodedPlmn[1]
+            if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
+                subscriberIsRoaming = True
             
+            if subscriberIsRoaming:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
+                subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
+
+            if not subscriberRoamingAllowed:
+                avp = ''
+                session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+                avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+                avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+                avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+
+                #Experimental Result AVP(Parent AVP for Roaming Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5004, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_ROAMING_NOT_ALLOWED (5004)
+                avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
+                
+                avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
+                avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
+                response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                return response
+            
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} passed roaming validation for {decodedPlmn}", redisClient=self.redisMessaging)
+            
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777251_318] [AIA] Error when validating subscriber roaming: {traceback.format_exc()}", redisClient=self.redisMessaging)
+
+
         try:
             requested_vectors = 1
             EUTRAN_Authentication_Info = self.get_avp_data(avps, 1408)
