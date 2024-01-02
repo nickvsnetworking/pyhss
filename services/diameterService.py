@@ -117,13 +117,13 @@ class DiameterService:
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterRequests} inbound diameter messages in the last {self.benchmarkingInterval} second(s)"))
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterResponses} outbound in the last {self.benchmarkingInterval} second(s)"))
             await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count',
-                                            metricType='gauge', metricAction='set', 
+                                            metricType='gauge', metricAction='inc', 
                                             metricValue=float(self.diameterRequests),
                                             metricLabels={'benchmark_interval': self.benchmarkingInterval},
                                             metricHelp='Number of Diameter Requests Received',
                                             metricExpiry=60))
             await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count',
-                                            metricType='gauge', metricAction='set',
+                                            metricType='gauge', metricAction='inc',
                                             metricLabels={'benchmark_interval': self.benchmarkingInterval},
                                             metricValue=float(self.diameterResponses), metricHelp='Number of Diameter Responses Sent',
                                             metricExpiry=60))

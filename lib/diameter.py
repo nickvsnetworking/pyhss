@@ -772,12 +772,20 @@ class Diameter:
 
                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_successful',
                                     metricType='counter', metricAction='inc', 
+                                    metricLabels={
+                                        "diameter_application_id": packet_vars["ApplicationId"],
+                                        "diameter_cmd_code": packet_vars["command_code"],
+                                    },
                                     metricValue=1.0, metricHelp='Number of Successful Diameter Responses',
                                     metricExpiry=60)
                 return response
             except Exception as e:
                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_fail',
-                                                metricType='counter', metricAction='inc', 
+                                                metricType='counter', metricAction='inc',
+                                                metricLabels={
+                                                    "diameter_application_id": packet_vars["ApplicationId"],
+                                                    "diameter_cmd_code": packet_vars["command_code"],
+                                                },
                                                 metricValue=1.0, metricHelp='Number of Failed Diameter Responses',
                                                 metricExpiry=60)
                 return ''
