@@ -1282,6 +1282,7 @@ class Diameter:
             decodedPlmn = self.DecodePLMN(plmn=plmn)
             mcc = decodedPlmn[0]
             mnc = decodedPlmn[1]
+            subscriberIsRoaming = False
             if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
                 subscriberIsRoaming = True
             
