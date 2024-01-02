@@ -14,7 +14,7 @@ This includes support for acting as:
  - Generate BSF Credentials
  - Gateway Mobile Location Centre 
 
-Supported database backends include `MySQL`, `Postgresql`, `SQLite`, `Orcale`, `MS-SQL` and more, all provisioned through a Swagger based [RESTful API](docs/api.md) for easy, safe CRUD operations on the subscriber data.
+Supported database backends include `MySQL`, `Postgresql`, `SQLite`, `Orcale`, `MS-SQL` and more, all provisioned through a Swagger based [RESTful API](docs/API.md) for easy, safe CRUD operations on the subscriber data.
 
 The software supports full monitoring through `Prometheus`, and has been tested to over 1m subscribers.
 
@@ -68,7 +68,7 @@ The following services make up PyHSS:
 
 Subscriber data (IMSI, APN Profiles & Crypto values for each subscriber) are stored in a SQL backend, (See [databases](docs/databases.md) for more info) which can be interfaced with a number of different ways.
 
-The [RESTful API](docs/api.md) allows for easy, safe CRUD operations on the subscriber data.
+The [RESTful API](docs/API.md) allows for easy, safe CRUD operations on the subscriber data.
 
 If REST isn't your jam and you instead want to interact directly with Python, `database.py` can be imported into your project and contains all the same hooks as the API.
 
