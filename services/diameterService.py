@@ -31,6 +31,7 @@ class DiameterService:
         self.redisReaderMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisWriterMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisPeerMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.redisMetricMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.banners = Banners()
         self.logTool = LogTool(config=self.config)
         self.diameterLibrary = DiameterAsync(logTool=self.logTool)
@@ -115,6 +116,14 @@ class DiameterService:
         while True:
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterRequests} inbound diameter messages in the last {self.benchmarkingInterval} second(s)"))
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterResponses} outbound in the last {self.benchmarkingInterval} second(s)"))
+            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=float(self.diameterRequests), metricHelp='Number of Diameter Requests Received',
+                                            metricExpiry=60))
+            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count',
+                                            metricType='counter', metricAction='inc', 
+                                            metricValue=float(self.diameterResponses), metricHelp='Number of Diameter Responses Sent',
+                                            metricExpiry=60))
             self.diameterRequests = 0
             self.diameterResponses = 0
             await(asyncio.sleep(benchmarkInterval))
