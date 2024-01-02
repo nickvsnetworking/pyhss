@@ -1283,6 +1283,7 @@ class Diameter:
             mcc = decodedPlmn[0]
             mnc = decodedPlmn[1]
             subscriberIsRoaming = False
+            subscriberRoamingAllowed = False 
             if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
                 subscriberIsRoaming = True
             
@@ -1290,7 +1291,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
                 subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
 
-            if not subscriberRoamingAllowed:
+            if not subscriberRoamingAllowed and subscriberIsRoaming:
                 avp = ''
                 session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
                 avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -1609,6 +1610,9 @@ class Diameter:
             decodedPlmn = self.DecodePLMN(plmn=plmn)
             mcc = decodedPlmn[0]
             mnc = decodedPlmn[1]
+            subscriberIsRoaming=False
+            subscriberRoamingAllowed=False
+
             if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
                 subscriberIsRoaming = True
             
@@ -1616,7 +1620,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
                 subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
 
-            if not subscriberRoamingAllowed:
+            if not subscriberRoamingAllowed and subscriberIsRoaming:
                 avp = ''
                 session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
                 avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
