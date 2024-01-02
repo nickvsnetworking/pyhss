@@ -60,11 +60,11 @@ class HssService:
                         diameterPeers = json.loads(self.redisMessaging.getValue("ActiveDiameterPeers"))
 
                         for diameterPeer in diameterPeers:
-                            if diameterPeer.get('ipAddress', '') == inboundHost and str(diameterPeer.get('port', '')) == str(inboundPort):
+                            if diameterPeers[diameterPeer].get('ipAddress', '') == inboundHost and diameterPeers[diameterPeer].get('port', '') == inboundPort:
                                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count_host',
                                             metricType='gauge', metricAction='inc',
                                             metricLabels={
-                                            "host": diameterPeer['diameterHostname']},
+                                            "host": diameterPeers[diameterPeer]['diameterHostname']},
                                             metricValue=float(1), metricHelp='Number of Diameter Requests Recieved per Host',
                                             metricExpiry=60)
 
@@ -109,11 +109,11 @@ class HssService:
                         diameterPeers = json.loads(self.redisMessaging.getValue("ActiveDiameterPeers"))
 
                         for diameterPeer in diameterPeers:
-                            if diameterPeer.get('ipAddress', '') == inboundHost and str(diameterPeer.get('port', '')) == str(inboundPort):
+                            if diameterPeers[diameterPeer].get('ipAddress', '') == inboundHost and diameterPeers[diameterPeer].get('port', '') == inboundPort:
                                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_host',
                                             metricType='gauge', metricAction='inc',
                                             metricLabels={
-                                            "host": diameterPeer['diameterHostname']},
+                                            "host": diameterPeers[diameterPeer]['diameterHostname']},
                                             metricValue=float(1), metricHelp='Number of Diameter Responses Sent per Host',
                                             metricExpiry=60)
 
