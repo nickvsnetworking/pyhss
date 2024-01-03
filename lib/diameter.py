@@ -779,7 +779,7 @@ class Diameter:
                     except Exception as e:
                         continue
 
-                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_successful',
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_application_id_successful',
                                     metricType='counter', metricAction='inc', 
                                     metricLabels={
                                         "diameter_application_id": packet_vars["ApplicationId"],
@@ -789,7 +789,7 @@ class Diameter:
                                     metricExpiry=60)
                 return response
             except Exception as e:
-                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_fail',
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_application_id_fail',
                                                 metricType='counter', metricAction='inc',
                                                 metricLabels={
                                                     "diameter_application_id": packet_vars["ApplicationId"],
