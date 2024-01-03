@@ -757,6 +757,15 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=packet_vars, redisClient=self.redisMessaging)
                     return
                 
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count_application_id',
+                    metricType='counter', metricAction='inc', 
+                    metricLabels={
+                        "diameter_application_id": packet_vars["ApplicationId"],
+                        "diameter_cmd_code": packet_vars["command_code"],
+                    },
+                    metricValue=1.0, metricHelp='Number of Diameter Requests by Application Id',
+                    metricExpiry=60)
+                
                 for diameterApplication in self.diameterResponseList:
                     try:
                         assert(packet_vars["command_code"] == diameterApplication["commandCode"])
