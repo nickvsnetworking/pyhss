@@ -1288,7 +1288,7 @@ class Diameter:
                 subscriberIsRoaming = True
             
             if subscriberIsRoaming:
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [ULA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
                 subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
 
             if not subscriberRoamingAllowed and subscriberIsRoaming:
