@@ -130,12 +130,10 @@ ROAMING_RULE_model = api.schema_model('ROAMING_RULE JSON',
 
 
 #Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
-imsSubscriberModel = databaseClient.Generate_JSON_Model_for_Flask(TFT)
+imsSubscriberModel = databaseClient.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
 imsSubscriberModel['sh_profile'] = fields.String(required=False, description=IMS_SUBSCRIBER.sh_profile.doc),
 
-IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', 
-    databaseClient.Generate_JSON_Model_for_Flask(TFT)
-)
+IMS_SUBSCRIBER_model = api.schema_model('IMS_SUBSCRIBER JSON', databaseClient.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER))
 
 TFT_model = api.schema_model('TFT JSON', 
     databaseClient.Generate_JSON_Model_for_Flask(TFT)
@@ -1817,6 +1815,7 @@ class PyHSS_PCRF_Complete(Resource):
         except Exception as E:
             print(E)
             return handle_exception(E)
+
 
 @ns_pcrf.route('/subscriber_routing/<string:subscriber_routing>')
 class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
