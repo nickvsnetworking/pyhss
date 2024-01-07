@@ -151,19 +151,19 @@ class Diameter:
 
     def DecodePLMN(self, plmn):
         self.logTool.log(service='HSS', level='debug', message="Decoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
-        tvb = bytes.fromhex(data)
+        tvb = bytes.fromhex(plmn)
         mcc1 = tvb[0] & 0xf
         mcc2 = tvb[0] >> 4
         mcc3 = tvb[1] & 0xf
         mcc = mcc1 * 100 + mcc2 * 10 + mcc3
-        self.logTool.log(service='HSS', level='debug', message="Decoded MCC: " + mcc, redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Decoded MCC: " + str(mcc), redisClient=self.redisMessaging)
         mnc3 = tvb[1] >> 4
         mnc1 = tvb[2] >> 4
         mnc2 = tvb[2] & 0xf
         mnc = 10 * mnc2 + mnc1
         if mnc3 != 0xf:
             mnc = mnc2 * 100 + mnc1 * 10 + mnc3
-        self.logTool.log(service='HSS', level='debug', message="Decoded MNC: " + mnc, redisClient=self.redisMessaging)
+        self.logTool.log(service='HSS', level='debug', message="Decoded MNC: " + str(mnc), redisClient=self.redisMessaging)
         return mcc, mnc
 
     def EncodePLMN(self, mcc, mnc):
