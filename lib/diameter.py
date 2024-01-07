@@ -151,21 +151,37 @@ class Diameter:
 
     def DecodePLMN(self, plmn):
         self.logTool.log(service='HSS', level='debug', message="Decoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
-        mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
+        tvb = bytes.fromhex(data)
+        mcc1 = tvb[0] & 0xf
+        mcc2 = tvb[0] >> 4
+        mcc3 = tvb[1] & 0xf
+        mcc = mcc1 * 100 + mcc2 * 10 + mcc3
         self.logTool.log(service='HSS', level='debug', message="Decoded MCC: " + mcc, redisClient=self.redisMessaging)
-
-        mnc = self.Reverse(plmn[4:6])
+        mnc3 = tvb[1] >> 4
+        mnc1 = tvb[2] >> 4
+        mnc2 = tvb[2] & 0xf
+        mnc = 10 * mnc2 + mnc1
+        if mnc3 != 0xf:
+            mnc = mnc2 * 100 + mnc1 * 10 + mnc3
         self.logTool.log(service='HSS', level='debug', message="Decoded MNC: " + mnc, redisClient=self.redisMessaging)
         return mcc, mnc
 
     def EncodePLMN(self, mcc, mnc):
         plmn = list('XXXXXX')
-        plmn[0] = self.Reverse(mcc)[1]
-        plmn[1] = self.Reverse(mcc)[2]
-        plmn[2] = "f"
-        plmn[3] = self.Reverse(mcc)[0]
-        plmn[4] = self.Reverse(mnc)[0]
-        plmn[5] = self.Reverse(mnc)[1]
+        if len(mnc) == 2:
+            plmn[0] = self.Reverse(mcc)[1]
+            plmn[1] = self.Reverse(mcc)[2]
+            plmn[2] = "f"
+            plmn[3] = self.Reverse(mcc)[0]
+            plmn[4] = self.Reverse(mnc)[0]
+            plmn[5] = self.Reverse(mnc)[1]
+        else:
+            plmn[0] = self.Reverse(mcc)[1]
+            plmn[1] = self.Reverse(mcc)[2]
+            plmn[2] = self.Reverse(mnc)[0]
+            plmn[3] = self.Reverse(mcc)[0]
+            plmn[4] = self.Reverse(mnc)[1]
+            plmn[5] = self.Reverse(mnc)[2]
         plmn_list = plmn
         plmn = ''
         for bits in plmn_list:
