@@ -1455,8 +1455,8 @@ class Database:
                 IMS_SUBSCRIBER.scscf.isnot(None))
             for result in results:
                 result = result.__dict__
-                self.logTool.log(service='Database', level='debug', message="Result: " + str(result, redisClient=self.redisMessaging) +
-                            " type: " + str(type(result)))
+                self.logTool.log(service='Database', level='debug', message="Result: " + str(result) +
+                            " type: " + str(type(result)), redisClient=self.redisMessaging)
                 result = self.Sanitize_Datetime(result)
                 result.pop('_sa_instance_state')
                 if get_local_users_only == True:
