@@ -1009,6 +1009,60 @@ class Diameter:
         
         return True
 
+    def storeEmergencySubscriber(self, subscriberIp: str, subscriberData: dict, authExpiry: int=3600, subscriberImsi: str="Unknown") -> bool:
+        """
+        Store a given Emergency Subscriber in redis.
+        If there's an existing entry for the same IMSI, then update the record with the new IP and details.
+        The subscriber entry will expire per authExpiry in seconds.
+        """
+        try:
+
+            emergencySubscriberKey = f"emergencySubscriber-{subscriberIp}-{subscriberImsi}"
+            # Check if our subscriber exists
+            if subscriberImsi and subscriberImsi != "Unknown":
+                existingEmergencySubscriber = self.getEmergencySubscriber(subscriberImsi=subscriberImsi)
+                if existingEmergencySubscriber:
+                    self.redisMessaging.deleteQueue(key=existingEmergencySubscriber.keys()[0])
+            self.redisMessaging.setValue(key=emergencySubscriberKey, value=json.dumps(subscriberData), keyExpiry=authExpiry)
+            return True
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error storing emergency subscriber in redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return False
+        
+    def getEmergencySubscriber(self, subscriberIp: str=None, subscriberImsi: str=None) -> dict:
+        """
+        Retrieves a provided Emergency Subscriber from redis, if it exists.
+        Returns None on no match found, or failure.
+        """
+        try:
+
+            if not subscriberIp and not subscriberImsi:
+                return None
+            
+            if subscriberIp and subscriberImsi:
+                emergencySubscriberKey = self.redisMessaging.getNextQueue(key=f"emergencySubscriber-{subscriberIp}-{subscriberImsi}")
+                emergencySubscriberData = json.loads(self.redisMessaging.getValue(key=emergencySubscriberKey))
+                emergencySubscriber = {emergencySubscriberKey: emergencySubscriberData}
+                return emergencySubscriber
+            
+            if subscriberIp:        
+                emergencySubscriberKey = self.redisMessaging.getNextQueue(key=f"emergencySubscriber-{subscriberIp}-*")
+                emergencySubscriberData = json.loads(self.redisMessaging.getValue(key=emergencySubscriberKey))
+                emergencySubscriber = {emergencySubscriberKey: emergencySubscriberData}
+                return emergencySubscriber
+            
+            if subscriberImsi:
+                emergencySubscriberKey = self.redisMessaging.getNextQueue(key=f"emergencySubscriber-*-{subscriberImsi}")
+                emergencySubscriberData = json.loads(self.redisMessaging.getValue(key=emergencySubscriberKey))
+                emergencySubscriber = {emergencySubscriberKey: emergencySubscriberData}
+                return emergencySubscriber
+            
+            return None
+        
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error getting emergency subscriber from redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return None
+
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
@@ -1856,6 +1910,55 @@ class Diameter:
 
                     #Supported-Features(628) (Gx feature list)
                     avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
+
+                    """
+                    Store the Emergency Subscriber in redis
+                    """
+                    ueIp = self.get_avp_data(avps, 8)[0]
+                    ueIp = str(self.hex_to_ip(ueIp))
+                    try:
+                        #Get the IMSI
+                        for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+                            for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                                if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                                    imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                    except Exception as e:
+                        imsi="Unknown"
+                    
+                    try:
+                        ratType = self.get_avp_data(avps, 1032)[0]
+                        ratType = int(ratType, 16)
+                    except Exception as e:
+                        ratType = None
+                        pass
+
+                    try:
+                        accessNetworkGatewayAddress = self.get_avp_data(avps, 1050)[0]
+                        accessNetworkGatewayAddress = str(self.hex_to_ip(accessNetworkGatewayAddress))
+                    except Exception as e:
+                        accessNetworkGatewayAddress = None
+                        pass
+
+                    try:
+                        accessNetworkChargingAddress = self.get_avp_data(avps, 501)[0]
+                        accessNetworkChargingAddress = str(self.hex_to_ip(accessNetworkChargingAddress))
+                    except Exception as e:
+                        accessNetworkChargingAddress = None
+                        pass
+
+                    emergencySubscriberData = {
+                        "servingPgw": binascii.unhexlify(session_id).decode(),
+                        "gxOriginRealm": OriginRealm,
+                        "gxOriginHost": OriginHost,
+                        "imsi": imsi,
+                        "ip": ueIp,
+                        "ratType": ratType,
+                        "accessNetworkGatewayAddress": accessNetworkGatewayAddress,
+                        "accessNetworkChargingAddress": accessNetworkChargingAddress,
+                    }
+
+                    self.storeEmergencySubscriber(subscriberIp=ueIp, subscriberData=emergencySubscriberData, subscriberImsi=imsi)
+
                     avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
                     response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
                     return response
@@ -2582,6 +2685,24 @@ class Diameter:
             imsi = None
             msisdn = None
             identifier = None
+            emergencySubscriber = False
+
+            try:
+                ueIp = self.get_avp_data(avps, 8)[0]
+                ueIp = str(self.hex_to_ip(ueIp))
+            except Exception as e:
+                ueIp = None
+
+            """
+            Determine if the AAR for the IP belongs to an inbound roaming emergency subscriber.
+            """
+            try:
+                emergencySubscriberData = self.getEmergencySubscriber(subscriberIp=ueIp)
+                if emergencySubscriberData:
+                    emergencySubscriber = True
+            except Exception as e:
+                emergencySubscriberData = None
+
             if '@' in subscriptionId:
                 subscriberIdentifier = subscriptionId.split('@')[0]
                 # Subscriber Identifier can be either an IMSI or an MSISDN
@@ -2605,7 +2726,7 @@ class Diameter:
             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
 
-            if imsEnabled:
+            if imsEnabled or emergencySubscriber:
                 """
                 Add the PCSCF to the IMS_Subscriber object, and set the result code to 2001.
                 """
@@ -2640,18 +2761,25 @@ class Diameter:
                     assert(bytes.fromhex(afApplicationIdentifier).decode('ascii') == "IMS Services")
                     assert(int(mediaType, 16) == 0)
 
-                    # At this point, we know the AAR is indicating a call setup, so we'll send get the serving pgw information, then send a 
+                    # At this point, we know the AAR is indicating a call setup, so we'll get the serving pgw information, then send a 
                     # RAR to the PGW over Gx, asking it to setup the dedicated bearer.
 
                     try:
-                        subscriberId = subscriberDetails.get('subscriber_id', None)
-                        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
-                        servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
-                        servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
-                        servingPgw = servingApn.get('serving_pgw', None)
-                        servingPgwRealm = servingApn.get('serving_pgw_realm', None)
-                        pcrfSessionId = servingApn.get('pcrf_session_id', None)
-                        ueIp = servingApn.get('subscriber_routing', None)
+                        if emergencySubscriber and not imsEnabled:
+                            servingPgwPeer = emergencySubscriberData.get('servingPgw', None).split(';')[0]
+                            pcrfSessionId = emergencySubscriberData.get('servingPgw', None)
+                            servingPgwRealm = emergencySubscriberData.get('gxOriginRealm', None)
+                            servingPgw = emergencySubscriberData.get('servingPgw', None).split(';')[0],
+                        else:
+                            subscriberId = subscriberDetails.get('subscriber_id', None)
+                            apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+                            servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                            servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+                            servingPgw = servingApn.get('serving_pgw', None)
+                            servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+                            pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                        if not ueIp:
+                            ueIp = servingApn.get('subscriber_routing', None)
 
                         ulBandwidth = 512000
                         dlBandwidth = 512000
