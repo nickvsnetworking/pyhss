@@ -1805,9 +1805,63 @@ class Diameter:
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
             avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
             avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
+
+            """
+            If Called-Station-ID contains 'sos', we're dealing with an emergency bearer request.
+            Authentication is bypassed and we'll return a basic QOS profile.
+            """
+            try:
+                if apn.lower() == 'sos':
+                    # Use our defined SOS APN AMBR, if defined.
+                    # Otherwise, use a default value of 128/128kbps.
+                    try:
+                        sosApn = (self.database.Get_APN_by_Name(apn="sos"))
+                        AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                        apn_ambr_ul = int(sosApn['apn_ambr_ul'])
+                        apn_ambr_dl = int(sosApn['apn_ambr_dl'])
+                        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                        APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+                        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(sosApn['arp_priority']), 4))
+                        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not sosApn['arp_preemption_capability']), 4))
+                        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not sosApn['arp_preemption_vulnerability']), 4))
+                        AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                        AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(sosApn['qci']), 4))
+                        avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+
+                    except Exception as e:
+                        AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                        apn_ambr_ul = 128000
+                        apn_ambr_dl = 128000
+                        AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                        AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                        APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+                        
+                        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(1, 4))
+                        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(0, 4))          # Pre-Emption Capability Enabled
+                        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(1, 4))       # Pre-Emption Vulnerability Disabled
+                        AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                        AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(5, 4))                            # QCI 5
+                        avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+                
+                    QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
+                    QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
+                    avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)                                         # QOS-Information
+
+                    #Supported-Features(628) (Gx feature list)
+                    avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
+                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+                    response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                    return response
+
+            except Exception as e:
+                self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777238_272] [CCA] Error generating SOS CCA: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
             #Get Subscriber info from Subscription ID
             for SubscriptionIdentifier in self.get_avp_data(avps, 443):
@@ -1940,8 +1994,6 @@ class Diameter:
                         except Exception as e:
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed to clear apn state for {apn}: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
-            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         except Exception as e:                                             #Get subscriber details
@@ -1958,8 +2010,6 @@ class Diameter:
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
                                             metricExpiry=60)
-            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
