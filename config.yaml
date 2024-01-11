@@ -130,6 +130,9 @@ redis:
   unixSocketPath: '/var/run/redis/redis-server.sock'
   host: localhost
   port: 6379
+  # [Deprecated] Additional peers to query for roaming SOS subscribers
+  additionalPeers:
+    - "redis2.mnc001.mcc001.3gppnetwork.org:6379"
 
 prometheus:
   enabled: False

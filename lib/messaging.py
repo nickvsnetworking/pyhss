@@ -95,6 +95,29 @@ class RedisMessaging:
         except Exception as e:
             return f"{traceback.format_exc()}"
 
+    def multiGetQueues(self, pattern: str='*', redisPeerConnections: list=[]) -> list:
+        try:
+            allQueues = []
+            for redisPeerConnection in redisPeerConnections:
+                try:
+                    peerName = redisPeerConnection.get('peer')
+                    peerConnection = redisPeerConnection.get('connection')
+                    
+                    keys = [key.decode() for key in peerConnection.scan_iter(match=pattern)]
+                    
+                    allQueues.append({peerName: keys})
+                except Exception as e:
+                    continue
+
+            localhost_keys = [key.decode() for key in self.redisClient.scan_iter(match=pattern)]
+
+            allQueues.append({"localhost": localhost_keys})
+            
+            return allQueues
+        except Exception as e:
+            return f"{traceback.format_exc()}"
+
+
     def getNextQueue(self, pattern: str='*') -> dict:
         """
         Returns the next Queue (Key) in the list.
@@ -136,6 +159,22 @@ class RedisMessaging:
         except Exception as e:
             return False
 
+    def multiDeleteQueue(self, queue: str, redisPeerConnections: list=[]) -> bool:
+        """
+        Deletes the given Queue (Key) on each peer, including the default connection.
+        """
+        try:
+            for redisPeerConnection in redisPeerConnections:
+                try:
+                    peerConnection = redisPeerConnection.get('connection')
+                    peerConnection.delete(queue)
+                except Exception as e:
+                    continue
+            self.redisClient.delete(queue)
+            return True
+        except Exception as e:
+            return False
+
     def setValue(self, key: str, value: str, keyExpiry: int=None) -> str:
         """
         Stores a value under a given key and sets an expiry (in seconds) if provided.
@@ -148,18 +187,41 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
-    def getValue(self, key: str) -> str:
+    def multiSetValue(self, key: str, value: str, keyExpiry: int=None, redisPeerConnections: list=[]) -> str:
+        """
+        Stores a value under a given key and sets an expiry (in seconds) if provided, for each peer, including the default connection.
+        """
+        try:
+            for redisPeerConnection in redisPeerConnections:
+                try:
+                    peerConnection = redisPeerConnection.get('connection')
+                    peerConnection.set(key, value)
+                    if keyExpiry is not None:
+                        peerConnection.expire(key, keyExpiry)
+                except Exception as e:
+                    continue
+            self.redisClient.set(key, value)
+            if keyExpiry is not None:
+                self.redisClient.expire(key, keyExpiry)
+            return f'{value} stored in {key} successfully.'
+        except Exception as e:
+            return ''
+
+    def getValue(self, key: str, redisClient=None) -> str:
         """
         Gets the value stored under a given key.
         """
         try:
-                message = self.redisClient.get(key)
+                if redisClient:
+                    message = redisClient.get(key)
+                else:
+                    message = self.redisClient.get(key)
                 if message is None:
                     message = ''
                 else:
                     return message
         except Exception as e:
-            return ''
+            return f"{traceback.format_exc()}"
 
     def getList(self, key: str) -> list:
         """

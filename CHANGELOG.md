@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - generateUpgade.sh for generating alembic upgrade scripts
 - Control of outbound roaming S6a AIR and ULA responses through roaming_rule and roaming_network objects.
 - Roaming management on a per-subscriber basis, through subscriber.roaming_enabled and subscriber.roaming_rule_list.
+- Support for Gx and Rx auth of unknown subscribers attaching via SOS.
 
 ## [1.0.0] - 2023-09-27
 

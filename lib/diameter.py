@@ -31,10 +31,21 @@ class Diameter:
         self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
         self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
         self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisAdditionalPeers = self.config.get('redis', {}).get('additionalPeers', [])
         if redisMessaging:
             self.redisMessaging = redisMessaging
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        
+        """
+        The below handling of additional peers is deprecated and will be replaced with redis sentinel in the next major refactor.
+        """
+        self.redisPeerConnections = []
+        for additionalPeer in self.redisAdditionalPeers:
+            additionalPeerHost = additionalPeer.split(':')[0]
+            additionalPeerPort = additionalPeer.split(':')[1]
+            redisPeerConnection = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=False, unixSocketPath=self.redisUnixSocketPath)
+            self.redisPeerConnections.append({"peer": additionalPeer, "connection": Redis(host=additionalPeerHost, port=additionalPeerPort)})
 
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
@@ -990,7 +1001,7 @@ class Diameter:
             return True
         else:
             return False
-    
+
     def validateSubscriberRoaming(self, subscriber: dict, mcc: str, mnc: str) -> bool:
         """
         Ensures that a given subscriber is allowed to roam to the provided PLMN.
@@ -1009,6 +1020,7 @@ class Diameter:
         
         return True
 
+
     def storeEmergencySubscriber(self, subscriberIp: str, subscriberData: dict, authExpiry: int=3600, subscriberImsi: str="Unknown") -> bool:
         """
         Store a given Emergency Subscriber in redis.
@@ -1016,22 +1028,25 @@ class Diameter:
         The subscriber entry will expire per authExpiry in seconds.
         """
         try:
-
             emergencySubscriberKey = f"emergencySubscriber-{subscriberIp}-{subscriberImsi}"
             # Check if our subscriber exists
             if subscriberImsi and subscriberImsi != "Unknown":
                 existingEmergencySubscriber = self.getEmergencySubscriber(subscriberImsi=subscriberImsi)
                 if existingEmergencySubscriber:
-                    self.redisMessaging.deleteQueue(key=existingEmergencySubscriber.keys()[0])
-            self.redisMessaging.setValue(key=emergencySubscriberKey, value=json.dumps(subscriberData), keyExpiry=authExpiry)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getEmergencySubscriber] Found existing emergency subscriber to overwrite: {existingEmergencySubscriber}", redisClient=self.redisMessaging)
+                    for key, value in existingEmergencySubscriber.items():
+                        self.redisMessaging.multiDeleteQueue(queue=f"emergencySubscriber-{value.get('ip')}-{value.get('imsi')}", redisPeerConnections=self.redisPeerConnections)
+            result = self.redisMessaging.multiSetValue(key=emergencySubscriberKey, value=json.dumps(subscriberData), keyExpiry=authExpiry, redisPeerConnections=self.redisPeerConnections)
             return True
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error storing emergency subscriber in redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return False
         
+        
     def getEmergencySubscriber(self, subscriberIp: str=None, subscriberImsi: str=None) -> dict:
         """
         Retrieves a provided Emergency Subscriber from redis, if it exists.
+        The first match from any defined redis instance is used.
         Returns None on no match found, or failure.
         """
         try:
@@ -1040,29 +1055,66 @@ class Diameter:
                 return None
             
             if subscriberIp and subscriberImsi:
-                emergencySubscriberKey = self.redisMessaging.getNextQueue(key=f"emergencySubscriber-{subscriberIp}-{subscriberImsi}")
-                emergencySubscriberData = json.loads(self.redisMessaging.getValue(key=emergencySubscriberKey))
-                emergencySubscriber = {emergencySubscriberKey: emergencySubscriberData}
-                return emergencySubscriber
+                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber-{subscriberIp}-{subscriberImsi}")
+                if emergencySubscriberKeyList:
+                    for matchedKey in emergencySubscriberKeyList:
+                        for peerName, keyName in matchedKey.items():
+                            if isinstance(keyName, list):
+                                keyName = keyName[0] if len(keyName) > 0 else ''
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            if not emergencySubscriberData:
+                                return None
+                            emergencySubscriberData = json.loads(emergencySubscriberData)
+                            emergencySubscriber = {peerName: emergencySubscriberData}
+                            return emergencySubscriber
             
-            if subscriberIp:        
-                emergencySubscriberKey = self.redisMessaging.getNextQueue(key=f"emergencySubscriber-{subscriberIp}-*")
-                emergencySubscriberData = json.loads(self.redisMessaging.getValue(key=emergencySubscriberKey))
-                emergencySubscriber = {emergencySubscriberKey: emergencySubscriberData}
-                return emergencySubscriber
+            if subscriberIp and not subscriberImsi:        
+                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber-{subscriberIp}-*")
+                if emergencySubscriberKeyList:
+                    for matchedKey in emergencySubscriberKeyList:
+                        for peerName, keyName in matchedKey.items():
+                            if isinstance(keyName, list):
+                                keyName = keyName[0] if len(keyName) > 0 else ''
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            if not emergencySubscriberData:
+                                return None
+                            emergencySubscriberData = json.loads(emergencySubscriberData)
+                            emergencySubscriber = {peerName: emergencySubscriberData}
+                            return emergencySubscriber
             
-            if subscriberImsi:
-                emergencySubscriberKey = self.redisMessaging.getNextQueue(key=f"emergencySubscriber-*-{subscriberImsi}")
-                emergencySubscriberData = json.loads(self.redisMessaging.getValue(key=emergencySubscriberKey))
-                emergencySubscriber = {emergencySubscriberKey: emergencySubscriberData}
-                return emergencySubscriber
+            if subscriberImsi and not subscriberIp:
+                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber-*-{subscriberImsi}")
+                if emergencySubscriberKeyList:
+                    for matchedKey in emergencySubscriberKeyList:
+                        for peerName, keyName in matchedKey.items():
+                            if isinstance(keyName, list):
+                                keyName = keyName[0] if len(keyName) > 0 else ''
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            if not emergencySubscriberData:
+                                return None
+                            emergencySubscriberData = json.loads(emergencySubscriberData)
+                            emergencySubscriber = {peerName: emergencySubscriberData}
+                            return emergencySubscriber
             
             return None
         
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error getting emergency subscriber from redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return None
-
+    
+    def getRedisPeerConnection(self, peerName: str):
+        """
+        [Deprecated] Returns a redis peer connection given a peerName.
+        Returns None on failure.
+        """
+        try:
+            for peerConnection in self.redisPeerConnections:
+                if str(peerConnection.get('peer').lower()) == str(peerName.lower()):
+                    return peerConnection.get('connection')
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getRedisPeerConnection] No redis peers matched for: {peerName}", redisClient=self.redisMessaging)
+            return None
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getRedisPeerConnection] Error matching redis peer: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
@@ -1948,6 +2000,7 @@ class Diameter:
 
                     emergencySubscriberData = {
                         "servingPgw": binascii.unhexlify(session_id).decode(),
+                        "requestTime": int(time.time()),
                         "gxOriginRealm": OriginRealm,
                         "gxOriginHost": OriginHost,
                         "imsi": imsi,
@@ -2730,31 +2783,34 @@ class Diameter:
                 """
                 Add the PCSCF to the IMS_Subscriber object, and set the result code to 2001.
                 """
+
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
 
-                if imsi is None:
-                    imsi = subscriberDetails.get('imsi', None)
-                    
-                aarOriginHost = self.get_avp_data(avps, 264)[0]
-                aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
-                aarOriginRealm = self.get_avp_data(avps, 296)[0]
-                aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
-                #Check if we have a record-route set as that's where we'll need to send the response
-                try:
-                    #Get first record-route header, then parse it
-                    remotePeer = self.get_avp_data(avps, 282)[-1]
-                    remotePeer = binascii.unhexlify(remotePeer).decode('utf-8')
-                except Exception as e:
-                    #If we don't have a record-route set, we'll send the response to the OriginHost
-                    remotePeer = aarOriginHost
-                
-                remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
+                if imsEnabled and not emergencySubscriber:
 
-                self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=None)
-                """
-                Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
-                Media-Type: 0 = Audio, 4 = Control
-                """
+                    if imsi is None:
+                        imsi = subscriberDetails.get('imsi', None)
+                        
+                    aarOriginHost = self.get_avp_data(avps, 264)[0]
+                    aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
+                    aarOriginRealm = self.get_avp_data(avps, 296)[0]
+                    aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
+                    #Check if we have a record-route set as that's where we'll need to send the response
+                    try:
+                        #Get first record-route header, then parse it
+                        remotePeer = self.get_avp_data(avps, 282)[-1]
+                        remotePeer = binascii.unhexlify(remotePeer).decode('utf-8')
+                    except Exception as e:
+                        #If we don't have a record-route set, we'll send the response to the OriginHost
+                        remotePeer = aarOriginHost
+                    
+                    remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
+
+                    self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=None)
+                    """
+                    Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
+                    Media-Type: 0 = Audio, 4 = Control
+                    """
                 try:
                     afApplicationIdentifier = self.get_avp_data(avps, 504)[0]
                     mediaType = self.get_avp_data(avps, 520)[0]
@@ -2766,10 +2822,11 @@ class Diameter:
 
                     try:
                         if emergencySubscriber and not imsEnabled:
-                            servingPgwPeer = emergencySubscriberData.get('servingPgw', None).split(';')[0]
-                            pcrfSessionId = emergencySubscriberData.get('servingPgw', None)
-                            servingPgwRealm = emergencySubscriberData.get('gxOriginRealm', None)
-                            servingPgw = emergencySubscriberData.get('servingPgw', None).split(';')[0],
+                            for key, value in emergencySubscriberData.items():
+                                servingPgwPeer = emergencySubscriberData[key].get('servingPgw', None).split(';')[0]
+                                pcrfSessionId = emergencySubscriberData[key].get('servingPgw', None)
+                                servingPgwRealm = emergencySubscriberData[key].get('gxOriginRealm', None)
+                                servingPgw = emergencySubscriberData[key].get('servingPgw', None).split(';')[0]
                         else:
                             subscriberId = subscriberDetails.get('subscriber_id', None)
                             apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
@@ -2835,7 +2892,8 @@ class Diameter:
                         ]
                         }
 
-                        self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=sessionId)
+                        if not emergencySubscriber:
+                            self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=sessionId)
 
                         reAuthAnswer = self.awaitDiameterRequestAndResponse(
                                 requestType='RAR',
