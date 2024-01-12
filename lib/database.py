@@ -259,11 +259,6 @@ class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
     serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
     serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
 
-class EMERGENCY_SESSION_OPERATION_LOG(OPERATION_LOG_BASE):
-    __mapper_args__ = {'polymorphic_identity': 'emergency_session'}
-    serving_apn = relationship("EMERGENCY_SESSION", back_populates="operation_logs")
-    emergency_session_id = Column(Integer, ForeignKey('emergency_session.emergency_session_id'))
-
 class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'auc'}
     auc = relationship("AUC", back_populates="operation_logs")
