@@ -161,14 +161,18 @@ class Diameter:
         return (slicedString)
 
     def DecodePLMN(self, plmn):
-        self.logTool.log(service='HSS', level='debug', message="Decoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
-        mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
+        
+        self.logTool.log(service='HSS', level='debug', message="Decoding PLMN: " + str(plmn), redisClient=self.redisMessaging)
+        if "f" in plmn:
+            mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
+            mnc = self.Reverse(plmn[4:6])
+        else:
+            mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4][1])
+            mnc = self.Reverse(plmn[4:6]) + str(self.Reverse(plmn[2:4][0]))
         self.logTool.log(service='HSS', level='debug', message="Decoded MCC: " + mcc, redisClient=self.redisMessaging)
-
-        mnc = self.Reverse(plmn[4:6])
         self.logTool.log(service='HSS', level='debug', message="Decoded MNC: " + mnc, redisClient=self.redisMessaging)
         return mcc, mnc
-
+        
     def EncodePLMN(self, mcc, mnc):
         plmn = list('XXXXXX')
         plmn[0] = self.Reverse(mcc)[1]
