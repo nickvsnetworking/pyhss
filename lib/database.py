@@ -99,7 +99,6 @@ class SUBSCRIBER(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
 
-
 class SUBSCRIBER_ROUTING(Base):
     __tablename__ = 'subscriber_routing'
     __table_args__ = (
@@ -113,7 +112,6 @@ class SUBSCRIBER_ROUTING(Base):
     ip_address = Column(String(254), doc='IP of the UE')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_ROUTING_OPERATION_LOG", back_populates="subscriber_routing")
-
 
 class SERVING_APN(Base):
     __tablename__ = 'serving_apn'
@@ -158,15 +156,6 @@ class IMS_SUBSCRIBER(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("IMS_SUBSCRIBER_OPERATION_LOG", back_populates="ims_subscriber")
 
-class ROAMING_RULE(Base):
-    __tablename__ = 'roaming_rule'
-    roaming_rule_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_RULE entry')
-    roaming_network_id = Column(Integer, ForeignKey('roaming_network.roaming_network_id', ondelete='CASCADE'), doc='ID of the roaming network to apply the rule for')
-    allow = Column(Boolean, default=1, doc='Whether to allow outbound roaming on the network')
-    enabled = Column(Boolean, default=1, doc='Whether the rule is enabled')
-    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
-    operation_logs = relationship("ROAMING_RULE_OPERATION_LOG", back_populates="roaming_rule")
-
 class ROAMING_NETWORK(Base):
     __tablename__ = 'roaming_network'
     roaming_network_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_NETWORK entry')
@@ -176,6 +165,15 @@ class ROAMING_NETWORK(Base):
     mnc = Column(String(100), doc='3 digit MNC to apply the roaming rule for')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("ROAMING_NETWORK_OPERATION_LOG", back_populates="roaming_network")
+
+class ROAMING_RULE(Base):
+    __tablename__ = 'roaming_rule'
+    roaming_rule_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_RULE entry')
+    roaming_network_id = Column(Integer, ForeignKey('roaming_network.roaming_network_id', ondelete='CASCADE'), doc='ID of the roaming network to apply the rule for')
+    allow = Column(Boolean, default=1, doc='Whether to allow outbound roaming on the network')
+    enabled = Column(Boolean, default=1, doc='Whether the rule is enabled')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("ROAMING_RULE_OPERATION_LOG", back_populates="roaming_rule")
 
 class CHARGING_RULE(Base):
     __tablename__ = 'charging_rule'
@@ -260,6 +258,11 @@ class SERVING_APN_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'serving_apn'}
     serving_apn = relationship("SERVING_APN", back_populates="operation_logs")
     serving_apn_id = Column(Integer, ForeignKey('serving_apn.serving_apn_id'))
+
+class EMERGENCY_SESSION_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'emergency_session'}
+    serving_apn = relationship("EMERGENCY_SESSION", back_populates="operation_logs")
+    emergency_session_id = Column(Integer, ForeignKey('emergency_session.emergency_session_id'))
 
 class AUC_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'auc'}
