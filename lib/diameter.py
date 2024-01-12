@@ -702,10 +702,12 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Sending request via connected peer {connectedPeer}", redisClient=self.redisMessaging)
                 try:
                     peerIp = connectedPeer['ipAddress']
                     peerPort = connectedPeer['port']
                 except Exception as e:
+                    self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Could not get connection information for connectedPeer: {connectedPeer}", redisClient=self.redisMessaging)
                     return ''
                 request = diameterApplication["requestMethod"](**kwargs)
                 responseType = diameterApplication["responseAcronym"]
@@ -2922,6 +2924,8 @@ class Diameter:
                         if not emergencySubscriber:
                             self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=sessionId)
 
+
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAR Generated to be sent to serving PGW: {servingPgw} via peer {servingPgwPeer}", redisClient=self.redisMessaging)
                         reAuthAnswer = self.awaitDiameterRequestAndResponse(
                                 requestType='RAR',
                                 hostname=servingPgwPeer,
