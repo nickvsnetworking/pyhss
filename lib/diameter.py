@@ -174,6 +174,7 @@ class Diameter:
         return mcc, mnc
         
     def EncodePLMN(self, mcc, mnc):
+        plmn = list('XXXXXX')
         if len(mnc) == 2:
             plmn[0] = self.Reverse(mcc)[1]
             plmn[1] = self.Reverse(mcc)[2]
@@ -579,6 +580,7 @@ class Diameter:
             return []
 
     def getPeerByHostname(self, hostname: str) -> dict:
+        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getPeerByHostname] Looking for peer with hostname {hostname}", redisClient=self.redisMessaging)
         try:
             hostname = hostname.lower()
             activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
@@ -588,6 +590,7 @@ class Diameter:
                     return(activePeers.get(key, {}))
 
         except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}", redisClient=self.redisMessaging)
             return {}
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
@@ -702,7 +705,7 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Sending request via connected peer {connectedPeer}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Sending request via connected peer {connectedPeer} from hostname {hostname}", redisClient=self.redisMessaging)
                 try:
                     peerIp = connectedPeer['ipAddress']
                     peerPort = connectedPeer['port']
