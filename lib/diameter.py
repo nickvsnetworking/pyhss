@@ -3061,6 +3061,8 @@ class Diameter:
                     servingPgwRealm = servingApn.get('serving_pgw_realm', '')
                     servingPgwPeer = servingApn.get('serving_pgw_peer', '').split(';')[0]
                     pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                else:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] No servingApn defined for IMS Subscriber", redisClient=self.redisMessaging)
                 self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=pcscf, pcscf_realm=pcscf_realm, pcscf_peer=pcscf_peer, pcscf_active_session=None)
             except Exception as e:
                 pass
