@@ -41,11 +41,12 @@ class Diameter:
         The below handling of additional peers is deprecated and will be replaced with redis sentinel in the next major refactor.
         """
         self.redisPeerConnections = []
-        for additionalPeer in self.redisAdditionalPeers:
-            additionalPeerHost = additionalPeer.split(':')[0]
-            additionalPeerPort = additionalPeer.split(':')[1]
-            redisPeerConnection = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=False, unixSocketPath=self.redisUnixSocketPath)
-            self.redisPeerConnections.append({"peer": additionalPeer, "connection": Redis(host=additionalPeerHost, port=additionalPeerPort)})
+        if self.redisAdditionalPeers:
+            for additionalPeer in self.redisAdditionalPeers:
+                additionalPeerHost = additionalPeer.split(':')[0]
+                additionalPeerPort = additionalPeer.split(':')[1]
+                redisPeerConnection = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=False, unixSocketPath=self.redisUnixSocketPath)
+                self.redisPeerConnections.append({"peer": additionalPeer, "connection": Redis(host=additionalPeerHost, port=additionalPeerPort)})
 
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
