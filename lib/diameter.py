@@ -13,6 +13,7 @@ import yaml
 import json
 import time
 import traceback
+import re
 
 class Diameter:
 
@@ -1183,7 +1184,7 @@ class Diameter:
             #Populate all Flow Information AVPs
             Flow_Information = ''
             for tft in ChargingRules['tft']:
-                self.logTool.log(service='HSS', level='debug', message=tft, redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Adding TFT: " + str(tft), redisClient=self.redisMessaging)
                 #If {{ UE_IP }} in TFT splice in the real UE IP Value
                 try:
                     tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
@@ -2885,6 +2886,81 @@ class Diameter:
                         except Exception as e:
                             pass
 
+                        #Extract the SDP for each direction to find the source and destination IP Addresses and Ports used for the RTP streams
+                        try:
+                            sdp1 = self.get_avp_data(avps, 524)[0]
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got first SDP body raw: " + str(sdp1), redisClient=self.redisMessaging)
+                            sdp1 = binascii.unhexlify(sdp1).decode('utf-8')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got first SDP body decoded: " + str(sdp1), redisClient=self.redisMessaging)
+                            sdp2 = self.get_avp_data(avps, 524)[1]
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got second SDP body raw: " + str(sdp2), redisClient=self.redisMessaging)
+                            sdp2 = binascii.unhexlify(sdp2).decode('utf-8')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got second SDP body decoded: " + str(sdp2), redisClient=self.redisMessaging)
+                            
+                            regex_ipv4 = r"IN IP4 (\d*\.\d*\.\d*\.\d*)"
+                            regex_ipv6 = r"IN IP6 ([0-9a-fA-F:]{3,39})"
+                            regex_port_audio = r"m=audio (\d*)"
+                            regex_port_rtcp = r"a=rtcp:(\d*)"
+                            
+                            #Check for IPv4 Matches in first SDP Body
+                            matches_ipv4 = re.search(regex_ipv4, sdp1, re.MULTILINE)
+                            if matches_ipv4:
+                                sdp1_ipv4 = str(matches_ipv4.group(1))
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP IPv4" + str(sdp1_ipv4), redisClient=self.redisMessaging)
+                            else:
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv4 in SDP", redisClient=self.redisMessaging)
+                            if not matches_ipv4:
+                                #Check for IPv6 Matches
+                                matches_ipv6 = re.search(regex_ipv6, sdp1, re.MULTILINE)
+                                if matches_ipv6:
+                                    sdp1_ipv6 = str(matches_ipv6.group(1))
+                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP IPv6" + str(sdp1_ipv6), redisClient=self.redisMessaging)
+                                else:
+                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv6 in SDP", redisClient=self.redisMessaging)
+                                    
+
+                            #Check for IPv4 Matches in second SDP Body
+                            matches_ipv4 = re.search(regex_ipv4, sdp2, re.MULTILINE)
+                            if matches_ipv4:
+                                sdp2_ipv4 = str(matches_ipv4.group(1))
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 IPv4 " + str(sdp2_ipv4), redisClient=self.redisMessaging)
+                            else:
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv4 in SDP2", redisClient=self.redisMessaging)
+                            if not matches_ipv4:
+                                #Check for IPv6 Matches
+                                matches_ipv6 = re.search(regex_ipv6, sdp2, re.MULTILINE)
+                                if matches_ipv6:
+                                    sdp2_ipv6 = str(matches_ipv6.group(1))
+                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 IPv6 " + str(sdp2_ipv6), redisClient=self.redisMessaging)
+                                else:
+                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv6 in SDP", redisClient=self.redisMessaging)
+
+                            #Extract RTP Port
+                            matches_rtp_port = re.search(regex_port_audio, sdp2, re.MULTILINE)
+                            if matches_rtp_port:
+                                sdp2_rtp_port = str(matches_rtp_port.group(1))
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 RTP Port " + str(sdp2_rtp_port), redisClient=self.redisMessaging)
+                            
+                            #Extract RTP Port
+                            matches_rtp_port = re.search(regex_port_audio, sdp1, re.MULTILINE)
+                            if matches_rtp_port:
+                                sdp1_rtp_port = str(matches_rtp_port.group(1))
+                                sdp1_rtcp_port = int(sdp1_rtp_port) - 1
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP1 RTP Port " + str(sdp1_rtp_port), redisClient=self.redisMessaging)
+
+
+                            #Extract RTP Port
+                            matches_rtp_port = re.search(regex_port_audio, sdp2, re.MULTILINE)
+                            if matches_rtp_port:
+                                sdp2_rtp_port = str(matches_rtp_port.group(1))
+                                sdp2_rtcp_port = int(sdp2_rtp_port) - 1
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 RTP Port " + str(sdp2_rtp_port), redisClient=self.redisMessaging)
+
+
+                        except Exception as e:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Failed to extract SDP due to error" + str(e), redisClient=self.redisMessaging)
+
+
                         """
                         The below logic is applied:
                         1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
@@ -2897,14 +2973,14 @@ class Diameter:
                         chargingRule = {
                         "charging_rule_id": 1000,
                         "qci": 1,
-                        "arp_preemption_capability": True,
+                        "arp_preemption_capability": False,
                         "mbr_dl": dlBandwidth,
                         "mbr_ul": ulBandwidth,
                         "gbr_ul": ulBandwidth,
-                        "precedence": 100,
-                        "arp_priority": 2,
+                        "precedence": 40,
+                        "arp_priority": 15,
                         "rule_name": "GBR-Voice",
-                        "arp_preemption_vulnerability": False,
+                        "arp_preemption_vulnerability": True,
                         "gbr_dl": dlBandwidth,
                         "tft_group_id": 1,
                         "rating_group": None,
@@ -2913,13 +2989,13 @@ class Diameter:
                             "tft_group_id": 1,
                             "direction": 1,
                             "tft_id": 1,
-                            "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            "tft_string": "permit out 17 from " + str(sdp2_ipv4) + "/32 " + str(sdp2_rtcp_port) + "-" + str(sdp2_rtp_port) + " to " + str(ueIp) + "/32 " + str(sdp1_rtcp_port) + "-" + str(sdp1_rtp_port)
                             },
                             {
                             "tft_group_id": 1,
                             "direction": 2,
                             "tft_id": 2,
-                            "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            "tft_string": "permit out 17 from " + str(sdp2_ipv4) + "/32 " + str(sdp2_rtcp_port) + "-" + str(sdp2_rtp_port) + " to " + str(ueIp) + "/32 " + str(sdp1_rtcp_port) + "-" + str(sdp1_rtp_port)
                             }
                         ]
                         }
