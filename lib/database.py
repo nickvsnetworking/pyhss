@@ -18,6 +18,7 @@ import S6a_crypt
 from messaging import RedisMessaging
 import yaml
 import json
+import socket
 import traceback
 
 with open("../config.yaml", 'r') as stream:
@@ -331,7 +332,8 @@ class Database:
             db_string = 'postgresql+psycopg2://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'])
         else:
             db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
-
+        
+        self.hostname = socket.gethostname()        
         
         self.engine = create_engine(
             db_string, 
@@ -351,7 +353,7 @@ class Database:
         #Load IMEI TAC database into Redis if enabled
         if ('tac_database_csv' in self.config['eir']):
             self.load_IMEI_database_into_Redis()
-            self.tacData = json.loads(self.redisMessaging.getValue(key="tacDatabase"))
+            self.tacData = json.loads(self.redisMessaging.getValue(key="tacDatabase", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database'))
         else:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
             self.tacData = {}
@@ -388,7 +390,7 @@ class Database:
                 
                 if count == 0:
                     self.logTool.log(service='Database', level='info', message="Checking to see if entries are already present...", redisClient=self.redisMessaging)
-                    redis_imei_result = self.redisMessaging.getValue(key="tacDatabase")
+                    redis_imei_result = self.redisMessaging.getValue(key="tacDatabase", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database')
                     if redis_imei_result is not None:
                         if len(redis_imei_result) > 0:
                             self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file...", redisClient=self.redisMessaging)
@@ -396,7 +398,7 @@ class Database:
                         self.logTool.log(service='Database', level='info', message="No data loaded into Redis, proceeding to load...", redisClient=self.redisMessaging)
                 tacList['tacList'].append({str(tacPrefix): {'name': name, 'model': model}})
                 count += 1
-            self.redisMessaging.setValue(key="tacDatabase", value=json.dumps(tacList))
+            self.redisMessaging.setValue(key="tacDatabase", value=json.dumps(tacList), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database')
             self.tacData = tacList
             self.logTool.log(service='Database', level='info', message="Loaded " + str(count) + " IMEI TAC entries into Redis", redisClient=self.redisMessaging)
         except Exception as E:
@@ -919,14 +921,14 @@ class Database:
                         georedDict['body'] = jsonData
                         georedDict['operation'] = operation
                         georedDict['timestamp'] = time.time_ns()
-                        self.redisMessaging.sendMessage(queue=f'geored', message=json.dumps(georedDict), queueExpiry=120)
+                        self.redisMessaging.sendMessage(queue=f'geored', message=json.dumps(georedDict), queueExpiry=120, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='geored')
                 if asymmetric:
                     if len(asymmetricUrls) > 0:
                         georedDict['body'] = jsonData
                         georedDict['operation'] = operation
                         georedDict['timestamp'] = time.time_ns()
                         georedDict['urls'] = asymmetricUrls
-                        self.redisMessaging.sendMessage(queue=f'asymmetric-geored', message=json.dumps(georedDict), queueExpiry=120)
+                        self.redisMessaging.sendMessage(queue=f'asymmetric-geored', message=json.dumps(georedDict), queueExpiry=120, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='geored')
             return True
 
         except Exception as E:
@@ -954,7 +956,7 @@ class Database:
         webhook['headers'] = webhookHeaders
         webhook['operation'] = operation
         webhook['timestamp'] = time.time_ns()
-        self.redisMessaging.sendMessage(queue=f'webhook', message=json.dumps(webhook), queueExpiry=120)
+        self.redisMessaging.sendMessage(queue=f'webhook', message=json.dumps(webhook), queueExpiry=120, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='webhook')
         return True
 
     def Sanitize_Datetime(self, result):

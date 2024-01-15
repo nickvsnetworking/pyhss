@@ -95,7 +95,6 @@ logging:
     diameter_logging_file: /var/log/pyhss_diameter.log
     geored_logging_file: /var/log/pyhss_geored.log
     metric_logging_file: /var/log/pyhss_metrics.log
-  log_to_terminal: True
   sqlalchemy_sql_echo: False
   sqlalchemy_pool_recycle: 15
   sqlalchemy_pool_size: 30
@@ -113,7 +112,7 @@ database:
 webhooks:
   enabled: False
   endpoints:
-  - http://127.0.0.1:8181
+    - 'http://127.0.0.1:8181'
 
 ## Geographic Redundancy Parameters
 geored:
@@ -123,16 +122,23 @@ geored:
     - 'http://hss01.mnc001.mcc001.3gppnetwork.org:8080'
     - 'http://hss02.mnc001.mcc001.3gppnetwork.org:8080'
 
-#Redis is required to run PyHSS. A locally running instance is recommended for production.
+#Redis is required to run PyHSS. An instance running on a local network is recommended for production.
 redis:
-  # Whether to use a UNIX socket instead of a tcp connection to redis. Host and port is ignored if useUnixSocket is True.
-  useUnixSocket: False
+  # Which connection type to attempt. Valid options are: tcp, unix, sentinel
+  # tcp - Connection via a standard TCP socket to a given host and port.
+  # unix - Connect to redis via a unix socket, provided by unixSocketPath.
+  # sentinel - Connect to one or more redis sentinel hosts.
+  connectionType: "tcp"
   unixSocketPath: '/var/run/redis/redis-server.sock'
   host: localhost
   port: 6379
-  # [Deprecated] Additional peers to query for roaming SOS subscribers
-  additionalPeers:
-    - "redis2.mnc001.mcc001.3gppnetwork.org:6379"
+  sentinel:
+    masterName: exampleMaster
+    hosts:
+      - exampleSentinel.mnc001.mcc001.3gppnetwork.org:
+        port: 6379
+        password: ''
+
 
 prometheus:
   enabled: False

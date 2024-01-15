@@ -1,4 +1,4 @@
-import os, sys, json, yaml
+import os, sys, json, yaml, socket
 from datetime import datetime
 import time
 import logging
@@ -37,6 +37,8 @@ class LogService:
         'DEBUG': {'verbosity': 5, 'logging':  logging.DEBUG},
         'NOTSET': {'verbosity': 6, 'logging':  logging.NOTSET},
         }
+        self.hostname = socket.gethostname()
+
         print(f"{self.banners.logService()}")
 
     def handleLogs(self):
@@ -46,7 +48,7 @@ class LogService:
         activeLoggers = {}
         while True:
             try:
-                logMessage = json.loads(self.redisMessaging.awaitMessage(key='log')[1])
+                logMessage = json.loads(self.redisMessaging.awaitMessage(key='log', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='log')[1])
 
                 print(f"[Log] Message: {logMessage}")
 

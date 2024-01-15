@@ -13,6 +13,7 @@ from redis import Redis
 import yaml
 import json
 import time
+import socket
 import traceback
 
 class Diameter:
@@ -38,16 +39,7 @@ class Diameter:
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         
-        """
-        The below handling of additional peers is deprecated and will be replaced with redis sentinel in the next major refactor.
-        """
-        self.redisPeerConnections = []
-        if self.redisAdditionalPeers:
-            for additionalPeer in self.redisAdditionalPeers:
-                additionalPeerHost = additionalPeer.split(':')[0]
-                additionalPeerPort = additionalPeer.split(':')[1]
-                redisPeerConnection = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=False, unixSocketPath=self.redisUnixSocketPath)
-                self.redisPeerConnections.append({"peer": additionalPeer, "connection": Redis(host=additionalPeerHost, port=additionalPeerPort)})
+        self.hostname = socket.gethostname()
 
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
@@ -569,7 +561,7 @@ class Diameter:
             if peerType not in peerTypes:
                 return []
             filteredConnectedPeers = []
-            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
+            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
 
             for key, value in activePeers.items():
                 if activePeers.get(key, {}).get('peerType', '') == peerType and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
@@ -583,7 +575,7 @@ class Diameter:
     def getPeerByHostname(self, hostname: str) -> dict:
         try:
             hostname = hostname.lower()
-            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
+            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
 
             for key, value in activePeers.items():
                 if activePeers.get(key, {}).get('diameterHostname', '').lower() == hostname and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
@@ -639,7 +631,7 @@ class Diameter:
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                 sendTime = time.time_ns()
                 outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return request
         except Exception as e:
@@ -672,7 +664,7 @@ class Diameter:
                     outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                     sendTime = time.time_ns()
                     outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Queueing for peer type: {peerType} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return connectedPeerList
         except Exception as e:
@@ -716,14 +708,14 @@ class Diameter:
                 sendTime = time.time_ns()
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                 outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
                 startTimer = time.time()
                 while True:
                     try:
                         if not time.time() >= startTimer + timeout:
                             if sessionId is None:
-                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound")
+                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages(NoSessionId): {queuedMessages}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
@@ -740,7 +732,7 @@ class Diameter:
                                             return messageHex
                                 time.sleep(0.02)
                             else:
-                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound")
+                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages({sessionId}): {queuedMessages} responseType: {responseType}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
@@ -1050,8 +1042,8 @@ class Diameter:
                 if existingEmergencySubscriber:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getEmergencySubscriber] Found existing emergency subscriber to overwrite: {existingEmergencySubscriber}", redisClient=self.redisMessaging)
                     for key, value in existingEmergencySubscriber.items():
-                        self.redisMessaging.multiDeleteQueue(queue=f"emergencySubscriber:{value.get('ip')}:{value.get('imsi')}:{value.get('servingPgw')}", redisPeerConnections=self.redisPeerConnections)
-            result = self.redisMessaging.multiSetValue(key=emergencySubscriberKey, value=json.dumps(subscriberData), keyExpiry=authExpiry, redisPeerConnections=self.redisPeerConnections)
+                        self.redisMessaging.deleteQueue(queue=f"emergencySubscriber:{value.get('ip')}:{value.get('imsi')}:{value.get('servingPgw')}", redisPeerConnections=self.redisPeerConnections, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+            result = self.redisMessaging.setValue(key=emergencySubscriberKey, value=json.dumps(subscriberData), keyExpiry=authExpiry, redisPeerConnections=self.redisPeerConnections, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
             return True
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error storing emergency subscriber in redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
@@ -1070,13 +1062,13 @@ class Diameter:
                 return None
             
             if subscriberIp and subscriberImsi:
-                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber:{subscriberIp}:{subscriberImsi}:*")
+                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:{subscriberIp}:{subscriberImsi}:*", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 if emergencySubscriberKeyList:
                     for matchedKey in emergencySubscriberKeyList:
                         for peerName, keyName in matchedKey.items():
                             if isinstance(keyName, list):
                                 keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if not emergencySubscriberData:
                                 return None
                             emergencySubscriberData = json.loads(emergencySubscriberData)
@@ -1084,13 +1076,13 @@ class Diameter:
                             return emergencySubscriber
             
             if subscriberIp and not subscriberImsi:        
-                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber:{subscriberIp}:*")
+                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:{subscriberIp}:*", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 if emergencySubscriberKeyList:
                     for matchedKey in emergencySubscriberKeyList:
                         for peerName, keyName in matchedKey.items():
                             if isinstance(keyName, list):
                                 keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if not emergencySubscriberData:
                                 return None
                             emergencySubscriberData = json.loads(emergencySubscriberData)
@@ -1098,13 +1090,13 @@ class Diameter:
                             return emergencySubscriber
             
             if subscriberImsi and not subscriberIp:
-                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber:*:{subscriberImsi}:*")
+                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:*:{subscriberImsi}:*", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 if emergencySubscriberKeyList:
                     for matchedKey in emergencySubscriberKeyList:
                         for peerName, keyName in matchedKey.items():
                             if isinstance(keyName, list):
                                 keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if not emergencySubscriberData:
                                 return None
                             emergencySubscriberData = json.loads(emergencySubscriberData)
@@ -1112,13 +1104,13 @@ class Diameter:
                             return emergencySubscriber
 
             if gxSessionId:
-                emergencySubscriberKeyList = self.redisMessaging.multiGetQueues(pattern=f"emergencySubscriber:*:*:{gxSessionId}")
+                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:*:*:{gxSessionId}", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 if emergencySubscriberKeyList:
                     for matchedKey in emergencySubscriberKeyList:
                         for peerName, keyName in matchedKey.items():
                             if isinstance(keyName, list):
                                 keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.getRedisPeerConnection(peerName=peerName))
+                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if not emergencySubscriberData:
                                 return None
                             emergencySubscriberData = json.loads(emergencySubscriberData)
@@ -1130,20 +1122,6 @@ class Diameter:
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error getting emergency subscriber from redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return None
-    
-    def getRedisPeerConnection(self, peerName: str):
-        """
-        [Deprecated] Returns a redis peer connection given a peerName.
-        Returns None on failure.
-        """
-        try:
-            for peerConnection in self.redisPeerConnections:
-                if str(peerConnection.get('peer').lower()) == str(peerName.lower()):
-                    return peerConnection.get('connection')
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getRedisPeerConnection] No redis peers matched for: {peerName}", redisClient=self.redisMessaging)
-            return None
-        except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getRedisPeerConnection] Error matching redis peer: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
@@ -1332,7 +1310,6 @@ class Diameter:
 
     #Device Watchdog Answer                                                 
     def Answer_280(self, packet_vars, avps): 
-        
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -1342,8 +1319,6 @@ class Diameter:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet      
         self.logTool.log(service='HSS', level='debug', message="Successfully Generated DWA", redisClient=self.redisMessaging)
-        orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-        orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
         return response
 
     #Disconnect Peer Answer    

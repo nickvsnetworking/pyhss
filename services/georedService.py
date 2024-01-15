@@ -1,6 +1,7 @@
 import os, sys, json, yaml
 import uuid, time
 import asyncio, aiohttp
+import socket
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
@@ -32,6 +33,7 @@ class GeoredService:
         self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
         self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
+        self.hostname = socket.gethostname()
 
         if not self.config.get('geored', {}).get('enabled'):
             self.logger.error("[Geored] Fatal Error - geored not enabled under geored.enabled, exiting.")
@@ -255,7 +257,7 @@ class GeoredService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='asymmetric-geored')))[1])
+                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='asymmetric-geored', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='geored')))[1])
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Message: {georedMessage}"))
 
                 georedOperation = georedMessage['operation']
@@ -286,7 +288,7 @@ class GeoredService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='geored')))[1])
+                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='geored', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='geored')))[1])
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Message: {georedMessage}"))
 
                 georedOperation = georedMessage['operation']
@@ -316,7 +318,7 @@ class GeoredService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                webhookMessage = json.loads((await(self.redisWebhookMessaging.awaitMessage(key='webhook')))[1])
+                webhookMessage = json.loads((await(self.redisWebhookMessaging.awaitMessage(key='webhook', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='webhook')))[1])
 
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Message: {webhookMessage}"))
 
