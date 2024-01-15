@@ -96,7 +96,7 @@ logging:
     geored_logging_file: /var/log/pyhss_geored.log
     metric_logging_file: /var/log/pyhss_metrics.log
   log_to_terminal: True
-  sqlalchemy_sql_echo: True
+  sqlalchemy_sql_echo: False
   sqlalchemy_pool_recycle: 15
   sqlalchemy_pool_size: 30
   sqlalchemy_max_overflow: 0

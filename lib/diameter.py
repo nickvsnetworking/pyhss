@@ -9,6 +9,7 @@ import ipaddress
 import jinja2
 from database import Database
 from messaging import RedisMessaging
+from redis import Redis
 import yaml
 import json
 import time
