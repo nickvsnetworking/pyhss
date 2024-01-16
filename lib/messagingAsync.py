@@ -2,7 +2,6 @@ import asyncio
 import traceback
 import socket
 import redis.asyncio as redis
-from redis.asyncio.sentinel import Sentinel
 import time, json, uuid
 
 class RedisMessagingAsync:

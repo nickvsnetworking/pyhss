@@ -58,7 +58,7 @@ class GeoredService:
             if operation not in requestOperations:
                 return False
             
-            headers = {"Content-Type": "application/json", "Transaction-Id": str(transactionId)}
+            headers = {"Content-Type": "application/json", "Transaction-Id": str(transactionId), "User-Agent": f"PyHSS/1.0.1 (Geored)"}
 
             for attempt in range(retryCount):
                 try:
@@ -147,7 +147,7 @@ class GeoredService:
 
             return True
 
-    async def sendWebhook(self, asyncSession, url: str, operation: str, body: str, headers: str, transactionId: str=uuid.uuid4(), retryCount: int=3) -> bool:
+    async def sendWebhook(self, asyncSession, url: str, operation: str, body: str, headers: dict, transactionId: str=uuid.uuid4(), retryCount: int=3) -> bool:
             """
             Sends a Webhook HTTP request to a given endpoint.
             """
@@ -161,6 +161,9 @@ class GeoredService:
 
             if operation not in requestOperations:
                 return False
+            
+            if 'User-Agent' not in headers:
+                headers['User-Agent'] = f"PyHSS/1.0.1 (Webhook)"
 
             for attempt in range(retryCount):
                 try:

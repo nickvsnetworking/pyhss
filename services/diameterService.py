@@ -2,7 +2,7 @@ import asyncio
 import sys, os, json
 import time, yaml, uuid
 from datetime import datetime
-import socket
+import sctp, socket
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync
@@ -288,6 +288,28 @@ class DiameterService:
 
         if type.upper() == 'TCP':
             server = await(asyncio.start_server(self.handleConnection, host, port))
+        elif type.upper() == 'SCTP':
+            self.sctpSocket = sctp.sctpsocket_tcp(socket.AF_INET)
+            self.sctpSocket.setblocking(False)
+            self.sctpSocket.events.clear()
+            self.sctpSocket.bind((host, port))
+            self.sctpRtoInfo = self.sctpSocket.get_rtoinfo()
+            self.sctpRtoMin = self.config.get('hss', {}).get('sctp', {}).get('rtoMin', 500)
+            self.sctpRtoMax = self.config.get('hss', {}).get('sctp', {}).get('rtoMax', 5000)
+            self.sctpRtoInitial = self.config.get('hss', {}).get('sctp', {}).get('rtoInitial', 1000)
+            self.sctpRtoInfo.initial = int(self.sctpRtoInitial)
+            self.sctpRtoInfo.max = int(self.sctpRtoMax)
+            self.sctpRtoInfo.min = int(self.sctpRtoMin)
+            self.sctpSocket.set_rtoinfo(self.sctpRtoInfo)
+            self.sctpAssociatedParameters = self.sctpSocket.get_assocparams()
+            sctpInitParameters = { "initialRto": self.sctpRtoInfo.initial,
+                                "rtoMin": self.sctpRtoInfo.min,
+                                "rtoMax": self.sctpRtoInfo.max
+                                }
+            self.sctpSocket.listen()
+            await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [startServer] SCTP Parameters: {sctpInitParameters}"))
+
+            server = await(asyncio.start_server(self.handleConnection, sock=self.sctpSocket))
         else:
             return False
         servingAddresses = ', '.join(str(sock.getsockname()) for sock in server.sockets)

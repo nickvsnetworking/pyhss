@@ -1,5 +1,7 @@
 ## HSS Parameters
-hss:
+hss:  
+  # Transport Type. "TCP" and "SCTP" are valid options.
+  # Note: SCTP works but is still experimental. TCP has been load-tested and performs in a production environment.
   transport: "TCP"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
   bind_ip: ["0.0.0.0"]
@@ -69,6 +71,12 @@ hss:
     outbound:
       # Whether or not to a subscriber to connect to an undefined network when outbound roaming.
       allow_undefined_networks: True
+
+  # SCTP Socket Parameters
+  sctp:
+    rtoMax: 5000
+    rtoMin: 500
+    rtoInitial: 1000
 
 
 api:

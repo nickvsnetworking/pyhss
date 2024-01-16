@@ -1,5 +1,4 @@
-from unittest.mock import sentinel
-from redis import Redis, Sentinel
+from redis import Redis
 import time, json, uuid, traceback
 
 class RedisMessaging:
@@ -8,14 +7,9 @@ class RedisMessaging:
     A class for sending and receiving redis messages.
     """
 
-    def __init__(self, useTcp: bool=False, host: str='localhost', port: int=6379, useUnixSocket: bool=False, unixSocketPath: str='/var/run/redis/redis-server.sock', useSentinel: bool=False, sentinelHosts: list=[]):
+    def __init__(self, host: str='localhost', port: int=6379, useUnixSocket: bool=False, unixSocketPath: str='/var/run/redis/redis-server.sock'):
         if useUnixSocket:
             self.redisClient = Redis(unix_socket_path=unixSocketPath)
-        elif useSentinel:
-            sentinelList = []
-            for host in sentinelHosts:
-                for key, value in host.items():
-                    sentinelList.append((key, int(host.get('port', 6379))))
         else:
             self.redisClient = Redis(host=host, port=port)
 
