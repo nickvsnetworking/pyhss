@@ -2234,10 +2234,15 @@ class Diameter:
             username = self.get_avp_data(avps, 1)[0]                                                     
             username = binascii.unhexlify(username).decode('utf-8')
             self.logTool.log(service='HSS', level='debug', message="Username AVP is present, value is " + str(username), redisClient=self.redisMessaging)
-            imsi = username.split('@')[0]   #Strip Domain
+            user = username.split('@')[0]   #Strip Domain
             domain = username.split('@')[1] #Get Domain Part
-            self.logTool.log(service='HSS', level='debug', message="Extracted imsi: " + str(imsi) + " now checking backend for this IMSI", redisClient=self.redisMessaging)
-            ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=imsi)
+            
+            if self.config['hss']['use_msisdn_as_user']:
+                self.logTool.log(service='HSS', level='debug', message="Extracted MSISDN: " + str(user) + " now checking backend for this MSISDN", redisClient=self.redisMessaging)
+                ims_subscriber_details = self.database.Get_IMS_Subscriber(msisdn=user)
+            else:
+                self.logTool.log(service='HSS', level='debug', message="Extracted IMSI: " + str(user) + " now checking backend for this IMSI", redisClient=self.redisMessaging)
+                ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=user)            
         except Exception as E:
             self.logTool.log(service='HSS', level='debug', message="Threw Exception: " + str(E), redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='debug', message=f"No known MSISDN or IMSI in Answer_16777216_300()", redisClient=self.redisMessaging)
@@ -2248,7 +2253,7 @@ class Diameter:
                                                         "diameter_application_id": 16777216,
                                                         "diameter_cmd_code": 300,
                                                         "event": "Unknown User",
-                                                        "imsi_prefix": str(imsi[0:6])},
+                                                        "imsi_prefix": str(user[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
                                             metricExpiry=60)
             result_code = 5001          #IMS User Unknown
@@ -2455,7 +2460,7 @@ class Diameter:
         self.logTool.log(service='HSS', level='debug', message="Got MAR for public_identity : " + str(public_identity), redisClient=self.redisMessaging)
         username = self.get_avp_data(avps, 1)[0]
         username = binascii.unhexlify(username).decode('utf-8')
-        imsi = username.split('@')[0]   #Strip Domain
+        user = username.split('@')[0]   #Strip Domain
         domain = username.split('@')[1] #Get Domain Part
         self.logTool.log(service='HSS', level='debug', message="Got MAR username: " + str(username), redisClient=self.redisMessaging)
         auth_scheme = ''
@@ -2469,10 +2474,13 @@ class Diameter:
         avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm        
 
         try:
-            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            if self.config['hss']['use_msisdn_as_user']:
+                subscriber_details = self.database.Get_Subscriber(msisdn=user)
+            else:
+                subscriber_details = self.database.Get_Subscriber(imsi=user)
         except:
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
-            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " unknown in HSS for MAA", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(user) + " unknown in HSS for MAA", redisClient=self.redisMessaging)
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                             metricType='counter', metricAction='inc', 
                                             metricValue=1.0, 
@@ -2480,7 +2488,7 @@ class Diameter:
                                                         "diameter_application_id": 16777216,
                                                         "diameter_cmd_code": 303,
                                                         "event": "Unknown User",
-                                                        "imsi_prefix": str(imsi[0:6])},
+                                                        "imsi_prefix": str(user[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
                                             metricExpiry=60)
             experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
