@@ -2150,7 +2150,7 @@ class Database:
         return result
 
     def Get_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId: str=None, rxSessionId: str=None, imsi: str=None, **kwargs) -> dict:
-        self.logTool.log(service='Database', level='debug', message=f"Getting Emergency_Subscriber}", redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message=f"Getting Emergency_Subscriber", redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
