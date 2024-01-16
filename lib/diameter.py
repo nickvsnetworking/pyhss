@@ -1051,102 +1051,6 @@ class Diameter:
         
         return True
 
-
-    def storeEmergencySubscriber(self, subscriberIp: str, subscriberData: dict, gxSessionId: str, authExpiry: int=3600, subscriberImsi: str="Unknown") -> bool:
-        """
-        Store a given Emergency Subscriber in redis.
-        If there's an existing entry for the same IMSI, then update the record with the new IP and details.
-        The subscriber entry will expire per authExpiry in seconds.
-        """
-        try:
-            emergencySubscriberKey = f"emergencySubscriber:{subscriberIp}:{subscriberImsi}:{gxSessionId}"
-            # Check if our subscriber exists
-            if subscriberImsi and subscriberImsi != "Unknown":
-                existingEmergencySubscriber = self.getEmergencySubscriber(subscriberImsi=subscriberImsi)
-                if existingEmergencySubscriber:
-                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getEmergencySubscriber] Found existing emergency subscriber to overwrite: {existingEmergencySubscriber}", redisClient=self.redisMessaging)
-                    for key, value in existingEmergencySubscriber.items():
-                        self.redisMessaging.deleteQueue(queue=f"emergencySubscriber:{value.get('ip')}:{value.get('imsi')}:{value.get('servingPgw')}", redisPeerConnections=self.redisPeerConnections, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-            result = self.redisMessaging.setValue(key=emergencySubscriberKey, value=json.dumps(subscriberData), keyExpiry=authExpiry, redisPeerConnections=self.redisPeerConnections, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-            return True
-        except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error storing emergency subscriber in redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
-            return False
-        
-        
-    def getEmergencySubscriber(self, subscriberIp: str=None, subscriberImsi: str=None, gxSessionId: str=None) -> dict:
-        """
-        Retrieves a provided Emergency Subscriber from redis, if it exists.
-        The first match from any defined redis instance is used.
-        Returns None on no match found, or failure.
-        """
-        try:
-
-            if not subscriberIp and not subscriberImsi:
-                return None
-            
-            if subscriberIp and subscriberImsi:
-                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:{subscriberIp}:{subscriberImsi}:*", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                if emergencySubscriberKeyList:
-                    for matchedKey in emergencySubscriberKeyList:
-                        for peerName, keyName in matchedKey.items():
-                            if isinstance(keyName, list):
-                                keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                            if not emergencySubscriberData:
-                                return None
-                            emergencySubscriberData = json.loads(emergencySubscriberData)
-                            emergencySubscriber = {peerName: emergencySubscriberData}
-                            return emergencySubscriber
-            
-            if subscriberIp and not subscriberImsi:        
-                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:{subscriberIp}:*", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                if emergencySubscriberKeyList:
-                    for matchedKey in emergencySubscriberKeyList:
-                        for peerName, keyName in matchedKey.items():
-                            if isinstance(keyName, list):
-                                keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                            if not emergencySubscriberData:
-                                return None
-                            emergencySubscriberData = json.loads(emergencySubscriberData)
-                            emergencySubscriber = {peerName: emergencySubscriberData}
-                            return emergencySubscriber
-            
-            if subscriberImsi and not subscriberIp:
-                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:*:{subscriberImsi}:*", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                if emergencySubscriberKeyList:
-                    for matchedKey in emergencySubscriberKeyList:
-                        for peerName, keyName in matchedKey.items():
-                            if isinstance(keyName, list):
-                                keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                            if not emergencySubscriberData:
-                                return None
-                            emergencySubscriberData = json.loads(emergencySubscriberData)
-                            emergencySubscriber = {peerName: emergencySubscriberData}
-                            return emergencySubscriber
-
-            if gxSessionId:
-                emergencySubscriberKeyList = self.redisMessaging.getQueues(pattern=f"emergencySubscriber:*:*:{gxSessionId}", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                if emergencySubscriberKeyList:
-                    for matchedKey in emergencySubscriberKeyList:
-                        for peerName, keyName in matchedKey.items():
-                            if isinstance(keyName, list):
-                                keyName = keyName[0] if len(keyName) > 0 else ''
-                            emergencySubscriberData = self.redisMessaging.getValue(key=keyName, redisClient=self.redisMessaging(peerName=peerName), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                            if not emergencySubscriberData:
-                                return None
-                            emergencySubscriberData = json.loads(emergencySubscriberData)
-                            emergencySubscriber = {peerName: emergencySubscriberData}
-                            return emergencySubscriber
-
-            return None
-        
-        except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getEmergencySubscriber] Error getting emergency subscriber from redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
-            return None
-
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
             if avp_dicts['avp_code'] == 278:
@@ -2038,7 +1942,7 @@ class Diameter:
                         "accessNetworkChargingAddress": accessNetworkChargingAddress,
                     }
 
-                    self.storeEmergencySubscriber(subscriberIp=ueIp, subscriberData=emergencySubscriberData, subscriberImsi=imsi, gxSessionId=emergencySubscriberData.get('servingPgw'))
+                    self.database.Update_Emergency_Subscriber(subscriberIp=ueIp, subscriberData=emergencySubscriberData, imsi=imsi, gxSessionId=emergencySubscriberData.get('servingPgw'))
 
                     avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
                     response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -2778,7 +2682,7 @@ class Diameter:
             Determine if the AAR for the IP belongs to an inbound roaming emergency subscriber.
             """
             try:
-                emergencySubscriberData = self.getEmergencySubscriber(subscriberIp=ueIp)
+                emergencySubscriberData = self.database.Get_Emergency_Subscriber(subscriberIp=ueIp)
                 if emergencySubscriberData:
                     emergencySubscriber = True
             except Exception as e:
@@ -2823,7 +2727,6 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
                 except Exception as e:
                     pass
-
 
             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)

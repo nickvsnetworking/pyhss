@@ -167,6 +167,21 @@ class ROAMING_NETWORK(Base):
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("ROAMING_NETWORK_OPERATION_LOG", back_populates="roaming_network")
 
+class EMERGENCY_SUBSCRIBER(Base):
+    __tablename__ = 'emergency_subscriber'
+    emergency_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of EMERGENCY_SUBSCRIBER entry')
+    imsi = Column(String(18), doc='International Mobile Subscriber Identity')
+    serving_pgw = Column(String(512), doc='PGW serving this subscriber')
+    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of Gx CCR')
+    gx_origin_realm = Column(String(512), doc='Origin Realm of the Gx CCR')
+    gx_origin_host = Column(String(512), doc='Origin host of the Gx CCR')
+    rat_type = Column(String(512), doc='Radio access technology type that the emergency subscriber has used')
+    ip = Column(String(512), doc='IP of the emergency subscriber')
+    access_network_gateway_address = Column(String(512), doc='ANGW emergency that the subscriber has used')
+    access_network_charging_address = Column(String(512), doc='AN Charging Address that the emergency subscriber has used')
+    last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
+    operation_logs = relationship("EMERGENCY_SUBSCRIBER_OPERATION_LOG", back_populates="emergency_subscriber")
+
 class ROAMING_RULE(Base):
     __tablename__ = 'roaming_rule'
     roaming_rule_id = Column(Integer, primary_key = True, doc='Unique ID of ROAMING_RULE entry')
@@ -284,6 +299,11 @@ class ROAMING_NETWORK_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'roaming_network'}
     roaming_network = relationship("ROAMING_NETWORK", back_populates="operation_logs")
     roaming_network_id = Column(Integer, ForeignKey('roaming_network.roaming_network_id'))
+
+class EMERGENCY_SUBSCRIBER_OPERATION_LOG(OPERATION_LOG_BASE):
+    __mapper_args__ = {'polymorphic_identity': 'emergency_subscriber'}
+    emergency_subscriber = relationship("EMERGENCY_SUBSCRIBER", back_populates="operation_logs")
+    emergency_subscriber_id = Column(Integer, ForeignKey('emergency_subscriber.emergency_subscriber_id'))
 
 class CHARGING_RULE_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'charging_rule'}
@@ -2125,6 +2145,85 @@ class Database:
         result = result.__dict__
         result.pop('_sa_instance_state')
         result = self.Sanitize_Datetime(result)
+        return result
+
+    def Get_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId = None, imsi=None, **kwargs):
+        self.logTool.log(service='Database', level='debug', message="Getting Emergency_Subscriber " + str(emergencySubscriberId), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        """
+        Work out what filters we're using for this query
+        """
+
+        queryFilters = {}
+
+        if emergencySubscriberId:
+            queryFilters['emergency_subscriber_id'] = emergencySubscriberId
+        if subscriberIp:
+            queryFilters['ip'] = subscriberIp
+        if gxSessionId:
+            queryFilters['serving_pgw'] = gxSessionId
+        if imsi:
+            queryFilters['imsi'] = imsi
+
+        try:
+            result = session.query(EMERGENCY_SUBSCRIBER).filter_by(**queryFilters).one()
+            if not result:
+                return None
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        self.safe_close(session)
+        return result
+
+    def Update_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId = None, imsi=None, subscriberData: dict={}) -> bool:
+        """
+        First, get at most one emergency subscriber matching the provided identifiers.
+        Then, update all data with the provided data.
+        """
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        queryFilters = {}
+
+        if emergencySubscriberId:
+            queryFilters['emergency_subscriber_id'] = emergencySubscriberId
+        if subscriberIp:
+            queryFilters['ip'] = subscriberIp
+        if gxSessionId:
+            queryFilters['serving_pgw'] = gxSessionId
+        if imsi:
+            queryFilters['imsi'] = imsi
+
+        self.logTool.log(service='Database', level='debug', message=f"Getting Emergency_Subscriber with provided filters: {queryFilters}", redisClient=self.redisMessaging)
+
+        result = session.query(EMERGENCY_SUBSCRIBER).filter_by(**queryFilters).first()
+
+        if result is None:
+            result = EMERGENCY_SUBSCRIBER()
+            session.add(result)
+
+        result.imsi = subscriberData.get('imsi')
+        result.serving_pgw = subscriberData.get('servingPgw')
+        result.serving_pgw_timestamp = subscriberData.get('requestTime')
+        result.gx_origin_realm = subscriberData.get('gxOriginRealm')
+        result.gx_origin_host = subscriberData.get('gxOriginHost')
+        result.rat_type = subscriberData.get('ratType')
+        result.ip = subscriberData.get('ip')
+        result.access_network_gateway_address = subscriberData.get('accessNetworkGatewayAddress')
+        result.access_network_charging_address = subscriberData.get('accessNetworkChargingAddress')
+
+        try:
+            session.commit()
+        except Exception as E:
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        self.safe_close(session)
         return result
 
     def Store_IMSI_IMEI_Binding(self, imsi, imei, match_response_code, propagate=True):

@@ -69,6 +69,8 @@ OPERATION_LOG = database.OPERATION_LOG_BASE
 SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
 ROAMING_NETWORK = database.ROAMING_NETWORK
 ROAMING_RULE = database.ROAMING_RULE
+EMERGENCY_SUBSCRIBER = database.EMERGENCY_SUBSCRIBER
+
 
 apiService.wsgi_app = ProxyFix(apiService.wsgi_app)
 api = Api(apiService, version='1.0', title=f'{siteName + " - " if siteName else ""}{originHostname} - PyHSS OAM API',
@@ -128,6 +130,9 @@ ROAMING_RULE_model = api.schema_model('ROAMING_RULE JSON',
     databaseClient.Generate_JSON_Model_for_Flask(ROAMING_RULE)
 )
 
+EMERGENCY_SUBSCRIBER_model = api.schema_model('EMERGENCY_SUBSCRIBER JSON', 
+    databaseClient.Generate_JSON_Model_for_Flask(EMERGENCY_SUBSCRIBER)
+)
 
 #Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
 imsSubscriberModel = databaseClient.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
@@ -1824,6 +1829,64 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
         try:
             data = databaseClient.Get_UE_by_IP(subscriber_routing)
             return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_pcrf.route('/<string:emergency_subscriber_id>')
+class PyHSS_EMERGENCY_SUBSCRIBER_Get(Resource):
+    def get(self, emergency_subscriber_id):
+        '''Get all EMERGENCY_SUBSCRIBER data for specified EMERGENCY_SUBSCRIBER ID'''
+        try:
+            apn_data = databaseClient.GetObj(EMERGENCY_SUBSCRIBER, emergency_subscriber_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    def delete(self, emergency_subscriber_id):
+        '''Delete all EMERGENCY_SUBSCRIBER data for specified EMERGENCY_SUBSCRIBER ID'''
+        try:
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.DeleteObj(EMERGENCY_SUBSCRIBER, emergency_subscriber_id, False, operation_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    @ns_pcrf.doc('Update EMERGENCY_SUBSCRIBER Object')
+    @ns_pcrf.expect(EMERGENCY_SUBSCRIBER_model)
+    def patch(self, emergency_subscriber_id):
+        '''Update EMERGENCY_SUBSCRIBER data for specified EMERGENCY_SUBSCRIBER ID'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_data = databaseClient.UpdateObj(EMERGENCY_SUBSCRIBER, json_data, emergency_subscriber_id, False, operation_id)
+
+            print("Updated object")
+            print(apn_data)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)   
+
+@ns_pcrf.route('/')
+class PyHSS_EMERGENCY_SUBSCRIBER(Resource):
+    @ns_pcrf.doc('Create EMERGENCY_SUBSCRIBER Object')
+    @ns_pcrf.expect(EMERGENCY_SUBSCRIBER_model)
+    def put(self):
+        '''Create new EMERGENCY_SUBSCRIBER'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            emergency_subscriber_id = databaseClient.CreateObj(EMERGENCY_SUBSCRIBER, json_data, False, operation_id)
+
+            return emergency_subscriber_id, 200
         except Exception as E:
             print(E)
             return handle_exception(E)
