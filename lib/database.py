@@ -2315,7 +2315,9 @@ class Database:
             session.delete(result)
             session.commit()
             if propagate:
-                self.handleGeored({ "emergency_subscriber_id": int(emergencySubscriberId),
+                self.handleGeored({
+                                    "emergency_subscriber_imsi": subscriberData.get('imsi'),
+                                    "emergency_subscriber_ip": subscriberData.get('ip'),
                                     "emergency_subscriber_delete": True,
                                 })
             self.safe_close(session)

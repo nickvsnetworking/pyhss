@@ -219,6 +219,7 @@ GeoRed_model = api.model('GeoRed', {
     'emergency_subscriber_ip': fields.String(description=EMERGENCY_SUBSCRIBER.ip.doc),
     'emergency_subscriber_access_network_gateway_address': fields.String(description=EMERGENCY_SUBSCRIBER.access_network_gateway_address.doc),
     'emergency_subscriber_access_network_charging_address': fields.String(description=EMERGENCY_SUBSCRIBER.access_network_charging_address.doc),
+    'emergency_subscriber_delete': fields.Boolean(description="Whether to delete the emergency subscriber on receipt"),
 })
 
 def no_auth_required(f):
@@ -2004,7 +2005,7 @@ class PyHSS_Geored(Resource):
                                         "geored_host": request.remote_addr,
                                     },
                                     metricExpiry=60)
-            if 'emergency_subscriber_id' in json_data:
+            if 'emergency_subscriber_ip' in json_data:
                 """
                 If we receive a geored payload containing emergency_subscriber_id, create or update the matching emergency_subscriber_id.
                 If emergency_subscriber_id exists as None, then remove the emergency subscriber.
@@ -2024,13 +2025,13 @@ class PyHSS_Geored(Resource):
                     "accessNetworkChargingAddress": json_data.get('emergency_subscriber_access_network_charging_address'),
                 }
 
-                if not json_data.get('emergency_subscriber_id', None):
-                    logTool.log(service='API', level='error', message=f"[API] emergency_subscriber_id missing from geored request. No changes to emergency_subscriber made.", redisClient=redisMessaging)
-                    return {'result': 'Failed', 'Reason' : "emergency_subscriber_id missing from geored request"}
+                if not json_data.get('emergency_subscriber_ip', None):
+                    logTool.log(service='API', level='error', message=f"[API] emergency_subscriber_ip missing from geored request. No changes to emergency_subscriber made.", redisClient=redisMessaging)
+                    return {'result': 'Failed', 'Reason' : "emergency_subscriber_ip missing from geored request"}
 
                 if 'emergency_subscriber_delete' in json_data:
                     if json_data.get('emergency_subscriber_delete', False):
-                        databaseClient.deleteObj(EMERGENCY_SUBSCRIBER, json_data.get('emergency_subscriber_id'))
+                        databaseClient.Delete_Emergency_Subscriber(subscriberIp=subscriberData.get('ip'), imsi=subscriberData.get('imsi'), propagate=False)
                         return {}, 200
 
                 response_data.append(databaseClient.Update_Emergency_Subscriber(emergencySubscriberId=json_data['emergency_subscriber_id'],
