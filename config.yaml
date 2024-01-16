@@ -61,6 +61,9 @@ hss:
   #Default Sh User Data
   Default_Sh_UserData: 'default_sh_user_data.xml'
 
+  # Use either IMSI or MSISDN as user to search in database
+  use_msisdn_as_user: False
+  
   #S-CSCF Pool
   scscf_pool:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
