@@ -2314,10 +2314,11 @@ class Database:
             emergencySubscriberId = result.emergency_subscriber_id
             session.delete(result)
             session.commit()
+            result = result.__dict__
             if propagate:
                 self.handleGeored({
-                                    "emergency_subscriber_imsi": subscriberData.get('imsi'),
-                                    "emergency_subscriber_ip": subscriberData.get('ip'),
+                                    "emergency_subscriber_imsi": result.get('imsi'),
+                                    "emergency_subscriber_ip": result.get('ip'),
                                     "emergency_subscriber_delete": True,
                                 })
             self.safe_close(session)
