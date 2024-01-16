@@ -172,7 +172,9 @@ class EMERGENCY_SUBSCRIBER(Base):
     emergency_subscriber_id = Column(Integer, primary_key = True, doc='Unique ID of EMERGENCY_SUBSCRIBER entry')
     imsi = Column(String(18), doc='International Mobile Subscriber Identity')
     serving_pgw = Column(String(512), doc='PGW serving this subscriber')
-    serving_pgw_timestamp = Column(DateTime, doc='Timestamp of Gx CCR')
+    serving_pgw_timestamp = Column(String(512), doc='Timestamp of Gx CCR')
+    serving_pcscf = Column(String(512), doc='PCSCF serving this subscriber')
+    serving_pcscf_timestamp = Column(String(512), doc='Timestamp of Rx Media AAR')
     gx_origin_realm = Column(String(512), doc='Origin Realm of the Gx CCR')
     gx_origin_host = Column(String(512), doc='Origin host of the Gx CCR')
     rat_type = Column(String(512), doc='Radio access technology type that the emergency subscriber has used')
@@ -2147,68 +2149,97 @@ class Database:
         result = self.Sanitize_Datetime(result)
         return result
 
-    def Get_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId = None, imsi=None, **kwargs):
-        self.logTool.log(service='Database', level='debug', message="Getting Emergency_Subscriber " + str(emergencySubscriberId), redisClient=self.redisMessaging)
+    def Get_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId: str=None, rxSessionId: str=None, imsi: str=None, **kwargs) -> dict:
+        self.logTool.log(service='Database', level='debug', message=f"Getting Emergency_Subscriber}", redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
-        """
-        Work out what filters we're using for this query
-        """
-
-        queryFilters = {}
-
-        if emergencySubscriberId:
-            queryFilters['emergency_subscriber_id'] = emergencySubscriberId
-        if subscriberIp:
-            queryFilters['ip'] = subscriberIp
-        if gxSessionId:
-            queryFilters['serving_pgw'] = gxSessionId
-        if imsi:
-            queryFilters['imsi'] = imsi
+        result = None
 
         try:
-            result = session.query(EMERGENCY_SUBSCRIBER).filter_by(**queryFilters).one()
+            while not result:
+                if imsi and not result:
+                    result = session.query(EMERGENCY_SUBSCRIBER).filter_by(imsi=imsi).first()
+                    self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Emergency_Subscriber] Matched emergency subscriber on IMSI: {imsi}", redisClient=self.redisMessaging)
+                    break
+                if emergencySubscriberId and not result:
+                    result = session.query(EMERGENCY_SUBSCRIBER).filter_by(emergency_subscriber_id=emergencySubscriberId).first()
+                    self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Emergency_Subscriber] Matched emergency subscriber on emergency_subscriber_id: {emergencySubscriberId}", redisClient=self.redisMessaging)
+                    break
+                if subscriberIp and not result:
+                    result = session.query(EMERGENCY_SUBSCRIBER).filter_by(ip=subscriberIp).first()
+                    self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Emergency_Subscriber] Matched emergency subscriber on IP: {subscriberIp}", redisClient=self.redisMessaging)
+                    break
+                if gxSessionId and not result:
+                    result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pgw=gxSessionId).first()
+                    self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Emergency_Subscriber] Matched emergency subscriber on Gx Session ID: {gxSessionId}", redisClient=self.redisMessaging)
+                    break
+                if rxSessionId and not result:
+                    result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pcscf=rxSessionId).first()
+                    self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Rx Session ID: {rxSessionId}", redisClient=self.redisMessaging)
+                    break
+                break
+
             if not result:
                 return None
-        except Exception as E:
+            result = result.__dict__
+            result.pop('_sa_instance_state')
             self.safe_close(session)
-            raise ValueError(E)
-        result = result.__dict__
-        result.pop('_sa_instance_state')
-        self.safe_close(session)
-        return result
+            return result
+        
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"[database.py] [Get_Emergency_Subscriber] Error getting emergency subscriber: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            self.safe_close(session)
+            return None
 
-    def Update_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId = None, imsi=None, subscriberData: dict={}) -> bool:
+    def Update_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId: str=None, rxSessionId: str=None, imsi: str=None, subscriberData: dict={}, propagate: bool=True) -> dict:
         """
-        First, get at most one emergency subscriber matching the provided identifiers.
-        Then, update all data with the provided data.
+        First, get at most one emergency subscriber.
+        Try and match on IMSI first (To detect an updated IP for an existing record),
+        If IMSI is None or no result was found, then try with a combination of all of the arguments.
+        Then update all data with the provided subscriberData, and push to geored.
         """
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
-        queryFilters = {}
+        result = None
 
-        if emergencySubscriberId:
-            queryFilters['emergency_subscriber_id'] = emergencySubscriberId
-        if subscriberIp:
-            queryFilters['ip'] = subscriberIp
-        if gxSessionId:
-            queryFilters['serving_pgw'] = gxSessionId
-        if imsi:
-            queryFilters['imsi'] = imsi
+        while not result:
+            if imsi and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(imsi=imsi).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on IMSI: {imsi}", redisClient=self.redisMessaging)
+                break
+            if emergencySubscriberId and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(emergency_subscriber_id=emergencySubscriberId).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on emergency_subscriber_id: {emergencySubscriberId}", redisClient=self.redisMessaging)
+                break
+            if subscriberIp and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(ip=subscriberIp).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on IP: {subscriberIp}", redisClient=self.redisMessaging)
+                break
+            if gxSessionId and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pgw=gxSessionId).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Gx Session ID: {gxSessionId}", redisClient=self.redisMessaging)
+                break
+            if rxSessionId and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pcscf=rxSessionId).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Rx Session ID: {rxSessionId}", redisClient=self.redisMessaging)
+                break
+            break
 
-        self.logTool.log(service='Database', level='debug', message=f"Getting Emergency_Subscriber with provided filters: {queryFilters}", redisClient=self.redisMessaging)
 
-        result = session.query(EMERGENCY_SUBSCRIBER).filter_by(**queryFilters).first()
-
-        if result is None:
+        """
+        If we havent matched in on any entries at this point, create a new emergency subscriber.
+        """
+        if not result:
             result = EMERGENCY_SUBSCRIBER()
             session.add(result)
 
         result.imsi = subscriberData.get('imsi')
         result.serving_pgw = subscriberData.get('servingPgw')
         result.serving_pgw_timestamp = subscriberData.get('requestTime')
+        result.serving_pcscf = subscriberData.get('servingPcscf')
+        result.serving_pcscf_timestamp = subscriberData.get('aarRequestTime')
         result.gx_origin_realm = subscriberData.get('gxOriginRealm')
         result.gx_origin_host = subscriberData.get('gxOriginHost')
         result.rat_type = subscriberData.get('ratType')
@@ -2218,13 +2249,82 @@ class Database:
 
         try:
             session.commit()
+            emergencySubscriberId = result.emergency_subscriber_id
+            if propagate:
+                self.handleGeored({ "emergency_subscriber_id": int(emergencySubscriberId),
+                                    "emergency_subscriber_imsi": subscriberData.get('imsi'),
+                                    "emergency_subscriber_serving_pgw": subscriberData.get('servingPgw'), 
+                                    "emergency_subscriber_serving_pgw_timestamp": subscriberData.get('requestTime'), 
+                                    "emergency_subscriber_serving_pcscf": subscriberData.get('servingPcscf'), 
+                                    "emergency_subscriber_serving_pcscf_timestamp": subscriberData.get('aarRequestTime'), 
+                                    "emergency_subscriber_gx_origin_realm":  subscriberData.get('gxOriginRealm'),
+                                    "emergency_subscriber_gx_origin_host": subscriberData.get('gxOriginHost'),
+                                    "emergency_subscriber_rat_type": subscriberData.get('ratType'),
+                                    "emergency_subscriber_ip": subscriberData.get('ip'),
+                                    "emergency_subscriber_access_network_gateway_address": subscriberData.get('accessNetworkGatewayAddress'),
+                                    "emergency_subscriber_access_network_charging_address": subscriberData.get('accessNetworkChargingAddress'),
+                                    })
+
         except Exception as E:
             self.safe_close(session)
-            raise ValueError(E)
+            self.logTool.log(service='Database', level='error', message=f"[database.py] [Update_Emergency_Subscriber] Error updating emergency subscriber: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return None
         result = result.__dict__
         result.pop('_sa_instance_state')
         self.safe_close(session)
         return result
+
+    def Delete_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId: str=None, rxSessionId: str=None, imsi: str=None, subscriberData: dict={}, propagate: bool=True) -> bool:
+        """
+        First, get at most one emergency subscriber matching the provided identifiers.
+        Then delete the emergency subscriber, and push to geored.
+        """
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        result = None
+
+        while not result:
+            if imsi and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(imsi=imsi).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on IMSI: {imsi}", redisClient=self.redisMessaging)
+                break
+            if emergencySubscriberId and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(emergency_subscriber_id=emergencySubscriberId).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on emergency_subscriber_id: {emergencySubscriberId}", redisClient=self.redisMessaging)
+                break
+            if subscriberIp and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(ip=subscriberIp).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on IP: {subscriberIp}", redisClient=self.redisMessaging)
+                break
+            if gxSessionId and not result:
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Gx Session ID: {gxSessionId}", redisClient=self.redisMessaging)
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pgw=gxSessionId).first()
+                break
+            if rxSessionId and not result:
+                result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pcscf=rxSessionId).first()
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Rx Session ID: {rxSessionId}", redisClient=self.redisMessaging)
+                break
+            break
+
+        if not result:
+            return True
+        
+        try:
+            emergencySubscriberId = result.emergency_subscriber_id
+            session.delete(result)
+            session.commit()
+            if propagate:
+                self.handleGeored({ "emergency_subscriber_id": int(emergencySubscriberId),
+                                    "emergency_subscriber_delete": True,
+                                })
+            self.safe_close(session)
+            return True
+        except Exception as E:
+            self.safe_close(session)
+            self.logTool.log(service='Database', level='error', message=f"[database.py] [Delete_Emergency_Subscriber] Error deleting emergency subscriber: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return False
+
 
     def Store_IMSI_IMEI_Binding(self, imsi, imei, match_response_code, propagate=True):
         #IMSI           14-15 Digits
