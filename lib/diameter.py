@@ -2499,7 +2499,8 @@ class Diameter:
             return response
         
         self.logTool.log(service='HSS', level='debug', message="Got subscriber data for MAA OK", redisClient=self.redisMessaging)
-        
+
+        imsi = subscriber_details['imsi']
         mcc, mnc = imsi[0:3], imsi[3:5]
         plmn = self.EncodePLMN(mcc, mnc)
 
