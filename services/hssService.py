@@ -32,7 +32,6 @@ class HssService:
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
         self.hostname = socket.gethostname()
 
-
     def handleQueue(self):
         """
         Gets and parses inbound diameter requests, processes them and queues the response.

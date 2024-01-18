@@ -1059,6 +1059,23 @@ class Diameter:
                 origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
                 return origin_state_incriment_hex
 
+    def Match_SDP(self, regexPattern, sdpBody):
+        """
+        Matches a given regex in a given SDP body.
+        Returns the result, or and empty string if not found.
+        """
+
+        try:
+            sdpMatch = re.search(regexPattern, sdpBody, re.MULTILINE)
+            if sdpMatch:
+                sdpResult = sdpMatch.group(1)
+                if sdpResult:
+                    return str(sdpResult)
+            return ''
+        except Exception as e:
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Match_SDP] Error matching SDP: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return ''
+
     def Charging_Rule_Generator(self, ChargingRules=None, ue_ip=None, chargingRuleName=None, action="install"):
         self.logTool.log(service='HSS', level='debug', message=f"Called Charging_Rule_Generator with action: {action}", redisClient=self.redisMessaging)
         if action not in ['install', 'remove']:
@@ -2861,81 +2878,56 @@ class Diameter:
                         except Exception as e:
                             pass
 
-                        #Extract the SDP for each direction to find the source and destination IP Addresses and Ports used for the RTP streams
+                        # Extract the SDP for both Uplink and Downlink, to create TFTs.
                         try:
-                            sdp1 = self.get_avp_data(avps, 524)[0]
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got first SDP body raw: " + str(sdp1), redisClient=self.redisMessaging)
-                            sdp1 = binascii.unhexlify(sdp1).decode('utf-8')
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got first SDP body decoded: " + str(sdp1), redisClient=self.redisMessaging)
-                            sdp2 = self.get_avp_data(avps, 524)[1]
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got second SDP body raw: " + str(sdp2), redisClient=self.redisMessaging)
-                            sdp2 = binascii.unhexlify(sdp2).decode('utf-8')
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] got second SDP body decoded: " + str(sdp2), redisClient=self.redisMessaging)
+                            sdpOffer = self.get_avp_data(avps, 524)[0]
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Offer raw: {sdpOffer}", redisClient=self.redisMessaging)
+                            sdpOffer = binascii.unhexlify(sdpOffer).decode('utf-8')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Offer decoded: {sdpOffer}", redisClient=self.redisMessaging)
+                            sdpAnswer = self.get_avp_data(avps, 524)[1]
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Answer raw: {sdpAnswer}", redisClient=self.redisMessaging)
+                            sdpAnswer = binascii.unhexlify(sdpAnswer).decode('utf-8')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Answer decoded: {sdpAnswer}", redisClient=self.redisMessaging)
 
-                            regex_ipv4 = r"IN IP4 (\d*\.\d*\.\d*\.\d*)"
-                            regex_ipv6 = r"IN IP6 ([0-9a-fA-F:]{3,39})"
-                            regex_port_audio = r"m=audio (\d*)"
-                            regex_port_rtcp = r"a=rtcp:(\d*)"
+                            regexIpv4 = r"IN IP4 (\d*\.\d*\.\d*\.\d*)"
+                            regexIpv6 = r"IN IP6 ([0-9a-fA-F:]{3,39})"
+                            regexRtp = r"m=audio (\d*)"
+                            regexRtcp = r"a=rtcp:(\d+)"                            
 
-                            #Check for IPv4 Matches in first SDP Body
-                            matches_ipv4 = re.search(regex_ipv4, sdp1, re.MULTILINE)
-                            if matches_ipv4:
-                                sdp1_ipv4 = str(matches_ipv4.group(1))
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP IPv4" + str(sdp1_ipv4), redisClient=self.redisMessaging)
-                            else:
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv4 in SDP", redisClient=self.redisMessaging)
-                            if not matches_ipv4:
-                                #Check for IPv6 Matches
-                                matches_ipv6 = re.search(regex_ipv6, sdp1, re.MULTILINE)
-                                if matches_ipv6:
-                                    sdp1_ipv6 = str(matches_ipv6.group(1))
-                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP IPv6" + str(sdp1_ipv6), redisClient=self.redisMessaging)
-                                else:
-                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv6 in SDP", redisClient=self.redisMessaging)
+                            sdpDownlink = None
+                            sdpUplink = None
+                            sdpDownlinkIpv4 = ''
+                            sdpDownlinkRtpPort = ''
+                            sdpUplinkRtpPort = ''
 
+                            # First, work out which side the SDP Downlink is, then do the same for the SDP Uplink.
+                            if 'downlink' in sdpOffer.lower():
+                                sdpDownlink  = sdpOffer
+                            elif 'downlink' in sdpAnswer.lower():
+                                sdpDownlink = sdpAnswer
+                            
+                            if 'uplink' in sdpOffer.lower():
+                                sdpUplink  = sdpOffer
+                            elif 'uplink' in sdpAnswer.lower():
+                                sdpUplink = sdpAnswer
 
-                            #Check for IPv4 Matches in second SDP Body
-                            matches_ipv4 = re.search(regex_ipv4, sdp2, re.MULTILINE)
-                            if matches_ipv4:
-                                sdp2_ipv4 = str(matches_ipv4.group(1))
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 IPv4 " + str(sdp2_ipv4), redisClient=self.redisMessaging)
-                            else:
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv4 in SDP2", redisClient=self.redisMessaging)
-                            if not matches_ipv4:
-                                #Check for IPv6 Matches
-                                matches_ipv6 = re.search(regex_ipv6, sdp2, re.MULTILINE)
-                                if matches_ipv6:
-                                    sdp2_ipv6 = str(matches_ipv6.group(1))
-                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 IPv6 " + str(sdp2_ipv6), redisClient=self.redisMessaging)
-                                else:
-                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] No matches for IPv6 in SDP", redisClient=self.redisMessaging)
+                            # Grab the SDP Downlink IP
+                            sdpDownlinkIpv4 = self.Match_SDP(regexPattern=regexIpv4, sdpBody=sdpDownlink)
+                            sdpDownlinkIpv6 = self.Match_SDP(regexPattern=regexIpv6, sdpBody=sdpDownlink)
 
-                            #Extract RTP Port
-                            matches_rtp_port = re.search(regex_port_audio, sdp2, re.MULTILINE)
-                            if matches_rtp_port:
-                                sdp2_rtp_port = str(matches_rtp_port.group(1))
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 RTP Port " + str(sdp2_rtp_port), redisClient=self.redisMessaging)
+                            # Get the RTP ports
+                            sdpDownlinkRtpPort = self.Match_SDP(regexPattern=regexRtp, sdpBody=sdpDownlink)
+                            sdpUplinkRtpPort = self.Match_SDP(regexPattern=regexRtp, sdpBody=sdpUplink)
 
-                            #Extract RTP Port
-                            matches_rtp_port = re.search(regex_port_audio, sdp1, re.MULTILINE)
-                            if matches_rtp_port:
-                                sdp1_rtp_port = str(matches_rtp_port.group(1))
-                                sdp1_rtcp_port = int(sdp1_rtp_port) - 1
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP1 RTP Port " + str(sdp1_rtp_port), redisClient=self.redisMessaging)
-
-
-                            #Extract RTP Port
-                            matches_rtp_port = re.search(regex_port_audio, sdp2, re.MULTILINE)
-                            if matches_rtp_port:
-                                sdp2_rtp_port = str(matches_rtp_port.group(1))
-                                sdp2_rtcp_port = int(sdp2_rtp_port) - 1
-                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Matched SDP2 RTP Port " + str(sdp2_rtp_port), redisClient=self.redisMessaging)
+                            # The RTCP Port is always the RTP port + 1. Comma separated ports arent used due to lack of support in open source PGWs.
+                            # We take a blind approach by setting a range of +1 on both sides.
+                            sdpDownlinkRtpPorts = f"{sdpDownlinkRtpPort}-{int(sdpDownlinkRtpPort)+1}"
+                            sdpUplinkRtpPorts = f"{sdpUplinkRtpPort}-{int(sdpUplinkRtpPort)+1}"
 
 
                         except Exception as e:
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Failed to extract SDP due to error" + str(e), redisClient=self.redisMessaging)
-
-
+                            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Failed to extract SDP due to error: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                        
                         """
                         The below logic is applied:
                         1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
@@ -2964,12 +2956,14 @@ class Diameter:
                             "tft_group_id": 1,
                             "direction": 1,
                             "tft_id": 1,
-                            "tft_string": "permit out 17 from " + str(sdp2_ipv4) + "/32 " + str(sdp2_rtcp_port) + "-" + str(sdp2_rtp_port) + " to " + str(ueIp) + "/32 " + str(sdp1_rtcp_port) + "-" + str(sdp1_rtp_port)                            },
+                            "tft_string": f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
+                            },
                             {
                             "tft_group_id": 1,
                             "direction": 2,
                             "tft_id": 2,
-                            "tft_string": "permit out 17 from " + str(sdp2_ipv4) + "/32 " + str(sdp2_rtcp_port) + "-" + str(sdp2_rtp_port) + " to " + str(ueIp) + "/32 " + str(sdp1_rtcp_port) + "-" + str(sdp1_rtp_port)                            }
+                            "tft_string": f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
+                            }
                         ]
                         }
 

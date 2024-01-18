@@ -1770,7 +1770,7 @@ class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
                 return result, 400
 
             activeSubscribers = databaseClient.Get_Subscribers_By_Pcscf(pcscf=pcscf)
-            logTool.log(service='API', level='debug', message=f"[API] Active Subscribers for {pcscf}: {activeSubscribers}", redisClient=redisMessaging)
+            logTool.log(service='API', level='debug', message=f"[API] [pcscf_restoration] Active Subscribers for {pcscf}: {activeSubscribers}", redisClient=redisMessaging)
 
             if len(activeSubscribers) > 0:
                 for imsSubscriber in activeSubscribers:
@@ -1796,6 +1796,7 @@ class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
                         )
 
                     except Exception as e:
+                        logTool.log(service='API', level='error', message=f"[API] [pcscf_restoration] Error sending CLR for subscriber: {traceback.format_exc()}", redisClient=redisMessaging)
                         continue
             
             result = {"Result": f"Successfully sent PCSCF Restoration request for PCSCF: {pcscf}"}
