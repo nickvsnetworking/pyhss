@@ -69,6 +69,8 @@ OPERATION_LOG = database.OPERATION_LOG_BASE
 SUBSCRIBER_ROUTING = database.SUBSCRIBER_ROUTING
 ROAMING_NETWORK = database.ROAMING_NETWORK
 ROAMING_RULE = database.ROAMING_RULE
+EMERGENCY_SUBSCRIBER = database.EMERGENCY_SUBSCRIBER
+
 
 apiService.wsgi_app = ProxyFix(apiService.wsgi_app)
 api = Api(apiService, version='1.0', title=f'{siteName + " - " if siteName else ""}{originHostname} - PyHSS OAM API',
@@ -128,6 +130,9 @@ ROAMING_RULE_model = api.schema_model('ROAMING_RULE JSON',
     databaseClient.Generate_JSON_Model_for_Flask(ROAMING_RULE)
 )
 
+EMERGENCY_SUBSCRIBER_model = api.schema_model('EMERGENCY_SUBSCRIBER JSON', 
+    databaseClient.Generate_JSON_Model_for_Flask(EMERGENCY_SUBSCRIBER)
+)
 
 #Legacy support for sh_profile. sh_profile is deprecated as of v1.0.1.
 imsSubscriberModel = databaseClient.Generate_JSON_Model_for_Flask(IMS_SUBSCRIBER)
@@ -202,25 +207,20 @@ GeoRed_model = api.model('GeoRed', {
     'scscf_timestamp' : fields.String(description=IMS_SUBSCRIBER.scscf_timestamp.doc),
     'imei' : fields.String(description=EIR.imei.doc),
     'match_response_code' : fields.String(description=EIR.match_response_code.doc),
+    'emergency_subscriber_id': fields.String(description=EMERGENCY_SUBSCRIBER.emergency_subscriber_id.doc),
+    'emergency_subscriber_imsi': fields.String(description=EMERGENCY_SUBSCRIBER.imsi.doc),
+    'emergency_subscriber_serving_pgw': fields.String(description=EMERGENCY_SUBSCRIBER.serving_pgw.doc),
+    'emergency_subscriber_serving_pgw_timestamp': fields.String(description=EMERGENCY_SUBSCRIBER.serving_pgw_timestamp.doc),
+    'emergency_subscriber_serving_pcscf': fields.String(description=EMERGENCY_SUBSCRIBER.serving_pcscf.doc),
+    'emergency_subscriber_serving_pcscf_timestamp': fields.String(description=EMERGENCY_SUBSCRIBER.serving_pcscf_timestamp.doc),
+    'emergency_subscriber_gx_origin_realm': fields.String(description=EMERGENCY_SUBSCRIBER.gx_origin_realm.doc),
+    'emergency_subscriber_gx_origin_host': fields.String(description=EMERGENCY_SUBSCRIBER.gx_origin_host.doc),
+    'emergency_subscriber_rat_type': fields.String(description=EMERGENCY_SUBSCRIBER.rat_type.doc),
+    'emergency_subscriber_ip': fields.String(description=EMERGENCY_SUBSCRIBER.ip.doc),
+    'emergency_subscriber_access_network_gateway_address': fields.String(description=EMERGENCY_SUBSCRIBER.access_network_gateway_address.doc),
+    'emergency_subscriber_access_network_charging_address': fields.String(description=EMERGENCY_SUBSCRIBER.access_network_charging_address.doc),
+    'emergency_subscriber_delete': fields.Boolean(description="Whether to delete the emergency subscriber on receipt"),
 })
-
-Geored_schema = {
-    'serving_mme': "string",
-    'serving_mme_realm': "string",
-    'serving_mme_peer': "string",
-    'serving_mme_timestamp': "string",
-    'serving_apn' : "string",
-    'pcrf_session_id' : "string",
-    'subscriber_routing' : "string",
-    'serving_pgw' : "string",
-    'serving_pgw_timestamp' : "string",
-    'scscf' : "string",
-    'imei' : "string",
-    'match_response_code' : "string",
-    'auc_id': "int",
-    'sqn': "int",
-}
-
 
 def no_auth_required(f):
     f.no_auth_required = True
@@ -1302,7 +1302,7 @@ class PyHSS_OAM_Peers(Resource):
     def get(self):
         '''Get active Diameter Peers'''
         try:
-            diameterPeers = json.loads(redisMessaging.getValue("ActiveDiameterPeers"))
+            diameterPeers = json.loads(redisMessaging.getValue("ActiveDiameterPeers", usePrefix=True, prefixHostname=originHostname, prefixServiceName='diameter'))
             return diameterPeers, 200
         except Exception as E:
             logTool.log(service='API', level='error', message=f"[API] An error occurred: {traceback.format_exc()}", redisClient=redisMessaging)
@@ -1770,7 +1770,7 @@ class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
                 return result, 400
 
             activeSubscribers = databaseClient.Get_Subscribers_By_Pcscf(pcscf=pcscf)
-            logTool.log(service='API', level='debug', message=f"[API] Active Subscribers for {pcscf}: {activeSubscribers}", redisClient=redisMessaging)
+            logTool.log(service='API', level='debug', message=f"[API] [pcscf_restoration] Active Subscribers for {pcscf}: {activeSubscribers}", redisClient=redisMessaging)
 
             if len(activeSubscribers) > 0:
                 for imsSubscriber in activeSubscribers:
@@ -1796,6 +1796,7 @@ class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
                         )
 
                     except Exception as e:
+                        logTool.log(service='API', level='error', message=f"[API] [pcscf_restoration] Error sending CLR for subscriber: {traceback.format_exc()}", redisClient=redisMessaging)
                         continue
             
             result = {"Result": f"Successfully sent PCSCF Restoration request for PCSCF: {pcscf}"}
@@ -1824,6 +1825,77 @@ class PyHSS_PCRF_SUBSCRIBER_ROUTING(Resource):
         try:
             data = databaseClient.Get_UE_by_IP(subscriber_routing)
             return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_pcrf.route('/emergency_subscriber/<string:emergency_subscriber_id>')
+class PyHSS_EMERGENCY_SUBSCRIBER_Get(Resource):
+    def get(self, emergency_subscriber_id):
+        '''Get all emergency_subscriber data for specified emergency_subscriber ID'''
+        try:
+            apn_data = databaseClient.GetObj(EMERGENCY_SUBSCRIBER, emergency_subscriber_id)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    def delete(self, emergency_subscriber_id):
+        '''Delete all emergency_subscriber data for specified emergency_subscriber ID'''
+        try:
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            data = databaseClient.DeleteObj(EMERGENCY_SUBSCRIBER, emergency_subscriber_id, False, operation_id)
+            return data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+    @ns_pcrf.doc('Update EMERGENCY_SUBSCRIBER Object')
+    @ns_pcrf.expect(EMERGENCY_SUBSCRIBER_model)
+    def patch(self, emergency_subscriber_id):
+        '''Update emergency_subscriber data for specified emergency_subscriber ID'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            apn_data = databaseClient.UpdateObj(EMERGENCY_SUBSCRIBER, json_data, emergency_subscriber_id, False, operation_id)
+
+            print("Updated object")
+            print(apn_data)
+            return apn_data, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)   
+
+@ns_pcrf.route('/emergency_subscriber/')
+class PyHSS_EMERGENCY_SUBSCRIBER(Resource):
+    @ns_pcrf.doc('Create EMERGENCY_SUBSCRIBER Object')
+    @ns_pcrf.expect(EMERGENCY_SUBSCRIBER_model)
+    def put(self):
+        '''Create new EMERGENCY_SUBSCRIBER'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            args = parser.parse_args()
+            operation_id = args.get('operation_id', None)
+            emergency_subscriber_id = databaseClient.CreateObj(EMERGENCY_SUBSCRIBER, json_data, False, operation_id)
+
+            return emergency_subscriber_id, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_pcrf.route('/emergency_subscriber/list')
+class PyHSS_ALL_EMERGENCY_SUBSCRIBER(Resource):
+    @ns_apn.expect(paginatorParser)
+    def get(self):
+        '''Get all Emergency Subscribers'''
+        try:
+            args = paginatorParser.parse_args()
+            data = databaseClient.getAllPaginated(EMERGENCY_SUBSCRIBER, args['page'], args['page_size'])
+            return (data), 200
         except Exception as E:
             print(E)
             return handle_exception(E)
@@ -1931,6 +2003,50 @@ class PyHSS_Geored(Resource):
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
                                     metricLabels={
                                         "endpoint": "SQN",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60)
+            if 'emergency_subscriber_ip' in json_data:
+                """
+                If we receive a geored payload containing emergency_subscriber_id, create or update the matching emergency_subscriber_id.
+                If emergency_subscriber_id exists as None, then remove the emergency subscriber.
+                """
+                print("Updating Emergency Subscriber")
+                subscriberData = {
+                    "imsi": json_data.get('emergency_subscriber_imsi'),
+                    "servingPgw": json_data.get('emergency_subscriber_serving_pgw'),
+                    "requestTime": json_data.get('emergency_subscriber_serving_pgw_timestamp'),
+                    "servingPcscf": json_data.get('emergency_subscriber_serving_pcscf'),
+                    "aarRequestTime": json_data.get('emergency_subscriber_serving_pcscf_timestamp'),
+                    "gxOriginRealm": json_data.get('emergency_subscriber_gx_origin_realm'),
+                    "gxOriginHost": json_data.get('emergency_subscriber_gx_origin_host'),
+                    "ratType": json_data.get('emergency_subscriber_rat_type'),
+                    "ip": json_data.get('emergency_subscriber_ip'),
+                    "accessNetworkGatewayAddress": json_data.get('emergency_subscriber_access_network_gateway_address'),
+                    "accessNetworkChargingAddress": json_data.get('emergency_subscriber_access_network_charging_address'),
+                }
+
+                if not json_data.get('emergency_subscriber_ip', None):
+                    logTool.log(service='API', level='error', message=f"[API] emergency_subscriber_ip missing from geored request. No changes to emergency_subscriber made.", redisClient=redisMessaging)
+                    return {'result': 'Failed', 'Reason' : "emergency_subscriber_ip missing from geored request"}
+
+                if 'emergency_subscriber_delete' in json_data:
+                    if json_data.get('emergency_subscriber_delete', False):
+                        databaseClient.Delete_Emergency_Subscriber(subscriberIp=subscriberData.get('ip'), imsi=subscriberData.get('imsi'), propagate=False)
+                        return {}, 200
+
+                response_data.append(databaseClient.Update_Emergency_Subscriber(emergencySubscriberId=json_data['emergency_subscriber_id'],
+                                                                                subscriberData=subscriberData,
+                                                                                imsi=subscriberData.get('imsi'),
+                                                                                subscriberIp=subscriberData.get('ip'),
+                                                                                gxSessionId=subscriberData.get('servingPgw'),
+                                                                                propagate=False))
+                
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "EMERGENCY_SUBSCRIBER",
                                         "geored_host": request.remote_addr,
                                     },
                                     metricExpiry=60)

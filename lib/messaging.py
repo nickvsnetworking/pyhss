@@ -13,11 +13,22 @@ class RedisMessaging:
         else:
             self.redisClient = Redis(host=host, port=port)
 
-    def sendMessage(self, queue: str, message: str, queueExpiry: int=None) -> str:
+    def handlePrefix(self, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common'):
+        """
+        Adds a prefix to the Key or Queue name, if enabled.
+        Returns the same Key or Queue if not enabled.
+        """
+        if usePrefix:
+            return f"{prefixHostname}:{prefixServiceName}:{key}"
+        else:
+            return key
+
+    def sendMessage(self, queue: str, message: str, queueExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Stores a message in a given Queue (Key).
         """
         try:
+            queue = self.handlePrefix(key=queue, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             self.redisClient.rpush(queue, message)
             if queueExpiry is not None:
                 self.redisClient.expire(queue, queueExpiry)
@@ -25,7 +36,7 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
-    def sendMetric(self, serviceName: str, metricName: str, metricType: str, metricAction: str, metricValue: float, metricHelp: str='', metricLabels: list=[], metricTimestamp: int=time.time_ns(), metricExpiry: int=None) -> str:
+    def sendMetric(self, serviceName: str, metricName: str, metricType: str, metricAction: str, metricValue: float, metricHelp: str='', metricLabels: list=[], metricTimestamp: int=time.time_ns(), metricExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Stores a prometheus metric in a format readable by the metric service.
         """
@@ -44,35 +55,36 @@ class RedisMessaging:
         }
         ])
 
-        metricQueueName = f"metric"
+        queue = self.handlePrefix(key='metric', usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
 
         try:
-            self.redisClient.rpush(metricQueueName, prometheusMetricBody)
+            self.redisClient.rpush(queue, prometheusMetricBody)
             if metricExpiry is not None:
-                self.redisClient.expire(metricQueueName, metricExpiry)
+                self.redisClient.expire(queue, metricExpiry)
             return f'Succesfully stored metric called: {metricName}, with value of: {metricType}'
         except Exception as e:
             return ''
     
-    def sendLogMessage(self, serviceName: str, logLevel: str, logTimestamp: int, message: str, logExpiry: int=None) -> str:
+    def sendLogMessage(self, serviceName: str, logLevel: str, logTimestamp: int, message: str, logExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Stores a message in a given Queue (Key).
         """
         try:
-            logQueueName = f"log"
+            queue = self.handlePrefix(key='log', usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             logMessage = json.dumps({"message": message, "service": serviceName, "level": logLevel, "timestamp": logTimestamp})
-            self.redisClient.rpush(logQueueName, logMessage)
+            self.redisClient.rpush(queue, logMessage)
             if logExpiry is not None:
-                self.redisClient.expire(logQueueName, logExpiry)
-            return f'{message} stored in {logQueueName} successfully.'
+                self.redisClient.expire(queue, logExpiry)
+            return f'{message} stored in {queue} successfully.'
         except Exception as e:
             return ''
 
-    def getMessage(self, queue: str) -> str:
+    def getMessage(self, queue: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Gets the oldest message from a given Queue (Key), while removing it from the key as well. Deletes the key if the last message is being removed.
         """
         try:
+            queue = self.handlePrefix(key=queue, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             message = self.redisClient.lpop(queue)
             if message is None:
                 message = ''
@@ -85,101 +97,68 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
-    def getQueues(self, pattern: str='*') -> list:
+    def getQueues(self, pattern: str='*', usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> list:
         """
         Returns all Queues (Keys) in the database.
         """
         try:
+            pattern = self.handlePrefix(key=pattern, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             allQueues = self.redisClient.scan_iter(match=pattern)
             return [x.decode() for x in allQueues]
         except Exception as e:
             return f"{traceback.format_exc()}"
 
-    def multiGetQueues(self, pattern: str='*', redisPeerConnections: list=[]) -> list:
-        try:
-            allQueues = []
-            for redisPeerConnection in redisPeerConnections:
-                try:
-                    peerName = redisPeerConnection.get('peer')
-                    peerConnection = redisPeerConnection.get('connection')
-                    
-                    keys = [key.decode() for key in peerConnection.scan_iter(match=pattern)]
-                    
-                    allQueues.append({peerName: keys})
-                except Exception as e:
-                    continue
-
-            localhost_keys = [key.decode() for key in self.redisClient.scan_iter(match=pattern)]
-
-            allQueues.append({"localhost": localhost_keys})
-            
-            return allQueues
-        except Exception as e:
-            return f"{traceback.format_exc()}"
-
-
-    def getNextQueue(self, pattern: str='*') -> dict:
+    def getNextQueue(self, pattern: str='*', usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> dict:
         """
         Returns the next Queue (Key) in the list.
         """
         try:
+            pattern = self.handlePrefix(key=pattern, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             for nextQueue in self.redisClient.scan_iter(match=pattern):
                 return nextQueue.decode()
         except Exception as e:
             return {}
 
-    def awaitMessage(self, key: str):
+    def awaitMessage(self, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common'):
         """
         Blocks until a message is received at the given key, then returns the message.
         """
         try:
+            key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             message =  self.redisClient.blpop(key)
             return tuple(data.decode() for data in message)
         except Exception as e:
             return ''
 
-    def awaitBulkMessage(self, key: str, count: int=100):
+    def awaitBulkMessage(self, key: str, count: int=100, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common'):
         """
         Blocks until one or more messages are received at the given key, then returns the amount of messages specified by count.
         """
         try:
+            key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             message =  self.redisClient.blmpop(0, 1, key, direction='RIGHT', count=count)
             return message
         except Exception as e:
             print(traceback.format_exc())
             return ''
 
-    def deleteQueue(self, queue: str) -> bool:
+    def deleteQueue(self, queue: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> bool:
         """
         Deletes the given Queue (Key)
         """
         try:
+            queue = self.handlePrefix(key=queue, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             self.redisClient.delete(queue)
             return True
         except Exception as e:
             return False
 
-    def multiDeleteQueue(self, queue: str, redisPeerConnections: list=[]) -> bool:
-        """
-        Deletes the given Queue (Key) on each peer, including the default connection.
-        """
-        try:
-            for redisPeerConnection in redisPeerConnections:
-                try:
-                    peerConnection = redisPeerConnection.get('connection')
-                    peerConnection.delete(queue)
-                except Exception as e:
-                    continue
-            self.redisClient.delete(queue)
-            return True
-        except Exception as e:
-            return False
-
-    def setValue(self, key: str, value: str, keyExpiry: int=None) -> str:
+    def setValue(self, key: str, value: str, keyExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Stores a value under a given key and sets an expiry (in seconds) if provided.
         """
         try:
+            key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             self.redisClient.set(key, value)
             if keyExpiry is not None:
                 self.redisClient.expire(key, keyExpiry)
@@ -187,61 +166,41 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
-    def multiSetValue(self, key: str, value: str, keyExpiry: int=None, redisPeerConnections: list=[]) -> str:
-        """
-        Stores a value under a given key and sets an expiry (in seconds) if provided, for each peer, including the default connection.
-        """
-        try:
-            for redisPeerConnection in redisPeerConnections:
-                try:
-                    peerConnection = redisPeerConnection.get('connection')
-                    peerConnection.set(key, value)
-                    if keyExpiry is not None:
-                        peerConnection.expire(key, keyExpiry)
-                except Exception as e:
-                    continue
-            self.redisClient.set(key, value)
-            if keyExpiry is not None:
-                self.redisClient.expire(key, keyExpiry)
-            return f'{value} stored in {key} successfully.'
-        except Exception as e:
-            return ''
-
-    def getValue(self, key: str, redisClient=None) -> str:
+    def getValue(self, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Gets the value stored under a given key.
         """
         try:
-                if redisClient:
-                    message = redisClient.get(key)
-                else:
-                    message = self.redisClient.get(key)
-                if message is None:
-                    message = ''
-                else:
-                    return message
+            key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
+            message = self.redisClient.get(key)
+            if message is None:
+                message = ''
+            else:
+                return message
         except Exception as e:
-            return f"{traceback.format_exc()}"
+            return ''
 
-    def getList(self, key: str) -> list:
+    def getList(self, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> list:
         """
         Gets the list stored under a given key.
         """
         try:
-                allResults = self.redisClient.lrange(key, 0, -1)
-                if allResults is None:
-                    result = []
-                else:
-                    return [result.decode() for result in allResults]
+            key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
+            allResults = self.redisClient.lrange(key, 0, -1)
+            if allResults is None:
+                result = []
+            else:
+                return [result.decode() for result in allResults]
         except Exception as e:
             return []
 
-    def RedisHGetAll(self, key: str):
+    def RedisHGetAll(self, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common'):
         """
         Wrapper for Redis HGETALL
         *Deprecated: will be removed upon completed database cleanup.
         """
         try:
+            key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
             data = self.redisClient.hgetall(key)
             return data
         except Exception as e:

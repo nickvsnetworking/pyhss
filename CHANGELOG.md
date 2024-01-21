@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gx RAR now dynamically creates TFT up to 512k based on UE request.
 - SQN Resync now propogates via Geored when enabled 
 - Renamed sh_profile to xcap_profile in ims_subscriber
+- Rebuilt keys using unique namespace for redis-sentinel / stateless compatibility.
 
 ### Fixed
 
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Control of outbound roaming S6a AIR and ULA responses through roaming_rule and roaming_network objects.
 - Roaming management on a per-subscriber basis, through subscriber.roaming_enabled and subscriber.roaming_rule_list.
 - Support for Gx and Rx auth of unknown subscribers attaching via SOS.
+- Preliminary support for SCTP.
 
 ## [1.0.0] - 2023-09-27
 

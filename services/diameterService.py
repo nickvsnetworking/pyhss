@@ -2,6 +2,7 @@ import asyncio
 import sys, os, json
 import time, yaml, uuid
 from datetime import datetime
+import sctp, socket
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync
@@ -41,6 +42,7 @@ class DiameterService:
         self.diameterRequests = 0
         self.diameterResponses = 0
         self.workerPoolSize = int(self.config.get('hss', {}).get('diameter_service_workers', 10))
+        self.hostname = socket.gethostname()
     
     async def validateDiameterInbound(self, clientAddress: str, clientPort: str, inboundData) -> bool:
         """
@@ -86,7 +88,7 @@ class DiameterService:
                         del self.activePeers[key]
                     await(self.logActivePeers())
                 
-                await(self.redisPeerMessaging.setValue(key='ActiveDiameterPeers', value=json.dumps(self.activePeers), keyExpiry=86400))
+                await(self.redisPeerMessaging.setValue(key='ActiveDiameterPeers', value=json.dumps(self.activePeers), keyExpiry=86400, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                 await(asyncio.sleep(1))
             except Exception as e:
@@ -174,7 +176,7 @@ class DiameterService:
                         break
 
                 if messageList:
-                    await self.redisReaderMessaging.sendBulkMessage(queue=inboundQueueName, messageList=messageList, queueExpiry=self.diameterRequestTimeout)
+                    await self.redisReaderMessaging.sendBulkMessage(queue=inboundQueueName, messageList=messageList, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                     messageList = []
 
             except Exception as e:
@@ -189,7 +191,7 @@ class DiameterService:
         while not writer.transport.is_closing():
             try:
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Waiting for messages for host {clientAddress} on port {clientPort}"))
-                pendingOutboundMessage = json.loads((await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}")))[1])
+                pendingOutboundMessage = json.loads((await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')))[1])
                 diameterOutboundBinary = bytes.fromhex(pendingOutboundMessage.get('diameter-outbound', ''))
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
 
@@ -286,6 +288,28 @@ class DiameterService:
 
         if type.upper() == 'TCP':
             server = await(asyncio.start_server(self.handleConnection, host, port))
+        elif type.upper() == 'SCTP':
+            self.sctpSocket = sctp.sctpsocket_tcp(socket.AF_INET)
+            self.sctpSocket.setblocking(False)
+            self.sctpSocket.events.clear()
+            self.sctpSocket.bind((host, port))
+            self.sctpRtoInfo = self.sctpSocket.get_rtoinfo()
+            self.sctpRtoMin = self.config.get('hss', {}).get('sctp', {}).get('rtoMin', 500)
+            self.sctpRtoMax = self.config.get('hss', {}).get('sctp', {}).get('rtoMax', 5000)
+            self.sctpRtoInitial = self.config.get('hss', {}).get('sctp', {}).get('rtoInitial', 1000)
+            self.sctpRtoInfo.initial = int(self.sctpRtoInitial)
+            self.sctpRtoInfo.max = int(self.sctpRtoMax)
+            self.sctpRtoInfo.min = int(self.sctpRtoMin)
+            self.sctpSocket.set_rtoinfo(self.sctpRtoInfo)
+            self.sctpAssociatedParameters = self.sctpSocket.get_assocparams()
+            sctpInitParameters = { "initialRto": self.sctpRtoInfo.initial,
+                                "rtoMin": self.sctpRtoInfo.min,
+                                "rtoMax": self.sctpRtoInfo.max
+                                }
+            self.sctpSocket.listen()
+            await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [startServer] SCTP Parameters: {sctpInitParameters}"))
+
+            server = await(asyncio.start_server(self.handleConnection, sock=self.sctpSocket))
         else:
             return False
         servingAddresses = ', '.join(str(sock.getsockname()) for sock in server.sockets)
