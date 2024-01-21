@@ -9,10 +9,13 @@ import ipaddress
 import jinja2
 from database import Database
 from messaging import RedisMessaging
+from redis import Redis
 import yaml
 import json
 import time
+import socket
 import traceback
+import re
 
 class Diameter:
 
@@ -31,10 +34,13 @@ class Diameter:
         self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
         self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
         self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisAdditionalPeers = self.config.get('redis', {}).get('additionalPeers', [])
         if redisMessaging:
             self.redisMessaging = redisMessaging
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        
+        self.hostname = socket.gethostname()
 
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
@@ -150,24 +156,37 @@ class Diameter:
         return (slicedString)
 
     def DecodePLMN(self, plmn):
-        self.logTool.log(service='HSS', level='debug', message="Decoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
-        mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
+        self.logTool.log(service='HSS', level='debug', message="Decoding PLMN: " + str(plmn), redisClient=self.redisMessaging)
+        if "f" in plmn:
+            mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4]).replace('f', '')
+            mnc = self.Reverse(plmn[4:6])
+        else:
+            mcc = self.Reverse(plmn[0:2]) + self.Reverse(plmn[2:4][1])
+            mnc = self.Reverse(plmn[4:6]) + str(self.Reverse(plmn[2:4][0]))
         self.logTool.log(service='HSS', level='debug', message="Decoded MCC: " + mcc, redisClient=self.redisMessaging)
-
-        mnc = self.Reverse(plmn[4:6])
         self.logTool.log(service='HSS', level='debug', message="Decoded MNC: " + mnc, redisClient=self.redisMessaging)
         return mcc, mnc
-
+        
     def EncodePLMN(self, mcc, mnc):
         plmn = list('XXXXXX')
-        plmn[0] = self.Reverse(mcc)[1]
-        plmn[1] = self.Reverse(mcc)[2]
-        plmn[2] = "f"
-        plmn[3] = self.Reverse(mcc)[0]
-        plmn[4] = self.Reverse(mnc)[0]
-        plmn[5] = self.Reverse(mnc)[1]
-        plmn_list = plmn
-        plmn = ''
+        if len(mnc) == 2:
+            plmn[0] = self.Reverse(mcc)[1]
+            plmn[1] = self.Reverse(mcc)[2]
+            plmn[2] = "f"
+            plmn[3] = self.Reverse(mcc)[0]
+            plmn[4] = self.Reverse(mnc)[0]
+            plmn[5] = self.Reverse(mnc)[1]
+            plmn_list = plmn
+            plmn = ''
+        else:
+            plmn[0] = self.Reverse(mcc)[1]
+            plmn[1] = self.Reverse(mcc)[2]
+            plmn[2] = self.Reverse(mnc)[0]
+            plmn[3] = self.Reverse(mcc)[0]
+            plmn[4] = self.Reverse(mnc)[1]
+            plmn[5] = self.Reverse(mnc)[2]
+            plmn_list = plmn
+            plmn = ''
         for bits in plmn_list:
             plmn = plmn + bits
         self.logTool.log(service='HSS', level='debug', message="Encoded PLMN: " + str(plmn), redisClient=self.redisMessaging)
@@ -543,7 +562,7 @@ class Diameter:
             if peerType not in peerTypes:
                 return []
             filteredConnectedPeers = []
-            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
+            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
 
             for key, value in activePeers.items():
                 if activePeers.get(key, {}).get('peerType', '') == peerType and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
@@ -555,15 +574,17 @@ class Diameter:
             return []
 
     def getPeerByHostname(self, hostname: str) -> dict:
+        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getPeerByHostname] Looking for peer with hostname {hostname}", redisClient=self.redisMessaging)
         try:
             hostname = hostname.lower()
-            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers").decode())
+            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
 
             for key, value in activePeers.items():
                 if activePeers.get(key, {}).get('diameterHostname', '').lower() == hostname and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
                     return(activePeers.get(key, {}))
 
         except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}", redisClient=self.redisMessaging)
             return {}
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
@@ -608,12 +629,16 @@ class Diameter:
                     peerPort = connectedPeer['port']
                 except Exception as e:
                     return ''
-                request = diameterApplication["requestMethod"](**kwargs)
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                try:
+                    request = diameterApplication["requestMethod"](**kwargs)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                except Exception as e:
+                    self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Error generating request: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                    return ''
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                 sendTime = time.time_ns()
                 outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return request
         except Exception as e:
@@ -641,12 +666,17 @@ class Diameter:
                         peerPort = connectedPeer['port']
                     except Exception as e:
                         return ''
-                    request = diameterApplication["requestMethod"](**kwargs)
+                    try:
+                        request = diameterApplication["requestMethod"](**kwargs)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                    except Exception as e:
+                        self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Error generating request: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                        return ''
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                     outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                     sendTime = time.time_ns()
                     outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Queueing for peer type: {peerType} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return connectedPeerList
         except Exception as e:
@@ -678,26 +708,34 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Sending request via connected peer {connectedPeer} from hostname {hostname}", redisClient=self.redisMessaging)
                 try:
                     peerIp = connectedPeer['ipAddress']
                     peerPort = connectedPeer['port']
                 except Exception as e:
+                    self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Could not get connection information for connectedPeer: {connectedPeer}", redisClient=self.redisMessaging)
                     return ''
-                request = diameterApplication["requestMethod"](**kwargs)
+                    
+                try:
+                    request = diameterApplication["requestMethod"](**kwargs)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
+                except Exception as e:
+                    self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Error generating request: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                    return ''
                 responseType = diameterApplication["responseAcronym"]
                 sessionId = kwargs.get('sessionId', None)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                 sendTime = time.time_ns()
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                 outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout)
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
                 startTimer = time.time()
                 while True:
                     try:
                         if not time.time() >= startTimer + timeout:
                             if sessionId is None:
-                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound")
+                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages(NoSessionId): {queuedMessages}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
@@ -714,7 +752,7 @@ class Diameter:
                                             return messageHex
                                 time.sleep(0.02)
                             else:
-                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound")
+                                queuedMessages = self.redisMessaging.getList(key=f"diameter-inbound", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages({sessionId}): {queuedMessages} responseType: {responseType}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
@@ -773,8 +811,12 @@ class Diameter:
                         if 'flags' in diameterApplication:
                             assert(str(packet_vars["flags"]) == str(diameterApplication["flags"]))
                         self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Attempting to generate response", redisClient=self.redisMessaging)
-                        response = diameterApplication["responseMethod"](packet_vars, avps)
-                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Successfully generated response: {response}", redisClient=self.redisMessaging)
+                        try:
+                            response = diameterApplication["responseMethod"](packet_vars, avps)
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Successfully generated response: {response}", redisClient=self.redisMessaging)
+                        except Exception as e:
+                            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Error generating response: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                            return ''
                         break
                     except Exception as e:
                         continue
@@ -1007,7 +1049,7 @@ class Diameter:
             return True
         else:
             return False
-    
+
     def validateSubscriberRoaming(self, subscriber: dict, mcc: str, mnc: str) -> bool:
         """
         Ensures that a given subscriber is allowed to roam to the provided PLMN.
@@ -1026,7 +1068,6 @@ class Diameter:
         
         return True
 
-
     def AVP_278_Origin_State_Incriment(self, avps):                                               #Capabilities Exchange Answer incriment AVP body
         for avp_dicts in avps:
             if avp_dicts['avp_code'] == 278:
@@ -1034,6 +1075,23 @@ class Diameter:
                 origin_state_incriment_int = origin_state_incriment_int + 1
                 origin_state_incriment_hex = format(origin_state_incriment_int,"x").zfill(8)
                 return origin_state_incriment_hex
+
+    def Match_SDP(self, regexPattern, sdpBody):
+        """
+        Matches a given regex in a given SDP body.
+        Returns the result, or and empty string if not found.
+        """
+
+        try:
+            sdpMatch = re.search(regexPattern, sdpBody, re.MULTILINE)
+            if sdpMatch:
+                sdpResult = sdpMatch.group(1)
+                if sdpResult:
+                    return str(sdpResult)
+            return ''
+        except Exception as e:
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Match_SDP] Error matching SDP: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return ''
 
     def Charging_Rule_Generator(self, ChargingRules=None, ue_ip=None, chargingRuleName=None, action="install"):
         self.logTool.log(service='HSS', level='debug', message=f"Called Charging_Rule_Generator with action: {action}", redisClient=self.redisMessaging)
@@ -1062,7 +1120,7 @@ class Diameter:
             #Populate all Flow Information AVPs
             Flow_Information = ''
             for tft in ChargingRules['tft']:
-                self.logTool.log(service='HSS', level='debug', message=tft, redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="Adding TFT: " + str(tft), redisClient=self.redisMessaging)
                 #If {{ UE_IP }} in TFT splice in the real UE IP Value
                 try:
                     tft['tft_string'] = tft['tft_string'].replace('{{ UE_IP }}', str(ue_ip))
@@ -1214,7 +1272,6 @@ class Diameter:
 
     #Device Watchdog Answer                                                 
     def Answer_280(self, packet_vars, avps): 
-        
         avp = ''                                                                                    #Initiate empty var AVP 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
         avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -1224,8 +1281,6 @@ class Diameter:
                 avp += self.generate_avp(278, 40, self.AVP_278_Origin_State_Incriment(avps))                  #Origin State (Has to be incrimented (Handled by AVP_278_Origin_State_Incriment))
         response = self.generate_diameter_packet("01", "00", 280, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet      
         self.logTool.log(service='HSS', level='debug', message="Successfully Generated DWA", redisClient=self.redisMessaging)
-        orignHost = self.get_avp_data(avps, 264)[0]                         #Get OriginHost from AVP
-        orignHost = binascii.unhexlify(orignHost).decode('utf-8')           #Format it
         return response
 
     #Disconnect Peer Answer    
@@ -1299,14 +1354,16 @@ class Diameter:
             decodedPlmn = self.DecodePLMN(plmn=plmn)
             mcc = decodedPlmn[0]
             mnc = decodedPlmn[1]
+            subscriberIsRoaming = False
+            subscriberRoamingAllowed = False 
             if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
                 subscriberIsRoaming = True
             
             if subscriberIsRoaming:
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [ULA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
                 subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
 
-            if not subscriberRoamingAllowed:
+            if not subscriberRoamingAllowed and subscriberIsRoaming:
                 avp = ''
                 session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
                 avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -1625,6 +1682,8 @@ class Diameter:
             decodedPlmn = self.DecodePLMN(plmn=plmn)
             mcc = decodedPlmn[0]
             mnc = decodedPlmn[1]
+            subscriberIsRoaming = False
+            subscriberRoamingAllowed = False
             if str(mcc) != str(self.MCC) and str(mnc) != str(self.MNC):
                 subscriberIsRoaming = True
             
@@ -1632,7 +1691,7 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777251_318] [AIA] Subscriber {imsi} is roaming", redisClient=self.redisMessaging)
                 subscriberRoamingAllowed = self.validateSubscriberRoaming(subscriber=subscriber_details, mcc=mcc, mnc=mnc)
 
-            if not subscriberRoamingAllowed:
+            if not subscriberRoamingAllowed and subscriberIsRoaming:
                 avp = ''
                 session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
                 avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
@@ -1818,9 +1877,170 @@ class Diameter:
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
             avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
             avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
+
+            """
+            If Called-Station-ID contains 'sos', we're dealing with an emergency bearer request.
+            Authentication is bypassed and we'll return a basic QOS profile.
+            """
+            try:
+                if apn.lower() == 'sos':
+                    if int(CC_Request_Type) == 1:
+                        """
+                        If we've recieved a CCR-Initial, create an emergency subscriber.
+                        """
+                        # Use our defined SOS APN AMBR, if defined.
+                        # Otherwise, use a default value of 128/128kbps.
+                        try:
+                            sosApn = (self.database.Get_APN_by_Name(apn="sos"))
+                            AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                            apn_ambr_ul = int(sosApn['apn_ambr_ul'])
+                            apn_ambr_dl = int(sosApn['apn_ambr_dl'])
+                            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                            APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+
+                            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(sosApn['arp_priority']), 4))
+                            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not sosApn['arp_preemption_capability']), 4))
+                            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not sosApn['arp_preemption_vulnerability']), 4))
+                            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(sosApn['qci']), 4))
+                            avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+
+                        except Exception as e:
+                            AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
+                            apn_ambr_ul = 128000
+                            apn_ambr_dl = 128000
+                            AMBR += self.generate_vendor_avp(516, "c0", 10415, self.int_to_hex(apn_ambr_ul, 4))                    #Max-Requested-Bandwidth-UL
+                            AMBR += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(apn_ambr_dl, 4))                    #Max-Requested-Bandwidth-DL
+                            APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
+                            
+                            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(1, 4))
+                            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(0, 4))          # Pre-Emption Capability Enabled
+                            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(1, 4))       # Pre-Emption Vulnerability Disabled
+                            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(5, 4))                            # QCI 5
+                            avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+                    
+                        QoS_Information = self.generate_vendor_avp(1041, "80", 10415, self.int_to_hex(apn_ambr_ul, 4))                                                                  
+                        QoS_Information += self.generate_vendor_avp(1040, "80", 10415, self.int_to_hex(apn_ambr_dl, 4))
+                        avp += self.generate_vendor_avp(1016, "80", 10415, QoS_Information)                                         # QOS-Information
+
+                        #Supported-Features(628) (Gx feature list)
+                        avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
+
+                        """
+                        Store the Emergency Subscriber
+                        """
+                        ueIp = self.get_avp_data(avps, 8)[0]
+                        ueIp = str(self.hex_to_ip(ueIp))
+                        try:
+                            #Get the IMSI
+                            for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+                                for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                                    if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                                        imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                        except Exception as e:
+                            imsi="Unknown"
+                        
+                        try:
+                            ratType = self.get_avp_data(avps, 1032)[0]
+                            ratType = int(ratType, 16)
+                        except Exception as e:
+                            ratType = None
+
+                        try:
+                            accessNetworkGatewayAddress = self.get_avp_data(avps, 1050)[0]
+                            accessNetworkGatewayAddress = str(self.hex_to_ip(accessNetworkGatewayAddress[4:]))
+                        except Exception as e:
+                            accessNetworkGatewayAddress = None
+
+                        try:
+                            accessNetworkChargingAddress = self.get_avp_data(avps, 501)[0]
+                            accessNetworkChargingAddress = str(self.hex_to_ip(accessNetworkChargingAddress[4:]))
+                        except Exception as e:
+                            accessNetworkChargingAddress = None
+
+                        emergencySubscriberData = {
+                            "servingPgw": binascii.unhexlify(session_id).decode(),
+                            "requestTime": int(time.time()),
+                            "servingPcscf": None,
+                            "aarRequestTime": None,
+                            "gxOriginRealm": OriginRealm,
+                            "gxOriginHost": OriginHost,
+                            "imsi": imsi,
+                            "ip": ueIp,
+                            "ratType": ratType,
+                            "accessNetworkGatewayAddress": accessNetworkGatewayAddress,
+                            "accessNetworkChargingAddress": accessNetworkChargingAddress,
+                        }
+
+                        self.database.Update_Emergency_Subscriber(subscriberIp=ueIp, subscriberData=emergencySubscriberData, imsi=imsi, gxSessionId=emergencySubscriberData.get('servingPgw'))
+
+                        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+                        response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                        return response
+                    
+                    elif int(CC_Request_Type) == 3:
+                        """
+                        If we've recieved a CCR-Terminate, delete the emergency subscriber.
+                        """
+                        try:
+                            ueIp = self.get_avp_data(avps, 8)[0]
+                            ueIp = str(self.hex_to_ip(ueIp))
+                        except Exception as e:
+                            ueIp = None
+                        try:
+                            #Get the IMSI
+                            for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+                                for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                                    if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                                        imsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                        except Exception as e:
+                            imsi="Unknown"
+
+                        try:
+                            ratType = self.get_avp_data(avps, 1032)[0]
+                            ratType = int(ratType, 16)
+                        except Exception as e:
+                            ratType = None
+
+                        try:
+                            accessNetworkGatewayAddress = self.get_avp_data(avps, 1050)[0]
+                            accessNetworkGatewayAddress = str(self.hex_to_ip(accessNetworkGatewayAddress))
+                        except Exception as e:
+                            accessNetworkGatewayAddress = None
+
+                        try:
+                            accessNetworkChargingAddress = self.get_avp_data(avps, 501)[0]
+                            accessNetworkChargingAddress = str(self.hex_to_ip(accessNetworkChargingAddress))
+                        except Exception as e:
+                            accessNetworkChargingAddress = None
+                        
+                        emergencySubscriberData = {
+                            "servingPgw": binascii.unhexlify(session_id).decode(),
+                            "requestTime": int(time.time()),
+                            "gxOriginRealm": OriginRealm,
+                            "gxOriginHost": OriginHost,
+                            "imsi": imsi,
+                            "ip": ueIp,
+                            "ratType": ratType,
+                            "accessNetworkGatewayAddress": accessNetworkGatewayAddress,
+                            "accessNetworkChargingAddress": accessNetworkChargingAddress,
+                        }
+
+                        self.database.Delete_Emergency_Subscriber(subscriberIp=ueIp, subscriberData=emergencySubscriberData, imsi=imsi, gxSessionId=binascii.unhexlify(session_id).decode())
+
+                        avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+                        response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+                        return response
+
+            except Exception as e:
+                self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777238_272] [CCA] Error generating SOS CCA: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
             #Get Subscriber info from Subscription ID
             for SubscriptionIdentifier in self.get_avp_data(avps, 443):
@@ -1953,8 +2173,6 @@ class Diameter:
                         except Exception as e:
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed to clear apn state for {apn}: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
-            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         except Exception as e:                                             #Get subscriber details
@@ -1971,8 +2189,6 @@ class Diameter:
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
                                             metricExpiry=60)
-            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -2545,6 +2761,24 @@ class Diameter:
             imsi = None
             msisdn = None
             identifier = None
+            emergencySubscriber = False
+
+            try:
+                ueIp = self.get_avp_data(avps, 8)[0]
+                ueIp = str(self.hex_to_ip(ueIp))
+            except Exception as e:
+                ueIp = None
+
+            """
+            Determine if the AAR for the IP belongs to an inbound roaming emergency subscriber.
+            """
+            try:
+                emergencySubscriberData = self.database.Get_Emergency_Subscriber(subscriberIp=ueIp)
+                if emergencySubscriberData:
+                    emergencySubscriber = True
+            except Exception as e:
+                emergencySubscriberData = None
+
             if '@' in subscriptionId:
                 subscriberIdentifier = subscriptionId.split('@')[0]
                 # Subscriber Identifier can be either an IMSI or an MSISDN
@@ -2562,59 +2796,89 @@ class Diameter:
                     msisdn = imsSubscriberDetails.get('msisdn', None)
                 except Exception as e:
                     pass
+                if identifier == None:
+                    try:
+                        ueIP = subscriptionId.split('@')[1].split(':')[0]
+                        ue = self.database.Get_UE_by_IP(ueIP)
+                        subscriberId = ue.get('subscriber_id', None)
+                        subscriberDetails = self.database.Get_Subscriber(subscriber_id=subscriberId)
+                        imsi = subscriberDetails.get('imsi', None)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
+                    except Exception as e:
+                        pass
             else:
                 imsi = None
                 msisdn = None
+                try:
+                    ueIP = subscriptionId.split(':')[0]
+                    ue = self.database.Get_UE_by_IP(ueIP)
+                    subscriberId = ue.get('subscriber_id', None)
+                    subscriberDetails = self.database.Get_Subscriber(subscriber_id=subscriberId)
+                    imsi = subscriberDetails.get('imsi', None)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
+                except Exception as e:
+                    pass
+
             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
 
-            if imsEnabled:
+            if imsEnabled or emergencySubscriber:
                 """
                 Add the PCSCF to the IMS_Subscriber object, and set the result code to 2001.
                 """
+
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
 
-                if imsi is None:
-                    imsi = subscriberDetails.get('imsi', None)
-                    
-                aarOriginHost = self.get_avp_data(avps, 264)[0]
-                aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
-                aarOriginRealm = self.get_avp_data(avps, 296)[0]
-                aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
-                #Check if we have a record-route set as that's where we'll need to send the response
-                try:
-                    #Get first record-route header, then parse it
-                    remotePeer = self.get_avp_data(avps, 282)[-1]
-                    remotePeer = binascii.unhexlify(remotePeer).decode('utf-8')
-                except Exception as e:
-                    #If we don't have a record-route set, we'll send the response to the OriginHost
-                    remotePeer = aarOriginHost
-                
-                remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
+                if imsEnabled and not emergencySubscriber:
 
-                self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=None)
-                """
-                Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
-                Media-Type: 0 = Audio, 4 = Control
-                """
+                    if imsi is None:
+                        imsi = subscriberDetails.get('imsi', None)
+                        
+                    aarOriginHost = self.get_avp_data(avps, 264)[0]
+                    aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
+                    aarOriginRealm = self.get_avp_data(avps, 296)[0]
+                    aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
+                    #Check if we have a record-route set as that's where we'll need to send the response
+                    try:
+                        #Get first record-route header, then parse it
+                        remotePeer = self.get_avp_data(avps, 282)[-1]
+                        remotePeer = binascii.unhexlify(remotePeer).decode('utf-8')
+                    except Exception as e:
+                        #If we don't have a record-route set, we'll send the response to the OriginHost
+                        remotePeer = aarOriginHost
+                    
+                    remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
+
+                    self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=None)
+                    """
+                    Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
+                    Media-Type: 0 = Audio, 4 = Control
+                    """
                 try:
                     afApplicationIdentifier = self.get_avp_data(avps, 504)[0]
                     mediaType = self.get_avp_data(avps, 520)[0]
                     assert(bytes.fromhex(afApplicationIdentifier).decode('ascii') == "IMS Services")
                     assert(int(mediaType, 16) == 0)
 
-                    # At this point, we know the AAR is indicating a call setup, so we'll send get the serving pgw information, then send a 
+                    # At this point, we know the AAR is indicating a call setup, so we'll get the serving pgw information, then send a 
                     # RAR to the PGW over Gx, asking it to setup the dedicated bearer.
 
                     try:
-                        subscriberId = subscriberDetails.get('subscriber_id', None)
-                        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
-                        servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
-                        servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
-                        servingPgw = servingApn.get('serving_pgw', None)
-                        servingPgwRealm = servingApn.get('serving_pgw_realm', None)
-                        pcrfSessionId = servingApn.get('pcrf_session_id', None)
-                        ueIp = servingApn.get('subscriber_routing', None)
+                        if emergencySubscriber and not imsEnabled:
+                            servingPgwPeer = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
+                            pcrfSessionId = emergencySubscriberData.get('serving_pgw', None)
+                            servingPgwRealm = emergencySubscriberData.get('gx_origin_realm', None)
+                            servingPgw = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
+                        else:
+                            subscriberId = subscriberDetails.get('subscriber_id', None)
+                            apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+                            servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                            servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
+                            servingPgw = servingApn.get('serving_pgw', None)
+                            servingPgwRealm = servingApn.get('serving_pgw_realm', None)
+                            pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                        if not ueIp:
+                            ueIp = servingApn.get('subscriber_routing', None)
 
                         ulBandwidth = 512000
                         dlBandwidth = 512000
@@ -2631,6 +2895,56 @@ class Diameter:
                         except Exception as e:
                             pass
 
+                        # Extract the SDP for both Uplink and Downlink, to create TFTs.
+                        try:
+                            sdpOffer = self.get_avp_data(avps, 524)[0]
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Offer raw: {sdpOffer}", redisClient=self.redisMessaging)
+                            sdpOffer = binascii.unhexlify(sdpOffer).decode('utf-8')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Offer decoded: {sdpOffer}", redisClient=self.redisMessaging)
+                            sdpAnswer = self.get_avp_data(avps, 524)[1]
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Answer raw: {sdpAnswer}", redisClient=self.redisMessaging)
+                            sdpAnswer = binascii.unhexlify(sdpAnswer).decode('utf-8')
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got SDP Answer decoded: {sdpAnswer}", redisClient=self.redisMessaging)
+
+                            regexIpv4 = r"IN IP4 (\d*\.\d*\.\d*\.\d*)"
+                            regexIpv6 = r"IN IP6 ([0-9a-fA-F:]{3,39})"
+                            regexRtp = r"m=audio (\d*)"
+                            regexRtcp = r"a=rtcp:(\d+)"                            
+
+                            sdpDownlink = None
+                            sdpUplink = None
+                            sdpDownlinkIpv4 = ''
+                            sdpDownlinkRtpPort = ''
+                            sdpUplinkRtpPort = ''
+
+                            # First, work out which side the SDP Downlink is, then do the same for the SDP Uplink.
+                            if 'downlink' in sdpOffer.lower():
+                                sdpDownlink  = sdpOffer
+                            elif 'downlink' in sdpAnswer.lower():
+                                sdpDownlink = sdpAnswer
+                            
+                            if 'uplink' in sdpOffer.lower():
+                                sdpUplink  = sdpOffer
+                            elif 'uplink' in sdpAnswer.lower():
+                                sdpUplink = sdpAnswer
+
+                            # Grab the SDP Downlink IP
+                            sdpDownlinkIpv4 = self.Match_SDP(regexPattern=regexIpv4, sdpBody=sdpDownlink)
+                            sdpDownlinkIpv6 = self.Match_SDP(regexPattern=regexIpv6, sdpBody=sdpDownlink)
+
+                            # Get the RTP ports
+                            sdpDownlinkRtpPort = self.Match_SDP(regexPattern=regexRtp, sdpBody=sdpDownlink)
+                            sdpUplinkRtpPort = self.Match_SDP(regexPattern=regexRtp, sdpBody=sdpUplink)
+
+                            # The RTCP Port is always the RTP port + 1. Comma separated ports arent used due to lack of support in open source PGWs.
+                            # We take a blind approach by setting a range of +1 on both sides.
+                            sdpDownlinkRtpPorts = f"{sdpDownlinkRtpPort}-{int(sdpDownlinkRtpPort)+1}"
+                            sdpUplinkRtpPorts = f"{sdpUplinkRtpPort}-{int(sdpUplinkRtpPort)+1}"
+
+
+                        except Exception as e:
+                            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Failed to extract SDP due to error: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                        
                         """
                         The below logic is applied:
                         1. Grab the Flow Rules and bitrates from the PCSCF in the AAR,
@@ -2643,14 +2957,14 @@ class Diameter:
                         chargingRule = {
                         "charging_rule_id": 1000,
                         "qci": 1,
-                        "arp_preemption_capability": True,
+                        "arp_preemption_capability": False,
                         "mbr_dl": dlBandwidth,
                         "mbr_ul": ulBandwidth,
                         "gbr_ul": ulBandwidth,
-                        "precedence": 100,
-                        "arp_priority": 2,
+                        "precedence": 40,
+                        "arp_priority": 15,
                         "rule_name": "GBR-Voice",
-                        "arp_preemption_vulnerability": False,
+                        "arp_preemption_vulnerability": True,
                         "gbr_dl": dlBandwidth,
                         "tft_group_id": 1,
                         "rating_group": None,
@@ -2659,19 +2973,37 @@ class Diameter:
                             "tft_group_id": 1,
                             "direction": 1,
                             "tft_id": 1,
-                            "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            "tft_string": f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
                             },
                             {
                             "tft_group_id": 1,
                             "direction": 2,
                             "tft_id": 2,
-                            "tft_string": "permit out 17 from {{ UE_IP }}/32 1-65535 to any 1-65535"
+                            "tft_string": f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
                             }
                         ]
                         }
 
-                        self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=sessionId)
+                        if not emergencySubscriber:
+                            self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=sessionId)
+                        else:
+                            updatedEmergencySubscriberData = {
+                                "servingPgw": emergencySubscriberData.get('serving_pgw'),
+                                "requestTime": emergencySubscriberData.get('serving_pgw_timestamp'),
+                                "servingPcscf": sessionId,
+                                "aarRequestTime": int(time.time()),
+                                "gxOriginRealm": emergencySubscriberData.get('gx_origin_realm'),
+                                "gxOriginHost": emergencySubscriberData.get('gx_origin_host'),
+                                "imsi": emergencySubscriberData.get('imsi'),
+                                "ip": emergencySubscriberData.get('ip'),
+                                "ratType": emergencySubscriberData.get('rat_type'),
+                                "accessNetworkGatewayAddress": emergencySubscriberData.get('access_network_gateway_address'),
+                                "accessNetworkChargingAddress": emergencySubscriberData.get('access_network_charging_address'),
+                            }
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Updating Emergency Subscriber: {updatedEmergencySubscriberData}", redisClient=self.redisMessaging)
+                            self.database.Update_Emergency_Subscriber(subscriberIp=ueIp, subscriberData=updatedEmergencySubscriberData, imsi=imsi)
 
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAR Generated to be sent to serving PGW: {servingPgw} via peer {servingPgwPeer}", redisClient=self.redisMessaging)
                         reAuthAnswer = self.awaitDiameterRequestAndResponse(
                                 requestType='RAR',
                                 hostname=servingPgwPeer,
@@ -2795,22 +3127,47 @@ class Diameter:
             avp += self.generate_avp(263, 40, self.string_to_hex(sessionId))                                                    #Set session ID to received session ID
             avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
-            imsSubscriber = self.database.Get_IMS_Subscriber_By_Session_Id(sessionId=sessionId)
-            imsi = imsSubscriber.get('imsi', None)
-            pcscf = imsSubscriber.get('pcscf', None)
-            pcscf_realm = imsSubscriber.get('pcscf_realm', None)
-            pcscf_peer = imsSubscriber.get('pcscf_peer', None)
-            subscriber = self.database.Get_Subscriber(imsi=imsi)
-            subscriberId = subscriber.get('subscriber_id', None)
-            apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
-            servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
-            self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=pcscf, pcscf_realm=pcscf_realm, pcscf_peer=pcscf_peer, pcscf_active_session=None)
+            servingApn = None
+            try:
+                imsSubscriber = self.database.Get_IMS_Subscriber_By_Session_Id(sessionId=sessionId)
+                imsi = imsSubscriber.get('imsi', None)
+                pcscf = imsSubscriber.get('pcscf', None)
+                pcscf_realm = imsSubscriber.get('pcscf_realm', None)
+                pcscf_peer = imsSubscriber.get('pcscf_peer', None)
+                subscriber = self.database.Get_Subscriber(imsi=imsi)
+                subscriberId = subscriber.get('subscriber_id', None)
+                apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+                servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                if servingApn is not None:
+                    servingPgw = servingApn.get('serving_pgw', '')
+                    servingPgwRealm = servingApn.get('serving_pgw_realm', '')
+                    servingPgwPeer = servingApn.get('serving_pgw_peer', '').split(';')[0]
+                    pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                else:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] No servingApn defined for IMS Subscriber", redisClient=self.redisMessaging)
+                self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=pcscf, pcscf_realm=pcscf_realm, pcscf_peer=pcscf_peer, pcscf_active_session=None)
+            except Exception as e:
+                pass
+
+            """
+            Determine if the Session-ID for the STR belongs to an inbound roaming emergency subscriber.
+            """
+            try:
+                emergencySubscriberData = self.database.Get_Emergency_Subscriber(rxSessionId=sessionId)
+                if emergencySubscriberData:
+                    emergencySubscriber = True
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] Found emergency subscriber with Rx Session: {sessionId}", redisClient=self.redisMessaging)
+            except Exception as e:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] Error getting Emergency Subscriber Data: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                emergencySubscriberData = None
             
-            if servingApn is not None:
-                servingPgw = servingApn.get('serving_pgw', '')
-                servingPgwRealm = servingApn.get('serving_pgw_realm', '')
-                servingPgwPeer = servingApn.get('serving_pgw_peer', '').split(';')[0]
-                pcrfSessionId = servingApn.get('pcrf_session_id', None)
+            if emergencySubscriberData:
+                servingPgwPeer = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
+                pcrfSessionId = emergencySubscriberData.get('serving_pgw', None)
+                servingPgwRealm = emergencySubscriberData.get('gx_origin_realm', None)
+                servingPgw = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
+
+            if servingApn is not None or emergencySubscriberData:
                 reAuthAnswer = self.awaitDiameterRequestAndResponse(
                         requestType='RAR',
                         hostname=servingPgwPeer,
@@ -2820,7 +3177,7 @@ class Diameter:
                         chargingRuleName='GBR-Voice',
                         chargingRuleAction='remove'
                 )
-
+            
                 if not len(reAuthAnswer) > 0:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [STA] RAA Timeout: {reAuthAnswer}", redisClient=self.redisMessaging)
                     assert()
