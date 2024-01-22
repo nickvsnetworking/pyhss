@@ -2,6 +2,7 @@
 import math
 import asyncio
 import yaml
+import socket
 from messagingAsync import RedisMessagingAsync
 
 
@@ -41,7 +42,7 @@ class DiameterAsync:
         self.redisMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
         self.logTool = logTool
-        
+        self.hostname = socket.gethostname()
 
     #Generates rounding for calculating padding
     async def myRound(self, n, base=4):
@@ -246,7 +247,7 @@ class DiameterAsync:
                 if peerType not in peerTypes:
                     return []
                 filteredConnectedPeers = []
-                activePeers = await(self.redisMessaging.getValue(key="ActiveDiameterPeers"))
+                activePeers = await(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                 for key, value in activePeers.items():
                     if activePeers.get(key, {}).get('peerType', '') == 'pgw' and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':

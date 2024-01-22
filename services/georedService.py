@@ -1,6 +1,7 @@
 import os, sys, json, yaml
 import uuid, time
 import asyncio, aiohttp
+import socket
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
@@ -32,6 +33,7 @@ class GeoredService:
         self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
         self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
+        self.hostname = socket.gethostname()
 
         if not self.config.get('geored', {}).get('enabled'):
             self.logger.error("[Geored] Fatal Error - geored not enabled under geored.enabled, exiting.")
@@ -56,7 +58,7 @@ class GeoredService:
             if operation not in requestOperations:
                 return False
             
-            headers = {"Content-Type": "application/json", "Transaction-Id": str(transactionId)}
+            headers = {"Content-Type": "application/json", "Transaction-Id": str(transactionId), "User-Agent": f"PyHSS/1.0.1 (Geored)"}
 
             for attempt in range(retryCount):
                 try:
@@ -145,7 +147,7 @@ class GeoredService:
 
             return True
 
-    async def sendWebhook(self, asyncSession, url: str, operation: str, body: str, headers: str, transactionId: str=uuid.uuid4(), retryCount: int=3) -> bool:
+    async def sendWebhook(self, asyncSession, url: str, operation: str, body: str, headers: dict, transactionId: str=uuid.uuid4(), retryCount: int=3) -> bool:
             """
             Sends a Webhook HTTP request to a given endpoint.
             """
@@ -159,6 +161,9 @@ class GeoredService:
 
             if operation not in requestOperations:
                 return False
+            
+            if 'User-Agent' not in headers:
+                headers['User-Agent'] = f"PyHSS/1.0.1 (Webhook)"
 
             for attempt in range(retryCount):
                 try:
@@ -255,7 +260,7 @@ class GeoredService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='asymmetric-geored')))[1])
+                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='asymmetric-geored', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='geored')))[1])
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleAsymmetricGeoredQueue] Message: {georedMessage}"))
 
                 georedOperation = georedMessage['operation']
@@ -286,7 +291,7 @@ class GeoredService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='geored')))[1])
+                georedMessage = json.loads((await(self.redisGeoredMessaging.awaitMessage(key='geored', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='geored')))[1])
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleGeoredQueue] Message: {georedMessage}"))
 
                 georedOperation = georedMessage['operation']
@@ -316,7 +321,7 @@ class GeoredService:
             try:
                 if self.benchmarking:
                     startTime = time.perf_counter()
-                webhookMessage = json.loads((await(self.redisWebhookMessaging.awaitMessage(key='webhook')))[1])
+                webhookMessage = json.loads((await(self.redisWebhookMessaging.awaitMessage(key='webhook', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='webhook')))[1])
 
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Message: {webhookMessage}"))
 

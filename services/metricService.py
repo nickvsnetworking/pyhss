@@ -1,6 +1,7 @@
 import asyncio
 import sys, os, json
 import time, json, yaml
+import socket
 from prometheus_client import make_wsgi_app, start_http_server, Counter, Gauge, Summary, Histogram, CollectorRegistry
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from flask import Flask
@@ -25,6 +26,7 @@ class MetricService:
         self.logTool = LogTool(config=self.config)
         self.registry = CollectorRegistry(auto_describe=True)
         self.logTool.log(service='Metric', level='info', message=f"{self.banners.metricService()}", redisClient=self.redisMessaging)
+        self.hostname = socket.gethostname()
     
     def handleMetrics(self):
         """
@@ -34,7 +36,7 @@ class MetricService:
             actions = {'inc': 'inc', 'dec': 'dec', 'set':'set'}
             prometheusTypes = {'counter': Counter, 'gauge': Gauge, 'histogram': Histogram, 'summary': Summary}
 
-            metric = self.redisMessaging.awaitMessage(key='metric')[1]
+            metric = self.redisMessaging.awaitMessage(key='metric', usePrefix=True, prefixHostname=self.hostname, prefixServiceName='metric')[1]
 
             self.logTool.log(service='Metric', level='debug', message=f"[Metric] [handleMetrics] Received Metric: {metric}", redisClient=self.redisMessaging)
             prometheusJsonList = json.loads(metric)
