@@ -2381,7 +2381,10 @@ class Database:
                                                     metricLabels={'imei_prefix': device_info['tacPrefix'],
                                                                   'device_type': device_info['name'],
                                                                   'device_name': device_info['model']},
-                                                    metricExpiry=60)
+                                                    metricExpiry=60,
+                                                    usePrefix=True, 
+                                                    prefixHostname=self.hostname, 
+                                                    prefixServiceName='metric')
                 except Exception as E:
                     self.logTool.log(service='Database', level='debug', message="Failed to get device info from TAC", redisClient=self.redisMessaging)
                     self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
@@ -2390,7 +2393,10 @@ class Database:
                                 metricLabels={'imei_prefix': str(imei)[0:8],
                                                 'device_type': 'Unknown',
                                                 'device_name': 'Unknown'},
-                                metricExpiry=60)
+                                metricExpiry=60,
+                                usePrefix=True, 
+                                prefixHostname=self.hostname, 
+                                prefixServiceName='metric')
             else:
                 self.logTool.log(service='Database', level='debug', message="No TAC database configured, skipping device info lookup", redisClient=self.redisMessaging)
 

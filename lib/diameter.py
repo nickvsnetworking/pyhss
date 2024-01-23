@@ -795,6 +795,18 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=packet_vars, redisClient=self.redisMessaging)
                     return
                 
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count_application_id',
+                    metricType='counter', metricAction='inc', 
+                    metricLabels={
+                        "diameter_application_id": packet_vars["ApplicationId"],
+                        "diameter_cmd_code": packet_vars["command_code"],
+                    },
+                    metricValue=1.0, metricHelp='Number of Diameter Requests by Application Id',
+                    metricExpiry=60,
+                    usePrefix=True, 
+                    prefixHostname=self.hostname, 
+                    prefixServiceName='metric')
+                
                 for diameterApplication in self.diameterResponseList:
                     try:
                         assert(packet_vars["command_code"] == diameterApplication["commandCode"])
@@ -812,16 +824,30 @@ class Diameter:
                     except Exception as e:
                         continue
 
-                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_successful',
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_application_id_successful',
                                     metricType='counter', metricAction='inc', 
+                                    metricLabels={
+                                        "diameter_application_id": packet_vars["ApplicationId"],
+                                        "diameter_cmd_code": packet_vars["command_code"],
+                                    },
                                     metricValue=1.0, metricHelp='Number of Successful Diameter Responses',
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
                 return response
             except Exception as e:
-                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_fail',
-                                                metricType='counter', metricAction='inc', 
+                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_application_id_fail',
+                                                metricType='counter', metricAction='inc',
+                                                metricLabels={
+                                                    "diameter_application_id": packet_vars["ApplicationId"],
+                                                    "diameter_cmd_code": packet_vars["command_code"],
+                                                },
                                                 metricValue=1.0, metricHelp='Number of Failed Diameter Responses',
-                                                metricExpiry=60)
+                                                metricExpiry=60,
+                                                usePrefix=True, 
+                                                prefixHostname=self.hostname, 
+                                                prefixServiceName='metric')
                 return ''
 
     def generateDiameterRequest(self, requestType: str, **kwargs) -> str:
@@ -1195,15 +1221,24 @@ class Diameter:
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_ims_subs',
                                             metricType='gauge', metricAction='set', 
                                             metricValue=len(self.database.Get_Served_IMS_Subscribers(get_local_users_only=True)), metricHelp='Number of attached IMS Subscribers',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_mme_subs',
                                             metricType='gauge', metricAction='set', 
                                             metricValue=len(self.database.Get_Served_Subscribers(get_local_users_only=True)), metricHelp='Number of attached MME Subscribers',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_pcrf_subs',
                                             metricType='gauge', metricAction='set', 
                                             metricValue=len(self.database.Get_Served_PCRF_Subscribers(get_local_users_only=True)), metricHelp='Number of attached PCRF Subscribers',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
         except Exception as e:
             self.logTool.log(service='HSS', level='debug', message="Failed to generate Prometheus Stats for IMS Subscribers", redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='debug', message=e, redisClient=self.redisMessaging)
@@ -1607,7 +1642,10 @@ class Diameter:
                                             "event": "Disabled User",
                                             "imsi_prefix": str(imsi[0:6])},
                                 metricHelp='Diameter Authentication related Counters',
-                                metricExpiry=60)
+                                metricExpiry=60,
+                                usePrefix=True, 
+                                prefixHostname=self.hostname, 
+                                prefixServiceName='metric')
                 session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
                 avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
                 avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
@@ -1637,7 +1675,10 @@ class Diameter:
                                                         "event": "Unknown User",
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
             self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " is unknown in database", redisClient=self.redisMessaging)
             avp = ''
@@ -1719,7 +1760,10 @@ class Diameter:
                                                                     "event": "Resync",
                                                                     "imsi_prefix": str(imsi[0:6])},
                                                         metricHelp='Diameter Authentication related Counters',
-                                                        metricExpiry=60)
+                                                        metricExpiry=60,
+                                                        usePrefix=True, 
+                                                        prefixHostname=self.hostname, 
+                                                        prefixServiceName='metric')
                         auts = str(sub_avp['misc_data'])[32:]
                         rand = str(sub_avp['misc_data'])[:32]
                         rand = binascii.unhexlify(rand)
@@ -2171,7 +2215,10 @@ class Diameter:
                                                         "event": "Unknown User",
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
@@ -2221,7 +2268,10 @@ class Diameter:
                                                         "event": "Unknown User",
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             result_code = 5001          #IMS User Unknown
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -2405,7 +2455,10 @@ class Diameter:
                                                         "event": "Unknown User",
                                                         "imsi_prefix": str(username[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             #Experimental Result AVP
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
@@ -2453,7 +2506,10 @@ class Diameter:
                                                         "event": "Unknown User",
                                                         "imsi_prefix": str(imsi[0:6])},
                                             metricHelp='Diameter Authentication related Counters',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
             experimental_result = self.generate_avp(298, 40, self.int_to_hex(5001, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             experimental_result = experimental_result + self.generate_vendor_avp(266, 40, 10415, "")
             #Experimental Result (297)
@@ -2484,7 +2540,10 @@ class Diameter:
                                                             "event": "ReAuth",
                                                             "imsi_prefix": str(imsi[0:6])},
                                                 metricHelp='Diameter Authentication related Counters',
-                                                metricExpiry=60)
+                                                metricExpiry=60,
+                                                usePrefix=True, 
+                                                prefixHostname=self.hostname, 
+                                                prefixServiceName='metric')
             if sub_avp_612['avp_code'] == 608:
                 self.logTool.log(service='HSS', level='debug', message="Auth mechansim requested: " + str(sub_avp_612['misc_data']), redisClient=self.redisMessaging)
                 auth_scheme = binascii.unhexlify(sub_avp_612['misc_data']).decode('utf-8')
@@ -2651,7 +2710,10 @@ class Diameter:
                                                             "event": "Unknown User",
                                                             "imsi_prefix": str(username[0:6])},
                                                 metricHelp='Diameter Authentication related Counters',
-                                                metricExpiry=60)
+                                                metricExpiry=60,
+                                                usePrefix=True, 
+                                                prefixHostname=self.hostname, 
+                                                prefixServiceName='metric')
             result_code = 5001
             #Experimental Result AVP
             avp_experimental_result = ''
@@ -3269,7 +3331,10 @@ class Diameter:
                                     metricLabels={
                                                 "response": EquipmentStatus},
                                     metricHelp='Diameter EIR event related Counters',
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=traceback.format_exc(), redisClient=self.redisMessaging)
 

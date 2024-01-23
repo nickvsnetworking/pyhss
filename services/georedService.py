@@ -85,7 +85,10 @@ class GeoredService:
                                                             "endpoint": "geored",
                                                             "http_response_code": str(responseStatusCode),
                                                             "error": ""},
-                                                            metricExpiry=60))
+                                                            metricExpiry=60,
+                                                            usePrefix=True, 
+                                                            prefixHostname=self.hostname, 
+                                                            prefixServiceName='metric'))
                         break
                     else:
                         asyncio.ensure_future(self.redisGeoredMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
@@ -96,7 +99,10 @@ class GeoredService:
                                 "endpoint": "geored",
                                 "http_response_code": str(responseStatusCode),
                                 "error": str(response.reason)},
-                                metricExpiry=60))
+                                metricExpiry=60,
+                                usePrefix=True, 
+                                prefixHostname=self.hostname, 
+                                prefixServiceName='metric'))
                 except aiohttp.ClientConnectionError as e:
                     error_message = str(e)
                     await(self.logTool.logAsync(service='Geored', level='warning', message=f"[Geored] [sendGeored] Operation {operation} failed on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
@@ -109,7 +115,10 @@ class GeoredService:
                         "endpoint": "geored",
                         "http_response_code": "000",
                         "error": "No matching DNS entry found"},
-                        metricExpiry=60))
+                        metricExpiry=60,
+                        usePrefix=True, 
+                        prefixHostname=self.hostname, 
+                        prefixServiceName='metric'))
                     else:
                         asyncio.ensure_future(self.redisGeoredMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
                         metricType='counter', metricAction='inc', 
@@ -119,7 +128,10 @@ class GeoredService:
                         "endpoint": "geored",
                         "http_response_code": "000",
                         "error": "Connection Refused"},
-                        metricExpiry=60))
+                        metricExpiry=60,
+                        usePrefix=True, 
+                        prefixHostname=self.hostname, 
+                        prefixServiceName='metric'))
                 except aiohttp.ServerTimeoutError:
                     await(self.logTool.logAsync(service='Geored', level='warning', message=f"[Geored] [sendGeored] Operation {operation} timed out on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
                     asyncio.ensure_future(self.redisGeoredMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
@@ -130,7 +142,10 @@ class GeoredService:
                     "endpoint": "geored",
                     "http_response_code": "000",
                     "error": "Timeout"},
-                    metricExpiry=60))
+                    metricExpiry=60,
+                    usePrefix=True, 
+                    prefixHostname=self.hostname, 
+                    prefixServiceName='metric'))
                 except Exception as e:
                     await(self.logTool.logAsync(service='Geored', level='error', message=f"[Geored] [sendGeored] Operation {operation} encountered unknown error on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
                     asyncio.ensure_future(self.redisGeoredMessaging.sendMetric(serviceName='geored', metricName='prom_http_geored',
@@ -141,7 +156,10 @@ class GeoredService:
                     "endpoint": "geored",
                     "http_response_code": "000",
                     "error": e},
-                    metricExpiry=60))
+                    metricExpiry=60,
+                    usePrefix=True, 
+                    prefixHostname=self.hostname, 
+                    prefixServiceName='metric'))
             if self.benchmarking:
                 await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [sendGeored] Time taken to send individual geored request to {url}: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 
@@ -190,7 +208,10 @@ class GeoredService:
                                                             "endpoint": "webhook",
                                                             "http_response_code": str(responseStatusCode),
                                                             "error": ""},
-                                                            metricExpiry=60))
+                                                            metricExpiry=60,
+                                                            usePrefix=True, 
+                                                            prefixHostname=self.hostname, 
+                                                            prefixServiceName='metric'))
                         break
                     else:
                         asyncio.ensure_future(self.redisWebhookMessaging.sendMetric(serviceName='webhook', metricName='prom_http_webhook',
@@ -201,7 +222,10 @@ class GeoredService:
                                 "endpoint": "webhook",
                                 "http_response_code": str(responseStatusCode),
                                 "error": str(response.reason)},
-                                metricExpiry=60))
+                                metricExpiry=60,
+                                usePrefix=True, 
+                                prefixHostname=self.hostname, 
+                                prefixServiceName='metric'))
                 except aiohttp.ClientConnectionError as e:
                     error_message = str(e)
                     await(self.logTool.logAsync(service='Geored', level='warning', message=f"[Geored] [sendWebhook] Operation {operation} failed on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
@@ -214,7 +238,10 @@ class GeoredService:
                         "endpoint": "webhook",
                         "http_response_code": "000",
                         "error": "No matching DNS entry found"},
-                        metricExpiry=60))
+                        metricExpiry=60,
+                        usePrefix=True, 
+                        prefixHostname=self.hostname, 
+                        prefixServiceName='metric'))
                     else:
                         asyncio.ensure_future(self.redisWebhookMessaging.sendMetric(serviceName='webhook', metricName='prom_http_webhook',
                         metricType='counter', metricAction='inc', 
@@ -224,7 +251,10 @@ class GeoredService:
                         "endpoint": "webhook",
                         "http_response_code": "000",
                         "error": "Connection Refused"},
-                        metricExpiry=60))
+                        metricExpiry=60,
+                        usePrefix=True, 
+                        prefixHostname=self.hostname, 
+                        prefixServiceName='metric'))
                 except aiohttp.ServerTimeoutError:
                     await(self.logTool.logAsync(service='Geored', level='warning', message=f"[Geored] [sendWebhook] Operation {operation} timed out on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
                     asyncio.ensure_future(self.redisWebhookMessaging.sendMetric(serviceName='webhook', metricName='prom_http_webhook',
@@ -235,7 +265,10 @@ class GeoredService:
                     "endpoint": "webhook",
                     "http_response_code": "000",
                     "error": "Timeout"},
-                    metricExpiry=60))
+                    metricExpiry=60,
+                    usePrefix=True, 
+                    prefixHostname=self.hostname, 
+                    prefixServiceName='metric'))
                 except Exception as e:
                     await(self.logTool.logAsync(service='Geored', level='error', message=f"[Geored] [sendWebhook] Operation {operation} encountered unknown error on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
                     asyncio.ensure_future(self.redisWebhookMessaging.sendMetric(serviceName='webhook', metricName='prom_http_webhook',
@@ -246,7 +279,10 @@ class GeoredService:
                     "endpoint": "webhook",
                     "http_response_code": "000",
                     "error": e},
-                    metricExpiry=60))
+                    metricExpiry=60,
+                    usePrefix=True, 
+                    prefixHostname=self.hostname, 
+                    prefixServiceName='metric'))
             if self.benchmarking:
                 await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [sendWebhook] Time taken to send individual webhook request to {url}: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
 

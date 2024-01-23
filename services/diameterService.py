@@ -32,6 +32,7 @@ class DiameterService:
         self.redisReaderMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisWriterMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisPeerMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.redisMetricMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.banners = Banners()
         self.logTool = LogTool(config=self.config)
         self.diameterLibrary = DiameterAsync(logTool=self.logTool)
@@ -87,7 +88,7 @@ class DiameterService:
                     for key in stalePeers:
                         del self.activePeers[key]
                     await(self.logActivePeers())
-                
+
                 await(self.redisPeerMessaging.setValue(key='ActiveDiameterPeers', value=json.dumps(self.activePeers), keyExpiry=86400, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                 await(asyncio.sleep(1))
@@ -100,10 +101,38 @@ class DiameterService:
         """
         Logs the number of active connections on a rolling basis.
         """
-        activePeers = self.activePeers
-        if not len(activePeers) > 0:
-            activePeers = ''
-        await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActivePeers] {len(self.activePeers)} Active Peers {activePeers}"))
+        try:
+            activePeers = self.activePeers
+            if not len(activePeers) > 0:
+                activePeers = ''
+
+            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActivePeers] {len(self.activePeers)} Active Peers {activePeers}"))
+
+            if isinstance(activePeers, dict):
+                for peerKey, peerData in activePeers.items():
+                    peerHost = peerData.get('diameterHostname', None)
+                    peerConnectionStatus = peerData.get('connectionStatus', None)
+                    if peerHost and peerConnectionStatus:
+                        if peerConnectionStatus.lower() == 'connected':
+                            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_connected_state',
+                                    metricType='gauge', metricAction='set',
+                                    metricLabels={'host': peerHost},
+                                    metricValue=1.0, metricHelp='Connection state of diameter peers',
+                                    metricExpiry=60,
+                                    usePrefix=True,
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric'))
+                        elif peerConnectionStatus.lower() == 'disconnected':
+                            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_connected_state',
+                                    metricType='gauge', metricAction='set',
+                                    metricLabels={'host': peerHost},
+                                    metricValue=0.0, metricHelp='Connection state of diameter peers',
+                                    metricExpiry=60,
+                                    usePrefix=True,
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric'))
+        except Exception as e:
+            await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logActivePeers] Exception: {traceback.format_exc()}"))
 
     async def logProcessedMessages(self):
         """
@@ -117,6 +146,23 @@ class DiameterService:
         while True:
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterRequests} inbound diameter messages in the last {self.benchmarkingInterval} second(s)"))
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [logProcessedMessages] Processed {self.diameterResponses} outbound in the last {self.benchmarkingInterval} second(s)"))
+            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count',
+                                            metricType='gauge', metricAction='inc', 
+                                            metricValue=float(self.diameterRequests),
+                                            metricLabels={'benchmark_interval': self.benchmarkingInterval},
+                                            metricHelp='Number of Diameter Requests Received',
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname,
+                                            prefixServiceName='metric'))
+            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count',
+                                            metricType='gauge', metricAction='inc',
+                                            metricLabels={'benchmark_interval': self.benchmarkingInterval},
+                                            metricValue=float(self.diameterResponses), metricHelp='Number of Diameter Responses Sent',
+                                            metricExpiry=60, 
+                                            usePrefix=True,
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric'))
             self.diameterRequests = 0
             self.diameterResponses = 0
             await(asyncio.sleep(benchmarkInterval))
