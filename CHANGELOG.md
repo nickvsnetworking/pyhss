@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Roaming management on a per-subscriber basis, through subscriber.roaming_enabled and subscriber.roaming_rule_list.
 - Support for Gx and Rx auth of unknown subscribers attaching via SOS.
 - Preliminary support for SCTP.
+- Additional prometheus metrics.
 
 ## [1.0.0] - 2023-09-27
 

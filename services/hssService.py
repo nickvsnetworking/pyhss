@@ -58,7 +58,7 @@ class HssService:
                     inboundTimestamp = inboundMessage.get('inbound-received-timestamp', None)
 
                     try:
-                        diameterPeers = json.loads(self.redisMessaging.getValue("ActiveDiameterPeers"))
+                        diameterPeers = json.loads(self.redisMessaging.getValue("ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                         for diameterPeer in diameterPeers:
                             if diameterPeers[diameterPeer].get('ipAddress', '') == inboundHost and diameterPeers[diameterPeer].get('port', '') == inboundPort:
@@ -67,9 +67,13 @@ class HssService:
                                             metricLabels={
                                             "host": diameterPeers[diameterPeer]['diameterHostname']},
                                             metricValue=float(1), metricHelp='Number of Diameter Requests Recieved per Host',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
 
                     except Exception as e:
+                        self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Error updating prom_diam_request_count_host: {traceback.format_exc()}", redisClient=self.redisMessaging)
                         pass
 
                     try:
@@ -107,7 +111,7 @@ class HssService:
                         self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
 
                     try:
-                        diameterPeers = json.loads(self.redisMessaging.getValue("ActiveDiameterPeers"))
+                        diameterPeers = json.loads(self.redisMessaging.getValue("ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                         for diameterPeer in diameterPeers:
                             if diameterPeers[diameterPeer].get('ipAddress', '') == inboundHost and diameterPeers[diameterPeer].get('port', '') == inboundPort:
@@ -116,9 +120,13 @@ class HssService:
                                             metricLabels={
                                             "host": diameterPeers[diameterPeer]['diameterHostname']},
                                             metricValue=float(1), metricHelp='Number of Diameter Responses Sent per Host',
-                                            metricExpiry=60)
+                                            metricExpiry=60,
+                                            usePrefix=True, 
+                                            prefixHostname=self.hostname, 
+                                            prefixServiceName='metric')
 
                     except Exception as e:
+                        self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Error updating prom_diam_response_count_host: {traceback.format_exc()}", redisClient=self.redisMessaging)
                         pass
 
 

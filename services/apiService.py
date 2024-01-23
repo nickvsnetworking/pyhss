@@ -1921,7 +1921,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "HSS",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
                 if 'serving_pgw_realm' not in json_data:
@@ -1947,7 +1950,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "PCRF",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             if 'scscf' in json_data:
                 print("Updating Serving SCSCF")
                 if 'scscf_realm' not in json_data:
@@ -1964,7 +1970,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "IMS_SCSCF",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             if 'pcscf' in json_data:
                 print("Updating Proxy SCSCF")
                 if 'pcscf_realm' not in json_data:
@@ -1983,7 +1992,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "IMS_PCSCF",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             if 'imei' in json_data:
                 print("Updating EIR")
                 response_data.append(databaseClient.Store_IMSI_IMEI_Binding(str(json_data['imsi']), str(json_data['imei']), str(json_data['match_response_code']), propagate=False))
@@ -1994,7 +2006,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "IMEI",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             if 'auc_id' in json_data:
                 print("Updating AuC")
                 response_data.append(databaseClient.Update_AuC(json_data['auc_id'], json_data['sqn'], propagate=False))
@@ -2005,7 +2020,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "SQN",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             if 'emergency_subscriber_ip' in json_data:
                 """
                 If we receive a geored payload containing emergency_subscriber_id, create or update the matching emergency_subscriber_id.
@@ -2049,7 +2067,10 @@ class PyHSS_Geored(Resource):
                                         "endpoint": "EMERGENCY_SUBSCRIBER",
                                         "geored_host": request.remote_addr,
                                     },
-                                    metricExpiry=60)
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=self.hostname, 
+                                    prefixServiceName='metric')
             return response_data, 200
         except Exception as E:
             print("Exception when updating: " + str(E))
