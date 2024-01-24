@@ -2986,6 +2986,13 @@ class Diameter:
                             sdpDownlinkRtpPorts = f"{sdpDownlinkRtpPort}-{int(sdpDownlinkRtpPort)+1}"
                             sdpUplinkRtpPorts = f"{sdpUplinkRtpPort}-{int(sdpUplinkRtpPort)+1}"
 
+                            # If we've got a UE that's sending a malformed request, use a fallback rule.
+                            # Else, if all necessary variables are defined, use the correct SDP rule.
+                            # The fallback rule will fail on some cheap handsets.
+                            if not sdpDownlinkIpv4 or not sdpDownlinkRtpPort or not sdpUplinkRtpPort:
+                                tftString = f"permit out 17 from {ueIp}/32 1-65535 to any 1-65535"
+                            else:
+                                tftString = f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
 
                         except Exception as e:
                             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Failed to extract SDP due to error: {traceback.format_exc()}", redisClient=self.redisMessaging)
@@ -3018,13 +3025,13 @@ class Diameter:
                             "tft_group_id": 1,
                             "direction": 1,
                             "tft_id": 1,
-                            "tft_string": f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
+                            "tft_string": tftString
                             },
                             {
                             "tft_group_id": 1,
                             "direction": 2,
                             "tft_id": 2,
-                            "tft_string": f"permit out 17 from {sdpDownlinkIpv4}/32 {sdpDownlinkRtpPorts} to {ueIp}/32 {sdpUplinkRtpPorts}"
+                            "tft_string": tftString
                             }
                         ]
                         }
