@@ -1923,7 +1923,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             if 'serving_apn' in json_data:
                 print("Updating serving APN")
@@ -1952,7 +1952,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             if 'scscf' in json_data:
                 print("Updating Serving SCSCF")
@@ -1972,7 +1972,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             if 'pcscf' in json_data:
                 print("Updating Proxy SCSCF")
@@ -1994,7 +1994,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             if 'imei' in json_data:
                 print("Updating EIR")
@@ -2008,7 +2008,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             if 'auc_id' in json_data:
                 print("Updating AuC")
@@ -2022,7 +2022,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             if 'emergency_subscriber_ip' in json_data:
                 """
@@ -2069,7 +2069,7 @@ class PyHSS_Geored(Resource):
                                     },
                                     metricExpiry=60,
                                     usePrefix=True, 
-                                    prefixHostname=self.hostname, 
+                                    prefixHostname=originHostname, 
                                     prefixServiceName='metric')
             return response_data, 200
         except Exception as E:
