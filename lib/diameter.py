@@ -1066,8 +1066,9 @@ class Diameter:
         """
 
         roamingEnabled = subscriber.get('roaming_enabled', True)
-        if not roamingEnabled:
-            return False
+        if roamingEnabled is not None:
+            if not roamingEnabled:
+                return False
         
         assignedRoamingRules = subscriber.get('roaming_rule_list', "")
 
@@ -1632,7 +1633,11 @@ class Diameter:
             subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
             if subscriber_details['enabled'] == 0:
                 self.logTool.log(service='HSS', level='debug', message=f"Subscriber {imsi} is disabled", redisClient=self.redisMessaging)
-                avp += self.generate_avp(268, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)  #Result Code
+                avp = ''
+                session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+                avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+                avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+                avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                 metricType='counter', metricAction='inc', 
                                 metricValue=1.0, 
@@ -1646,21 +1651,17 @@ class Diameter:
                                 usePrefix=True, 
                                 prefixHostname=self.hostname, 
                                 prefixServiceName='metric')
-                session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-                avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
-                avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
-                avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
 
                 #Experimental Result AVP(Response Code for Failure)
                 avp_experimental_result = ''
                 avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
                 avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
                 
                 avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State
                 avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (S6a)
                 response = self.generate_diameter_packet("01", "40", 318, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
-                self.logTool.log(service='HSS', level='debug', message=f"Successfully Generated ULA for disabled Subscriber: {imsi}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"Successfully Generated AIA for disabled Subscriber: {imsi}", redisClient=self.redisMessaging)
                 self.logTool.log(service='HSS', level='debug', message=f"{response}", redisClient=self.redisMessaging)
                 return response
         except ValueError as e:
