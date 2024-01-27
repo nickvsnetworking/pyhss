@@ -32,6 +32,7 @@ class DiameterService:
         self.redisReaderMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisWriterMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisPeerMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.redisPeerLogMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisMetricMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.banners = Banners()
         self.logTool = LogTool(config=self.config)
@@ -114,7 +115,7 @@ class DiameterService:
                     peerConnectionStatus = peerData.get('connectionStatus', None)
                     if peerHost and peerConnectionStatus:
                         if peerConnectionStatus.lower() == 'connected':
-                            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_connected_state',
+                            await(self.redisPeerLogMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_connected_state',
                                     metricType='gauge', metricAction='set',
                                     metricLabels={'host': peerHost},
                                     metricValue=1.0, metricHelp='Connection state of diameter peers',
@@ -123,7 +124,7 @@ class DiameterService:
                                     prefixHostname=self.hostname, 
                                     prefixServiceName='metric'))
                         elif peerConnectionStatus.lower() == 'disconnected':
-                            await(self.redisMetricMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_connected_state',
+                            await(self.redisPeerLogMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_connected_state',
                                     metricType='gauge', metricAction='set',
                                     metricLabels={'host': peerHost},
                                     metricValue=0.0, metricHelp='Connection state of diameter peers',
