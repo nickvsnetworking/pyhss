@@ -2811,7 +2811,12 @@ class Diameter:
             imsi = None
             msisdn = None
             identifier = None
+            try:
+                serviceUrn = bytes.fromhex(self.get_avp_data(avps, 525)[0]).decode('ascii')
+            except:
+                serviceUrn = None
             emergencySubscriber = False
+            registeredEmergencySubscriber = False
 
             try:
                 ueIp = self.get_avp_data(avps, 8)[0]
@@ -2927,6 +2932,9 @@ class Diameter:
                             servingPgw = servingApn.get('serving_pgw', None)
                             servingPgwRealm = servingApn.get('serving_pgw_realm', None)
                             pcrfSessionId = servingApn.get('pcrf_session_id', None)
+                            if serviceUrn:
+                                if 'sos' in str(serviceUrn).lower():
+                                    registeredEmergencySubscriber = True
                         if not ueIp:
                             ueIp = servingApn.get('subscriber_routing', None)
 
@@ -3062,17 +3070,24 @@ class Diameter:
                         3. Send the winning rule.
                         """
 
+                        if emergencySubscriber or registeredEmergencySubscriber:
+                            arpPreemptionCapability = True
+                            arpPreemptionVulnerability = False
+                        else:
+                            arpPreemptionCapability = False
+                            arpPreemptionVulnerability = True
+
                         chargingRule = {
                         "charging_rule_id": 1000,
                         "qci": 1,
-                        "arp_preemption_capability": False,
+                        "arp_preemption_capability": arpPreemptionCapability,
                         "mbr_dl": dlBandwidth,
                         "mbr_ul": ulBandwidth,
                         "gbr_ul": ulBandwidth,
                         "precedence": 40,
                         "arp_priority": 15,
                         "rule_name": "GBR-Voice",
-                        "arp_preemption_vulnerability": True,
+                        "arp_preemption_vulnerability": arpPreemptionVulnerability,
                         "gbr_dl": dlBandwidth,
                         "tft_group_id": 1,
                         "rating_group": None,
