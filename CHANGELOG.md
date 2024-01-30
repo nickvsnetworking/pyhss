@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.1] - 2023-01-23
 
+
+### Removed
+ - Assert on missing "IMS Services" for AAA/Audio Request
+
 ### Changed
 
 - Reduced verbosity of failing subscriber lookups to debug

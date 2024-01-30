@@ -2903,8 +2903,8 @@ class Diameter:
                 try:
                     afApplicationIdentifier = self.get_avp_data(avps, 504)[0]
                     mediaType = self.get_avp_data(avps, 520)[0]
-                    assert(bytes.fromhex(afApplicationIdentifier).decode('ascii') == "IMS Services")
-                    assert(int(mediaType, 16) == 0)
+                    # In order to send a Gx RAR, we need to ensure that mediaType is AUDIO(0) or VIDEO(1)
+                    assert(int(mediaType, 16) == 0 or int(mediaType, 16) == 1)
 
                     # At this point, we know the AAR is indicating a call setup, so we'll get the serving pgw information, then send a 
                     # RAR to the PGW over Gx, asking it to setup the dedicated bearer.
