@@ -2805,6 +2805,8 @@ class Diameter:
             avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))
             avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+            avp += self.generate_vendor_avp(628, 80, 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af00000001") #Supported Features
+
             subscriptionId = bytes.fromhex(self.get_avp_data(avps, 444)[0]).decode('ascii')
             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Received subscription ID: {subscriptionId}", redisClient=self.redisMessaging)
             subscriptionId = subscriptionId.replace('sip:', '')
