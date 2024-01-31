@@ -66,7 +66,7 @@ class DiameterService:
 
     async def handleActiveDiameterPeers(self):
         """
-        Prunes stale entries from self.activePeers, and
+        Prunes stale and duplicate entries from self.activePeers, and
         keeps the ActiveDiameterPeers key in Redis current.
         """
         while True:
@@ -77,24 +77,43 @@ class DiameterService:
 
                 activeDiameterPeersTimeout = self.config.get('hss', {}).get('active_diameter_peers_timeout', 3600)
 
+                activePeers = self.activePeers
                 stalePeers = []
+                diameterHosts = {}
 
-                for key, connection in self.activePeers.items():
+                for key, connection in activePeers.items():
+                    peerHostname = connection.get('diameterHostname', None)
+                    if peerHostname:
+                        if peerHostname in diameterHosts:
+                            diameterHosts[peerHostname].append(key)
+                        else:
+                            diameterHosts[peerHostname] = [key]
+
+                for host in diameterHosts.values():
+                    if len(host) > 1:
+                        host.sort(key=lambda x: datetime.strptime(activePeers[x]['connectTimestamp'], "%Y-%m-%d %H:%M:%S"), reverse=True)
+                        await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [handleActiveDiameterPeers] Adding duplicate peers to stalePeers: {host[1:]}"))
+                        stalePeers.extend(host[1:])
+
+                for key, connection in activePeers.items():
                     if connection.get('connectionStatus', '') == 'disconnected': 
                         if (datetime.now() - datetime.strptime(connection['disconnectTimestamp'], "%Y-%m-%d %H:%M:%S")).seconds > activeDiameterPeersTimeout:
                             stalePeers.append(key)
                 
                 if len(stalePeers) > 0:
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [handleActiveDiameterPeers] Pruning disconnected peers: {stalePeers}"))
-                    for key in stalePeers:
-                        del self.activePeers[key]
+                    try:
+                        for key in stalePeers:
+                            del self.activePeers[key]
+                    except Exception as e:
+                        await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleActiveDiameterPeers] Error removing stale peer: {traceback.format_exc()}"))
                     await(self.logActivePeers())
 
                 await(self.redisPeerMessaging.setValue(key='ActiveDiameterPeers', value=json.dumps(self.activePeers), keyExpiry=86400, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                 await(asyncio.sleep(1))
             except Exception as e:
-                await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleActiveDiameterPeers] Exception: {e}\n{traceback.format_exc()}"))
+                await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleActiveDiameterPeers] Exception: {traceback.format_exc()}"))
                 await(asyncio.sleep(1))
                 continue
 
