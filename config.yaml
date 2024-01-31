@@ -115,6 +115,8 @@ database:
   username: dbeaver
   password: password
   database: hss2
+  readCacheEnabled: True
+  readCacheInterval: 60
 
 ## External Webhook Notifications
 webhooks:
