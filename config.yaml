@@ -93,6 +93,8 @@ benchmarking:
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
   no_match_response: 2       #Greylist
+  store_offnet_imsi: False  # Whether or not to store an IMEI / IMSI pair that doesn't exist in the AUC
+  simSwapNotification: False # If the IMEI for a stored IMSI/IMEI combo changes, notify the webhook endpoint
   # Define an optional TAC csv file path
   #tac_database_csv: '/etc/pyhss/tac_database.csv'
 

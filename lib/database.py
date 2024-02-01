@@ -343,6 +343,12 @@ class Database:
         self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
         self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
         self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.tacDatabasePath = str(self.config.get('eir', {}).get('tac_database_csv', None))
+        self.imsiImeiLogging = self.config.get('eir', {}).get('imsi_imei_logging', True)
+        self.simSwapNotificationEnabled = self.config.get('eir', {}).get('simSwapNotification', False)
+        self.georedEnabled = self.config.get('geored', {}).get('enabled', True)
+        self.eirNoMatchResponse = int(self.config.get('eir', {}).get('no_match_response', 2))
+        self.eirStoreOffnetImsi = self.config.get('eir', {}).get('store_offnet_imsi', False)
 
         self.logTool = logTool
         if redisMessaging:
@@ -373,7 +379,7 @@ class Database:
             self.logTool.log(service='Database', level='debug', message="Database already created", redisClient=self.redisMessaging)
 
         #Load IMEI TAC database into Redis if enabled
-        if ('tac_database_csv' in self.config['eir']):
+        if self.tacDatabasePath:
             self.load_IMEI_database_into_Redis()
             self.tacData = json.loads(self.redisMessaging.getValue(key="tacDatabase", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database'))
         else:
@@ -389,42 +395,43 @@ class Database:
             else:
                 self.logTool.log(service='Database', level='debug', message=f"Table {table_name} already exists", redisClient=self.redisMessaging)
 
-
     def load_IMEI_database_into_Redis(self):
         try:
-            self.logTool.log(service='Database', level='info', message="Reading IMEI TAC database CSV from " + str(self.config['eir']['tac_database_csv']), redisClient=self.redisMessaging)
-            csvfile = open(str(self.config['eir']['tac_database_csv']))
-            self.logTool.log(service='Database', level='info', message="This may take a few seconds to buffer into Redis...", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='info', message=f"Reading IMEI TAC database CSV from: {self.tacDatabasePath}", redisClient=self.redisMessaging)
+            csvfile = open(self.tacDatabasePath)
+            self.logTool.log(service='Database', level='info', message="This may take a few seconds to buffer into Redis.", redisClient=self.redisMessaging)
         except:
-            self.logTool.log(service='Database', level='error', message="Failed to read CSV file of IMEI TAC database", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message="Failed to read CSV file of IMEI TAC database.", redisClient=self.redisMessaging)
             return
         try:
+            self.logTool.log(service='Database', level='info', message="Checking to see if entries are already present.", redisClient=self.redisMessaging)
+            redisTacDatabase = self.redisMessaging.getValue(key="tacDatabase", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database')
+            if redisTacDatabase is not None:
+                if len(redisTacDatabase) > 0:
+                    self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file.", redisClient=self.redisMessaging)
+                    return
+
+            self.logTool.log(service='Database', level='info', message="TAC Database not present in Redis, proceeding to load.", redisClient=self.redisMessaging)
             count = 0
             tacList = {"tacList": []}
             for line in csvfile:
-                line = line.replace('"', '')        #Strip excess invered commas
-                line = line.replace("'", '')        #Strip excess invered commas
-                line = line.rstrip()                #Strip newlines
+                # Remove unsafe characters from the CSV file
+                line = line.replace('"', '')
+                line = line.replace("'", '')
+                line = line.replace("\\", '')
+                line = line.rstrip()
                 result = line.split(',')
                 tacPrefix = result[0]
                 name = result[1].lstrip()
                 model = result[2].lstrip()
-                
-                if count == 0:
-                    self.logTool.log(service='Database', level='info', message="Checking to see if entries are already present...", redisClient=self.redisMessaging)
-                    redis_imei_result = self.redisMessaging.getValue(key="tacDatabase", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database')
-                    if redis_imei_result is not None:
-                        if len(redis_imei_result) > 0:
-                            self.logTool.log(service='Database', level='info', message="IMEI TAC Database already loaded into Redis - Skipping reading from file...", redisClient=self.redisMessaging)
-                            return
-                        self.logTool.log(service='Database', level='info', message="No data loaded into Redis, proceeding to load...", redisClient=self.redisMessaging)
-                tacList['tacList'].append({str(tacPrefix): {'name': name, 'model': model}})
                 count += 1
+
+            tacList['tacList'].append({str(tacPrefix): {'name': name, 'model': model}})
             self.redisMessaging.setValue(key="tacDatabase", value=json.dumps(tacList), usePrefix=True, prefixHostname=self.hostname, prefixServiceName='database')
             self.tacData = tacList
-            self.logTool.log(service='Database', level='info', message="Loaded " + str(count) + " IMEI TAC entries into Redis", redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='info', message=f"Loaded {count} IMEI TAC entries into Redis", redisClient=self.redisMessaging)
         except Exception as E:
-            self.logTool.log(service='Database', level='error', message="Failed to load IMEI Database into Redis due to error: " + (str(E)), redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message=f"Failed to load IMEI Database into Redis due to error: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return
 
     def safe_rollback(self, session):
@@ -1812,7 +1819,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                if 'IMS' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": result.pcscf_realm, "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": result.pcscf_peer, "pcscf_active_session": pcscf_active_session})
                 else:
@@ -1866,7 +1873,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'IMS' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                if 'IMS' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": result.scscf_realm, "scscf_timestamp": scscf_timestamp_string, "scscf_peer": result.scscf_peer})
                 else:
@@ -1974,7 +1981,7 @@ class Database:
         #Sync state change with geored
         if propagate == True:
             try:
-                if 'PCRF' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
+                if 'PCRF' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate PCRF changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi),
                                     'serving_apn' : apn,
@@ -2333,95 +2340,103 @@ class Database:
             self.logTool.log(service='Database', level='error', message=f"[database.py] [Delete_Emergency_Subscriber] Error deleting emergency subscriber: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return False
 
-
     def Store_IMSI_IMEI_Binding(self, imsi, imei, match_response_code, propagate=True):
         #IMSI           14-15 Digits
         #IMEI           15 Digits
         #IMEI-SV        2 Digits
-        self.logTool.log(service='Database', level='debug', message="Called Store_IMSI_IMEI_Binding() with IMSI: " + str(imsi) + " IMEI: " + str(imei) + " match_response_code: " + str(match_response_code), redisClient=self.redisMessaging)
-        if self.config['eir']['imsi_imei_logging'] != True:
-            self.logTool.log(service='Database', level='debug', message="Skipping storing binding", redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message=f"[database.py] [Store_IMSI_IMEI_Binding] Received IMSI: {imsi}, IMEI: {imei}, Match Response Code: {match_response_code}", redisClient=self.redisMessaging)
+        if not self.imsiImeiLogging:
+            self.logTool.log(service='Database', level='debug', message="[database.py] [Store_IMSI_IMEI_Binding] IMSI IMEI Logging disabled, skipping storing binding.", redisClient=self.redisMessaging)
             return
         #Concat IMEI + IMSI
         imsi_imei = str(imsi) + "," + str(imei)
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
-        #Check if exist already & update
         try:
-            session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
-            self.logTool.log(service='Database', level='debug', message="Entry already present for IMSI/IMEI Combo", redisClient=self.redisMessaging)   
-            self.safe_close(session)     
-            return 
-        except Exception as E:
-            newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now(tz=timezone.utc))
-            session.add(newObj)
-            try:
-                session.commit()
-            except Exception as E:
-                self.logTool.log(service='Database', level='error', message="Failed to commit session, error: " + str(E), redisClient=self.redisMessaging)
-                self.safe_rollback(session)
+            aucSearchResult = session.query(AUC).filter_by(imsi=imsi).one()
+        except Exception as e:
+            if not self.eirStoreOffnetImsi:
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Store_IMSI_IMEI_Binding] IMSI not present in AUC, not adding to EIR", redisClient=self.redisMessaging)   
                 self.safe_close(session)
-                raise ValueError(E)
+                return
+        try:
+            imsiImeiResult = session.query(IMSI_IMEI_HISTORY).filter_by(imsi_imei=imsi_imei).one()
+            if imsiImeiResult:
+                self.logTool.log(service='Database', level='debug', message=f"Entry already exists IMSI_IMEI_HISTORY for IMSI/IMEI: {imsi}/{imei}", redisClient=self.redisMessaging)   
+                self.safe_close(session)
+                return
+        except Exception as e:
+            self.logTool.log(service='Database', level='debug', message=f"No existing IMSI_IMEI_HISTORY for IMSI/IMEI: {imsi}/{imei}", redisClient=self.redisMessaging)   
+
+        newObj = IMSI_IMEI_HISTORY(imsi_imei=imsi_imei, match_response_code=match_response_code, imsi_imei_timestamp = datetime.datetime.now(tz=timezone.utc))
+        session.add(newObj)
+        try:
+            session.commit()
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message=f"Failed to commit session, error: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            self.safe_rollback(session)
             self.safe_close(session)
-            self.logTool.log(service='Database', level='debug', message="Added new IMSI_IMEI_HISTORY binding", redisClient=self.redisMessaging)
+            raise ValueError(E)
+        self.safe_close(session)
+        self.logTool.log(service='Database', level='debug', message="Added new IMSI_IMEI_HISTORY binding", redisClient=self.redisMessaging)
 
-            if 'sim_swap_notify_webhook' in self.config['eir']:
-                self.logTool.log(service='Database', level='debug', message="Sending SIM Swap notification to Webhook", redisClient=self.redisMessaging)
-                try:
-                    dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
-                    self.handleWebhook(dictToSend)
-                except Exception as E:
-                    self.logTool.log(service='Database', level='debug', message="Failed to post to Webhook", redisClient=self.redisMessaging)
-                    self.logTool.log(service='Database', level='debug', message=str(E), redisClient=self.redisMessaging)
+        if self.simSwapNotificationEnabled:
+            self.logTool.log(service='Database', level='debug', message="Sending SIM Swap notification to Webhook", redisClient=self.redisMessaging)
+            try:
+                dictToSend = {'imei':imei, 'imsi': imsi, 'match_response_code': match_response_code}
+                self.handleWebhook(dictToSend)
+            except Exception as E:
+                self.logTool.log(service='Database', level='debug', message="Failed to post to Webhook", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=str(E), redisClient=self.redisMessaging)
 
-            #Lookup Device Info
-            if 'tac_database_csv' in self.config['eir']:
-                try:
-                    device_info = self.get_device_info_from_TAC(imei=str(imei))
-                    self.logTool.log(service='Database', level='debug', message="Got Device Info: " + str(device_info), redisClient=self.redisMessaging)
-                    self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
-                                                    metricType='counter', metricAction='inc', 
-                                                    metricValue=1, metricHelp='Profile of attached devices',
-                                                    metricLabels={'imei_prefix': device_info['tacPrefix'],
-                                                                  'device_type': device_info['name'],
-                                                                  'device_name': device_info['model']},
-                                                    metricExpiry=60,
-                                                    usePrefix=True, 
-                                                    prefixHostname=self.hostname, 
-                                                    prefixServiceName='metric')
-                except Exception as E:
-                    self.logTool.log(service='Database', level='debug', message="Failed to get device info from TAC", redisClient=self.redisMessaging)
-                    self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
-                                metricType='counter', metricAction='inc', 
-                                metricValue=1, metricHelp='Profile of attached devices',
-                                metricLabels={'imei_prefix': str(imei)[0:8],
-                                                'device_type': 'Unknown',
-                                                'device_name': 'Unknown'},
-                                metricExpiry=60,
-                                usePrefix=True, 
-                                prefixHostname=self.hostname, 
-                                prefixServiceName='metric')
-            else:
-                self.logTool.log(service='Database', level='debug', message="No TAC database configured, skipping device info lookup", redisClient=self.redisMessaging)
+        #Lookup Device Info
+        if self.tacDatabasePath:
+            try:
+                device_info = self.getTacDataFromImei(imei=str(imei))
+                self.logTool.log(service='Database', level='debug', message="Got Device Info: " + str(device_info), redisClient=self.redisMessaging)
+                self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
+                                                metricType='counter', metricAction='inc', 
+                                                metricValue=1, metricHelp='Profile of attached devices',
+                                                metricLabels={'imei_prefix': device_info['tacPrefix'],
+                                                                'device_type': device_info['name'],
+                                                                'device_name': device_info['model']},
+                                                metricExpiry=60,
+                                                usePrefix=True, 
+                                                prefixHostname=self.hostname, 
+                                                prefixServiceName='metric')
+            except Exception as E:
+                self.logTool.log(service='Database', level='debug', message="Failed to get device info from TAC", redisClient=self.redisMessaging)
+                self.redisMessaging.sendMetric(serviceName='database', metricName='prom_eir_devices',
+                            metricType='counter', metricAction='inc', 
+                            metricValue=1, metricHelp='Profile of attached devices',
+                            metricLabels={'imei_prefix': str(imei)[0:8],
+                                            'device_type': 'Unknown',
+                                            'device_name': 'Unknown'},
+                            metricExpiry=60,
+                            usePrefix=True, 
+                            prefixHostname=self.hostname, 
+                            prefixServiceName='metric')
+        else:
+            self.logTool.log(service='Database', level='debug', message="No TAC database configured, skipping device info lookup", redisClient=self.redisMessaging)
 
-            #Sync state change with geored
-            if propagate == True:
-                try:
-                    if 'EIR' in self.config['geored']['sync_actions'] and self.config['geored']['enabled'] == True:
-                        self.logTool.log(service='Database', level='debug', message="Propagate EIR changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                        self.handleGeored(
-                            {"imsi": str(imsi), 
-                            "imei": str(imei), 
-                            "match_response_code": str(match_response_code)}
-                            )
-                    else:
-                        self.logTool.log(service='Database', level='debug', message="Config does not allow sync of EIR events", redisClient=self.redisMessaging)
-                except Exception as E:
-                    self.logTool.log(service='Database', level='debug', message="Nothing synced to Geographic PyHSS instances for EIR event", redisClient=self.redisMessaging)
-                    self.logTool.log(service='Database', level='debug', message=E, redisClient=self.redisMessaging)
+        #Sync state change with geored
+        if propagate == True:
+            try:
+                if 'EIR' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                    self.logTool.log(service='Database', level='debug', message="Propagate EIR changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored(
+                        {"imsi": str(imsi), 
+                        "imei": str(imei), 
+                        "match_response_code": str(match_response_code)}
+                        )
+                else:
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of EIR events", redisClient=self.redisMessaging)
+            except Exception as E:
+                self.logTool.log(service='Database', level='debug', message="Nothing synced to Geographic PyHSS instances for EIR event", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=E, redisClient=self.redisMessaging)
 
-            return
+        return
 
     def Get_IMEI_IMSI_History(self, attribute):
         self.logTool.log(service='Database', level='debug', message="Called Get_IMEI_IMSI_History() for entry matching " + str(self.Get_IMEI_IMSI_History), redisClient=self.redisMessaging)
@@ -2507,7 +2522,10 @@ class Database:
             self.safe_close(session)
             raise ValueError(E)
         self.logTool.log(service='Database', level='debug', message="No matches at all - Returning default response", redisClient=self.redisMessaging)
-        self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=self.config['eir']['no_match_response'])
+        try:
+            self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=self.eirNoMatchResponse)
+        except Exception as e:
+            self.logTool.log(service='Database', level='error', message=f"Error Storing IMSI / IMEI Binding: {traceback.format_exc()}", redisClient=self.redisMessaging)
         self.safe_close(session)
         return self.config['eir']['no_match_response']
 
@@ -2537,7 +2555,7 @@ class Database:
             dict_string[key.decode()] = value.decode()
         return 
         
-    def find_imei_in_tac_list(self, imei, tacList):
+    def findImeiInTacList(self, imei, tacList):
         """
         Iterate over every tac in the tacList and try to match the first 8 digits of the IMEI.
         If that fails, try to match the first 6 digits of the IMEI.
@@ -2545,17 +2563,16 @@ class Database:
         for tac in tacList['tacList']:
             for key, value in tac.items():
                 if str(key) == str(imei[0:8]):
-                    return {'tacPrefix': key, 'name': tac[key]['name'], 'model': tac[key]['model']}
+                    return {'tacPrefix': key, 'name': str(tac[key]['name']), 'model': str(tac[key]['model'])}
             for key, value in tac.items():
                 if str(key) == str(imei[0:6]):
-                    return {'tacPrefix': key, 'name': tac[key]['name'], 'model': tac[key]['model']}
+                    return {'tacPrefix': key, 'name': str(tac[key]['name']), 'model': str(tac[key]['model'])}
         return {}
 
-    def get_device_info_from_TAC(self, imei) -> dict:
+    def getTacDataFromImei(self, imei) -> dict:
         self.logTool.log(service='Database', level='debug', message="Getting Device Info from IMEI: " + str(imei), redisClient=self.redisMessaging)
         try:
-            self.logTool.log(service='Database', level='debug', message="Taclist: self.tacList ", redisClient=self.redisMessaging)
-            imei_result = self.find_imei_in_tac_list(imei, self.tacData)
+            imei_result = self.findImeiInTacList(imei, self.tacData)
             assert(len(imei_result) != 0)
             self.logTool.log(service='Database', level='debug', message="Found match for IMEI " + str(imei) + " with result " + str(imei_result), redisClient=self.redisMessaging)
             return imei_result
