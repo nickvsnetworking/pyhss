@@ -1129,7 +1129,7 @@ class PyHSS_EIR_HISTORY(Resource):
             #Add device info for each entry
             data_w_device_info = []
             for record in data:
-                record['imei_result'] = databaseClient.get_device_info_from_TAC(imei=str(record['imei']))
+                record['imei_result'] = databaseClient.getTacDataFromImei(imei=str(record['imei']))
                 data_w_device_info.append(record)
             return data_w_device_info, 200
         except Exception as E:
@@ -1181,7 +1181,7 @@ class PyHSS_EIR_TAC(Resource):
     def get(self, imei):
         '''Get Device Info from IMEI'''
         try:
-            data = databaseClient.get_device_info_from_TAC(imei=imei)
+            data = databaseClient.getTacDataFromImei(imei=imei)
             return (data), 200
         except Exception as E:
             print(E)
