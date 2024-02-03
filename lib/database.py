@@ -343,7 +343,7 @@ class Database:
         self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
         self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
         self.redisPort = self.config.get('redis', {}).get('port', 6379)
-        self.tacDatabasePath = str(self.config.get('eir', {}).get('tac_database_csv', None))
+        self.tacDatabasePath = self.config.get('eir', {}).get('tac_database_csv', None)
         self.imsiImeiLogging = self.config.get('eir', {}).get('imsi_imei_logging', True)
         self.simSwapNotificationEnabled = self.config.get('eir', {}).get('simSwapNotification', False)
         self.georedEnabled = self.config.get('geored', {}).get('enabled', True)
