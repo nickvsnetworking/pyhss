@@ -2021,7 +2021,6 @@ class Diameter:
                             }
 
                             self.database.Update_Emergency_Subscriber(subscriberIp=ueIp, subscriberData=emergencySubscriberData, imsi=imsi, gxSessionId=emergencySubscriberData.get('servingPgw'))
-
                             avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
                             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
                             return response
@@ -2110,6 +2109,26 @@ class Diameter:
                 try:
                     ue_ip = self.get_avp_data(avps, 8)[0]
                     ue_ip = str(self.hex_to_ip(ue_ip))
+                    # Fire a notification to the webhook queue, for the OCS.
+                    try:
+                        ocsNotificationBody = {
+                                'notification_type': 'ocs',
+                                'timestamp': time.time_ns(),
+                                'operation': 'POST',
+                                'headers': {'Content-Type': 'application/json'},
+                                'body': {
+                                'event': 'initiate',
+                                'subscriber': {
+                                'imsi': imsi,
+                                'ue_ip': ue_ip,
+                                'apn': apn,
+                                'pcrf_session_id': binascii.unhexlify(session_id).decode(),
+                                }
+                            }
+                        }
+                        self.redisMessaging.sendMessage(queue=f'webhook', message=json.dumps(ocsNotificationBody), queueExpiry=120, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='webhook')
+                    except Exception as e:
+                        self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed queueing OCS notification to redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 except Exception as E:
                     self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to get UE IP", redisClient=self.redisMessaging)
                     self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
@@ -2118,6 +2137,7 @@ class Diameter:
                 #Store PGW location into Database
                 remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
                 self.database.Update_Serving_APN(imsi=imsi, apn=apn, pcrf_session_id=binascii.unhexlify(session_id).decode(), serving_pgw=OriginHost, subscriber_routing=str(ue_ip), serving_pgw_realm=OriginRealm, serving_pgw_peer=remote_peer)
+
 
                 #Supported-Features(628) (Gx feature list)
                 avp += self.generate_vendor_avp(628, "80", 10415, "0000010a4000000c000028af0000027580000010000028af000000010000027680000010000028af0000000b")
@@ -2199,6 +2219,24 @@ class Diameter:
             # CCR - Termination Request
             elif int(CC_Request_Type) == 3:
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Request type for CCA is 3 - Termination", redisClient=self.redisMessaging)
+                try:
+                    ocsNotificationBody = {
+                            'notification_type': 'ocs',
+                            'timestamp': time.time_ns(),
+                            'operation': 'POST',
+                            'headers': {'Content-Type': 'application/json'},
+                            'body': {
+                            'event': 'terminate',
+                            'subscriber': {
+                            'imsi': imsi,
+                            'apn': apn,
+                            'pcrf_session_id': binascii.unhexlify(session_id).decode()
+                            }
+                        }
+                    }
+                    self.redisMessaging.sendMessage(queue=f'webhook', message=json.dumps(ocsNotificationBody), queueExpiry=120, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='webhook')
+                except Exception as e:
+                    self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777238_272] [CCA] Failed queueing OCS notification to redis: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 if 'ims' in apn:
                         try:
                             self.database.Update_Serving_CSCF(imsi=imsi, serving_cscf=None)

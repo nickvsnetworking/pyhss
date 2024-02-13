@@ -2,6 +2,7 @@ import os, sys, json, yaml
 import uuid, time
 import asyncio, aiohttp
 import socket
+import traceback
 sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
@@ -32,6 +33,7 @@ class GeoredService:
         
         self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
         self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
+        self.ocsPeers = self.config.get('ocs', {}).get('endpoints', [])
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
         self.hostname = socket.gethostname()
 
@@ -270,7 +272,7 @@ class GeoredService:
                     prefixHostname=self.hostname, 
                     prefixServiceName='metric'))
                 except Exception as e:
-                    await(self.logTool.logAsync(service='Geored', level='error', message=f"[Geored] [sendWebhook] Operation {operation} encountered unknown error on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {e}"))
+                    await(self.logTool.logAsync(service='Geored', level='error', message=f"[Geored] [sendWebhook] Operation {operation} encountered unknown error on {url}, with body: ({body}) and transactionId {transactionId}. Response code: {responseStatusCode}. Error Message: {traceback.format_exc()}"))
                     asyncio.ensure_future(self.redisWebhookMessaging.sendMetric(serviceName='webhook', metricName='prom_http_webhook',
                     metricType='counter', metricAction='inc', 
                     metricValue=1.0, metricHelp='Number of Webhook Pushes',
@@ -361,19 +363,32 @@ class GeoredService:
 
                 await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Message: {webhookMessage}"))
 
+                webhookType = 'other'
+
+                notificationType = webhookMessage.get('notification_type', None)
+                if notificationType:
+                    if 'ocs' in notificationType.lower():
+                        webhookType = 'ocs'
+
                 webhookHeaders = webhookMessage['headers']
                 webhookOperation = webhookMessage['operation']
                 webhookBody = webhookMessage['body']
                 webhookTasks = []
-
+                
                 socketSession = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False))
                 async with socketSession as session:
-                    for remotePeer in self.webhookPeers:
-                        webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
-                    await asyncio.gather(*webhookTasks)
+                    if webhookType == 'ocs':
+                        for remotePeer in self.ocsPeers:
+                            await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Sending OCS Notification to: {remotePeer}"))
+                            webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
+                        await asyncio.gather(*webhookTasks)
+                    else:
+                        for remotePeer in self.webhookPeers:
+                            await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Sending Notification to: {remotePeer}"))
+                            webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
+                        await asyncio.gather(*webhookTasks)
                 if self.benchmarking:
                     await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [handleWebhookQueue] Time taken to send webhook to all geored peers: {round(((time.perf_counter() - startTime)*1000), 3)} ms"))
-
                 await(asyncio.sleep(0.001))
 
             except Exception as e:

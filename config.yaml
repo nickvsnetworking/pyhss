@@ -126,6 +126,12 @@ webhooks:
   endpoints:
     - 'http://127.0.0.1:8181'
 
+### Notifications to OCS on Credit Control Requests
+ocs:
+  enabled: False
+  endpoints:
+    - 'http://127.0.0.1:8282'
+
 ## Geographic Redundancy Parameters
 geored:
   enabled: False
