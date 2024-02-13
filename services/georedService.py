@@ -34,6 +34,7 @@ class GeoredService:
         self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
         self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
         self.ocsPeers = self.config.get('ocs', {}).get('endpoints', [])
+        self.ocsNotificationsEnabled = self.config.get('ocs', {}).get('enabled', False)
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
         self.hostname = socket.gethostname()
 
@@ -378,10 +379,11 @@ class GeoredService:
                 socketSession = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False))
                 async with socketSession as session:
                     if webhookType == 'ocs':
-                        for remotePeer in self.ocsPeers:
-                            await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Sending OCS Notification to: {remotePeer}"))
-                            webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
-                        await asyncio.gather(*webhookTasks)
+                        if self.ocsNotificationsEnabled:
+                            for remotePeer in self.ocsPeers:
+                                await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Sending OCS Notification to: {remotePeer}"))
+                                webhookTasks.append(self.sendWebhook(asyncSession=session, url=remotePeer, operation=webhookOperation, body=webhookBody, headers=webhookHeaders))
+                            await asyncio.gather(*webhookTasks)
                     else:
                         for remotePeer in self.webhookPeers:
                             await(self.logTool.logAsync(service='Geored', level='debug', message=f"[Geored] [handleWebhookQueue] Sending Notification to: {remotePeer}"))
