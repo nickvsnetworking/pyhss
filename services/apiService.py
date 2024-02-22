@@ -1701,6 +1701,58 @@ class PyHSS_PCRF(Resource):
         result = {"Result": "Successfully sent Gx RAR", "destinationClients": str(servingPgw)}
         return result, 200
 
+@ns_pcrf.route('/clr_subscriber')
+class PyHSS_PCRF_CLR_Subscriber(Resource):
+    @ns_pcrf.doc('Trigger Cancel Location Request for a Subscriber')
+    @ns_pcrf.expect(PCRF_PCSCF_Restoration_Subscriber_model)
+    def put(self):
+        '''Trigger CLR for a Subscriber'''
+
+        try:        
+            jsonData = request.get_json(force=True)
+            #Get IMSI
+
+            imsi = jsonData.get('imsi', None)
+            msisdn = jsonData.get('msisdn', None)
+
+            if not imsi and not msisdn:
+                result = {"Result": "Error: IMSI or MSISDN Required"}
+                return result, 400
+            
+            if imsi:
+                subscriberData = databaseClient.Get_Subscriber(imsi=imsi)
+                imsSubscriberData = databaseClient.Get_IMS_Subscriber(imsi=imsi)
+            else:
+                imsSubscriberData = databaseClient.Get_IMS_Subscriber(msisdn=msisdn)
+                subscriberData = databaseClient.Get_Subscriber(imsi=imsSubscriberData.get('imsi', None))
+            
+            try:
+                servingMmePeer = subscriberData.get('serving_mme_peer').split(';')[0]
+            except Exception as e:
+                result = {"Result": "Error: Subscriber is not currently served by an MME"}
+                return result, 400
+            
+            imsi = imsSubscriberData.get('imsi', None)
+            servingMmeRealm = subscriberData.get('serving_mme_realm', None)
+            servingMme = subscriberData.get('serving_mme', None)
+
+            diameterRequest = diameterClient.sendDiameterRequest(
+                requestType='CLR',
+                hostname=servingMmePeer,
+                imsi=imsi, 
+                DestinationHost=servingMme, 
+                DestinationRealm=servingMmeRealm, 
+                CancellationType=2,
+                immediateReattach=True
+            )
+            
+            result = {"Result": f"Successfully sent Cancel Location Request via {servingMmePeer} for IMSI {imsi}"}
+            return result, 200
+
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            return handle_exception(E)
+
 @ns_pcrf.route('/pcscf_restoration_subscriber')
 class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
     @ns_pcrf.doc('Trigger PCSCF Restoration for an IMS Subscriber')
