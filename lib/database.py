@@ -2320,6 +2320,7 @@ class Database:
             break
 
         if not result:
+            self.safe_close(session)
             return True
         
         try:
@@ -2480,10 +2481,12 @@ class Database:
                 if result['imsi'] == '':
                     self.logTool.log(service='Database', level='debug', message="No IMSI specified in DB, so matching only on IMEI", redisClient=self.redisMessaging)
                     self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                    self.safe_close(session)
                     return match_response_code
                 elif result['imsi'] == str(imsi):
                     self.logTool.log(service='Database', level='debug', message="Matched on IMEI and IMSI", redisClient=self.redisMessaging)
                     self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                    self.safe_close(session)
                     return match_response_code
         except Exception as E:
             self.safe_rollback(session)
@@ -2504,10 +2507,12 @@ class Database:
                         if re.match(result['imsi'], imsi):
                             self.logTool.log(service='Database', level='debug', message="IMSI also matched, so match OK!", redisClient=self.redisMessaging)
                             self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                            self.safe_close(session)
                             return match_response_code
                     else:
                         self.logTool.log(service='Database', level='debug', message="No IMSI specified, so match OK!", redisClient=self.redisMessaging)
                         self.Store_IMSI_IMEI_Binding(imsi=imsi, imei=imei, match_response_code=match_response_code)
+                        self.safe_close(session)
                         return match_response_code
         except Exception as E:
             self.safe_rollback(session)
