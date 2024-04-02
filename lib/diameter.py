@@ -7,7 +7,7 @@ import os
 import random
 import ipaddress
 import jinja2
-from database import Database
+from database import Database, ROAMING_NETWORK, ROAMING_RULE
 from messaging import RedisMessaging
 from redis import Redis
 import yaml
@@ -1029,7 +1029,7 @@ class Diameter:
         """
 
         allowUndefinedNetworks = self.config.get('roaming', {}).get('outbound', {}).get('allow_undefined_networks', True)
-        roamingRules = self.database.GetAll(self.database.ROAMING_RULE)
+        roamingRules = self.database.GetAll(ROAMING_RULE)
         subscriberRoamingRules = assignedRoamingRules.split(',')
 
         """
@@ -1038,13 +1038,12 @@ class Diameter:
         then apply the rule action (allow/deny).
         """
 
-
         for subscriberRoamingRule in subscriberRoamingRules:
             for roamingRule in roamingRules:
                 if roamingRule.get('roaming_rule_id') != subscriberRoamingRule:
                     continue
                 roamingNetworkId = roamingRule.get('roaming_network_id')
-                roamingNetworks = self.database.GetObj(self.database.ROAMING_NETWORK, roamingNetworkId)
+                roamingNetworks = self.database.GetObj(ROAMING_NETWORK, roamingNetworkId)
                 allowNetwork = roamingRule.get('allow', True)
                 for roamingNetwork in roamingNetworks:
                     if str(roamingNetwork.get('mcc')) == mcc and str(roamingNetwork.get('mnc') == mnc):
@@ -1052,7 +1051,7 @@ class Diameter:
                             return True
                         else:
                             return False
-        
+
         """
         By this point we haven't matched on any rules.
         If we're allowing undefined networks,
