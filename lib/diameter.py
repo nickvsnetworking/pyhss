@@ -1030,7 +1030,9 @@ class Diameter:
 
         allowUndefinedNetworks = self.config.get('roaming', {}).get('outbound', {}).get('allow_undefined_networks', True)
         roamingRules = self.database.GetAll(ROAMING_RULE)
-        subscriberRoamingRules = assignedRoamingRules.split(',')
+        subscriberRoamingRules = []
+        if assignedRoamingRules:
+            subscriberRoamingRules = assignedRoamingRules.split(',')
 
         """
         Iterate over every roaming rule, and it's reference roaming network.
