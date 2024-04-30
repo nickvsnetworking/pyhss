@@ -1022,10 +1022,11 @@ class Diameter:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [deregisterIms] Error deregistering subscriber from IMS: {traceback.format_exc()}", redisClient=self.redisMessaging)
             return False
 
-
     def validateOutboundRoamingNetwork(self, assignedRoamingRules: str, mcc: str, mnc: str) -> bool:
         """
         Ensures that a given PLMN is allowed for outbound roaming.
+        Checks if a subscriber has any assigned roaming rules for the given network, and validates the network accordingly.
+        If the subscriber doesn't have any roaming rules applied, the network roaming rule is applied as a rule of last resort.
         """
 
         allowUndefinedNetworks = self.config.get('roaming', {}).get('outbound', {}).get('allow_undefined_networks', True)
@@ -1033,6 +1034,7 @@ class Diameter:
         subscriberRoamingRules = []
         if assignedRoamingRules:
             subscriberRoamingRules = assignedRoamingRules.split(',')
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Got Subscriber Roaming Rules: {subscriberRoamingRules}", redisClient=self.redisMessaging)
 
         """
         Iterate over every roaming rule, and it's reference roaming network.
@@ -1042,17 +1044,39 @@ class Diameter:
 
         for subscriberRoamingRule in subscriberRoamingRules:
             for roamingRule in roamingRules:
-                if roamingRule.get('roaming_rule_id') != subscriberRoamingRule:
+                if str(roamingRule.get('roaming_rule_id')) != str(subscriberRoamingRule):
                     continue
                 roamingNetworkId = roamingRule.get('roaming_network_id')
-                roamingNetworks = self.database.GetObj(ROAMING_NETWORK, roamingNetworkId)
+                roamingNetwork = self.database.GetObj(ROAMING_NETWORK, roamingNetworkId)
                 allowNetwork = roamingRule.get('allow', True)
-                for roamingNetwork in roamingNetworks:
-                    if str(roamingNetwork.get('mcc')) == mcc and str(roamingNetwork.get('mnc') == mnc):
+                if roamingNetwork:
+                    if str(roamingNetwork.get('mcc')) == str(mcc) and str(roamingNetwork.get('mnc') == str(mnc)):
                         if allowNetwork:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Subscriber Roaming Rule for PLMN: {mcc}{mnc} is Allowed", redisClient=self.redisMessaging)
                             return True
                         else:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Subscriber Roaming Rule for PLMN: {mcc}{mnc} is Not Allowed", redisClient=self.redisMessaging)
                             return False
+
+        """
+        Iterate over every roaming rule, and it's reference roaming network.
+        If the network that it refers to matches the supplied mcc and mnc to this function,
+        then apply the rule action (allow/deny).
+        This acts as a blanket roaming rule if we haven't matched on the subscriber-specific rule.
+        """
+
+        for roamingRule in roamingRules:
+            roamingNetworkId = roamingRule.get('roaming_network_id')
+            roamingNetwork = self.database.GetObj(ROAMING_NETWORK, roamingNetworkId)
+            allowNetwork = roamingRule.get('allow', True)
+            if roamingNetwork:
+                if str(roamingNetwork.get('mcc')) == str(mcc) and str(roamingNetwork.get('mnc') == str(mnc)):
+                    if allowNetwork:
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Fallback Roaming Rule for PLMN: {mcc}{mnc} is Allowed", redisClient=self.redisMessaging)
+                        return True
+                    else:
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Fallback Subscriber Roaming Rule for PLMN: {mcc}{mnc} is Not Allowed", redisClient=self.redisMessaging)
+                        return False
 
         """
         By this point we haven't matched on any rules.
@@ -1060,8 +1084,10 @@ class Diameter:
         return True, otherwise return False.
         """
         if allowUndefinedNetworks:
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Unknown Network Roaming Rule for PLMN: {mcc}{mnc} is Allowed", redisClient=self.redisMessaging)
             return True
         else:
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Unknown Network Roaming Rule for PLMN: {mcc}{mnc} is Not Allowed", redisClient=self.redisMessaging)
             return False
 
     def validateSubscriberRoaming(self, subscriber: dict, mcc: str, mnc: str) -> bool:
