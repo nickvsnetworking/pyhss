@@ -1948,14 +1948,20 @@ class Diameter:
             """
             try:
                 if apn.lower() == 'sos':
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Emergency Credit Control Request (SOS APN)", redisClient=self.redisMessaging)
                     localImsi = None
                     try:
                         for SubscriptionIdentifier in self.get_avp_data(avps, 443):
                             for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
                                 if UniqueSubscriptionIdentifier['avp_code'] == 444:
                                     localImsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Got local IMSI: {localImsi}", redisClient=self.redisMessaging)
+                                    subscriberDetails = self.database.Get_Subscriber(imsi=localImsi)
+                                    if not subscriberDetails:
+                                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Local IMSI {localImsi} not found, treating as Emergency Subscriber", redisClient=self.redisMessaging)
+                                        localImsi = None
                     except:
-                        pass
+                        localImsi = None
                     if not localImsi:
                         if int(CC_Request_Type) == 1:
                             """
@@ -1964,6 +1970,7 @@ class Diameter:
                             # Use our defined SOS APN AMBR, if defined.
                             # Otherwise, use a default value of 128/128kbps.
                             try:
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777238_272] [CCA] Handling Emergency CCR-I", redisClient=self.redisMessaging)
                                 sosApn = (self.database.Get_APN_by_Name(apn="sos"))
                                 AMBR = ''                                                                                   #Initiate empty var AVP for AMBR
                                 apn_ambr_ul = int(sosApn['apn_ambr_ul'])
