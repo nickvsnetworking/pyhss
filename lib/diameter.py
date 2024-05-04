@@ -2775,6 +2775,7 @@ class Diameter:
             self.logTool.log(service='HSS', level='debug', message="Processing subscriber_ims_details from DB", redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
             self.logTool.log(service='HSS', level='debug', message="Getting subscriber info based on MSISDN", redisClient=self.redisMessaging)
+            msisdn = subscriber_ims_details['msisdn']
             subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
             imsi = subscriber_details.get('imsi', None)
             scscf = subscriber_ims_details.get('scscf', None)
