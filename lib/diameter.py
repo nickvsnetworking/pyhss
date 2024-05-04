@@ -2761,7 +2761,8 @@ class Diameter:
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on user_identity " + str(user_identity_avp), redisClient=self.redisMessaging)
-            username = self.get_avp_data(avps, 601)[0]
+            imsi = self.get_avp_data(avps, 601)[0]
+            imsi = binascii.unhexlify(imsi).decode('utf-8')
             self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on IMSI " + str(username), redisClient=self.redisMessaging)
             subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
         except Exception as e: 
