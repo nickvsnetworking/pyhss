@@ -2745,6 +2745,9 @@ class Diameter:
         imsi = None
         scscf = None
         username = None
+        
+        self.logTool.log(service='HSS', level='debug', message="Got raw MSISDN with value " + str(msisdn) + " from Sh-User-Data Request with AVPs " + str(avps), redisClient=self.redisMessaging)
+        
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
             msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                       #Get MSISDN from AVP in request
@@ -2757,8 +2760,9 @@ class Diameter:
 
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
+            self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on user_identity " + str(user_identity_avp), redisClient=self.redisMessaging)
             username = self.get_avp_data(avps, 601)[0]
-            self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on IMSI", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on IMSI " + str(username), redisClient=self.redisMessaging)
             subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
         except Exception as e: 
             self.logTool.log(service='HSS', level='debug', message="No Username", redisClient=self.redisMessaging)
