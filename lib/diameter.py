@@ -2751,17 +2751,20 @@ class Diameter:
             self.logTool.log(service='HSS', level='debug', message="Got raw MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
             msisdn = self.TBCD_decode(msisdn)
             self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
+            subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
         except:
             self.logTool.log(service='HSS', level='debug', message="No MSISDN", redisClient=self.redisMessaging)
+
         try:
             username = self.get_avp_data(avps, 601)[0]
+            self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on IMSI", redisClient=self.redisMessaging)
+            subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
         except Exception as e: 
             self.logTool.log(service='HSS', level='debug', message="No Username", redisClient=self.redisMessaging)
 
-        if msisdn is not None:
-                self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on MSISDN", redisClient=self.redisMessaging)
+        if subscriber_ims_details is not None:
+                self.logTool.log(service='HSS', level='debug', message="Processing subscriber_ims_details from DB", redisClient=self.redisMessaging)
                 try:
-                    subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
                     self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
                     self.logTool.log(service='HSS', level='debug', message="Getting subscriber info based on MSISDN", redisClient=self.redisMessaging)
                     subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
@@ -2796,10 +2799,7 @@ class Diameter:
                                                             "event": "Unknown User",
                                                             "imsi_prefix": str(username[0:6])},
                                                 metricHelp='Diameter Authentication related Counters',
-                                                metricExpiry=60,
-                                                usePrefix=True, 
-                                                prefixHostname=self.hostname, 
-                                                prefixServiceName='metric')
+                                                metricExpiry=60)
             result_code = 5001
             #Experimental Result AVP
             avp_experimental_result = ''
