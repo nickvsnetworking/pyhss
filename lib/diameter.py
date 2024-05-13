@@ -1050,7 +1050,7 @@ class Diameter:
                 roamingNetwork = self.database.GetObj(ROAMING_NETWORK, roamingNetworkId)
                 allowNetwork = roamingRule.get('allow', True)
                 if roamingNetwork:
-                    if str(roamingNetwork.get('mcc')) == str(mcc) and str(roamingNetwork.get('mnc') == str(mnc)):
+                    if str(roamingNetwork.get('mcc')) == str(mcc) and str(roamingNetwork.get('mnc')) == str(mnc):
                         if allowNetwork:
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Subscriber Roaming Rule for PLMN: {mcc}{mnc} is Allowed", redisClient=self.redisMessaging)
                             return True
@@ -1070,7 +1070,7 @@ class Diameter:
             roamingNetwork = self.database.GetObj(ROAMING_NETWORK, roamingNetworkId)
             allowNetwork = roamingRule.get('allow', True)
             if roamingNetwork:
-                if str(roamingNetwork.get('mcc')) == str(mcc) and str(roamingNetwork.get('mnc') == str(mnc)):
+                if str(roamingNetwork.get('mcc')) == str(mcc) and str(roamingNetwork.get('mnc')) == str(mnc):
                     if allowNetwork:
                         self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [validateOutboundRoamingNetwork] Fallback Roaming Rule for PLMN: {mcc}{mnc} is Allowed", redisClient=self.redisMessaging)
                         return True
