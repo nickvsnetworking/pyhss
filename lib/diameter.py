@@ -1518,7 +1518,7 @@ class Diameter:
                 if nbIotEnabled and int(apn_data['ip_version']) == 4:
     
                     #Add Non-IP-PDN-Type-Indicator
-                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1681, "c0", 10415, self.int_to_hex(1), 4)
+                    NIDD_Parameters = NIDD_Parameters + self.generate_vendor_avp(1681, "c0", 10415, self.int_to_hex(1, 4))
     
                     #Add SCEF ID
                     try:
