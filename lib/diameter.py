@@ -264,12 +264,12 @@ class Diameter:
                 bit = input[offset:offset+2]    #Get two digits at a time
                 bit = bit[::-1]                 #Reverse them
                 output = output + bit
-                offset = offset + 2
             else:   #If f in bit strip it
                 bit = input[offset:offset+2]
                 output = output + bit[1]
-                self.logTool.log(service='HSS', level='debug', message="TBCD_decode output value is " + str(output), redisClient=self.redisMessaging)
-                return output
+            offset = offset + 2
+        self.logTool.log(service='HSS', level='debug', message="TBCD_decode output value is " + str(output), redisClient=self.redisMessaging)
+        return output
 
     #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
     #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
