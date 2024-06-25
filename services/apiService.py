@@ -540,6 +540,8 @@ class PyHSS_SUBSCRIBER_Get(Resource):
         '''Update SUBSCRIBER data for specified subscriber_id'''
         try:
             json_data = request.get_json(force=True)
+            if 'msisdn' in json_data:
+                json_data['msisdn'] = json_data['msisdn'].replace('+', '')
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
@@ -577,6 +579,8 @@ class PyHSS_SUBSCRIBER(Resource):
         '''Create new SUBSCRIBER'''
         try:
             json_data = request.get_json(force=True)
+            if 'msisdn' in json_data:
+                json_data['msisdn'] = json_data['msisdn'].replace('+', '')
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
@@ -711,6 +715,10 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
         '''Update IMS SUBSCRIBER data for specified ims_subscriber'''
         try:
             json_data = request.get_json(force=True)
+            if 'msisdn' in json_data:
+                json_data['msisdn'] = json_data['msisdn'].replace('+', '')
+            if 'msisdn_list' in json_data:
+                json_data['msisdn_list'] = json_data['msisdn_list'].replace('+', '')
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
@@ -731,6 +739,10 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
         '''Create new IMS SUBSCRIBER'''
         try:
             json_data = request.get_json(force=True)
+            if 'msisdn' in json_data:
+                json_data['msisdn'] = json_data['msisdn'].replace('+', '')
+            if 'msisdn_list' in json_data:
+                json_data['msisdn_list'] = json_data['msisdn_list'].replace('+', '')
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
