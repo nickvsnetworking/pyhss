@@ -1242,6 +1242,8 @@ class Diameter:
             ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=username)
         else:
             self.logTool.log(service='HSS', level='debug', message="We have an msisdn: " + str(username), redisClient=self.redisMessaging)
+            if username[0] == '+':
+                username = username[1:]
             ims_subscriber_details = self.database.Get_IMS_Subscriber(msisdn=username)
         self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(ims_subscriber_details), redisClient=self.redisMessaging)
         return ims_subscriber_details
