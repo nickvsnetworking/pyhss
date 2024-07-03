@@ -82,10 +82,15 @@ class DiameterService:
                     peerPort = activePeer.get('port', None)
                     if not peerIp or not peerPort or connectionStatus.lower() != "connected":
                         continue
-                    
+
+                    outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
+                    outboundMessage = json.dumps({"diameter-outbound": outboundDwrEncoded, "inbound-received-timestamp": time.time()})
+                    self.redisDwrMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+                    await(asyncio.sleep(self.outboundDwrInterval))
                 continue
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleOutboundDwr] Exception: {e}\n{traceback.format_exc()}"))
+                await(asyncio.sleep(self.outboundDwrInterval))
                 continue
 
     async def handleActiveDiameterPeers(self):
