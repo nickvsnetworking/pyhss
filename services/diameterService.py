@@ -34,10 +34,15 @@ class DiameterService:
         self.redisPeerMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisPeerLogMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisMetricMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.redisDwrMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.banners = Banners()
         self.logTool = LogTool(config=self.config)
         self.diameterLibrary = DiameterAsync(logTool=self.logTool)
         self.activePeers = {}
+        self.enableOutboundDwr = self.config.get('hss', {}).get('send_dwr', False)
+        self.outboundDwrInterval = int(self.config.get('hss', {}).get('send_dwr_interval', 5))
+        self.originHost = self.config.get('hss', {}).get('OriginHost', 'hss01')
+        self.originRealm = self.config.get('hss', {}).get('OriginRealm', "epc.mnc001.mcc001.3gppnetwork.org")
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
         self.benchmarking = self.config.get('benchmarking', {}).get('enabled', False)
         self.benchmarkingInterval = self.config.get('benchmarking', {}).get('reporting_interval', 3600)
@@ -63,6 +68,25 @@ class DiameterService:
             await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] Exception: {e}\n{traceback.format_exc()}"))
             await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [validateDiameterInbound] AVPs: {avps}\nPacketVars: {packetVars}"))
             return False
+
+    async def handleOutboundDwr(self) -> bool:
+        """
+        Asynchronously sends an outbound DWR every outboundDwrInterval to each connected peer, if enabled.
+        """
+        while True:
+            try:
+                outboundDwrEncoded = await(self.diameterLibrary.Request_280(originHost=self.originHost, originRealm=self.originRealm))
+                for activePeer in self.activePeers:
+                    connectionStatus = activePeer.get('connectionStatus', "disconnected")
+                    peerIp = activePeer.get('ipAddress', None)
+                    peerPort = activePeer.get('port', None)
+                    if not peerIp or not peerPort or connectionStatus.lower() != "connected":
+                        continue
+                    
+                continue
+            except Exception as e:
+                await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleOutboundDwr] Exception: {e}\n{traceback.format_exc()}"))
+                continue
 
     async def handleActiveDiameterPeers(self):
         """
@@ -381,6 +405,8 @@ class DiameterService:
         servingAddresses = ', '.join(str(sock.getsockname()) for sock in server.sockets)
         await(self.logTool.logAsync(service='Diameter', level='info', message=f"{self.banners.diameterService()}\n[Diameter] Serving on {servingAddresses}"))
         handleActiveDiameterPeerTask = asyncio.create_task(self.handleActiveDiameterPeers())
+        if self.enableOutboundDwr:
+            handleOutboundDwrTask = asyncio.create_task(self.handleOutboundDwr())
         if self.benchmarking:
             logProcessedMessagesTask = asyncio.create_task(self.logProcessedMessages())
 

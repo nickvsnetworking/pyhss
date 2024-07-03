@@ -41,6 +41,12 @@ hss:
   #The maximum time to wait, in seconds, before discarding a diameter request.
   diameter_request_timeout: 3
 
+  # Whether to send a DWR to connected peers.
+  send_dwr: False
+
+  # How often to send a DWR to connected peers if enabled, in seconds.
+  send_dwr_interval: 5
+
   #The amount of time, in seconds, before purging a disconnected client from the Active Diameter Peers key in redis.
   active_diameter_peers_timeout: 10
 
