@@ -76,17 +76,19 @@ class DiameterService:
         while True:
             try:
                 outboundDwrEncoded = await(self.diameterLibrary.Request_280(originHost=self.originHost, originRealm=self.originRealm))
-                for activePeer in self.activePeers:
-                    connectionStatus = activePeer.get('connectionStatus', "disconnected")
-                    peerIp = activePeer.get('ipAddress', None)
-                    peerPort = activePeer.get('port', None)
+                activePeersCached = self.activePeers
+                for activePeerKey, activePeerValue in activePeersCached.items():
+                    connectionStatus = activePeerValue.get('connectionStatus', "disconnected")
+                    peerIp = activePeerValue.get('ipAddress', None)
+                    peerPort = activePeerValue.get('port', None)
                     if not peerIp or not peerPort or connectionStatus.lower() != "connected":
                         continue
 
                     outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                     outboundMessage = json.dumps({"diameter-outbound": outboundDwrEncoded, "inbound-received-timestamp": time.time()})
-                    self.redisDwrMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
-                    await(asyncio.sleep(self.outboundDwrInterval))
+                    await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [handleOutboundDwr] Sending Outbound DWR to: {outboundQueue}"))
+                    await(self.redisDwrMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
+                await(asyncio.sleep(self.outboundDwrInterval))
                 continue
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleOutboundDwr] Exception: {e}\n{traceback.format_exc()}"))

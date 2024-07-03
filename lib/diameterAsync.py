@@ -5,6 +5,7 @@ import yaml
 import uuid
 import socket
 import traceback
+import binascii
 from messagingAsync import RedisMessagingAsync
 
 
@@ -54,6 +55,15 @@ class DiameterAsync:
             return math.floor(n/4.0) * 4
         else:
             return 4
+
+    #Converts string to hex
+    async def string_to_hex(self, string):
+        string_bytes = string.encode('utf-8')
+        return str(binascii.hexlify(string_bytes), 'ascii')
+
+    #Converts int to hex padded to required number of bytes
+    async def int_to_hex(self, input_int, output_bytes):
+        return format(input_int,"x").zfill(output_bytes*2)
 
     async def roundUpToMultiple(self, n, multiple):
         return ((n + multiple - 1) // multiple) * multiple
@@ -378,8 +388,8 @@ class DiameterAsync:
             if not endToEndIdentifier:
                 endToEndIdentifier = await(self.generateId(4))
             avp = ''
-            avp += await(self.generate_avp(264, 40, originHost)) #Origin Host
-            avp += await(self.generate_avp(296, 40, originRealm)) #Origin Realm
+            avp += await(self.generate_avp(264, 40, await(self.string_to_hex(originHost)))) #Origin Host
+            avp += await(self.generate_avp(296, 40, await(self.string_to_hex(originRealm)))) #Origin Realm
             response = await(self.generate_diameter_packet("01", "80", 280, 0, (await(self.generateId(4))), endToEndIdentifier, avp)) #Generate Diameter packet
             return response
         except Exception as e:
