@@ -69,6 +69,12 @@ hss:
   #Default Sh User Data
   Default_Sh_UserData: 'default_sh_user_data.xml'
 
+  #Whether to use an external socket service
+  use_external_socket_service: False
+
+  #The Redis key used to store active diameter peers
+  diameter_peer_key: diameterPeers
+
   #S-CSCF Pool
   scscf_pool:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
