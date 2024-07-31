@@ -17,6 +17,7 @@ import socket
 import traceback
 import re
 from baseModels import Peer, OutboundData
+import pydantic_core
 
 class Diameter:
 
@@ -564,38 +565,47 @@ class Diameter:
         try:
             requestedPeerType = peerType.lower()
             peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
+            filteredConnectedPeers = []
 
             if requestedPeerType not in peerTypes:
-                return []
-            filteredConnectedPeers = []
-            activePeers = json.loads(self.redisMessaging.getValue(key=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
-
+                return filteredConnectedPeers
+            
+            activePeers = self.redisMessaging.getAllHashData(name=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+            if not activePeers:
+                return filteredConnectedPeers
+            
             for peerKey, peer in activePeers.items():
+                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
                 diameterPeerType = None
-                if peer.Metadata:
-                    metadataJson = json.loads(peer.Metadata)
+                if diameterPeer.Metadata:
+                    metadataJson = json.loads(diameterPeer.Metadata)
                     diameterPeerType = metadataJson.get('DiameterPeerType', 'Unknown')
                     # If the peer matches the supplied type, and the peer is connected, add the matching peer type to filteredConnectedPeers.
-                if diameterPeerType == requestedPeerType and peer.Connected:
-                    filteredConnectedPeers.append(activePeers.get(peer))
+                if diameterPeerType == requestedPeerType and diameterPeer.Connected:
+                    filteredConnectedPeers.append(diameterPeer)
             
             return filteredConnectedPeers
 
         except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getConnectedPeersByType] Failed to find get connected peers by type {peerType}, {traceback.format_exc()}", redisClient=self.redisMessaging)
             return []
 
     def getPeerByHostname(self, hostname: str) -> Peer:
         self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getPeerByHostname] Looking for peer with hostname {hostname}", redisClient=self.redisMessaging)
         try:
             hostname = hostname.lower()
-            activePeers = json.loads(self.redisMessaging.getValue(key=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
+            activePeers = self.redisMessaging.getAllHashData(name=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+
+            if not activePeers:
+                return {}
 
             for peerKey, peer in activePeers.items():
-                if peer.Hostname.lower() == hostname and peer.Connected:
-                    return peer
+                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                if diameterPeer.Hostname.lower() == hostname and diameterPeer.Connected:
+                    return diameterPeer
 
         except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}, {traceback.format_exc()}", redisClient=self.redisMessaging)
             return {}
 
     def getDiameterMessageType(self, binaryData: str) -> dict:

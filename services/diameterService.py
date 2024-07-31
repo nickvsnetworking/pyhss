@@ -95,7 +95,7 @@ class DiameterService:
                     outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                     outboundData = OutboundData(DestinationIp=peerIp,
                                                 DestinationPort=peerPort,
-                                                InitialReceiveTimestamp=time.time(),
+                                                InitialReceiveTimestamp=time.time_ns(),
                                                 OutboundHex=outboundDwrEncoded)
                     await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [handleOutboundDwr] Sending Outbound DWR to: {outboundQueue}"))
                     await(self.redisDwrMessaging.sendMessage(queue=outboundQueue, message=outboundData.model_dump_json(), queueExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
@@ -111,6 +111,10 @@ class DiameterService:
         Prunes stale and duplicate entries from self.activePeers, and
         keeps the ActiveDiameterPeers key in Redis current.
         """
+
+        # Flush the any pre-existing peers from Redis when this service is started.
+        await(self.redisPeerMessaging.deleteQueue(queue=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
+
         while True:
             try:
                 if not len(self.activePeers) > 0:
@@ -133,14 +137,14 @@ class DiameterService:
 
                 for host in diameterHosts.values():
                     if len(host) > 1:
-                        host.sort(key=lambda x: datetime.strptime(activePeers[x].LastConnectTimestamp, "%Y-%m-%d %H:%M:%S"), reverse=True)
+                        host.sort(key=lambda x: datetime.fromisoformat(activePeers[x].LastConnectTimestamp), reverse=True)
                         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [handleActiveDiameterPeers] Adding duplicate peers to stalePeers: {host[1:]}"))
                         stalePeers.extend(host[1:])
 
                 for key, connection in activePeers.items():
                     isConnected = connection.Connected
                     if not isConnected: 
-                        if (datetime.now() - datetime.strptime(connection.LastDisconnectTimestamp, "%Y-%m-%d %H:%M:%S")).seconds > activeDiameterPeersTimeout:
+                        if (datetime.now(get_localzone()) - datetime.fromisoformat(connection.LastDisconnectTimestamp)).seconds > activeDiameterPeersTimeout:
                             stalePeers.append(key)
                 
                 if len(stalePeers) > 0:
@@ -148,11 +152,15 @@ class DiameterService:
                     try:
                         for key in stalePeers:
                             del self.activePeers[key]
+                            result = await(self.redisPeerMessaging.deleteHashKey(name=self.diameterPeerKey, key=key, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
+                            await(self.logTool.logAsync(service='Diameter', level='error', message=f"{result}"))
                     except Exception as e:
                         await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [handleActiveDiameterPeers] Error removing stale peer: {traceback.format_exc()}"))
                     await(self.logActivePeers())
-
-                await(self.redisPeerMessaging.setValue(key=self.diameterPeerKey, value=json.dumps(self.activePeers), keyExpiry=86400, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
+                
+                #Marshal the Peer objects and store in Redis
+                for peerKey, peer in activePeers.items():
+                    await(self.redisPeerMessaging.setHashValue(name=self.diameterPeerKey, key=peerKey, value=peer.model_dump_json(), keyExpiry=86400, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                 await(asyncio.sleep(1))
             except Exception as e:
@@ -248,8 +256,8 @@ class DiameterService:
                 if len(inboundData) > 0:
                     inboundData = InboundData(SenderIp=clientAddress,
                                               SenderPort=clientPort,
-                                              InitialReceiveTimestamp=time.time(),
-                                              InboundHex=inboundData)
+                                              InitialReceiveTimestamp=time.time_ns(),
+                                              InboundHex=inboundData.hex())
                     
                     self.sharedQueue.put_nowait(inboundData)
 
@@ -301,7 +309,7 @@ class DiameterService:
         while not writer.transport.is_closing():
             try:
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Waiting for messages for host {clientAddress} on port {clientPort}"))
-                pendingOutboundMessage = json.loads((await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')))[1])
+                pendingOutboundMessage = (await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')))[1]
                 outboundData = OutboundData.model_validate(pydantic_core.from_json(pendingOutboundMessage))
                 diameterOutboundBinary = bytes.fromhex(outboundData.OutboundHex)
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
@@ -311,7 +319,7 @@ class DiameterService:
                 if self.benchmarking:
                     self.diameterResponses += 1
             except Exception as e:
-                await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer."))
+                await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Connection closed for {clientAddress} on port {clientPort}, closing writer.{traceback.format_exc()}"))
                 return False
 
     async def handleConnection(self, reader, writer):
@@ -322,6 +330,7 @@ class DiameterService:
         try:
             coroutineUuid = str(uuid.uuid4())
             (clientAddress, clientPort) = writer.get_extra_info('peername')
+            clientPort = str(clientPort)
             await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] New Connection from: {clientAddress} on port {clientPort}"))
 
             if f"{clientAddress}-{clientPort}" not in self.activePeers:
@@ -346,7 +355,7 @@ class DiameterService:
                     reconnectionCount += 1
                     activePeer.ReconnectionCount = reconnectionCount
 
-            self.activePeers[f"{clientAddress}-{clientPort}"].update(LastConnectedTimestamp=datetime.now(get_localzone()).isoformat('T'),
+            self.activePeers[f"{clientAddress}-{clientPort}"].update(LastConnectTimestamp=datetime.now(get_localzone()).isoformat('T'),
                                                                      IpAddress=clientAddress,
                                                                      Port=clientPort,
                                                                      Connected=True)

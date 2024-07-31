@@ -59,20 +59,21 @@ class HssService:
                         continue
 
                     try:
-                        diameterPeers = json.loads(self.redisMessaging.getValue(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
-
-                        for diameterPeer in diameterPeers:
-                            # If this is a message from a stored peer, increment prom_diam_request_count_host by 1.
-                            if diameterPeers[diameterPeer].IpAddress == inboundData.SenderIp and diameterPeers[diameterPeer].Port == inboundData.SenderPort:
-                                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count_host',
-                                            metricType='gauge', metricAction='inc',
-                                            metricLabels={
-                                            "host": diameterPeers[diameterPeer].Hostname},
-                                            metricValue=float(1), metricHelp='Number of Diameter Requests Recieved per Host',
-                                            metricExpiry=60,
-                                            usePrefix=True, 
-                                            prefixHostname=self.hostname, 
-                                            prefixServiceName='metric')
+                        diameterPeers = self.redisMessaging.getAllHashData(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+                        if diameterPeers:
+                            for diameterPeerKey, diameterPeerValue in diameterPeers.items():
+                                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(diameterPeerValue)))
+                                # If this is a message from a stored peer, increment prom_diam_request_count_host by 1.
+                                if diameterPeer.IpAddress == inboundData.SenderIp and diameterPeer.Port == inboundData.SenderPort:
+                                    self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count_host',
+                                                metricType='gauge', metricAction='inc',
+                                                metricLabels={
+                                                "host": diameterPeer.Hostname},
+                                                metricValue=float(1), metricHelp='Number of Diameter Requests Recieved per Host',
+                                                metricExpiry=60,
+                                                usePrefix=True, 
+                                                prefixHostname=self.hostname, 
+                                                prefixServiceName='metric')
 
                     except Exception as e:
                         self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Error updating prom_diam_request_count_host: {traceback.format_exc()}", redisClient=self.redisMessaging)
@@ -116,19 +117,20 @@ class HssService:
                         self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
 
                     try:
-                        diameterPeers = json.loads(self.redisMessaging.getValue(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
-
-                        for diameterPeer in diameterPeers:
-                            if diameterPeers[diameterPeer].IpAddress == inboundData.SenderIp and diameterPeers[diameterPeer].Port == inboundData.SenderPort:
-                                self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_host',
-                                            metricType='gauge', metricAction='inc',
-                                            metricLabels={
-                                            "host": diameterPeers[diameterPeer].Hostname},
-                                            metricValue=float(1), metricHelp='Number of Diameter Responses Sent per Host',
-                                            metricExpiry=60,
-                                            usePrefix=True, 
-                                            prefixHostname=self.hostname, 
-                                            prefixServiceName='metric')
+                        diameterPeers = self.redisMessaging.getAllHashData(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+                        if diameterPeers:
+                            for diameterPeerKey, diameterPeerValue in diameterPeers.items():
+                                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(diameterPeerValue)))
+                                if diameterPeer.IpAddress == inboundData.SenderIp and diameterPeer.Port == inboundData.SenderPort:
+                                    self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_host',
+                                                metricType='gauge', metricAction='inc',
+                                                metricLabels={
+                                                "host": diameterPeer.Hostname},
+                                                metricValue=float(1), metricHelp='Number of Diameter Responses Sent per Host',
+                                                metricExpiry=60,
+                                                usePrefix=True, 
+                                                prefixHostname=self.hostname, 
+                                                prefixServiceName='metric')
 
                     except Exception as e:
                         self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Error updating prom_diam_response_count_host: {traceback.format_exc()}", redisClient=self.redisMessaging)
