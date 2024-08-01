@@ -1314,7 +1314,7 @@ class PyHSS_OAM_Peers(Resource):
     def get(self):
         '''Get active Diameter Peers'''
         try:
-            diameterPeers = json.loads(redisMessaging.getValue("ActiveDiameterPeers", usePrefix=True, prefixHostname=originHostname, prefixServiceName='diameter'))
+            diameterPeers = redisMessaging.getAllHashData("diameterPeers", usePrefix=True, prefixHostname=originHostname, prefixServiceName='diameter')
             return diameterPeers, 200
         except Exception as E:
             logTool.log(service='API', level='error', message=f"[API] An error occurred: {traceback.format_exc()}", redisClient=redisMessaging)

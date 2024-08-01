@@ -205,6 +205,66 @@ class RedisMessaging:
             return data
         except Exception as e:
             return ''
+        
+    def getAllHashData(self, name: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
+        """
+        Gets all keys and values stored under a given hash.
+        """
+        try:
+            name = self.handlePrefix(key=name, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
+            message = self.redisClient.hgetall(name=name)
+            if message is None:
+                message = ''
+            else:
+                decodedMessage = {}
+                for key, value in message.items():
+                    decodedKey = key.decode('utf-8')
+                    try:
+                        decodedValue = json.loads(value.decode('utf-8'))
+                    except json.JSONDecodeError:
+                        decodedValue = value.decode('utf-8')
+                    decodedMessage[decodedKey] = decodedValue
+            return decodedMessage
+        except Exception as e:
+            return ''
+
+    def getHashValue(self, name: str, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
+        """
+        Gets the value stored under a given named hash key asynchronously.
+        """
+        try:
+            name = self.handlePrefix(key=name, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
+            message = self.redisClient.hget(name=name, key=key)
+            if message is None:
+                message = ''
+            else:
+                return message
+        except Exception as e:
+            return ''
+
+    def setHashValue(self, name: str, key: str, value: str, keyExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
+        """
+        Gets the value stored under a given named hash key asynchronously.
+        """
+        try:
+            name = self.handlePrefix(key=name, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
+            self.redisClient.hset(name=name, key=key, value=value)
+            if keyExpiry is not None:
+                self.redisClient.expire(key, int(keyExpiry))
+            return f'{value} stored in {key} successfully.'
+        except Exception as e:
+            return e
+
+    def deleteHashKey(self, name: str, key: str, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
+        """
+        Deletes a key: value pair stored under a hash in redis.
+        """
+        try:
+            name = self.handlePrefix(key=name, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
+            self.redisClient.hdel(name, key)
+            return f'Deleted {key} from {name} successfully.'
+        except Exception as e:
+            return e
 
 if __name__ == '__main__':
     redisMessaging = RedisMessaging()

@@ -16,6 +16,8 @@ import time
 import socket
 import traceback
 import re
+from baseModels import Peer, OutboundData
+import pydantic_core
 
 class Diameter:
 
@@ -44,6 +46,7 @@ class Diameter:
 
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
+        self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
 
         self.templateLoader = jinja2.FileSystemLoader(searchpath="../")
         self.templateEnv = jinja2.Environment(loader=self.templateLoader)
@@ -558,37 +561,51 @@ class Diameter:
         except Exception as e:
             return ''
 
-    def getConnectedPeersByType(self, peerType: str) -> list:
+    def getConnectedPeersByType(self, peerType: str) -> list[Peer]:
         try:
-            peerType = peerType.lower()
+            requestedPeerType = peerType.lower()
             peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
-
-            if peerType not in peerTypes:
-                return []
             filteredConnectedPeers = []
-            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
 
-            for key, value in activePeers.items():
-                if activePeers.get(key, {}).get('peerType', '') == peerType and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
-                    filteredConnectedPeers.append(activePeers.get(key, {}))
+            if requestedPeerType not in peerTypes:
+                return filteredConnectedPeers
+            
+            activePeers = self.redisMessaging.getAllHashData(name=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+            if not activePeers:
+                return filteredConnectedPeers
+            
+            for peerKey, peer in activePeers.items():
+                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                diameterPeerType = None
+                if diameterPeer.Metadata:
+                    metadataJson = json.loads(diameterPeer.Metadata)
+                    diameterPeerType = metadataJson.get('DiameterPeerType', 'Unknown')
+                    # If the peer matches the supplied type, and the peer is connected, add the matching peer type to filteredConnectedPeers.
+                if diameterPeerType == requestedPeerType and diameterPeer.Connected:
+                    filteredConnectedPeers.append(diameterPeer)
             
             return filteredConnectedPeers
 
         except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getConnectedPeersByType] Failed to find get connected peers by type {peerType}, {traceback.format_exc()}", redisClient=self.redisMessaging)
             return []
 
-    def getPeerByHostname(self, hostname: str) -> dict:
+    def getPeerByHostname(self, hostname: str) -> Peer:
         self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getPeerByHostname] Looking for peer with hostname {hostname}", redisClient=self.redisMessaging)
         try:
             hostname = hostname.lower()
-            activePeers = json.loads(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter').decode())
+            activePeers = self.redisMessaging.getAllHashData(name=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
 
-            for key, value in activePeers.items():
-                if activePeers.get(key, {}).get('diameterHostname', '').lower() == hostname and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
-                    return(activePeers.get(key, {}))
+            if not activePeers:
+                return {}
+
+            for peerKey, peer in activePeers.items():
+                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                if diameterPeer.Hostname.lower() == hostname and diameterPeer.Connected:
+                    return diameterPeer
 
         except Exception as e:
-            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}, {traceback.format_exc()}", redisClient=self.redisMessaging)
             return {}
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
@@ -629,8 +646,8 @@ class Diameter:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
                 try:
-                    peerIp = connectedPeer['ipAddress']
-                    peerPort = connectedPeer['port']
+                    peerIp = connectedPeer.IpAddress
+                    peerPort = connectedPeer.Port
                 except Exception as e:
                     return ''
                 try:
@@ -641,8 +658,11 @@ class Diameter:
                     return ''
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                 sendTime = time.time_ns()
-                outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+                outboundMessage = OutboundData(DestinationIp=peerIp,
+                                                DestinationPort=peerPort,
+                                                InitialReceiveTimestamp=sendTime,
+                                                OutboundHex=request)
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage.model_dump_json(), queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return request
         except Exception as e:
@@ -666,8 +686,8 @@ class Diameter:
                 connectedPeerList = self.getConnectedPeersByType(peerType=peerType)
                 for connectedPeer in connectedPeerList:
                     try:
-                        peerIp = connectedPeer['ipAddress']
-                        peerPort = connectedPeer['port']
+                        peerIp = connectedPeer.IpAddress
+                        peerPort = connectedPeer.Port
                     except Exception as e:
                         return ''
                     try:
@@ -679,8 +699,13 @@ class Diameter:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                     outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
                     sendTime = time.time_ns()
-                    outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+
+                    outboundMessage = OutboundData(DestinationIp=peerIp,
+                                                DestinationPort=peerPort,
+                                                InitialReceiveTimestamp=sendTime,
+                                                OutboundHex=request)
+                    
+                    self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage.model_dump_json(), queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [broadcastDiameterRequest] [{requestType}] Queueing for peer type: {peerType} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
             return connectedPeerList
         except Exception as e:
@@ -714,8 +739,8 @@ class Diameter:
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Sending request via connected peer {connectedPeer} from hostname {hostname}", redisClient=self.redisMessaging)
                 try:
-                    peerIp = connectedPeer['ipAddress']
-                    peerPort = connectedPeer['port']
+                    peerIp = connectedPeer.IpAddress
+                    peerPort = connectedPeer.Port
                 except Exception as e:
                     self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Could not get connection information for connectedPeer: {connectedPeer}", redisClient=self.redisMessaging)
                     return ''
@@ -731,8 +756,11 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
                 sendTime = time.time_ns()
                 outboundQueue = f"diameter-outbound-{peerIp}-{peerPort}"
-                outboundMessage = json.dumps({"diameter-outbound": request, "inbound-received-timestamp": sendTime})
-                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage, queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+                outboundMessage = OutboundData(DestinationIp=peerIp,
+                                                DestinationPort=peerPort,
+                                                InitialReceiveTimestamp=sendTime,
+                                                OutboundHex=request)
+                self.redisMessaging.sendMessage(queue=outboundQueue, message=outboundMessage.model_dump_json(), queueExpiry=self.diameterRequestTimeout, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Queueing for host: {hostname} on {peerIp}-{peerPort}", redisClient=self.redisMessaging)
                 startTimer = time.time()
                 while True:
@@ -743,11 +771,11 @@ class Diameter:
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages(NoSessionId): {queuedMessages}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
-                                    clientAddress = queuedMessage.get('clientAddress', None)
-                                    clientPort = queuedMessage.get('clientPort', None)
+                                    clientAddress = queuedMessage.SenderIp
+                                    clientPort = queuedMessage.SenderPort
                                     if clientAddress != peerIp or clientPort != peerPort:
                                         continue
-                                    messageReceiveTime = queuedMessage.get('inbound-received-timestamp', None)
+                                    messageReceiveTime = queuedMessage.get('InitialReceiveTimestamp', None)
                                     if float(messageReceiveTime) > sendTime:
                                         messageHex = queuedMessage.get('diameter-inbound')
                                         messageType = self.getDiameterMessageType(messageHex)
@@ -760,11 +788,11 @@ class Diameter:
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages({sessionId}): {queuedMessages} responseType: {responseType}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
-                                    clientAddress = queuedMessage.get('clientAddress', None)
-                                    clientPort = queuedMessage.get('clientPort', None)
+                                    clientAddress = queuedMessage.SenderIp
+                                    clientPort = queuedMessage.SenderPort
                                     if clientAddress != peerIp or clientPort != peerPort:
                                         continue
-                                    messageReceiveTime = queuedMessage.get('inbound-received-timestamp', None)
+                                    messageReceiveTime = queuedMessage.get('InitialReceiveTimestamp', None)
                                     if float(messageReceiveTime) > sendTime:
                                         messageHex = queuedMessage.get('diameter-inbound')
                                         messageType = self.getDiameterMessageType(messageHex)
