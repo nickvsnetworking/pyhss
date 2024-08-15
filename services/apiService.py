@@ -1579,6 +1579,81 @@ class PyHSS_OAM_Reconcile_IMS(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_pcrf.route('/pcrf_subscriber/list')
+class PyHSS_PCRF_Get_All_Served_Subscribers(Resource):
+    def get(self):
+        '''Get PCRF Data for all Subscribers'''
+        try:
+            """
+            - Get all Serving APNs.
+
+            - For each Serving APN:
+              - The corresponding Subscriber is retrieved.
+              - The Subscriber is added to the servedSubscribers dictionary, if it doesn't exist.
+              - The Subscribers 'apn' key is initialized with blank dictionaries for each apn name, if the apn name doesn't exist already.
+              - The Serving APN is added to the respective Subscriber 'apn' key.
+
+            - The servedSubscribers dictionary is returned.
+            """
+
+            servedSubscribers = {}
+
+            """
+            Get all Serving APNs.
+            """
+            servingApns = databaseClient.GetAll(Serving_APN)
+
+            """
+            For each Serving APN:
+            """
+            for servingApn in servingApns:
+                """
+                The corresponding Subscriber is retrieved.
+                """
+                subscriberId = servingApn.get('subscriber_id', None)
+                subscriber = databaseClient.GetObj(SUBSCRIBER, subscriberId)
+                subscriberImsi = subscriber.get('imsi', None)
+                servingApnId = servingApn.get('apn', None)
+                apnObject = databaseClient.Get_APN(servingApnId)
+                servingApnName = apnObject.get('apn')
+
+                """
+                The Subscriber is added to the servedSubscribers dictionary, if it doesn't exist.
+                """
+                if subscriberImsi not in servedSubscribers:
+                    servedSubscribers[subscriberImsi] = databaseClient.Sanitize_Datetime(subscriber)
+
+                """
+                The Subscribers 'apn' key is initialized with blank dictionaries for each apn name, if the apn name doesn't exist already.
+                """
+
+                subscriberApnIds = subscriber['apn_list'].split(',')
+
+                if 'apns' not in servedSubscribers[subscriberImsi]:
+                    servedSubscribers[subscriberImsi]['apns'] = {}
+
+                for subscriberApnId in subscriberApnIds:
+
+                    apnData = databaseClient.Get_APN(subscriberApnId)
+                    subscriberApnName = str(apnData['apn'])
+
+                    if subscriberApnName in servedSubscribers[subscriberImsi]['apns']:
+                        continue
+                    else:
+                        servedSubscribers[subscriberImsi]['apns'][subscriberApnName] = {}
+
+                """
+                The Serving APN is added to the respective Subscriber 'apn' key.
+                """
+
+                servedSubscribers[subscriberImsi]['apns'][servingApnName] = servingApn
+
+            return servedSubscribers
+        
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            return handle_exception(traceback.format_exc())
+
 @ns_pcrf.route('/pcrf_subscriber_imsi/<string:imsi>')
 class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
     def get(self, imsi):
