@@ -1886,15 +1886,61 @@ class Database:
             self.safe_close(session)
 
     def Update_Serving_APN(self, imsi, apn, pcrf_session_id, serving_pgw, subscriber_routing, serving_pgw_realm=None, serving_pgw_peer=None, serving_pgw_timestamp=None, propagate=True):
+        """
+        (1). A given UE should only ever have one IP per PDN connection.
+        (2). If a UE has no active PDN connections, it's treated as no longer being served and associated data is removed from the SERVING_APN object.
+
+        Given the above, the following logic is performed:
+
+          - The matching SUBSCRIBER object is found for the given imsi.
+            - If the SUBSCRIBER isn't found for the given IMSI, no further operations are performed.
+
+          - All SERVING_APNs are retrieved from the database.
+          - If the provided subscriber_routing(IP Address) matches any of the existing SERVING_APNs, the existing SERVING_APN is deleted (1).
+            - If the stored subscriber_routing is False or equivalent, the SERVING_APN is also deleted.
+            - This prevents duplicates from existing in the database, which may occur from UEs that detach where signalling was never provided.
+
+          - The SERVING_APN is updated with the provided information, or deleted if serving_pgw is None.
+        """
+
         self.logTool.log(service='Database', level='debug', message="Called Update_Serving_APN() for imsi " + str(imsi) + " with APN " + str(apn), redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message="PCRF Session ID " + str(pcrf_session_id) + " and serving PGW " + str(serving_pgw) + " and subscriber routing " + str(subscriber_routing), redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message="Serving PGW Realm is: " + str(serving_pgw_realm) + " and peer is: " + str(serving_pgw_peer), redisClient=self.redisMessaging)
         self.logTool.log(service='Database', level='debug', message="subscriber_routing: " + str(subscriber_routing), redisClient=self.redisMessaging)
 
-        #Get Subscriber ID from IMSI
+        """
+        The matching SUBSCRIBER object is found for the given imsi.
+        """
         subscriber_details = self.Get_Subscriber(imsi=str(imsi))
+        if not subscriber_details:
+            self.logTool.log(service='Database', level='warning', message=f"Subscriber not found for IMSI: {imsi}", redisClient=self.redisMessaging)
+            return None
         subscriber_id = subscriber_details['subscriber_id']
 
+        """
+        All SERVING_APNs are retrieved from the database.
+        """
+        try:
+            if serving_pgw and subscriber_routing:
+                servingApns = self.GetAll(SERVING_APN)
+                for servingApn in servingApns:
+                    """
+                    If the provided subscriber_routing(IP Address) matches any of the existing SERVING_APNs, the existing SERVING_APN is deleted (1).
+                    If the stored subscriber_routing is False or equivalent, the SERVING_APN is also deleted.
+                    """
+                    servingApnSubscriberRouting = servingApn.get('subscriber_routing', '')
+                    if (servingApnSubscriberRouting == subscriber_routing) or (not servingApnSubscriberRouting):
+                        servingApnId = servingApn.get('serving_apn_id', None)
+                        self.DeleteObj(SERVING_APN, int(servingApnId), True)
+        except Exception as e:
+            self.logTool.log(service='Database', level='warning', message=f"Error handling subscriber_routing duplicate check: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            
+
+
+        """
+        The SERVING_APN is updated with the provided information, or deleted if serving_pgw is None.
+        """
+        
         #Split the APN list into a list
         apn_list = subscriber_details['apn_list'].split(',')
         self.logTool.log(service='Database', level='debug', message="Current APN List: " + str(apn_list), redisClient=self.redisMessaging)
