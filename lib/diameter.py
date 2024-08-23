@@ -569,7 +569,7 @@ class Diameter:
         except Exception as e:
             return ''
 
-    def getConnectedPeersByType(self, peerType: str) -> list[Peer]:
+    def getConnectedPeersByType(self, peerType: str) -> list:
         try:
             requestedPeerType = peerType.lower()
             peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
