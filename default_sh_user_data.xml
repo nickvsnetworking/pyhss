@@ -24,6 +24,9 @@
     <Sh-IMS-Data>
         <S-CSCFName>{{ Sh_template_vars['scscf'] }}</S-CSCFName>
         <IMSUserState>{{ Sh_template_vars['imsUserState'] }}</IMSUserState>
+        <!-- The following 2 values are not 3gpp-standardised. Remove if your deployment requires 3gpp-compliant XML. -->
+        <InboundCommunicationBarred>{{ Sh_template_vars['inboundCommunicationBarred'] }}</InboundCommunicationBarred>
+        <OutboundCommunicationBarred>{{ Sh_template_vars['outboundCommunicationBarred'] }}</OutboundCommunicationBarred>
     </Sh-IMS-Data>
 
 </Sh-Data>

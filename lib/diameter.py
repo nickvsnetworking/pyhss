@@ -18,6 +18,7 @@ import traceback
 import re
 from baseModels import Peer, OutboundData
 import pydantic_core
+import xml.etree.ElementTree as ET
 
 class Diameter:
 
@@ -338,7 +339,14 @@ class Diameter:
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [generate_diameter_packet] Exception: {e}", redisClient=self.redisMessaging)
 
-
+    def get_sh_profile_rules(self, serviceName, xmlRoot, xmlNamespace):
+        service = xmlRoot.find(f'default:{serviceName}', xmlNamespace)
+        if service is not None:
+            active = service.get('active')
+            allow = service.find('.//default:allow', xmlNamespace)
+            allowValue = allow.text if allow is not None else None
+            return active, allowValue
+        return None, None
 
     def roundUpToMultiple(self, n, multiple):
         return ((n + multiple - 1) // multiple) * multiple
@@ -2772,6 +2780,7 @@ class Diameter:
         msisdn = None
         imsi = None
         scscf = None
+        subscriberIsBarred = False
         username = None
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
@@ -2853,9 +2862,36 @@ class Diameter:
         #These variables are passed to the template for use
         subscriber_details['mnc'] = self.MNC.zfill(3)
         subscriber_details['mcc'] = self.MCC.zfill(3)
+        subscriberShProfile = subscriber_details.get('sh_profile', '')
+        if not subscriberShProfile:
+            subscriberShProfile = subscriber_details.get('xcap_profile', '')
+        
+        subscriber_details['inboundCommunicationBarred'] = False
+        subscriber_details['outboundCommunicationBarred'] = False
+
+        try:
+            subscriberShXml = ET.fromstring(subscriberShProfile)
+            namespaces = {
+                'default': 'http://uri.etsi.org/ngn/params/xml/simservs/xcap',
+                'cp': 'urn:ietf:params:xml:ns:common-policy'
+            }
+            incomingCommunicationBarringRuleActive, incomingCommunicationBarringAllowed = self.get_sh_profile_rules('incoming-communication-barring')
+            outgoingCommunicationBarringRuleActive, outgoingCommunicationBarringAllowed = self.get_sh_profile_rules('outgoing-communication-barring')
+
+            if incomingCommunicationBarringRuleActive:
+                if not incomingCommunicationBarringAllowed:
+                    subscriber_details['inboundCommunicationBarred'] = True
+
+            if outgoingCommunicationBarringRuleActive:
+                if not outgoingCommunicationBarringAllowed:
+                    subscriber_details['outboundCommunicationBarred'] = True
+
+        except Exception as e:
+            self.logTool.log(service='HSS', level='debug', message="Unable to parse Sh Profile XML for subscriber: " + str(subscriber_details), redisClient=self.redisMessaging)
 
         self.logTool.log(service='HSS', level='debug', message="Rendering template with values: " + str(subscriber_details), redisClient=self.redisMessaging)
         xmlbody = template.render(Sh_template_vars=subscriber_details)
+
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
         avp += self.generate_avp(268, 40, "000007d1")                                                   #DIAMETER_SUCCESS
