@@ -2152,7 +2152,7 @@ class Database:
                 ChargingRule['apn_data'] = apn_data
 
                 #Get Charging Rules list
-                if apn_data['charging_rule_list'] == None:
+                if not apn_data['charging_rule_list'] or apn_data['charging_rule_list'].strip() == '':
                     self.logTool.log(service='Database', level='debug', message="No Charging Rule associated with this APN", redisClient=self.redisMessaging)
                     ChargingRule['charging_rules'] = None
                     return ChargingRule
