@@ -2795,6 +2795,14 @@ class Diameter:
         except Exception as e: 
             self.logTool.log(service='HSS', level='debug', message="No Username", redisClient=self.redisMessaging)
 
+        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
+        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
+        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
+        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
+        
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
+
         if msisdn is not None:
                 self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on MSISDN", redisClient=self.redisMessaging)
                 try:
@@ -2845,14 +2853,6 @@ class Diameter:
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
             return response
-        
-        session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
-        avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
-        avp += self.generate_avp(264, 40, self.OriginHost)                                               #Origin Host
-        avp += self.generate_avp(296, 40, self.OriginRealm)                                              #Origin Realm
-        avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
-        
-        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
 
         #Sh-User-Data (XML)
         #This loads a Jinja XML template containing the Sh-User-Data
