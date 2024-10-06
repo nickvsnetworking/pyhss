@@ -2782,18 +2782,42 @@ class Diameter:
         scscf = None
         subscriberIsBarred = False
         username = None
+        subscriber_ims_details = None
         try:
             user_identity_avp = self.get_avp_data(avps, 700)[0]
-            msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
-            self.logTool.log(service='HSS', level='debug', message="Got raw MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
-            msisdn = self.TBCD_decode(msisdn)
-            self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
+            
+            #Try to get MSISDN
+            try:
+                msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
+                self.logTool.log(service='HSS', level='debug', message="Got raw MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
+                msisdn = self.TBCD_decode(msisdn)
+                self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)            
+                subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+                subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
+            except:
+            #Try to get the IMSI from the Public Identity
+                public_identity = self.get_avp_data(avps, 601)[0]
+                public_identity = binascii.unhexlify(public_identity).decode('utf-8')
+                self.logTool.log(service='HSS', level='debug', message="Got public_identity : " + str(public_identity), redisClient=self.redisMessaging)
+                if "sip:" in public_identity:
+                    public_identity = public_identity.replace("sip:", "")
+                
+                if "@" in public_identity:
+                    imsi = public_identity.split('@')[0]   #Strip Domain
+                    domain = public_identity.split('@')[1] #Get Domain Part
+                
+                if len(public_identity) == 15:
+                    imsi = public_identity
+                    self.logTool.log(service='HSS', level='debug', message="Got IMSI: " + str(imsi), redisClient=self.redisMessaging)                                                              
+                    subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
+                    subscriber_details = self.database.Get_Subscriber(imsi=imsi)
+                else:
+                    msisdn = public_identity
+                    self.logTool.log(service='HSS', level='debug', message="Got msisdn : " + str(msisdn), redisClient=self.redisMessaging)
+                    subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+                    subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
         except:
-            self.logTool.log(service='HSS', level='debug', message="No MSISDN", redisClient=self.redisMessaging)
-        try:
-            username = self.get_avp_data(avps, 601)[0]
-        except Exception as e: 
-            self.logTool.log(service='HSS', level='debug', message="No Username", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message="No User Identity present - This request is invalid", redisClient=self.redisMessaging)
 
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
@@ -2803,13 +2827,9 @@ class Diameter:
         
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
 
-        if msisdn is not None:
-                self.logTool.log(service='HSS', level='debug', message="Getting subscriber IMS info based on MSISDN", redisClient=self.redisMessaging)
+        if subscriber_ims_details is not None:
                 try:
-                    subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
                     self.logTool.log(service='HSS', level='debug', message="Got subscriber IMS details: " + str(subscriber_ims_details), redisClient=self.redisMessaging)
-                    self.logTool.log(service='HSS', level='debug', message="Getting subscriber info based on MSISDN", redisClient=self.redisMessaging)
-                    subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
                     imsi = subscriber_details.get('imsi', None)
                     scscf = subscriber_ims_details.get('scscf', None)
                     if scscf is not None:
@@ -2830,7 +2850,7 @@ class Diameter:
                     response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
                     return response
         else:
-            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI in Sh User-Data-Answer input", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='error', message="No MSISDN or IMSI matched from Sh User-Data-Answer input", redisClient=self.redisMessaging)
             if username is not None:
                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                                 metricType='counter', metricAction='inc', 
