@@ -36,7 +36,7 @@ class RedisMessaging:
         except Exception as e:
             return ''
 
-    def sendMetric(self, serviceName: str, metricName: str, metricType: str, metricAction: str, metricValue: float, metricHelp: str='', metricLabels: list=[], metricTimestamp: int=time.time_ns(), metricExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
+    def sendMetric(self, serviceName: str, metricName: str, metricType: str, metricAction: str, metricValue: float, metricInflux: dict={}, metricHelp: str='', metricLabels: list=[], metricTimestamp: int=time.time_ns(), metricExpiry: int=None, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common') -> str:
         """
         Stores a prometheus metric in a format readable by the metric service.
         """
@@ -52,6 +52,7 @@ class RedisMessaging:
         'LABELS': metricLabels,
         'ACTION': metricAction,
         'VALUE': metricValue,
+        'INFLUX': metricInflux,
         }
         ])
 

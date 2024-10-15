@@ -10,6 +10,7 @@ import jinja2
 from database import Database, ROAMING_NETWORK, ROAMING_RULE
 from messaging import RedisMessaging
 from redis import Redis
+import datetime
 import yaml
 import json
 import time
@@ -1742,6 +1743,12 @@ class Diameter:
                                                         "diameter_cmd_code": 318,
                                                         "event": "Unknown User",
                                                         "imsi_prefix": str(imsi[0:6])},
+                                            metricInflux={
+                                                            "measurement": "S6a_Authentication_Information_Request",
+                                                            "fields": {"Result-Code": 5001},
+                                                            "tags": {"IMSI": str(imsi)},
+                                                            "time": datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
+                                                        },
                                             metricHelp='Diameter Authentication related Counters',
                                             metricExpiry=60,
                                             usePrefix=True, 
