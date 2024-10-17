@@ -5,7 +5,9 @@ import socket
 from prometheus_client import make_wsgi_app, start_http_server, Counter, Gauge, Summary, Histogram, CollectorRegistry
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from flask import Flask
+from influxdb import InfluxDBClient
 import threading
+import traceback
 sys.path.append(os.path.realpath('../lib'))
 from messaging import RedisMessaging
 from banners import Banners
@@ -27,6 +29,40 @@ class MetricService:
         self.registry = CollectorRegistry(auto_describe=True)
         self.logTool.log(service='Metric', level='info', message=f"{self.banners.metricService()}", redisClient=self.redisMessaging)
         self.hostname = socket.gethostname()
+        self.influxEnabled = self.config.get('influxdb', {}).get('enabled', None)
+        self.influxDatabase = self.config.get('influxdb', {}).get('database', None)
+        self.influxUser = self.config.get('influxdb', {}).get('username', None)
+        self.influxPassword = self.config.get('influxdb', {}).get('password', None)
+        self.influxHost = self.config.get('influxdb', {}).get('host', None)
+        self.influxPort = self.config.get('influxdb', {}).get('port', None)
+
+    def processInfluxdb(self, influxData: dict) -> bool:
+        """
+        Sends defined InfluxDB Metrics to InfluxDB, if configured.
+        """
+
+        if not self.influxEnabled:
+            return True
+        if not self.influxDatabase:
+            return True
+        if not self.influxUser:
+            return True
+        if not self.influxPassword:
+            return True
+        if not self.influxHost:
+            return True
+        if not self.influxPort:
+            return True
+    
+        influxClient = InfluxDBClient(self.influxHost, self.influxPort, self.influxUser, self.influxPassword, self.influxDatabase)
+
+        if not isinstance(influxData, list):
+            influxData = [influxData]
+
+        influxClient.write_points(influxData)
+        
+        return True
+
     
     def handleMetrics(self):
         """
@@ -51,6 +87,13 @@ class MetricService:
                 counterValue = float(prometheusJson['VALUE'])
                 counterHelp = prometheusJson.get('HELP', '')
                 counterLabels = prometheusJson.get('LABELS', {})
+
+                try:
+                    metricInflux = prometheusJson.get('INFLUX', {})
+                    if metricInflux:
+                        self.processInfluxdb(influxData=metricInflux)
+                except Exception as e:
+                    self.logTool.log(service='Metric', level='warn', message=f"[Metric] [handleMetrics] Error processing metric InfluxDb content: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
                 if isinstance(counterLabels, list):
                             counterLabels = dict()

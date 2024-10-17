@@ -175,6 +175,14 @@ prometheus:
   port: 8081    #If the API is run the API runs on the next port number up from this
   async_subscriber_count: False    #If enabled the subscriber count will be updated asynchronously for Prometheus
 
+influxdb:
+  enabled: False
+  host: "127.0.0.1"
+  port: 8086
+  username: exampleUser
+  password: examplePassword
+  database: example
+
 snmp:
   port: 1161
   listen_address: 127.0.0.1
