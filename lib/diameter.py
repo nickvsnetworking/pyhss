@@ -3070,6 +3070,8 @@ class Diameter:
                     aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
                     aarOriginRealm = self.get_avp_data(avps, 296)[0]
                     aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
+                    aarSessionID = self.get_avp_data(avps, 263)[0]
+                    aarSessionID = bytes.fromhex(aarSessionID).decode('ascii')
                     #Check if we have a record-route set as that's where we'll need to send the response
                     try:
                         #Get first record-route header, then parse it
@@ -3266,7 +3268,7 @@ class Diameter:
                         "gbr_ul": ulBandwidth,
                         "precedence": 40,
                         "arp_priority": 15,
-                        "rule_name": "GBR-Voice",
+                        "rule_name": "GBR-Voice_" + str(aarSessionID),
                         "arp_preemption_vulnerability": arpPreemptionVulnerability,
                         "gbr_dl": dlBandwidth,
                         "tft_group_id": 1,
@@ -3457,6 +3459,13 @@ class Diameter:
                 servingPgwRealm = emergencySubscriberData.get('gx_origin_realm', None)
                 servingPgw = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
 
+            try:
+                aarSessionID = self.get_avp_data(avps, 263)[0]
+                aarSessionID = bytes.fromhex(aarSessionID).decode('ascii')
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Got Origional SessionID: {aarSessionID}", redisClient=self.redisMessaging)
+            except:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Error getting Origional SessionID: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                aarSessionID = ""
             if servingApn is not None or emergencySubscriberData:
                 reAuthAnswer = self.awaitDiameterRequestAndResponse(
                         requestType='RAR',
@@ -3464,7 +3473,7 @@ class Diameter:
                         sessionId=pcrfSessionId,
                         servingPgw=servingPgw,
                         servingRealm=servingPgwRealm,
-                        chargingRuleName='GBR-Voice',
+                        chargingRuleName='GBR-Voice_' + str(aarSessionID),
                         chargingRuleAction='remove'
                 )
             
