@@ -2988,6 +2988,7 @@ class Diameter:
             imsi = None
             msisdn = None
             identifier = None
+            apnId = None
             try:
                 serviceUrn = bytes.fromhex(self.get_avp_data(avps, 525)[0]).decode('ascii')
             except:
