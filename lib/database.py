@@ -2101,7 +2101,6 @@ class Database:
         return apnDict
 
     def Get_Serving_APN_By_IP(self, subscriberIp):
-        self.logTool.log(service='Database', level='debug', message="Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
