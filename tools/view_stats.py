@@ -1,4 +1,4 @@
-#This utility prints PyHSS stats stored in Redis
+# This utility prints PyHSS stats stored in Redis
 import yaml
 import sys
 with open(sys.path[0] + '/../config.yaml') as stream:
@@ -15,8 +15,9 @@ for key in sorted(keys):
 
 print("\n\nDiameter Peers:")
 ActivePeerDict = r.get('ActivePeerDict')
-if len(ActivePeerDict) == 0:
+if ActivePeerDict is None or len(ActivePeerDict) == 0:
     print("No connected peers.")
+    sys.exit()
 ActivePeerDict = json.loads(ActivePeerDict)
 
 for keys in ActivePeerDict:
