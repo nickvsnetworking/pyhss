@@ -3133,8 +3133,11 @@ class Diameter:
                                 if 'sos' in ipApnName.lower():
                                     registeredEmergencySubscriber = True
                                     apnId = (self.database.Get_APN_by_Name(apn="sos")).get('apn_id', None)
-                            else:
+                            if apnId == None:
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Getting ID for ims apn", redisClient=self.redisMessaging)
                                 apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
+                                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] ApnID: {apnId}", redisClient=self.redisMessaging)
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Getting Serving APN for subscriberId: {subscriberId} and apnId: {apnId}", redisClient=self.redisMessaging)
                             servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
                             servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
                             servingPgw = servingApn.get('serving_pgw', None)
