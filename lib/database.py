@@ -2100,6 +2100,23 @@ class Database:
 
         return apnDict
 
+    def Get_Serving_APN_By_IP(self, subscriberIp):
+        self.logTool.log(service='Database', level='debug', message="Getting Serving APN " + str(apn_id) + " with subscriber_id " + str(subscriber_id), redisClient=self.redisMessaging)
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+
+        try:
+            result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriberIp).first()
+        except Exception as E:
+            self.logTool.log(service='Database', level='debug', message=E, redisClient=self.redisMessaging)
+            self.safe_close(session)
+            raise ValueError(E)
+        result = result.__dict__
+        result.pop('_sa_instance_state')
+        
+        self.safe_close(session)
+        return result   
+
     def Get_Charging_Rule(self, charging_rule_id):
         self.logTool.log(service='Database', level='debug', message="Called Get_Charging_Rule() for  charging_rule_id " + str(charging_rule_id), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)

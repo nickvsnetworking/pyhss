@@ -3010,6 +3010,18 @@ class Diameter:
                     emergencySubscriber = True
             except Exception as e:
                 emergencySubscriberData = None
+            
+            """
+            If we didn't get a service urn, check if the IP represents a bearer for a local subscriber.
+            """
+            try:
+                if not serviceUrn:
+                    ipServingApn = self.database.Get_Serving_APN_By_IP(subscriberIp=ueIp)
+                    ipApnName = ''
+                    if ipServingApn:
+                        ipApnName = self.database.Get_APN(apn_id=ipServingApn.get('apn', None))
+            except Exception as e:
+                ipApnName = ''
 
             if '@' in subscriptionId:
                 subscriberIdentifier = subscriptionId.split('@')[0]
@@ -3106,7 +3118,7 @@ class Diameter:
                         else:
                             subscriberId = subscriberDetails.get('subscriber_id', None)
                             if serviceUrn:
-                                if 'sos' in str(serviceUrn).lower():
+                                if 'sos' in str(serviceUrn).lower() or 'sos' in ipApnName.lower():
                                     registeredEmergencySubscriber = True
                                     apnId = (self.database.Get_APN_by_Name(apn="sos")).get('apn_id', None)
                             else:
