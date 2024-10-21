@@ -3010,6 +3010,25 @@ class Diameter:
                     emergencySubscriber = True
             except Exception as e:
                 emergencySubscriberData = None
+            
+            """
+            If we didn't get a service urn, check if the IP represents a bearer for a local subscriber.
+            """
+            try:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Service URN: {serviceUrn}", redisClient=self.redisMessaging)
+                if not serviceUrn or serviceUrn == 'None' or serviceUrn == None:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Checking Get_Serving_APN_By_IP", redisClient=self.redisMessaging)
+                    ipServingApn = self.database.Get_Serving_APN_By_IP(subscriberIp=ueIp)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IP Serving APN: {ipServingApn}", redisClient=self.redisMessaging)
+                    ipApnName = ''
+                    if ipServingApn:
+                        ipApnName = self.database.Get_APN(apn_id=int(ipServingApn.get('apn', {})))
+                        ipApnName = ipApnName.get('apn', None)
+            except Exception as e:
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                ipApnName = ''
+
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IP APN Name: {ipApnName}", redisClient=self.redisMessaging)
 
             if '@' in subscriptionId:
                 subscriberIdentifier = subscriptionId.split('@')[0]
@@ -3107,6 +3126,10 @@ class Diameter:
                             subscriberId = subscriberDetails.get('subscriber_id', None)
                             if serviceUrn:
                                 if 'sos' in str(serviceUrn).lower():
+                                    registeredEmergencySubscriber = True
+                                    apnId = (self.database.Get_APN_by_Name(apn="sos")).get('apn_id', None)
+                            elif ipApnName:
+                                if 'sos' in ipApnName.lower():
                                     registeredEmergencySubscriber = True
                                     apnId = (self.database.Get_APN_by_Name(apn="sos")).get('apn_id', None)
                             else:
