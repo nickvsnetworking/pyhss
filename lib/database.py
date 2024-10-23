@@ -2190,7 +2190,7 @@ class Database:
         self.logTool.log(service='Database', level='debug', message="Called Get_UE_by_IP() for IP " + str(subscriber_routing), redisClient=self.redisMessaging)
 
         Session = sessionmaker(bind = self.engine)
-        session = Session()    
+        session = Session()
         
         try:
             result = session.query(SERVING_APN).filter_by(subscriber_routing=subscriber_routing).one()

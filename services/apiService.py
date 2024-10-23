@@ -1745,6 +1745,23 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
             
             return handle_exception(E)
 
+@ns_pcrf.route('/pcrf_serving_apn_ip/<string:ip_address>')
+class PyHSS_PCRF_Get_Serving_APN_IP(Resource):
+    def get(self, ip_address):
+        '''Get Serving APN Data for an IP Address'''
+        try:
+            serving_apn_final = {}
+            try:
+                serving_apn = databaseClient.Get_Serving_APN_By_IP(str(ip_address))
+            except:
+                serving_apn = None
+            if serving_apn:
+                serving_apn_final = databaseClient.Sanitize_Datetime(serving_apn)
+            return serving_apn_final, 200
+        except Exception as E:
+            print("Flask Exception: " + str(E))
+            return handle_exception(E)
+
 @ns_pcrf.route('/')
 class PyHSS_PCRF(Resource):
     @ns_pcrf.doc('Push Charging Rule to a Subscriber')

@@ -15,6 +15,7 @@ import yaml
 import json
 import time
 import socket
+import requests
 import traceback
 import re
 from baseModels import Peer, OutboundData
@@ -2989,6 +2990,8 @@ class Diameter:
             msisdn = None
             identifier = None
             apnId = None
+            remoteServingApn = None
+            servingApn = None
             try:
                 serviceUrn = bytes.fromhex(self.get_avp_data(avps, 525)[0]).decode('ascii')
             except:
@@ -3025,6 +3028,18 @@ class Diameter:
                     if ipServingApn:
                         ipApnName = self.database.Get_APN(apn_id=int(ipServingApn.get('apn', {})))
                         ipApnName = ipApnName.get('apn', None)
+                    else:
+                        #If we didn't find a serving APN for the IP, try the other local HSS'.
+                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', [])
+                        for localGeoredEndpoint in localGeoredEndpoints:
+                            response = requests.get(url=f"{localGeoredEndpoint}/pcrf/pcrf_serving_apn_ip/{ueIp}")
+                            responseJson = response.json()
+                            if not responseJson:
+                                continue
+                            remoteServingApn = responseJson
+                            ipApnName = self.database.Get_APN(apn_id=int(remoteServingApn.get('apn', {})))
+                            ipApnName = ipApnName.get('apn', None)
+
             except Exception as e:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 ipApnName = ''
@@ -3138,7 +3153,10 @@ class Diameter:
                                 apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] ApnID: {apnId}", redisClient=self.redisMessaging)
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Getting Serving APN for subscriberId: {subscriberId} and apnId: {apnId}", redisClient=self.redisMessaging)
-                            servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                            if remoteServingApn:
+                                servingApn = remoteServingApn
+                            else:
+                                servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
                             servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
                             servingPgw = servingApn.get('serving_pgw', None)
                             servingPgwRealm = servingApn.get('serving_pgw_realm', None)
