@@ -3022,7 +3022,7 @@ class Diameter:
             try:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Service URN: {serviceUrn}", redisClient=self.redisMessaging)
                 if not serviceUrn or serviceUrn == 'None' or serviceUrn == None:
-                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Checking Get_Serving_APN_By_IP", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Checking Get_Serving_APN_By_IP for UE IP: {ueIp}", redisClient=self.redisMessaging)
                     try:
                         ipServingApn = self.database.Get_Serving_APN_By_IP(subscriberIp=ueIp)
                     except:
@@ -3036,9 +3036,12 @@ class Diameter:
                         #If we didn't find a serving APN for the IP, try the other local HSS'.
                         localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', [])
                         for localGeoredEndpoint in localGeoredEndpoints:
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Searching remote HSS for serving apn: {localGeoredEndpoint}", redisClient=self.redisMessaging)
-                            response = requests.get(url=f"{localGeoredEndpoint}/pcrf/pcrf_serving_apn_ip/{ueIp}")
+                            endpointUrl = f"{localGeoredEndpoint}/pcrf/pcrf_serving_apn_ip/{ueIp}"
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Searching remote HSS for serving apn: {endpointUrl}", redisClient=self.redisMessaging)
+                            response = requests.get(url=endpointUrl)
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Response: {response.text}", redisClient=self.redisMessaging)
                             responseJson = response.json()
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Response JSON: {responseJson}", redisClient=self.redisMessaging)
                             if not responseJson:
                                 continue
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Recieved response from remote HSS: {responseJson}", redisClient=self.redisMessaging)
@@ -3513,9 +3516,9 @@ class Diameter:
             try:
                 aarSessionID = self.get_avp_data(avps, 263)[0]
                 aarSessionID = bytes.fromhex(aarSessionID).decode('ascii')
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Got Origional SessionID: {aarSessionID}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Got Original SessionID: {aarSessionID}", redisClient=self.redisMessaging)
             except:
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Error getting Origional SessionID: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Error getting Original SessionID: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 aarSessionID = ""
             if servingApn is not None or emergencySubscriberData:
                 reAuthAnswer = self.awaitDiameterRequestAndResponse(
