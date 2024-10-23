@@ -3036,10 +3036,12 @@ class Diameter:
                         #If we didn't find a serving APN for the IP, try the other local HSS'.
                         localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', [])
                         for localGeoredEndpoint in localGeoredEndpoints:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Searching remote HSS for serving apn: {localGeoredEndpoint}", redisClient=self.redisMessaging)
                             response = requests.get(url=f"{localGeoredEndpoint}/pcrf/pcrf_serving_apn_ip/{ueIp}")
                             responseJson = response.json()
                             if not responseJson:
                                 continue
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Recieved response from remote HSS: {responseJson}", redisClient=self.redisMessaging)
                             remoteServingApn = responseJson
                             ipApnName = self.database.Get_APN(apn_id=int(remoteServingApn.get('apn', {})))
                             ipApnName = ipApnName.get('apn', None)
