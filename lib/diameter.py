@@ -2992,6 +2992,7 @@ class Diameter:
             apnId = None
             remoteServingApn = None
             servingApn = None
+            ipServingApn = None
             try:
                 serviceUrn = bytes.fromhex(self.get_avp_data(avps, 525)[0]).decode('ascii')
             except:
@@ -3022,7 +3023,10 @@ class Diameter:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Service URN: {serviceUrn}", redisClient=self.redisMessaging)
                 if not serviceUrn or serviceUrn == 'None' or serviceUrn == None:
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Checking Get_Serving_APN_By_IP", redisClient=self.redisMessaging)
-                    ipServingApn = self.database.Get_Serving_APN_By_IP(subscriberIp=ueIp)
+                    try:
+                        ipServingApn = self.database.Get_Serving_APN_By_IP(subscriberIp=ueIp)
+                    except:
+                        ipServingApn = None
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IP Serving APN: {ipServingApn}", redisClient=self.redisMessaging)
                     ipApnName = ''
                     if ipServingApn:
