@@ -14,6 +14,7 @@ import datetime
 import yaml
 import json
 import time
+import xmltodict
 import socket
 import requests
 import traceback
@@ -341,7 +342,7 @@ class Diameter:
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [generate_diameter_packet] Exception: {e}", redisClient=self.redisMessaging)
 
-    def get_sh_profile_rules(self, serviceName, xmlRoot, xmlNamespace):
+    def get_sh_profile_call_barring_rules(self, serviceName, xmlRoot, xmlNamespace):
         service = xmlRoot.find(f'default:{serviceName}', xmlNamespace)
         if service is not None:
             active = service.get('active')
@@ -350,6 +351,78 @@ class Diameter:
             return active, allowValue
         return None, None
 
+    def get_sh_profile_call_forwarding_rules(self, serviceName, xmlRoot, xmlNamespace):
+        """
+        Parse call forwarding rules from XCAP XML.
+        Returns a tuple of (active_status, rules_dict) where rules_dict contains the forwarding rules
+        for different conditions including unconditional forwarding.
+        """
+        service = xmlRoot.find(f'default:{serviceName}', xmlNamespace)
+        if service is None:
+            self.logTool.log(service='HSS', level='debug', message=f"Service {serviceName} not found", redisClient=self.redisMessaging)
+            return None, None
+
+        active = service.get('active') == 'true'
+        
+        forwarding_rules = {}
+        
+        ruleset = service.find('.//cp:ruleset', xmlNamespace)
+        self.logTool.log(service='HSS', level='debug', message=f"Found ruleset: {ruleset is not None}", redisClient=self.redisMessaging)
+        
+        if ruleset is not None:
+            rules = ruleset.findall('cp:rule', xmlNamespace)
+            self.logTool.log(service='HSS', level='debug', message=f"Number of rules found: {len(rules)}", redisClient=self.redisMessaging)
+            
+            for rule in rules:
+                rule_id = rule.get('id')
+                if rule_id is None:
+                    continue
+                    
+                self.logTool.log(service='HSS', level='debug', message=f"Processing rule ID: {rule_id}", redisClient=self.redisMessaging)
+                
+                conditions = rule.find('.//cp:conditions', xmlNamespace)
+                condition = None
+                
+                if conditions is not None:
+                    condition_children = list(conditions)
+                    if len(condition_children) == 0:
+                        condition = "unconditional"
+                        self.logTool.log(service='HSS', level='debug', message="Found unconditional forwarding rule (empty conditions)", redisClient=self.redisMessaging)
+                    elif len(condition_children) == 1:
+                        first_condition = condition_children[0]
+                        condition_tag = first_condition.tag.split('}')[-1]
+                        if condition_tag == 'rule-deactivated':
+                            condition = "unconditional"
+                            self.logTool.log(service='HSS', level='debug', message="Found unconditional forwarding rule (rule-deactivated)", redisClient=self.redisMessaging)
+                        else:
+                            condition = condition_tag
+                            self.logTool.log(service='HSS', level='debug', message=f"Found condition: {condition}", redisClient=self.redisMessaging)
+                else:
+                    condition = "unconditional"
+                    self.logTool.log(service='HSS', level='debug', message="Found unconditional forwarding rule (no conditions element)", redisClient=self.redisMessaging)
+                    
+                actions = rule.find('.//cp:actions', xmlNamespace)
+                if actions is not None:
+                    forward_to = actions.find('.//default:forward-to', xmlNamespace)
+                    if forward_to is not None:
+                        target = forward_to.find('.//default:target', xmlNamespace)
+                        if target is not None:
+                            self.logTool.log(service='HSS', level='debug', message=f"Found target: {target.text}", redisClient=self.redisMessaging)
+                            forwarding_rules[rule_id] = {
+                                'condition': condition,
+                                'target': target.text
+                            }
+                        else:
+                            self.logTool.log(service='HSS', level='debug', message="No target element found", redisClient=self.redisMessaging)
+                    else:
+                        self.logTool.log(service='HSS', level='debug', message="No forward-to element found", redisClient=self.redisMessaging)
+        
+        no_reply_timer = service.find('.//default:NoReplyTimer', xmlNamespace)
+        if no_reply_timer is not None:
+            forwarding_rules['NoReplyTimer'] = no_reply_timer.text
+
+        return active, forwarding_rules
+    
     def roundUpToMultiple(self, n, multiple):
         return ((n + multiple - 1) // multiple) * multiple
 
@@ -2896,9 +2969,10 @@ class Diameter:
         subscriberShProfile = subscriber_details.get('sh_profile', '')
         if not subscriberShProfile:
             subscriberShProfile = subscriber_details.get('xcap_profile', '')
-        
+
         subscriber_details['inboundCommunicationBarred'] = False
         subscriber_details['outboundCommunicationBarred'] = False
+        subscriber_details['callForwarding'] = {'enabled': True, 'unconditional': False, 'notRegistered': False, 'noAnswer': False, 'busy': False, 'notReachable': False, 'noReplyTimer': 20}
 
         try:
             subscriberShXml = ET.fromstring(subscriberShProfile)
@@ -2906,8 +2980,12 @@ class Diameter:
                 'default': 'http://uri.etsi.org/ngn/params/xml/simservs/xcap',
                 'cp': 'urn:ietf:params:xml:ns:common-policy'
             }
-            incomingCommunicationBarringRuleActive, incomingCommunicationBarringAllowed = self.get_sh_profile_rules('incoming-communication-barring')
-            outgoingCommunicationBarringRuleActive, outgoingCommunicationBarringAllowed = self.get_sh_profile_rules('outgoing-communication-barring')
+            incomingCommunicationBarringRuleActive, incomingCommunicationBarringAllowed = self.get_sh_profile_call_barring_rules('incoming-communication-barring', subscriberShXml, namespaces)
+            outgoingCommunicationBarringRuleActive, outgoingCommunicationBarringAllowed = self.get_sh_profile_call_barring_rules('outgoing-communication-barring', subscriberShXml, namespaces)
+
+            call_forwarding_active, call_forwarding_rules = self.get_sh_profile_call_forwarding_rules('communication-diversion', subscriberShXml, namespaces)
+            self.logTool.log(service='HSS', level='debug', message=f"Call forwarding rules enabled: {call_forwarding_active}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"Call forwarding rules: {call_forwarding_rules}", redisClient=self.redisMessaging)
 
             if incomingCommunicationBarringRuleActive:
                 if not incomingCommunicationBarringAllowed:
@@ -2916,12 +2994,52 @@ class Diameter:
             if outgoingCommunicationBarringRuleActive:
                 if not outgoingCommunicationBarringAllowed:
                     subscriber_details['outboundCommunicationBarred'] = True
+            
+            try:
+                if call_forwarding_active:
+                    subscriber_details['callForwarding']['notRegistered'] = call_forwarding_rules['not-registered']['target']
+            except:
+                pass
+
+            try:
+                if call_forwarding_active:
+                    subscriber_details['callForwarding']['noAnswer'] = call_forwarding_rules['no-answer']['target']
+            except:
+                pass
+
+            try:
+                if call_forwarding_active:
+                    subscriber_details['callForwarding']['busy'] = call_forwarding_rules['busy']['target']
+            except:
+                pass
+
+            try:
+                if call_forwarding_active:
+                    subscriber_details['callForwarding']['notReachable'] = call_forwarding_rules['not-reachable']['target']
+            except:
+                pass
+
+            try:
+                if call_forwarding_active:
+                    subscriber_details['callForwarding']['unconditional'] = call_forwarding_rules['forward-unconditional']['target']
+            except:
+                pass
+
+            try:
+                if call_forwarding_active:
+                    subscriber_details['callForwarding']['noReplyTimer'] = int(call_forwarding_rules['NoReplyTimer'])
+            except:
+                pass
+
 
         except Exception as e:
             self.logTool.log(service='HSS', level='debug', message="Unable to parse Sh Profile XML for subscriber: " + str(subscriber_details), redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"{traceback.format_exc()}", redisClient=self.redisMessaging)
 
         self.logTool.log(service='HSS', level='debug', message="Rendering template with values: " + str(subscriber_details), redisClient=self.redisMessaging)
         xmlbody = template.render(Sh_template_vars=subscriber_details)
+
+        self.logTool.log(service='HSS', level='debug', message=f"Template: {template}", redisClient=self.redisMessaging)
 
         avp += self.generate_vendor_avp(702, "c0", 10415, str(binascii.hexlify(str.encode(xmlbody)),'ascii'))
         
