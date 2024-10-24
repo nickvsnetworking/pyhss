@@ -14,7 +14,6 @@ import datetime
 import yaml
 import json
 import time
-import xmltodict
 import socket
 import requests
 import traceback
