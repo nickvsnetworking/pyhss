@@ -853,13 +853,13 @@ class Diameter:
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages(NoSessionId): {queuedMessages}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
-                                    clientAddress = queuedMessage.SenderIp
-                                    clientPort = queuedMessage.SenderPort
+                                    clientAddress = queuedMessage.get('SenderIp', None)
+                                    clientPort = queuedMessage.get('SenderPort', None)
                                     if clientAddress != peerIp or clientPort != peerPort:
                                         continue
                                     messageReceiveTime = queuedMessage.get('InitialReceiveTimestamp', None)
                                     if float(messageReceiveTime) > sendTime:
-                                        messageHex = queuedMessage.get('diameter-inbound')
+                                        messageHex = queuedMessage.get('InboundHex')
                                         messageType = self.getDiameterMessageType(messageHex)
                                         if messageType['inbound'].upper() == responseType.upper():
                                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] Found inbound response: {messageHex}", redisClient=self.redisMessaging)
@@ -870,13 +870,13 @@ class Diameter:
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [awaitDiameterRequestAndResponse] [{requestType}] queuedMessages({sessionId}): {queuedMessages} responseType: {responseType}", redisClient=self.redisMessaging)
                                 for queuedMessage in queuedMessages:
                                     queuedMessage = json.loads(queuedMessage)
-                                    clientAddress = queuedMessage.SenderIp
-                                    clientPort = queuedMessage.SenderPort
+                                    clientAddress = queuedMessage.get('SenderIp', None)
+                                    clientPort = queuedMessage.get('SenderPort', None)
                                     if clientAddress != peerIp or clientPort != peerPort:
                                         continue
                                     messageReceiveTime = queuedMessage.get('InitialReceiveTimestamp', None)
                                     if float(messageReceiveTime) > sendTime:
-                                        messageHex = queuedMessage.get('diameter-inbound')
+                                        messageHex = queuedMessage.get('InboundHex')
                                         messageType = self.getDiameterMessageType(messageHex)
                                         if messageType['inbound'].upper() == responseType.upper():
                                             packetVars, avps = self.decode_diameter_packet(messageHex)
@@ -3601,6 +3601,24 @@ class Diameter:
                 subscriberId = subscriber.get('subscriber_id', None)
                 apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
                 servingApn = self.database.Get_Serving_APN(subscriber_id=subscriberId, apn_id=apnId)
+                try:
+                    if not servingApn or servingApn == None or servingApn == 'None':
+                        #If we didn't find a serving APN for the Subscriber, try the other local HSS'.
+                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', [])
+                        for localGeoredEndpoint in localGeoredEndpoints:
+                            endpointUrl = f"{localGeoredEndpoint}/pcrf/pcrf_subscriber_imsi/{imsi}"
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Searching remote HSS for serving apn: {endpointUrl}", redisClient=self.redisMessaging)
+                            response = requests.get(url=endpointUrl, timeout=1)
+                            responseJson = response.json()
+                            if not responseJson:
+                                continue
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Recieved response from remote HSS: {responseJson}", redisClient=self.redisMessaging)
+                            remoteServingApn = responseJson
+                            servingImsApn = remoteServingApn.get('apns', {}).get('ims', {})
+                            if servingImsApn:
+                                servingApn = servingImsApn
+                except:
+                    self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [Answer_16777236_275] [STA] Error Searching remote HSS for serving apn: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 if servingApn is not None:
                     servingPgw = servingApn.get('serving_pgw', '')
                     servingPgwRealm = servingApn.get('serving_pgw_realm', '')
