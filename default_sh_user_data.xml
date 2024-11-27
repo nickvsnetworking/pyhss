@@ -27,12 +27,16 @@
         <!-- The following values are not 3gpp-standardised. Remove if your deployment requires 3gpp-compliant XML. -->
         <InboundCommunicationBarred>{{ Sh_template_vars['inboundCommunicationBarred'] }}</InboundCommunicationBarred>
         <OutboundCommunicationBarred>{{ Sh_template_vars['outboundCommunicationBarred'] }}</OutboundCommunicationBarred>
-        <CallForwardActive>{{ Sh_template_vars['callForwarding']['enabled'] }}</CallForwardActive>
-        <CallForwardUnconditional>{{ Sh_template_vars['callForwarding']['unconditional'] }}</CallForwardUnconditional>
-        <CallForwardNotRegistered>{{ Sh_template_vars['callForwarding']['notRegistered'] }}</CallForwardNotRegistered>
-        <CallForwardNoAnswer>{{ Sh_template_vars['callForwarding']['noAnswer'] }}</CallForwardNoAnswer>
-        <CallForwardBusy>{{ Sh_template_vars['callForwarding']['busy'] }}</CallForwardBusy>
-        <CallForwardNotReachable>{{ Sh_template_vars['callForwarding']['notReachable'] }}</CallForwardNotReachable>
+        <CallForwardUnconditionalTarget>{{ Sh_template_vars['callForwarding']['unconditional']['target'] }}</CallForwardUnconditionalTarget>
+        <CallForwardUnconditionalCondition>{{ Sh_template_vars['callForwarding']['unconditional']['condition'] }}</CallForwardUnconditionalCondition>
+        <CallForwardNotRegisteredTarget>{{ Sh_template_vars['callForwarding']['notRegistered']['target'] }}</CallForwardNotRegisteredTarget>
+        <CallForwardNotRegisteredCondition>{{ Sh_template_vars['callForwarding']['notRegistered']['condition'] }}</CallForwardNotRegisteredCondition>
+        <CallForwardNoAnswerTarget>{{ Sh_template_vars['callForwarding']['noAnswer']['target'] }}</CallForwardNoAnswerTarget>
+        <CallForwardNoAnswerCondition>{{ Sh_template_vars['callForwarding']['noAnswer']['condition'] }}</CallForwardNoAnswerCondition>
+        <CallForwardBusyTarget>{{ Sh_template_vars['callForwarding']['busy']['target'] }}</CallForwardBusyTarget>
+        <CallForwardBusyCondition>{{ Sh_template_vars['callForwarding']['busy']['condition'] }}</CallForwardBusyCondition>
+        <CallForwardNotReachableTarget>{{ Sh_template_vars['callForwarding']['notReachable']['target'] }}</CallForwardNotReachableTarget>
+        <CallForwardNotReachableCondition>{{ Sh_template_vars['callForwarding']['notReachable']['condition'] }}</CallForwardNotReachableCondition>
         <CallForwardNoReplyTimer>{{ Sh_template_vars['callForwarding']['noReplyTimer'] }}</CallForwardNoReplyTimer>
     </Sh-IMS-Data>
 

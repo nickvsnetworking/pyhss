@@ -391,8 +391,8 @@ class Diameter:
                         first_condition = condition_children[0]
                         condition_tag = first_condition.tag.split('}')[-1]
                         if condition_tag == 'rule-deactivated':
-                            condition = "unconditional"
-                            self.logTool.log(service='HSS', level='debug', message="Found unconditional forwarding rule (rule-deactivated)", redisClient=self.redisMessaging)
+                            condition = "rule-deactivated"
+                            self.logTool.log(service='HSS', level='debug', message="Found rule-deactivated condition", redisClient=self.redisMessaging)
                         else:
                             condition = condition_tag
                             self.logTool.log(service='HSS', level='debug', message=f"Found condition: {condition}", redisClient=self.redisMessaging)
@@ -2971,7 +2971,22 @@ class Diameter:
 
         subscriber_details['inboundCommunicationBarred'] = False
         subscriber_details['outboundCommunicationBarred'] = False
-        subscriber_details['callForwarding'] = {'enabled': True, 'unconditional': False, 'notRegistered': False, 'noAnswer': False, 'busy': False, 'notReachable': False, 'noReplyTimer': 20}
+        subscriber_details['callForwarding'] = {'unconditional': {
+            'target': '',
+            'condition': ''
+        }, 'notRegistered': {
+            'target': '',
+            'condition': ''
+        }, 'noAnswer': {
+            'target': '',
+            'condition': ''
+        }, 'busy': {
+            'target': '',
+            'condition': ''
+        }, 'notReachable': {
+            'target': '',
+            'condition': ''
+        }, 'noReplyTimer': 20}
 
         try:
             subscriberShXml = ET.fromstring(subscriberShProfile)
@@ -2993,43 +3008,41 @@ class Diameter:
             if outgoingCommunicationBarringRuleActive:
                 if not outgoingCommunicationBarringAllowed:
                     subscriber_details['outboundCommunicationBarred'] = True
-            
+
             try:
-                if call_forwarding_active:
-                    subscriber_details['callForwarding']['notRegistered'] = call_forwarding_rules['not-registered']['target']
+                subscriber_details['callForwarding']['notRegistered']['target'] = call_forwarding_rules['not-registered']['target']
+                subscriber_details['callForwarding']['notRegistered']['condition'] = call_forwarding_rules['not-registered']['condition']
             except:
                 pass
 
             try:
-                if call_forwarding_active:
-                    subscriber_details['callForwarding']['noAnswer'] = call_forwarding_rules['no-answer']['target']
+                subscriber_details['callForwarding']['noAnswer']['target'] = call_forwarding_rules['no-answer']['target']
+                subscriber_details['callForwarding']['noAnswer']['condition'] = call_forwarding_rules['no-answer']['condition']
             except:
                 pass
 
             try:
-                if call_forwarding_active:
-                    subscriber_details['callForwarding']['busy'] = call_forwarding_rules['busy']['target']
+                subscriber_details['callForwarding']['busy']['target'] = call_forwarding_rules['busy']['target']
+                subscriber_details['callForwarding']['busy']['condition'] = call_forwarding_rules['busy']['condition']
             except:
                 pass
 
             try:
-                if call_forwarding_active:
-                    subscriber_details['callForwarding']['notReachable'] = call_forwarding_rules['not-reachable']['target']
+                subscriber_details['callForwarding']['notReachable']['target'] = call_forwarding_rules['not-reachable']['target']
+                subscriber_details['callForwarding']['notReachable']['condition'] = call_forwarding_rules['not-reachable']['condition']
             except:
                 pass
 
             try:
-                if call_forwarding_active:
-                    subscriber_details['callForwarding']['unconditional'] = call_forwarding_rules['forward-unconditional']['target']
+                subscriber_details['callForwarding']['unconditional']['target'] = call_forwarding_rules['unconditional']['target']
+                subscriber_details['callForwarding']['unconditional']['condition'] = call_forwarding_rules['unconditional']['condition']
             except:
                 pass
 
             try:
-                if call_forwarding_active:
-                    subscriber_details['callForwarding']['noReplyTimer'] = int(call_forwarding_rules['NoReplyTimer'])
+                subscriber_details['callForwarding']['noReplyTimer'] = int(call_forwarding_rules['NoReplyTimer'])
             except:
                 pass
-
 
         except Exception as e:
             self.logTool.log(service='HSS', level='debug', message="Unable to parse Sh Profile XML for subscriber: " + str(subscriber_details), redisClient=self.redisMessaging)
