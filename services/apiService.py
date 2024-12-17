@@ -1785,7 +1785,6 @@ class PyHSS_PCRF(Resource):
         print("Got ChargingRule: " + str(ChargingRule))
 
         subscriberId = subscriber_data.get('subscriber_id', None)
-        apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
         servingPgwPeer = servingApn.get('serving_pgw_peer', None).split(';')[0]
         servingPgw = servingApn.get('serving_pgw', None)
         servingPgwRealm = servingApn.get('serving_pgw_realm', None)
