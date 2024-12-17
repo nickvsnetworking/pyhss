@@ -1693,12 +1693,12 @@ class Database:
             result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
             if self.config['hss']['CancelLocationRequest_Enabled'] == True:
                 self.logTool.log(service='Database', level='debug', message="Evaluating if we should trigger sending a CLR.", redisClient=self.redisMessaging)
-                serving_hss = str(result.serving_mme_peer).split(';',1)[1]
-                serving_mme_peer = str(result.serving_mme_peer).split(';',1)[0]
-                self.logTool.log(service='Database', level='debug', message="Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer), redisClient=self.redisMessaging)
-                self.logTool.log(service='Database', level='debug', message="Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer), redisClient=self.redisMessaging)
-                #Evaluate if we need to send a CLR to the old MME
                 if result.serving_mme != None:
+                    serving_hss = str(result.serving_mme_peer).split(';',1)[1]
+                    serving_mme_peer = str(result.serving_mme_peer).split(';',1)[0]
+                    self.logTool.log(service='Database', level='debug', message="Subscriber is currently served by serving_mme: " + str(result.serving_mme) + " at realm " + str(result.serving_mme_realm) + " through Diameter peer " + str(result.serving_mme_peer), redisClient=self.redisMessaging)
+                    self.logTool.log(service='Database', level='debug', message="Subscriber is now       served by serving_mme: " + str(serving_mme) + " at realm " + str(serving_mme_realm) + " through Diameter peer " + str(serving_mme_peer), redisClient=self.redisMessaging)
+                    #Evaluate if we need to send a CLR to the old MME
                     if str(result.serving_mme) == str(serving_mme):
                         self.logTool.log(service='Database', level='debug', message="This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR", redisClient=self.redisMessaging)
                     elif (str(result.serving_mme) != str(serving_mme)):
