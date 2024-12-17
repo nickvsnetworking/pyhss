@@ -93,6 +93,9 @@ hss:
     rtoMin: 500
     rtoInitial: 1000
 
+  gsup:
+    bind_ip: "0.0.0.0"
+    bind_port: 4222
 
 api:
   page_size: 200
