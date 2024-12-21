@@ -3130,6 +3130,7 @@ class Diameter:
                 emergencySubscriberData = self.database.Get_Emergency_Subscriber(subscriberIp=ueIp)
                 if emergencySubscriberData:
                     emergencySubscriber = True
+                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777236_265] [AAA] emergencySubscriber is True", redisClient=self.redisMessaging)
             except Exception as e:
                 emergencySubscriberData = None
             
@@ -3268,12 +3269,14 @@ class Diameter:
                             subscriberId = subscriberDetails.get('subscriber_id', None)
                             if serviceUrn:
                                 if 'sos' in str(serviceUrn).lower():
-                                    registeredEmergencySubscriber = True
+                                    registeredEmergencySubscriber = True                                    
                                     apnId = (self.database.Get_APN_by_Name(apn="sos")).get('apn_id', None)
+                                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777236_265] [AAA] registeredEmergencySubscriber is True as this is SOS APN", redisClient=self.redisMessaging)
                             elif ipApnName:
                                 if 'sos' in ipApnName.lower():
                                     registeredEmergencySubscriber = True
                                     apnId = (self.database.Get_APN_by_Name(apn="sos")).get('apn_id', None)
+                                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777236_265] [AAA] registeredEmergencySubscriber is True as this is SOS APN", redisClient=self.redisMessaging)
                             if apnId == None:
                                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Getting ID for ims apn", redisClient=self.redisMessaging)
                                 apnId = (self.database.Get_APN_by_Name(apn="ims")).get('apn_id', None)
@@ -3424,6 +3427,7 @@ class Diameter:
                         """
 
                         if emergencySubscriber or registeredEmergencySubscriber:
+                            self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777236_265] [AAA] Setting ARP to PreEmpt as this is an emergency bearer", redisClient=self.redisMessaging)
                             arpPreemptionCapability = True
                             arpPreemptionVulnerability = False
                         else:
@@ -3438,7 +3442,7 @@ class Diameter:
                         "mbr_ul": ulBandwidth,
                         "gbr_ul": ulBandwidth,
                         "precedence": 40,
-                        "arp_priority": 15,
+                        "arp_priority": 11,
                         "rule_name": "GBR-Voice_" + str(aarSessionID),
                         "arp_preemption_vulnerability": arpPreemptionVulnerability,
                         "gbr_dl": dlBandwidth,
