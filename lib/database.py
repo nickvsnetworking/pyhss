@@ -356,11 +356,17 @@ class Database:
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
-        if str(self.config['database']['db_type']) == 'postgresql':
+        db_type = str(self.config['database']['db_type'])
+
+        if db_type == 'postgresql':
             db_string = 'postgresql+psycopg2://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'])
-        else:
+        elif db_type == 'mysql':
             db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
-        
+        elif db_type == 'sqlite':
+            db_string = "sqlite:///" + str(self.config['database']['database'])
+        else:
+            raise RuntimeError(f'Invalid database.db_type set "{db_type}"')
+
         self.hostname = socket.gethostname()        
         
         self.engine = create_engine(
