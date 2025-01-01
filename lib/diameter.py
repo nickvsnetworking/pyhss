@@ -990,7 +990,9 @@ class Diameter:
         """
         Ensures that a given IMSI or MSISDN (Or both, if specified) are associated with a subscriber that is enabled, and has an associated IMS Subscriber record.
         """
+        self.logTool.log(service='AS', level='debug', message=f"[diameter.py] [validateImsSubscriber] Checking subscriber with IMSI {imsi} / MSISDN {msisdn} is associated with a subscriber that is enabled and has an IMS Subscriber record", redisClient=self.redisMessaging)
         if imsi == None and msisdn == None:
+            self.logTool.log(service='AS', level='info', message=f"[diameter.py] [validateImsSubscriber] Neither an IMSI or an MSISDN was passed", redisClient=self.redisMessaging)
             return False
 
         try:
@@ -999,6 +1001,7 @@ class Diameter:
                 if not subscriberDetails.get('enabled', False):
                     return False
                 imsSubscriberDetails = self.database.Get_IMS_Subscriber(imsi=imsi)
+                self.logTool.log(service='AS', level='debug', message=f"[diameter.py] [validateImsSubscriber] IMS Subscriber validated based on IMSI OK", redisClient=self.redisMessaging)
         except Exception as e:
             return False
         try:
@@ -1007,6 +1010,7 @@ class Diameter:
                 if not subscriberDetails.get('enabled', False):
                     return False
                 imsSubscriberDetails = self.database.Get_IMS_Subscriber(msisdn=msisdn)
+                self.logTool.log(service='AS', level='debug', message=f"[diameter.py] [validateImsSubscriber] IMS Subscriber validated based on MSISDN OK", redisClient=self.redisMessaging)
         except Exception as e:
             return False
         
@@ -1306,11 +1310,12 @@ class Diameter:
             Bandwidth_info += self.generate_vendor_avp(515, "c0", 10415, self.int_to_hex(int(ChargingRules['mbr_dl']), 4))
 
             self.logTool.log(service='HSS', level='debug', message="Defining GBR information", redisClient=self.redisMessaging)
-            #GBR
-            if int(ChargingRules['gbr_ul']) != 0:
-                Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
-            if int(ChargingRules['gbr_dl']) != 0:                
-                Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
+            #GBR values are only valid for QCI 1 to 4
+            if int(ChargingRules['qci']) <= 4:
+                if int(ChargingRules['gbr_ul']) != 0:
+                    Bandwidth_info += self.generate_vendor_avp(1026, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_ul']), 4))
+                if int(ChargingRules['gbr_dl']) != 0:
+                    Bandwidth_info += self.generate_vendor_avp(1025, "c0", 10415, self.int_to_hex(int(ChargingRules['gbr_dl']), 4))
             self.logTool.log(service='HSS', level='debug', message="Defined Bandwith Info: " + str(Bandwidth_info), redisClient=self.redisMessaging)
 
             #Populate QoS Information
@@ -3130,7 +3135,7 @@ class Diameter:
                 emergencySubscriberData = self.database.Get_Emergency_Subscriber(subscriberIp=ueIp)
                 if emergencySubscriberData:
                     emergencySubscriber = True
-                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777236_265] [AAA] emergencySubscriber is True", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777236_265] [AAA] emergencySubscriber is True as data exists in Get_Emergency_Subscriber", redisClient=self.redisMessaging)
             except Exception as e:
                 emergencySubscriberData = None
             
@@ -3213,7 +3218,7 @@ class Diameter:
                 except Exception as e:
                     pass
 
-            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] IMSI: {imsi} / MSISDN: {msisdn}", redisClient=self.redisMessaging)
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
 
             if imsEnabled or emergencySubscriber:
@@ -3221,10 +3226,10 @@ class Diameter:
                 Add the PCSCF to the IMS_Subscriber object, and set the result code to 2001.
                 """
 
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
 
                 if imsEnabled and not emergencySubscriber:
-
+                    self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] imsEnabled on Subscriber and not emergencySubscriber", redisClient=self.redisMessaging)
                     if imsi is None:
                         imsi = subscriberDetails.get('imsi', None)
                         
@@ -3246,27 +3251,35 @@ class Diameter:
                     remotePeer = f"{remotePeer};{self.config['hss']['OriginHost']}"
 
                     self.database.Update_Proxy_CSCF(imsi=imsi, proxy_cscf=aarOriginHost, pcscf_realm=aarOriginRealm, pcscf_peer=remotePeer, pcscf_active_session=None)
+                    self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] Updated Serving P-CSCF in database OK", redisClient=self.redisMessaging)
                     """
                     Check for AVP's 504 (AF-Application-Identifier) and 520 (Media-Type), which indicates the UE is making a call.
                     Media-Type: 0 = Audio, 4 = Control
                     """
+                else:
+                    self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] not imsEnabled on Subscriber or is emergencySubscriber", redisClient=self.redisMessaging)
+
                 try:
-                    afApplicationIdentifier = self.get_avp_data(avps, 504)[0]
                     mediaType = self.get_avp_data(avps, 520)[0]
                     # In order to send a Gx RAR, we need to ensure that mediaType is AUDIO(0) or VIDEO(1)
-                    assert(int(mediaType, 16) == 0 or int(mediaType, 16) == 1)
-
+                    valid_media_types = [0, 1]
+                    if int(mediaType, 16) not in valid_media_types:
+                        self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Media type with value {mediaType} is incorrect - Is not AUDIO or VIDEO or CONTROL", redisClient=self.redisMessaging)
+                    assert(int(mediaType, 16) in valid_media_types)
                     # At this point, we know the AAR is indicating a call setup, so we'll get the serving pgw information, then send a 
                     # RAR to the PGW over Gx, asking it to setup the dedicated bearer.
 
                     try:
                         if emergencySubscriber and not imsEnabled:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Call from an emergency subscriber without IMS enabled", redisClient=self.redisMessaging)
                             servingPgwPeer = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
                             pcrfSessionId = emergencySubscriberData.get('serving_pgw', None)
                             servingPgwRealm = emergencySubscriberData.get('gx_origin_realm', None)
                             servingPgw = emergencySubscriberData.get('serving_pgw', None).split(';')[0]
                         else:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Getting subscriber ID", redisClient=self.redisMessaging)
                             subscriberId = subscriberDetails.get('subscriber_id', None)
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Got subscriber ID", redisClient=self.redisMessaging)
                             if serviceUrn:
                                 if 'sos' in str(serviceUrn).lower():
                                     registeredEmergencySubscriber = True                                    
@@ -3294,8 +3307,24 @@ class Diameter:
                         if not ueIp:
                             ueIp = servingApn.get('subscriber_routing', None)
 
-                        ulBandwidth = 512000
-                        dlBandwidth = 512000
+                        if (int(mediaType, 16) == 0):
+                            #Audi
+                            ulBandwidth = 512000
+                            dlBandwidth = 512000
+                            qci = 1
+                            precedence = 40
+                            arp_priority = 11
+                            rule_name = "GBR-Voice_" + str(aarSessionID)
+                            charging_rule_id = 1000
+                        elif (int(mediaType, 16) == 4):
+                            #Video
+                            ulBandwidth = 128000
+                            dlBandwidth = 128000
+                            qci = 1
+                            precedence = 30
+                            arp_priority = 11
+                            rule_name = "GBR-Video_" + str(aarSessionID)
+                            charging_rule_id = 1001
 
                         try:
                             avpUlBandwidth = int((self.get_avp_data(avps, 516)[0]), 16)
@@ -3320,6 +3349,7 @@ class Diameter:
                             suppliedTfts = self.get_avp_data(avps, 507)
                             if suppliedTfts:
                                 if isinstance(suppliedTfts, list):
+                                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] P-CSCF provided TFTs", redisClient=self.redisMessaging)
                                     tftId = 1
                                     for suppliedTft in suppliedTfts:
                                         tftDirection = None
@@ -3435,15 +3465,15 @@ class Diameter:
                             arpPreemptionVulnerability = True
 
                         chargingRule = {
-                        "charging_rule_id": 1000,
-                        "qci": 1,
+                        "charging_rule_id": charging_rule_id,
+                        "qci": qci,
                         "arp_preemption_capability": arpPreemptionCapability,
                         "mbr_dl": dlBandwidth,
                         "mbr_ul": ulBandwidth,
                         "gbr_ul": ulBandwidth,
-                        "precedence": 40,
-                        "arp_priority": 11,
-                        "rule_name": "GBR-Voice_" + str(aarSessionID),
+                        "precedence": precedence,
+                        "arp_priority": arp_priority,
+                        "rule_name": rule_name,
                         "arp_preemption_vulnerability": arpPreemptionVulnerability,
                         "gbr_dl": dlBandwidth,
                         "tft_group_id": 1,
@@ -3490,20 +3520,20 @@ class Diameter:
 
                         if raaResultCode == 2001:
                             avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA returned Successfully, authorizing request", redisClient=self.redisMessaging)
+                            self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA returned Successfully, authorizing request", redisClient=self.redisMessaging)
                         else:
                             avp += self.generate_avp(268, 40, self.int_to_hex(4001, 4))
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA returned Unauthorized, declining request", redisClient=self.redisMessaging)
+                            self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] RAA returned Unauthorized, declining request", redisClient=self.redisMessaging)
 
                     except Exception as e:
-                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error processing RAR / RAA, Authorizing request: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                        self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error processing RAR / RAA, Authorizing request: {traceback.format_exc()}", redisClient=self.redisMessaging)
                         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
-                    
                 except Exception as e:
+                    self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [Answer_16777236_265] [AAA] Error generating AAA Charging Rule: {traceback.format_exc()}", redisClient=self.redisMessaging)
                     avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
                     pass
             else:
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request unauthorized", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request unauthorized", redisClient=self.redisMessaging)
                 avp += self.generate_avp(268, 40, self.int_to_hex(4001, 4))
 
             response = self.generate_diameter_packet("01", "40", 265, 16777236, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
@@ -3559,11 +3589,11 @@ class Diameter:
             else:
                 imsi = None
                 msisdn = None
-            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] IMSI: {imsi}\nMSISDN: {msisdn}", redisClient=self.redisMessaging)
+            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] IMSI: {imsi} / MSISDN: {msisdn}", redisClient=self.redisMessaging)
             imsEnabled = self.validateImsSubscriber(imsi=imsi, msisdn=msisdn)
 
             if imsEnabled:
-                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] Request authorized", redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] Request authorized as imsEnabled", redisClient=self.redisMessaging)
                 avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))
             else:
                 self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_258] [RAA] Request unauthorized", redisClient=self.redisMessaging)

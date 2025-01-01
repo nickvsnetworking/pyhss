@@ -2219,7 +2219,7 @@ class Database:
         return result
 
     def Get_Emergency_Subscriber(self, emergencySubscriberId: int=None, subscriberIp: str=None, gxSessionId: str=None, rxSessionId: str=None, imsi: str=None, **kwargs) -> dict:
-        self.logTool.log(service='Database', level='debug', message=f"Getting Emergency_Subscriber", redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Emergency_Subscriber] Getting Emergency_Subscriber", redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
         session = Session()
 
@@ -2255,6 +2255,7 @@ class Database:
                 break
 
             if not result:
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Get_Emergency_Subscriber] No match for emergency subscriber on IMSI: {imsi} / Subscriber IP: {subscriberIp} / gxSessionId: {gxSessionId} / rxSessionId: {rxSessionId}", redisClient=self.redisMessaging)
                 return None
             result = result.__dict__
             result.pop('_sa_instance_state')
