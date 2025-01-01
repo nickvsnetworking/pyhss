@@ -1,26 +1,9 @@
-version: '3'
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: ${TEST_NETWORK}
 services:
   pyhss:
-    build: ./pyhss
     image: pyhss
     container_name: pyhss
-    env_file:
-      - .env
-    environment:
-      - COMPONENT_NAME=hss-1
     volumes:
-      - ./pyhss:/mnt/hss
-    expose:
-      - "3868/tcp"
-      - "3868/sctp"
+      - ./config.yaml:/pyhss/config.yaml
     ports:
-      - "3868:3868/tcp"
-      - "3868:3868/sctp"
-    networks:
-      default:
-        ipv4_address: ${HSS_IP}
+      - "8080:8080" # REST API  
+      - "3868:3868" # Diameter
