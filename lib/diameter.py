@@ -444,6 +444,69 @@ class Diameter:
         except Exception as e:
             return False
 
+    def split_diameter_message(self, data) -> list:
+        """
+        Returns a list of undecoded diameter messages, from a received binary message.
+        This provides support for one or more diameter messages contained within a single packet.
+        """
+        packet_vars = {}
+        diameter_messages = []
+        message_processing_complete = False
+        index = 0
+        failsafe = 0
+
+        if type(data) is bytes:
+            data = data.hex()
+
+        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Splitting: {data}", redisClient=self.redisMessaging)
+
+        while message_processing_complete == False:
+            try:
+                if failsafe > 50:
+                    message_processing_complete = True
+                    break
+
+                if len(data[index:]) < 40:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Message splitting complete.", redisClient=self.redisMessaging)
+                    message_processing_complete = True
+                    break
+
+                # One byte is 2 hex characters
+                # First Byte is the Diameter Packet Version
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Index at start: {index}", redisClient=self.redisMessaging)
+                
+                diameter_message_header = data[index:index+40]
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Header: {diameter_message_header}", redisClient=self.redisMessaging)
+
+                packet_version = diameter_message_header[0:2]
+                packet_length = int(diameter_message_header[2:8], 16)
+                hex_character_length = packet_length * 2
+                packet_flags = diameter_message_header[8:10]
+                packet_command_code = int(diameter_message_header[10:16], 16)
+                packet_application_id = int(diameter_message_header[16:24], 16)
+                packet_hop_by_hop_identifier = diameter_message_header[24:32]
+                packet_end_to_end_identifier = diameter_message_header[32:40]
+
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Packet Length: {packet_length}", redisClient=self.redisMessaging)
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Hex Char Length: {hex_character_length}", redisClient=self.redisMessaging)
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Appending: {data[index:index+hex_character_length]}", redisClient=self.redisMessaging)
+                diameter_messages.append(data[index:index+hex_character_length])
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Current Index: {index}", redisClient=self.redisMessaging)
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Processed (HBH ID): {packet_hop_by_hop_identifier}", redisClient=self.redisMessaging)
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Processed (E2E ID): {packet_end_to_end_identifier}", redisClient=self.redisMessaging)
+                index += hex_character_length
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] New Index: {index}", redisClient=self.redisMessaging)
+                # self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [split_diameter_message] Remaining Stack: {data[index:]}", redisClient=self.redisMessaging)
+
+                failsafe += 1
+
+            except Exception as e:
+                self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [split_diameter_message] Error splitting diameter message: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                return diameter_messages
+
+        return diameter_messages
+
+
 
     def decode_diameter_packet(self, data):
         """
@@ -470,7 +533,6 @@ class Diameter:
         packet_vars['hop-by-hop-identifier'] = data[24:32]
         # Next 4 Bytes are the End to End Identifier
         packet_vars['end-to-end-identifier'] = data[32:40]
-
 
         lengthOfDiameterVars = int(len(data[:40]) / 2)
 
