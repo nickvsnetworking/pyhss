@@ -3,9 +3,7 @@ FROM python:3.10.12-alpine
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-
 RUN git clone https://github.com/nickvsnetworking/pyhss.git
-WORKDIR /pyhss
 
 RUN apk update && \
     apk add --no-cache --virtual .build-deps \
@@ -25,7 +23,7 @@ RUN apk update && \
         py3-yaml && \
     apk add mariadb-dev lksctp-tools-dev && \
     pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r /pyhss/requirements.txt && \
     apk del .build-deps
 
 WORKDIR /pyhss/services
