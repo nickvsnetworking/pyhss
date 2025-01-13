@@ -721,7 +721,7 @@ class Diameter:
             for peer in peerTypes:
                 if peer in originHost.lower():
                     return peer
-            
+            return 'Unknown'
         except Exception as e:
             return ''
 
