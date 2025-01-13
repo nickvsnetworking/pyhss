@@ -693,7 +693,7 @@ class Diameter:
             return packet_vars['length']
         else:
             return False
-
+        
     def getPeerType(self, originHost: str) -> str:
         try:
             peerTypes = ['mme', 'pgw', 'pcscf', 'icscf', 'scscf', 'hss', 'ocs', 'dra']
@@ -751,6 +751,87 @@ class Diameter:
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}, {traceback.format_exc()}", redisClient=self.redisMessaging)
             return {}
+
+    def update_stored_peer(self, peerKey: str, peer: dict) -> bool:
+        """
+        Updates a peer in Redis storage using an upsert pattern.
+        
+        Args:
+            peerKey (str): The IP address of the peer to update
+            peer (dict): New peer data to merge with existing data
+            
+        Returns:
+            bool: True if successful, False if there was an error
+            
+        Example peer data structure:
+        {
+            "Hostname": "host1.example.com",
+            "PeerType": "MME",
+            "Metadata": "{\"Host\":\"host1\",\"Realm\":\"example.com\"}"
+        }
+        """
+        try:
+            self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
+            
+            existing_peer = self.redisMessaging.getHashValue(
+                name=self.diameterPeerKey,
+                key=peerKey,
+                usePrefix=True,
+                prefixHostname=self.hostname,
+                prefixServiceName='diameter'
+            )
+            
+            if existing_peer:
+                try:
+                    existing_data = json.loads(existing_peer)
+                    for key, value in peer.items():
+                        existing_data[key] = value
+                    merged_peer = existing_data
+                except json.JSONDecodeError:
+                    self.logTool.log(
+                        service='HSS',
+                        level='warning',
+                        message=f"Failed to parse existing peer data for {peerKey}, treating as new peer",
+                        redisClient=self.redisMessaging
+                    )
+                    merged_peer = peer
+            else:
+                merged_peer = peer
+                
+            success = self.redisMessaging.setHashValue(
+                name=self.diameterPeerKey,
+                key=peerKey,
+                value=json.dumps(merged_peer),
+                usePrefix=True,
+                prefixHostname=self.hostname,
+                prefixServiceName='diameter'
+            )
+            
+            if success:
+                self.logTool.log(
+                    service='HSS',
+                    level='debug',
+                    message=f"Successfully updated peer {peerKey}",
+                    redisClient=self.redisMessaging
+                )
+                return True
+            else:
+                self.logTool.log(
+                    service='HSS',
+                    level='warning',
+                    message=f"Failed to set peer data in Redis for {peerKey}",
+                    redisClient=self.redisMessaging
+                )
+                return False
+                
+        except Exception as e:
+            self.logTool.log(
+                service='HSS',
+                level='warning',
+                message=f"Error updating stored peer: {traceback.format_exc()}",
+                redisClient=self.redisMessaging
+            )
+            return False
 
     def getDiameterMessageType(self, binaryData: str) -> dict:
         """
@@ -1492,6 +1573,32 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                                #Supported-Vendor-ID (3GGP v2)
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
+
+        try:
+            external_socket_service_enabled = self.config.get('hss', {}).get('use_external_socket_service', False)
+            if external_socket_service_enabled == True:
+                originHost = binascii.unhexlify(self.get_avp_data(avps, 264)[0]).decode()
+                originRealm = binascii.unhexlify(self.get_avp_data(avps, 296)[0]).decode()
+                originHostIp = self.hex_to_ip(self.get_avp_data(avps, 257)[0])
+                productName = binascii.unhexlify(self.get_avp_data(avps, 269)[0]).decode()
+                vendorId = binascii.unhexlify(self.get_avp_data(avps, 266)[0]).decode()
+                vsai = self.get_avp_data(avps, 260)[0]
+
+                metadata = {"Host": originHost,
+                            "Realm": originRealm,
+                            "ProductName": productName,
+                            "VendorId": vendorId,
+                            "CeaReceived": True,
+                            "AuthorizedApplicationIds": vsai}
+
+                peer = {"Hostname": originHost,
+                        "PeerType": self.getPeerType(originHost),
+                        "Metadata": json.dumps(metadata)
+                        }
+            
+                self.update_stored_peer(peerKey=originHostIp, peer=peer)
+        except Exception as e:
+            self.logTool.log(service='HSS', level='warning', message=f"Error updating stored peer: {traceback.format_exc()}", redisClient=self.redisMessaging)
 
         response = self.generate_diameter_packet("01", "00", 257, 0, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)            #Generate Diameter packet       
         self.logTool.log(service='HSS', level='debug', message="Successfully Generated CEA", redisClient=self.redisMessaging)
