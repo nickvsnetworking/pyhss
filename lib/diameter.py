@@ -1579,10 +1579,20 @@ class Diameter:
             if external_socket_service_enabled == True:
                 originHost = binascii.unhexlify(self.get_avp_data(avps, 264)[0]).decode()
                 originRealm = binascii.unhexlify(self.get_avp_data(avps, 296)[0]).decode()
-                originHostIp = self.hex_to_ip(self.get_avp_data(avps, 257)[0])
-                productName = binascii.unhexlify(self.get_avp_data(avps, 269)[0]).decode()
-                vendorId = binascii.unhexlify(self.get_avp_data(avps, 266)[0]).decode()
-                vsai = self.get_avp_data(avps, 260)[0]
+                hostIpAddressAvp = self.get_avp_data(avps, 257)[0]
+                originHostIp = self.hex_to_ip(hostIpAddressAvp[4:])
+                try:
+                    productName = binascii.unhexlify(self.get_avp_data(avps, 269)[0]).decode()
+                except:
+                    productName = ""
+                try:
+                    vendorId = int(self.get_avp_data(avps, 266)[0], 16)
+                except:
+                    vendorId = ""
+                try:
+                    vsai = self.get_avp_data(avps, 260)[0]
+                except:
+                    vsai = ""
 
                 metadata = {"Host": originHost,
                             "Realm": originRealm,
