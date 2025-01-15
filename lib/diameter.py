@@ -745,6 +745,11 @@ class Diameter:
                 if diameterPeer.Metadata:
                     metadataJson = json.loads(diameterPeer.Metadata)
                     diameterPeerType = metadataJson.get('DiameterPeerType', 'Unknown')
+                    if diameterPeerType == 'Unknown':
+                        try:
+                            diameterPeerType = diameterPeer.PeerType
+                        except:
+                            diameterPeerType = "Unknown"
                     # If the peer matches the supplied type, and the peer is connected, add the matching peer type to filteredConnectedPeers.
                 if diameterPeerType == requestedPeerType and diameterPeer.Connected:
                     filteredConnectedPeers.append(diameterPeer)
@@ -891,6 +896,9 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
+                peerIp = None
+                peerPort = None
+                peerIsConnected = False
 
                 try:
                     peerIp = connectedPeer.IpAddress
@@ -904,10 +912,13 @@ class Diameter:
                 if peerIsConnected == False:
                     try:
                         if self.useDraFallback == True:
+                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Using Dra Fallback", redisClient=self.redisMessaging)
                             connectedDraPeers = self.getConnectedPeersByType(peerType="dra")
                             if len(connectedDraPeers) > 0:
                                 peerIp = connectedDraPeers[0].IpAddress
                                 peerPort = connectedDraPeers[0].Port
+                            else:
+                                return ''
                         else:
                             return ''
                     except Exception as e:
