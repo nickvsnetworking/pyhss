@@ -74,6 +74,9 @@ hss:
 
   #The Redis key used to store active diameter peers
   diameter_peer_key: diameterPeers
+  
+  # Send requests via a DRA (if connected) when a given peer can't be found
+  use_dra_fallback: False
 
   #S-CSCF Pool
   scscf_pool:

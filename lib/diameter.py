@@ -50,6 +50,7 @@ class Diameter:
         self.database = Database(logTool=logTool)
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
         self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
+        self.useDraFallback = self.config.get('hss', {}).get('use_dra_fallback', False)
 
         self.templateLoader = jinja2.FileSystemLoader(searchpath="../")
         self.templateEnv = jinja2.Environment(loader=self.templateLoader)
@@ -890,11 +891,28 @@ class Diameter:
                 except Exception as e:
                     continue
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
+
                 try:
                     peerIp = connectedPeer.IpAddress
                     peerPort = connectedPeer.Port
+                    peerIsConnected = True
                 except Exception as e:
-                    return ''
+                    peerIsConnected = False
+
+                # If we don't have a supporting connected peer and self.useDraFallback is enabled, try sending via a connected DRA.
+                # Otherwise, consider the request failed.
+                if peerIsConnected == False:
+                    try:
+                        if self.useDraFallback == True:
+                            connectedDraPeers = self.getConnectedPeersByType(peerType="dra")
+                            if len(connectedDraPeers) > 0:
+                                peerIp = connectedDraPeers[0].IpAddress
+                                peerPort = connectedDraPeers[0].Port
+                        else:
+                            return ''
+                    except Exception as e:
+                        return ''
+
                 try:
                     request = diameterApplication["requestMethod"](**kwargs)
                     self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Successfully generated request: {request}", redisClient=self.redisMessaging)
