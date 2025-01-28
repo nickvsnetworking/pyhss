@@ -725,6 +725,35 @@ class Diameter:
             return 'Unknown'
         except Exception as e:
             return ''
+    
+    def getDraPeers(self) -> list:
+        try:
+            filteredConnectedPeers = []
+            
+            activePeers = self.redisMessaging.getAllHashData(name=self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
+            if not activePeers:
+                return filteredConnectedPeers
+            
+            for peerKey, peer in activePeers.items():
+                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                diameterPeerType = None
+                if diameterPeer.Metadata:
+                    metadataJson = json.loads(diameterPeer.Metadata)
+                    diameterPeerType = metadataJson.get('DiameterPeerType', 'Unknown')
+                    if diameterPeerType == 'Unknown':
+                        try:
+                            diameterPeerType = diameterPeer.PeerType
+                        except:
+                            diameterPeerType = "Unknown"
+                    # If the peer matches the supplied type, and the peer is connected, add the matching peer type to filteredConnectedPeers.
+                if diameterPeerType.lower() == 'dra' and diameterPeer.Connected:
+                    filteredConnectedPeers.append(diameterPeer)
+            
+            return filteredConnectedPeers
+
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getDraPeers] Failed to find connected DRA peers: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return []
 
     def getConnectedPeersByType(self, peerType: str) -> list:
         try:
@@ -753,7 +782,21 @@ class Diameter:
                     # If the peer matches the supplied type, and the peer is connected, add the matching peer type to filteredConnectedPeers.
                 if diameterPeerType == requestedPeerType and diameterPeer.Connected:
                     filteredConnectedPeers.append(diameterPeer)
-            
+
+            try:
+                if len(filteredConnectedPeers) == 0:
+                    if self.useDraFallback == True:
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getConnectedPeersByType] No peers of type {peerType} found, attempting to use DRA fallback", redisClient=self.redisMessaging)
+                        connectedDraPeers = self.getDraPeers()
+                        if len(connectedDraPeers) > 0:
+                            return [connectedDraPeers[0]]
+                        else:
+                            return filteredConnectedPeers
+                    else:
+                        return filteredConnectedPeers
+            except Exception as e:
+                pass
+
             return filteredConnectedPeers
 
         except Exception as e:
@@ -773,6 +816,19 @@ class Diameter:
                 diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
                 if diameterPeer.Hostname.lower() == hostname and diameterPeer.Connected:
                     return diameterPeer
+
+            try:
+                if self.useDraFallback == True:
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [getPeerByHostname] {hostname} not found, attempting to use DRA fallback", redisClient=self.redisMessaging)
+                    connectedDraPeers = self.getDraPeers()
+                    if len(connectedDraPeers) > 0:
+                        return connectedDraPeers[0]
+                    else:
+                        return {}
+                else:
+                    return {}
+            except Exception as e:
+                return {}
 
         except Exception as e:
             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [getPeerByHostname] Failed to find peer with hostname {hostname}, {traceback.format_exc()}", redisClient=self.redisMessaging)
@@ -898,31 +954,12 @@ class Diameter:
                 connectedPeer = self.getPeerByHostname(hostname=hostname)
                 peerIp = None
                 peerPort = None
-                peerIsConnected = False
 
                 try:
                     peerIp = connectedPeer.IpAddress
                     peerPort = connectedPeer.Port
-                    peerIsConnected = True
                 except Exception as e:
-                    peerIsConnected = False
-
-                # If we don't have a supporting connected peer and self.useDraFallback is enabled, try sending via a connected DRA.
-                # Otherwise, consider the request failed.
-                if peerIsConnected == False:
-                    try:
-                        if self.useDraFallback == True:
-                            self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [sendDiameterRequest] [{requestType}] Using Dra Fallback", redisClient=self.redisMessaging)
-                            connectedDraPeers = self.getConnectedPeersByType(peerType="dra")
-                            if len(connectedDraPeers) > 0:
-                                peerIp = connectedDraPeers[0].IpAddress
-                                peerPort = connectedDraPeers[0].Port
-                            else:
-                                return ''
-                        else:
-                            return ''
-                    except Exception as e:
-                        return ''
+                    pass
 
                 try:
                     request = diameterApplication["requestMethod"](**kwargs)
