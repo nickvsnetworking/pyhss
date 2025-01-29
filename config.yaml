@@ -127,11 +127,11 @@ logging:
 
 ## Database Parameters
 database:
-  db_type: mysql    #Supported types are MySQL and Postgres
+  db_type: mysql    #Supported types are MySQL, Postgres and sqlite
   server: 127.0.0.1
   username: dbeaver
   password: password
-  database: hss2
+  database: hss2 # for sqlite, this should be a path to the database file
   readCacheEnabled: True
   readCacheInterval: 60
 
