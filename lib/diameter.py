@@ -3495,17 +3495,17 @@ class Diameter:
 
                 self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] Request authorized", redisClient=self.redisMessaging)
 
+                aarOriginHost = self.get_avp_data(avps, 264)[0]
+                aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
+                aarOriginRealm = self.get_avp_data(avps, 296)[0]
+                aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
+                aarSessionID = self.get_avp_data(avps, 263)[0]
+                aarSessionID = bytes.fromhex(aarSessionID).decode('ascii')
+
                 if imsEnabled and not emergencySubscriber:
                     self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] imsEnabled on Subscriber and not emergencySubscriber", redisClient=self.redisMessaging)
                     if imsi is None:
                         imsi = subscriberDetails.get('imsi', None)
-                        
-                    aarOriginHost = self.get_avp_data(avps, 264)[0]
-                    aarOriginHost = bytes.fromhex(aarOriginHost).decode('ascii')
-                    aarOriginRealm = self.get_avp_data(avps, 296)[0]
-                    aarOriginRealm = bytes.fromhex(aarOriginRealm).decode('ascii')
-                    aarSessionID = self.get_avp_data(avps, 263)[0]
-                    aarSessionID = bytes.fromhex(aarSessionID).decode('ascii')
                     #Check if we have a record-route set as that's where we'll need to send the response
                     try:
                         #Get first record-route header, then parse it
@@ -3525,6 +3525,8 @@ class Diameter:
                     """
                 else:
                     self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_16777236_265] [AAA] not imsEnabled on Subscriber or is emergencySubscriber", redisClient=self.redisMessaging)
+
+
 
                 try:
                     mediaType = self.get_avp_data(avps, 520)[0]
