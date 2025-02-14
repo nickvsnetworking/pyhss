@@ -37,22 +37,23 @@ class DatabaseService:
         self.redisLogMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.hostname = socket.gethostname()
 
-        supportedDatabaseTypes = ['mysql']
+        supportedDatabaseTypes = ["mysql", "postgresql"]
         self.databaseType = self.config.get('database', {}).get('db_type', 'mysql').lower()
         if not self.databaseType in supportedDatabaseTypes:
             print(f"[Database] Fatal Error - unsupported database type: {self.databaseType}. Supported database types are: {supportedDatabaseTypes}, exiting.")
             quit()
-        
+
         self.databaseHost = self.config.get('database', {}).get('server', '')
         self.databaseUsername = self.config.get('database', {}).get('username', '')
         self.databasePassword = self.config.get('database', {}).get('password', '')
         self.database = self.config.get('database', {}).get('database', '')
         self.readCacheEnabled = self.config.get('database', {}).get('readCacheEnabled', True)
         self.cacheReadInterval = int(self.config.get('database', {}).get('cacheReadInterval', 60))
-        
-        if self.databaseType == 'mysql':
-            self.sqlAlchemyEngine = create_engine(f'mysql://{self.databaseUsername}:{self.databasePassword}@{self.databaseHost}/{self.database}')
-            self.sqlAlchemySession = sessionmaker(bind=self.sqlAlchemyEngine)
+
+        self.sqlAlchemyEngine = create_engine(
+            f"{self.databaseType}://{self.databaseUsername}:{self.databasePassword}@{self.databaseHost}/{self.database}"
+        )
+        self.sqlAlchemySession = sessionmaker(bind=self.sqlAlchemyEngine)
 
     def sanitizeJson(self, obj):
         """
@@ -123,7 +124,7 @@ class DatabaseService:
                 sys.exit()
 
             activeTasks = []
-            
+
             readCacheTask = asyncio.create_task(self.readDatabase())
             activeTasks.append(readCacheTask)
 
