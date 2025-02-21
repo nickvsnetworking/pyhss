@@ -124,6 +124,7 @@ class HssService:
                             self.logTool.log(service='HSS', level='info', message=f"[HSS] [handleQueue] [{diameterMessageTypeInbound}] Time taken to process request: {round(((time.perf_counter() - startTime)*1000), 3)} ms", redisClient=self.redisMessaging)
 
                         try:
+                            self.diameterLibrary.clear_expired_emergency_subscribers()
                             diameterPeers = self.redisMessaging.getAllHashData(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if diameterPeers:
                                 for diameterPeerKey, diameterPeerValue in diameterPeers.items():

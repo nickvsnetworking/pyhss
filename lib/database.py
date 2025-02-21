@@ -1934,8 +1934,6 @@ class Database:
                         self.DeleteObj(SERVING_APN, int(servingApnId), True)
         except Exception as e:
             self.logTool.log(service='Database', level='warning', message=f"Error handling subscriber_routing duplicate check: {traceback.format_exc()}", redisClient=self.redisMessaging)
-            
-
 
         """
         The SERVING_APN is updated with the provided information, or deleted if serving_pgw is None.
@@ -2279,6 +2277,25 @@ class Database:
 
         result = None
 
+        """
+        We need to check for duplicate IPs, in case the old entries haven't been flushed automatically.
+        """
+
+        try:
+            all_subscribers_matching_ip = session.query(EMERGENCY_SUBSCRIBER).filter_by(ip=subscriberIp)
+            if len(all_subscribers_matching_ip) > 1:
+                most_recent_timestamp = 0
+                most_recent_emergency_subscriber_id = None
+                for matching_subscriber in all_subscribers_matching_ip:
+                    if int(matching_subscriber.serving_pgw_timestamp) > most_recent_timestamp:
+                        most_recent_timestamp = int(matching_subscriber.serving_pgw_timestamp)
+                        most_recent_emergency_subscriber_id = int(matching_subscriber.emergency_subscriber_id)
+                for matching_subscriber in all_subscribers_matching_ip:
+                    if int(matching_subscriber.emergency_subscriber_id) != most_recent_emergency_subscriber_id:
+                        self.Delete_Emergency_Subscriber(emergencySubscriberId=int(matching_subscriber.emergency_subscriber_id))
+        except:
+            self.logTool.log(service='Database', level='error', message=f"[database.py] [Update_Emergency_Subscriber] Duplicate IP detection failed: {traceback.format_exc()}", redisClient=self.redisMessaging)
+
         while not result:
             if imsi and not result:
                 result = session.query(EMERGENCY_SUBSCRIBER).filter_by(imsi=imsi).first()
@@ -2362,23 +2379,23 @@ class Database:
         while not result:
             if imsi and not result:
                 result = session.query(EMERGENCY_SUBSCRIBER).filter_by(imsi=imsi).first()
-                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on IMSI: {imsi}", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Delete_Emergency_Subscriber] Matched emergency subscriber on IMSI: {imsi}", redisClient=self.redisMessaging)
                 break
             if emergencySubscriberId and not result:
                 result = session.query(EMERGENCY_SUBSCRIBER).filter_by(emergency_subscriber_id=emergencySubscriberId).first()
-                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on emergency_subscriber_id: {emergencySubscriberId}", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Delete_Emergency_Subscriber] Matched emergency subscriber on emergency_subscriber_id: {emergencySubscriberId}", redisClient=self.redisMessaging)
                 break
             if subscriberIp and not result:
                 result = session.query(EMERGENCY_SUBSCRIBER).filter_by(ip=subscriberIp).first()
-                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on IP: {subscriberIp}", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Delete_Emergency_Subscriber] Matched emergency subscriber on IP: {subscriberIp}", redisClient=self.redisMessaging)
                 break
             if gxSessionId and not result:
-                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Gx Session ID: {gxSessionId}", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Delete_Emergency_Subscriber] Matched emergency subscriber on Gx Session ID: {gxSessionId}", redisClient=self.redisMessaging)
                 result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pgw=gxSessionId).first()
                 break
             if rxSessionId and not result:
                 result = session.query(EMERGENCY_SUBSCRIBER).filter_by(serving_pcscf=rxSessionId).first()
-                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Update_Emergency_Subscriber] Matched emergency subscriber on Rx Session ID: {rxSessionId}", redisClient=self.redisMessaging)
+                self.logTool.log(service='Database', level='debug', message=f"[database.py] [Delete_Emergency_Subscriber] Matched emergency subscriber on Rx Session ID: {rxSessionId}", redisClient=self.redisMessaging)
                 break
             break
 

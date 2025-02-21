@@ -7,7 +7,7 @@ import os
 import random
 import ipaddress
 import jinja2
-from database import Database, ROAMING_NETWORK, ROAMING_RULE
+from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER
 from messaging import RedisMessaging
 from redis import Redis
 import datetime
@@ -51,6 +51,7 @@ class Diameter:
         self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
         self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
         self.useDraFallback = self.config.get('hss', {}).get('use_dra_fallback', False)
+        self.emergency_subscriber_expiry = self.config.get('hss', {}).get('emergency_subscriber_expiry', 3600)
 
         self.templateLoader = jinja2.FileSystemLoader(searchpath="../")
         self.templateEnv = jinja2.Environment(loader=self.templateLoader)
@@ -1592,6 +1593,34 @@ class Diameter:
         self.logTool.log(service='HSS', level='debug', message="Got subscriber details: " + str(ims_subscriber_details), redisClient=self.redisMessaging)
         return ims_subscriber_details
 
+    def clear_expired_emergency_subscribers(self) -> bool:
+        """
+        Clears expired emergency subscribers from the database.
+        """
+        try:
+            emergency_subscribers = self.database.GetAll(EMERGENCY_SUBSCRIBER)
+            for emergency_subscriber in emergency_subscribers:
+                try:
+                    created_timestamp = emergency_subscriber.get('serving_pgw_timestamp', None)
+                    emergency_subscriber_id = emergency_subscriber.get('emergency_subscriber_id', 0)
+                    if created_timestamp == None:
+                        created_timestamp = emergency_subscriber.get('serving_pcscf_timestamp', None)
+                    if created_timestamp == None:
+                        self.logTool.log(service='HSS', level='warning', message=f"serving_pgw_timestamp and serving_pcscf_timestamp missing from emergency subscriber, removing from database.", redisClient=self.redisMessaging)
+                        emergency_subscribers = self.database.Delete_Emergency_Subscriber(emergencySubscriberId=emergency_subscriber_id)
+                        continue
+                    current_timestamp = int(time.time())
+                    expiry_time_in_seconds = int(self.emergency_subscriber_expiry * 60)
+                    if (current_timestamp - int(created_timestamp)) > expiry_time_in_seconds:
+                        self.logTool.log(service='HSS', level='info', message=f"Emergency subscriber {emergency_subscriber.get('imsi', 'unknown_imsi')} has expired, removing from database.", redisClient=self.redisMessaging)
+                        emergency_subscribers = self.database.Delete_Emergency_Subscriber(emergencySubscriberId=emergency_subscriber_id)
+                except:
+                    self.logTool.log(service='HSS', level='error', message=f"Error clearing expired emergency subscriber: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                    continue
+            return True
+        except:
+            self.logTool.log(service='HSS', level='error', message=f"Error clearing expired emergency subscribers: {traceback.format_exc()}", redisClient=self.redisMessaging)
+            return False
 
     def Generate_Prom_Stats(self):
         self.logTool.log(service='HSS', level='debug', message="Called Generate_Prom_Stats", redisClient=self.redisMessaging)
@@ -3577,18 +3606,18 @@ class Diameter:
                             ueIp = servingApn.get('subscriber_routing', None)
 
                         if (int(mediaType, 16) == 0):
-                            #Audi
-                            ulBandwidth = 512000
-                            dlBandwidth = 512000
+                            #Audio
+                            ulBandwidth = 128000
+                            dlBandwidth = 128000
                             qci = 1
                             precedence = 40
-                            arp_priority = 11
+                            arp_priority = 14
                             rule_name = "GBR-Voice_" + str(aarSessionID)
                             charging_rule_id = 1000
                         elif (int(mediaType, 16) == 4):
                             #Video
-                            ulBandwidth = 128000
-                            dlBandwidth = 128000
+                            ulBandwidth = 512000
+                            dlBandwidth = 512000
                             qci = 1
                             precedence = 30
                             arp_priority = 11
@@ -3702,15 +3731,15 @@ class Diameter:
                                 
                                 completedTftList.append({
                                         "tft_group_id": 1,
-                                        "direction": 1,
-                                        "tft_id": 1,
-                                        "tft_string": tftString
-                                        })
-                                completedTftList.append({
-                                        "tft_group_id": 1,
                                         "direction": 2,
                                         "tft_id": 2,
                                         "tft_string": tftString  
+                                        })
+                                completedTftList.append({
+                                        "tft_group_id": 1,
+                                        "direction": 1,
+                                        "tft_id": 1,
+                                        "tft_string": tftString
                                         })
 
                             except Exception as e:
@@ -3732,7 +3761,7 @@ class Diameter:
                         else:
                             arpPreemptionCapability = False
                             arpPreemptionVulnerability = True
-
+                        
                         chargingRule = {
                         "charging_rule_id": charging_rule_id,
                         "qci": qci,
