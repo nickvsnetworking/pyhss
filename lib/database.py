@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
 from sqlalchemy import create_engine
 from sqlalchemy.engine.reflection import Inspector
@@ -15,6 +17,7 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
+from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
 import yaml
 import json
@@ -71,6 +74,7 @@ class AUC(Base):
     psk = Column(String(128), doc='PSK')
     des = Column(String(128), doc='DES')
     adm1 = Column(String(20), doc='ADM1')
+    algo = Column(String(20), doc='2G Authentication Algorithm (1 = Comp128v1, 2 = Comp128v2, 3 = Comp128v3, All Other= 3G auth with 2g keys from 3G Milenage)')
     misc1 = Column(String(128), doc='For misc data storage 1')
     misc2 = Column(String(128), doc='For misc data storage 2')
     misc3 = Column(String(128), doc='For misc data storage 3')
@@ -97,6 +101,10 @@ class SUBSCRIBER(Base):
     serving_mme_timestamp = Column(DateTime, doc='Timestamp of attach to MME')
     serving_mme_realm = Column(String(512), doc='Realm of serving mme')
     serving_mme_peer = Column(String(512), doc='Diameter peer used to reach MME then ; then the HSS the Diameter peer is connected to')
+    gsup_serving_msc = Column(String(512), doc='GSUP: MSC serving this subscriber')
+    gsup_serving_msc_timestamp = Column(DateTime, doc='GSUP: Timestamp of attach to MSC')
+    gsup_serving_sgsn = Column(String(512), doc='GSUP: SGSN serving this subscriber')
+    gsup_serving_sgsn_timestamp = Column(DateTime, doc='GSUP: Timestamp of attach to SGSN')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
 
@@ -1600,21 +1608,14 @@ class Database:
             return vector_dict
 
         elif action == "2g3g":
-            rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+            # Mask first bit of AMF
+            key_data['amf'] = '0' + key_data['amf'][1:]
+            vect = S6a_crypt.generate_2g3g_vector(key_data['ki'], key_data['opc'], key_data['amf'], int(key_data['sqn']), int(key_data['algo']))
             vector_list = []
             self.logTool.log(service='Database', level='debug', message="Generating " + str(kwargs['requested_vectors']) + " vectors for GSM use", redisClient=self.redisMessaging)
             while kwargs['requested_vectors'] != 0:
-                self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
-                self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
-                
-                vector_dict['rand'] = binascii.hexlify(rand).decode("utf-8")
-                vector_dict['autn'] = binascii.hexlify(autn).decode("utf-8")
-                vector_dict['xres'] = binascii.hexlify(xres).decode("utf-8")
-                vector_dict['ck'] = binascii.hexlify(ck).decode("utf-8")
-                vector_dict['ik'] = binascii.hexlify(ik).decode("utf-8")
-                
                 kwargs['requested_vectors'] = kwargs['requested_vectors'] - 1
-                vector_list.append(vector_dict)
+                vector_list.append(vect)
             self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
             return vector_list
 
@@ -1684,6 +1685,31 @@ class Database:
         self.logTool.log(service='Database', level='debug', message=f"Sent Geored update for AuC: {auc_id} with SQN {sqn}", redisClient=self.redisMessaging)
 
         return
+
+    def update_gsup(self, imsi: str, role: IPAPeerRole, new_id: Optional[str]) -> str:
+        self.logTool.log(service='Database', level='debug', message=f"Updating GSUP record {role.name} for IMSI: {imsi} with new ID: {new_id}", redisClient=self.redisMessaging)
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+
+        try:
+            subscriber = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
+            field = None
+            if role == IPAPeerRole.SGSN:
+                field = "gsup_serving_sgsn"
+            elif role == IPAPeerRole.MSC:
+                field = "gsup_serving_msc"
+
+            old_id = getattr(subscriber, field)
+            setattr(subscriber, field, new_id)
+            setattr(subscriber, f"{field}_timestamp", datetime.datetime.now(tz=timezone.utc))
+            session.commit()
+            return old_id
+
+        except Exception as e:
+            self.safe_close(session)
+            raise ValueError(str(e))
+
+
 
     def Update_Serving_MME(self, imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, serving_mme_timestamp=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme), redisClient=self.redisMessaging)

@@ -7,6 +7,8 @@ prometheus_client==0.16.0
 pycryptodome==3.17
 pymongo==4.3.3
 pysctp==0.7.2
+pyosmocom==0.0.7
+comp128==1.0.0
 pysnmp==4.4.12
 PyYAML==6.0
 redis==5.0.0
