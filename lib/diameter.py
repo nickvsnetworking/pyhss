@@ -78,6 +78,10 @@ class Diameter:
                 {"commandCode": 306, "applicationId": 16777217, "responseMethod": self.Answer_16777217_306, "failureResultCode": 5001 ,"requestAcronym": "UDR", "responseAcronym": "UDA", "requestName": "User Data Request", "responseName": "User Data Answer"},
                 {"commandCode": 307, "applicationId": 16777217, "responseMethod": self.Answer_16777217_307, "failureResultCode": 5001 ,"requestAcronym": "PRUR", "responseAcronym": "PRUA", "requestName": "Profile Update Request", "responseName": "Profile Update Answer"},
 
+                # OCS
+                {"commandCode": 272, "applicationId": 4, "responseMethod": self.Answer_4_272, "failureResultCode": 5001 ,"requestAcronym": "BaseCCR", "responseAcronym": "BaseCCA", "requestName": "Credit Control Request (Diameter Base)", "responseName": "Credit Control Answer (Diameter Base)"},
+                
+
                 # Rx PCEF/P-CSCF
                 {"commandCode": 265, "applicationId": 16777236, "responseMethod": self.Answer_16777236_265, "failureResultCode": 4100 ,"requestAcronym": "AAR", "responseAcronym": "AAA", "requestName": "AA Request", "responseName": "AA Answer"},
                 {"commandCode": 275, "applicationId": 16777236, "responseMethod": self.Answer_16777236_275, "failureResultCode": 4100 ,"requestAcronym": "STR", "responseAcronym": "STA", "requestName": "Session Termination Request", "responseName": "Session Termination Answer"},
@@ -1691,6 +1695,10 @@ class Diameter:
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
 
+        avp += self.generate_avp(259, 40, format(int(3),"x").zfill(8))                                   #Acct-Application-ID - Diameter Base Accounting
+        avp += self.generate_avp(258, 40, format(int(4),"x").zfill(8))                                   #Auth-Application-ID - Diameter Credit Control Application
+        
+
         try:
             external_socket_service_enabled = self.config.get('hss', {}).get('use_external_socket_service', False)
             if external_socket_service_enabled == True:
@@ -2728,6 +2736,147 @@ class Diameter:
             avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
             response = self.generate_diameter_packet("01", "40", 272, 16777238, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
+
+    #3GPP Gx Credit Control Answer
+    def Answer_4_272(self, packet_vars, avps):
+        try:
+            CC_Request_Type = self.get_avp_data(avps, 416)[0]
+            CC_Request_Number = self.hex_to_int(self.get_avp_data(avps, 415)[0])
+            #Called Station ID
+            self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Called", redisClient=self.redisMessaging)
+            apn = None
+            CC_Time = None
+            CC_Input_Octets = 0
+            CC_Output_Octets = 0
+
+            session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
+            self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
+
+            OriginHost = self.get_avp_data(avps, 264)[0]                          #Get OriginHost from AVP
+            OriginHost = binascii.unhexlify(OriginHost).decode('utf-8')      #Format it
+
+            OriginRealm = self.get_avp_data(avps, 296)[0]                          #Get OriginRealm from AVP
+            OriginRealm = binascii.unhexlify(OriginRealm).decode('utf-8')      #Format it
+
+            try:        #Check if we have a record-route set as that's where we'll need to send the response
+                remote_peer = self.get_avp_data(avps, 282)[-1]                          #Get first record-route header
+                remote_peer = binascii.unhexlify(remote_peer).decode('utf-8')           #Format it
+            except:     #If we don't have a record-route set, we'll send the response to the OriginHost
+                remote_peer = OriginHost
+            self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Remote Peer is " + str(remote_peer), redisClient=self.redisMessaging)
+            remote_peer = remote_peer + ";" + str(self.config['hss']['OriginHost'])
+
+            import pprint
+
+            #Find the IMSI of the Subscriber
+            for SubscriptionIdentifier in self.get_avp_data(avps, 443):
+                for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
+                    if UniqueSubscriptionIdentifier['avp_code'] == 444:
+                        localImsi = binascii.unhexlify(UniqueSubscriptionIdentifier['misc_data']).decode('utf-8')
+                        if len(localImsi) == 15:
+                            self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_4_272] [CCA] Got local IMSI: {localImsi}", redisClient=self.redisMessaging)
+                            imsi = localImsi
+                        else:
+                            self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_4_272] [CCA] Got local msisdn: {localImsi}", redisClient=self.redisMessaging)
+                            msisdn = localImsi
+            
+            for ServiceInformation in self.get_avp_data(avps, 873):
+                for PS_Information in ServiceInformation:
+                    if PS_Information['avp_code'] == 30:
+                        apn = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
+                        print("Found APN: " + str(apn))
+            try:
+                for MultipleServicesCreditControlParent in self.get_avp_data(avps, 456):
+                    for MultipleServicesCreditControl in MultipleServicesCreditControlParent:
+                        print("MultipleServicesCreditControl: " + str(MultipleServicesCreditControl))
+                        
+                        if MultipleServicesCreditControl['avp_code'] == 420:
+                            #CC-Time
+                            CC_Time = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
+                            print("Found CC_Time: " + str(CC_Time))
+                        if MultipleServicesCreditControl['avp_code'] == 412:
+                            #CC-Time
+                            CC_Input_Octets = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
+                            print("Found CC_Input_Octets: " + str(CC_Input_Octets))     
+                        if MultipleServicesCreditControl['avp_code'] == 414:
+                            #CC-Time
+                            CC_Output_Octets = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
+                            print("Found CC_Output_Octets: " + str(CC_Output_Octets))
+       
+            except Exception as E:
+                print("Failed to get MultipleServicesCreditControl due to error: " + str(E))
+            
+            RequestTypes = {1: 'Initial', 2: 'Update', 3: 'Terminate'}
+            ocs_query = {
+                'imsi' : imsi,
+                'msidsn' : msisdn,
+                'apn' : apn,
+                'CC_Request_Type' : RequestTypes[int(CC_Request_Type)],
+                'CC_Request_Number' : CC_Request_Number,
+                'SessionID' : binascii.unhexlify(session_id).decode(),
+                'CC_Time' : CC_Time,
+                'CC_Input_Octets' : CC_Input_Octets,
+                'CC_Output_Octets' : CC_Output_Octets,
+                
+            }
+
+
+            #Example Responses
+            #If no credit is available send back:
+            credit_used_response = {
+                'ResultCode' : 4012,
+            }
+            
+            #If credit is still available send back
+            credit_granted_response = {
+                'ResultCode' : 2001,        #(Succes )
+                'RatingGroup' : 100,        #Which RG to use
+                'ValidityTime' : 20,        #How long the allocation is valid for before another CCR is sent
+                'CC-Total-Octets' : 999     #How many Bytes before another CCA is sent 
+            }
+            
+            api_response = credit_granted_response
+            
+            pprint.pprint(ocs_query)
+            print('\n\n\n\n')
+
+            avp = ''                                                                                    #Initiate empty var AVP
+            avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
+            avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
+            avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
+            avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
+            avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
+            avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
+
+
+            try:
+                if api_response['ResultCode'] == 2001:
+                    print("Service granted by API")
+                    CC_Total_Octets = self.generate_avp(415, 40, format(int(api_response['CC-Total-Octets']),"x").zfill(8))
+                    
+                    GrantedServiceUnit = self.generate_avp(431, 40, CC_Total_Octets)
+                    RatingGroup = self.generate_avp(415, 40, format(int(api_response['RatingGroup']),"x").zfill(8))
+                    ValidityTime = self.generate_avp(448, 40, format(int(api_response['ValidityTime']),"x").zfill(8))
+                    ResultCode = self.generate_avp(268, 40, format(int(api_response['ResultCode']),"x").zfill(8))
+                    avp += self.generate_avp(456, 40, GrantedServiceUnit + RatingGroup + ValidityTime + ResultCode)
+                    avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                           #Result Code (DIAMETER_SUCCESS (2001))
+                else:
+                    print("Service Denied by API")
+                    avp += self.generate_avp(268, 40, self.int_to_hex(4010, 4))                                           #Result Code (DIAMETER_END_USER_SERVICE_DENIED (4010))
+                    avp += self.generate_avp(430, 40, "000001c14000000c00000000")                                         #Final Unit Indication (Terminate)
+            except Exception as E:
+                print("Failed to encode API response data into Diameter due to error " + str(E))
+
+
+            response = self.generate_diameter_packet("01", "40", 272, 4, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        except Exception as e:                                             #Get subscriber details
+            #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+            self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Failed due to error " + str(e), redisClient=self.redisMessaging)
+
+            avp += self.generate_avp(268, 40, self.int_to_hex(5030, 4))                                           #Result Code (DIAMETER ERROR - User Unknown)
+            response = self.generate_diameter_packet("01", "40", 272, 4, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+        return response
+
 
     #3GPP Cx User Authorization Answer
     def Answer_16777216_300(self, packet_vars, avps):
