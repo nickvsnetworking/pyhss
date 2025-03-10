@@ -2745,6 +2745,7 @@ class Diameter:
             #Called Station ID
             self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Called", redisClient=self.redisMessaging)
             apn = None
+            user_location_info = None
             CC_Time = None
             CC_Input_Octets = 0
             CC_Output_Octets = 0
@@ -2768,6 +2769,14 @@ class Diameter:
 
             import pprint
 
+            #Extract the Auth-Application-Id
+            try:
+                Auth_Application_Id = self.get_avp_data(avps, 258)[0]
+                Auth_Application_Id = binascii.unhexlify(Auth_Application_Id).decode('utf-8')
+            except:
+                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] No Auth-Application-Id found", redisClient=self.redisMessaging)
+                Auth_Application_Id = None
+
             #Find the IMSI of the Subscriber
             for SubscriptionIdentifier in self.get_avp_data(avps, 443):
                 for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
@@ -2780,11 +2789,16 @@ class Diameter:
                             self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_4_272] [CCA] Got local msisdn: {localImsi}", redisClient=self.redisMessaging)
                             msisdn = localImsi
             
+            #Find the APN of the Subscriber & ULI            
             for ServiceInformation in self.get_avp_data(avps, 873):
                 for PS_Information in ServiceInformation:
                     if PS_Information['avp_code'] == 30:
                         apn = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
                         print("Found APN: " + str(apn))
+                    if PS_Information['avp_code'] == 22:
+                        user_location_info = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
+                        print("Found ULI: " + str(user_location_info))
+                    
             try:
                 for MultipleServicesCreditControlParent in self.get_avp_data(avps, 456):
                     for MultipleServicesCreditControl in MultipleServicesCreditControlParent:
@@ -2817,7 +2831,8 @@ class Diameter:
                 'CC_Time' : CC_Time,
                 'CC_Input_Octets' : CC_Input_Octets,
                 'CC_Output_Octets' : CC_Output_Octets,
-                
+                'Auth_Application_Id' : Auth_Application_Id,
+                'User_Location_Info' : user_location_info,
             }
 
 
