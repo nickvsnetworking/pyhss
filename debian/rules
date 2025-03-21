@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+
+# This package uses dh_virtualenv to download dependencies with pip at package
+# build time. For building offline, download the dependencies to "debian/deps"
+# first as it is done in this script:
+# https://gitea.osmocom.org/osmocom/osmo-ci/src/branch/master/scripts/obs/data/pyhss_download_deps.sh
+ifneq ("$(wildcard debian/deps)","")
+export PIP_NO_INDEX=1
+export PIP_FIND_LINKS=debian/deps
+endif
+
+export PIP_QUIET=0
+export PIP_VERBOSE=1
+
+%:
+	dh $@ --with python-virtualenv
+
+# Save space in the binary packages by uninstalling build-time depends
+override_dh_virtualenv:
+	dh_virtualenv --python python3
+	debian/pyhss/opt/venvs/pyhss/bin/python \
+		-m pip \
+		uninstall \
+		--yes \
+		setuptools \
+		wheel \
+		pip
+
+# dh_installsysusers needs to be explicitly called until debhelper-compat >= 14
+override_dh_install:
+	dh_install
+	dh_installsysusers
+
+override_dh_dwz:
+# Fails on the pip-installed so files due to missing debug symbols etc.
+override_dh_strip_nondeterminism:
+# Save ~1.5 min of time
