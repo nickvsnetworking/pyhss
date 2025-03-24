@@ -641,6 +641,7 @@ class Diameter:
 
                     if failsafeCounter > 100:
                         self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [decodeAvpPacket] Diameter Sub-AVP Decoder Failsafe activated: {data}", redisClient=self.redisMessaging)
+                        failsafeCounter = 0
                         break
                     
                     # Pop the sub avp data from the list (remove from the end)
@@ -2741,14 +2742,25 @@ class Diameter:
     def Answer_4_272(self, packet_vars, avps):
         try:
             CC_Request_Type = self.get_avp_data(avps, 416)[0]
+            Service_Information = self.get_avp_data(avps, 873)
             CC_Request_Number = self.hex_to_int(self.get_avp_data(avps, 415)[0])
             #Called Station ID
             self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Called", redisClient=self.redisMessaging)
+            print("Hit Gx CCA")
             apn = None
-            user_location_info = None
             CC_Time = None
             CC_Input_Octets = 0
             CC_Output_Octets = 0
+            Charging_ID_3gpp = None
+            PDP_Address = None
+            SGSN_Address = None
+            GGSN_Address = None
+            SGSN_MCC_MNC = None
+            MS_Timezone = None
+            User_Location_Info = None
+            User_Equipment_Info = None
+            TerminationCause = None
+            
 
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
             self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] Session Id is " + str(binascii.unhexlify(session_id).decode()), redisClient=self.redisMessaging)
@@ -2769,14 +2781,6 @@ class Diameter:
 
             import pprint
 
-            #Extract the Auth-Application-Id
-            try:
-                Auth_Application_Id = self.get_avp_data(avps, 258)[0]
-                Auth_Application_Id = binascii.unhexlify(Auth_Application_Id).decode('utf-8')
-            except:
-                self.logTool.log(service='HSS', level='info', message="[diameter.py] [Answer_4_272] [CCA] No Auth-Application-Id found", redisClient=self.redisMessaging)
-                Auth_Application_Id = None
-
             #Find the IMSI of the Subscriber
             for SubscriptionIdentifier in self.get_avp_data(avps, 443):
                 for UniqueSubscriptionIdentifier in SubscriptionIdentifier:
@@ -2789,36 +2793,92 @@ class Diameter:
                             self.logTool.log(service='HSS', level='info', message=f"[diameter.py] [Answer_4_272] [CCA] Got local msisdn: {localImsi}", redisClient=self.redisMessaging)
                             msisdn = localImsi
             
-            #Find the APN of the Subscriber & ULI            
+            
+            if len(self.get_avp_data(avps, 873)) == 0:
+                print("Error - Service information reports empty!\n\n\n")
+            print("Checking Service Information " + str(self.get_avp_data(avps, 873)))
             for ServiceInformation in self.get_avp_data(avps, 873):
+                print("Service Information " + str(ServiceInformation))
                 for PS_Information in ServiceInformation:
-                    if PS_Information['avp_code'] == 30:
-                        apn = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
-                        print("Found APN: " + str(apn))
-                    if PS_Information['avp_code'] == 22:
-                        user_location_info = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
-                        print("Found ULI: " + str(user_location_info))
-                    
+                    print("PS_Information: " + str(PS_Information))
+                    try:
+                        if PS_Information['avp_code'] == 30:
+                            apn = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
+                            print("Found APN: " + str(apn))
+                        elif PS_Information['avp_code'] == 2:
+                            print("Found Charging ID")
+                            #3GPP Charging ID
+                            Charging_ID_3gpp = str(PS_Information['misc_data'])
+                        elif PS_Information['avp_code'] == 1227:
+                            print("Found 3GPP PDP Address " + str(PS_Information['misc_data'][-8:]))
+                            #PDP Address
+                            PDP_Address = self.hex_to_ip(PS_Information['misc_data'][-8:])
+                            print("PDP Address is: " + str(PDP_Address))
+                        elif PS_Information['avp_code'] == 22:
+                            print("Found User Location Info")
+                            #3GPP ULI
+                            User_Location_Info = str(PS_Information['misc_data'])
+                        elif PS_Information['avp_code'] == 1228:
+                            print("Found SGSN Address")
+                            SGSN_Address = self.hex_to_ip(PS_Information['misc_data'][-8:])
+                        elif PS_Information['avp_code'] == 847:
+                            print("Found GGSN Address")
+                            GGSN_Address = self.hex_to_ip(PS_Information['misc_data'][-8:])
+                        elif PS_Information['avp_code'] == 18:
+                            print("Found SGSN_MCC_MNC: " + str(PS_Information['misc_data']))
+                            SGSN_MCC_MNC = self.DecodePLMN(plmn=PS_Information['misc_data'])
+                        elif PS_Information['avp_code'] == 23:
+                            print("Found MS_Timezone: " + str(PS_Information['misc_data']))
+                            MS_Timezone = str(PS_Information['misc_data'])
+                        elif PS_Information['avp_code'] == 460:
+                            print("Found User-Equipment-Info")
+                            User_Equipment_Info = binascii.unhexlify(PS_Information['misc_data']).decode('utf-8')
+                    except Exception as E:
+                        print("Fuckup decoding AVP due to error " + str(E))
+          
+            print("Checked Service Information")
+
             try:
                 for MultipleServicesCreditControlParent in self.get_avp_data(avps, 456):
                     for MultipleServicesCreditControl in MultipleServicesCreditControlParent:
-                        print("MultipleServicesCreditControl: " + str(MultipleServicesCreditControl))
-                        
-                        if MultipleServicesCreditControl['avp_code'] == 420:
-                            #CC-Time
-                            CC_Time = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
-                            print("Found CC_Time: " + str(CC_Time))
-                        if MultipleServicesCreditControl['avp_code'] == 412:
-                            #CC-Time
-                            CC_Input_Octets = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
-                            print("Found CC_Input_Octets: " + str(CC_Input_Octets))     
-                        if MultipleServicesCreditControl['avp_code'] == 414:
-                            #CC-Time
-                            CC_Output_Octets = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
-                            print("Found CC_Output_Octets: " + str(CC_Output_Octets))
+                        #print("MultipleServicesCreditControl: " + str(MultipleServicesCreditControl))
+                        try:
+                            if MultipleServicesCreditControl['avp_code'] == 420:
+                                #CC-Time
+                                CC_Time = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
+                                print("Found CC_Time: " + str(CC_Time))
+                            if MultipleServicesCreditControl['avp_code'] == 412:
+                                CC_Input_Octets = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
+                                print("Found CC_Input_Octets: " + str(CC_Input_Octets))     
+                            if MultipleServicesCreditControl['avp_code'] == 414:
+                                CC_Output_Octets = self.hex_to_int(MultipleServicesCreditControl['misc_data'])
+                                print("Found CC_Output_Octets: " + str(CC_Output_Octets))
+                        except Exception as E:
+                            print("Failed to decode AVP with code " + str(MultipleServicesCreditControl['avp_code']))
        
             except Exception as E:
                 print("Failed to get MultipleServicesCreditControl due to error: " + str(E))
+            
+            TerminationCauses = {
+                1: "DIAMETER_LOGOUT",
+                2: "DIAMETER_SERVICE_NOT_PROVIDED",
+                3: "DIAMETER_BAD_ANSWER",
+                4: "DIAMETER_ADMINISTRATIVE",
+                5: "DIAMETER_LINK_BROKEN",
+                6: "DIAMETER_AUTH_EXPIRED",
+                7: "DIAMETER_USER_MOVED",
+                8: "DIAMETER_SESSION_TIMEOUT"
+            }
+            
+            try:
+                TerminationCause = self.get_avp_data(avps, 295)[0]
+                print("TerminationCause raw" + str(TerminationCause))
+                TerminationCause = self.hex_to_int(TerminationCause)
+                print("TerminationCause int" + str(TerminationCause))
+                TerminationCause = TerminationCauses[int(TerminationCause)]
+                print("TerminationCause final" + str(TerminationCause))
+            except:
+                print("Failed to find Termination Cause")
             
             RequestTypes = {1: 'Initial', 2: 'Update', 3: 'Terminate'}
             ocs_query = {
@@ -2831,9 +2891,19 @@ class Diameter:
                 'CC_Time' : CC_Time,
                 'CC_Input_Octets' : CC_Input_Octets,
                 'CC_Output_Octets' : CC_Output_Octets,
-                'Auth_Application_Id' : Auth_Application_Id,
-                'User_Location_Info' : user_location_info,
+                'Charging_ID_3gpp' : Charging_ID_3gpp,
+                'PDP_Address' : PDP_Address,
+                'User_Location_Info' : User_Location_Info,
+                'SGSN_Address' : SGSN_Address,
+                'GGSN_Address' : GGSN_Address,
+                'SGSN_MCC_MNC' : SGSN_MCC_MNC,
+                'MS_Timezone' : MS_Timezone,
+                'User_Equipment_Info' : User_Equipment_Info,
+                'TerminationCause' : TerminationCause,
             }
+            
+            import requests
+            "http://10.179.1.121:9343/"
 
 
             #Example Responses
@@ -2859,7 +2929,7 @@ class Diameter:
             avp += self.generate_avp(263, 40, session_id)                                                    #Session-ID AVP set
             avp += self.generate_avp(264, 40, self.OriginHost)                                                    #Origin Host
             avp += self.generate_avp(296, 40, self.OriginRealm)                                                   #Origin Realm
-            avp += self.generate_avp(258, 40, "01000016")                                                    #Auth-Application-Id (3GPP Gx 16777238)
+            avp += self.generate_avp(258, 40, "01000004")                                                    #Auth-Application-Id (Diameter Credit Control Application)
             avp += self.generate_avp(416, 40, format(int(CC_Request_Type),"x").zfill(8))                     #CC-Request-Type
             avp += self.generate_avp(415, 40, format(int(CC_Request_Number),"x").zfill(8))                   #CC-Request-Number
 
