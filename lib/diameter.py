@@ -2910,7 +2910,16 @@ class Diameter:
             self.database.Update_Serving_CSCF(imsi, serving_cscf=ServingCSCF, scscf_realm=OriginRealm, scscf_peer=remote_peer)
         else:
             self.logTool.log(service='HSS', level='debug', message="SAR is not Register", redisClient=self.redisMessaging)
-            self.database.Update_Serving_CSCF(imsi, serving_cscf=None)
+            #Sometimes we may get a Server Assignment Request for a Deregister for a S-CSCF that no longer serves a subscriber, but that subscriber is now served by another S-CSCF
+            #So we need to check the current S-CSCF from DB == the S-CSCF sending the SAR Deregister before clearing the S-CSCF from the DB
+            username = self.get_avp_data(avps, 601)[0] 
+            ims_subscriber_details = self.Get_IMS_Subscriber_Details_from_AVP(username)   
+            scscf_on_record = ims_subscriber_details.get('scscf', None)
+            if scscf_on_record == ServingCSCF:
+                self.logTool.log(service='HSS', level='debug', message="Subscriber is served by S-CSCF " + str(ServingCSCF) + " and matches S-CSCF on record - Clearing Registration" + str(scscf_on_record), redisClient=self.redisMessaging)
+                self.database.Update_Serving_CSCF(imsi, serving_cscf=None)
+            else:
+                self.logTool.log(service='HSS', level='debug', message="Subscriber is served by S-CSCF " + str(ServingCSCF) + " but does not match S-CSCF on record - Ignoring request to clear registration" + str(scscf_on_record), redisClient=self.redisMessaging)
 
         avp += self.generate_avp(268, 40, self.int_to_hex(2001, 4))                                 #Result Code (DIAMETER_SUCCESS (2001))
 
