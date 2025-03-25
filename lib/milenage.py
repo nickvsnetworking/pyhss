@@ -5,8 +5,8 @@
 # Copyright 2025 Alexander Couzens <lynxis@fe80.eu>
 # SPDX-License-Identifier: BSD-3-Clause
 import hmac
-from Crypto.Cipher import AES
-from Crypto.Random import random
+from Cryptodome.Cipher import AES
+from Cryptodome.Random import random
 
 from lte import BaseLTEAuthAlgo
 
