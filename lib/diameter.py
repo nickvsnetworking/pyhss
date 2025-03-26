@@ -19,7 +19,7 @@ import requests
 import traceback
 import re
 from baseModels import Peer, OutboundData
-import pydantic_core
+import pydantic
 import xml.etree.ElementTree as ET
 
 class Diameter:
@@ -736,7 +736,7 @@ class Diameter:
                 return filteredConnectedPeers
             
             for peerKey, peer in activePeers.items():
-                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                diameterPeer = Peer.model_validate(pydantic.from_json(json.dumps(peer)))
                 diameterPeerType = None
                 if diameterPeer.Metadata:
                     metadataJson = json.loads(diameterPeer.Metadata)
@@ -770,7 +770,7 @@ class Diameter:
                 return filteredConnectedPeers
             
             for peerKey, peer in activePeers.items():
-                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                diameterPeer = Peer.model_validate(pydantic.from_json(json.dumps(peer)))
                 diameterPeerType = None
                 if diameterPeer.Metadata:
                     metadataJson = json.loads(diameterPeer.Metadata)
@@ -814,7 +814,7 @@ class Diameter:
                 return {}
 
             for peerKey, peer in activePeers.items():
-                diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(peer)))
+                diameterPeer = Peer.model_validate(pydantic.from_json(json.dumps(peer)))
                 if diameterPeer.Hostname.lower() == hostname and diameterPeer.Connected:
                     return diameterPeer
 

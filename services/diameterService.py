@@ -10,7 +10,7 @@ from diameterAsync import DiameterAsync
 from banners import Banners
 from logtool import LogTool
 from baseModels import Peer, InboundData, OutboundData
-import pydantic_core
+import pydantic
 import traceback
 
 class DiameterService:
@@ -310,7 +310,7 @@ class DiameterService:
             try:
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Waiting for messages for host {clientAddress} on port {clientPort}"))
                 pendingOutboundMessage = (await(self.redisWriterMessaging.awaitMessage(key=f"diameter-outbound-{clientAddress}-{clientPort}", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')))[1]
-                outboundData = OutboundData.model_validate(pydantic_core.from_json(pendingOutboundMessage))
+                outboundData = OutboundData.model_validate(pydantic.from_json(pendingOutboundMessage))
                 diameterOutboundBinary = bytes.fromhex(outboundData.OutboundHex)
                 await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [writeOutboundData] [{coroutineUuid}] Sending: {diameterOutboundBinary.hex()} to to {clientAddress} on {clientPort}."))
 

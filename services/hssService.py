@@ -5,7 +5,7 @@ from diameter import Diameter
 from banners import Banners
 from logtool import LogTool
 from baseModels import Peer, InboundData, OutboundData
-import pydantic_core
+import pydantic
 
 
 class HssService:
@@ -52,7 +52,7 @@ class HssService:
                 for inboundMessage in inboundMessageList[1]:
                     self.logTool.log(service='HSS', level='debug', message=f"[HSS] [handleQueue] Message: {inboundMessage}", redisClient=self.redisMessaging)
                     inboundMessage = inboundMessage.decode('ascii')
-                    inboundData = InboundData.model_validate(pydantic_core.from_json(inboundMessage))
+                    inboundData = InboundData.model_validate(pydantic.from_json(inboundMessage))
                     inboundBinary = bytes.fromhex(inboundData.InboundHex)
 
                     if inboundBinary == None:
@@ -69,7 +69,7 @@ class HssService:
                             diameterPeers = self.redisMessaging.getAllHashData(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if diameterPeers:
                                 for diameterPeerKey, diameterPeerValue in diameterPeers.items():
-                                    diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(diameterPeerValue)))
+                                    diameterPeer = Peer.model_validate(pydantic.from_json(json.dumps(diameterPeerValue)))
                                     # If this is a message from a stored peer, increment prom_diam_request_count_host by 1.
                                     if diameterPeer.IpAddress == inboundData.SenderIp and diameterPeer.Port == inboundData.SenderPort:
                                         self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_request_count_host',
@@ -128,7 +128,7 @@ class HssService:
                             diameterPeers = self.redisMessaging.getAllHashData(self.diameterPeerKey, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
                             if diameterPeers:
                                 for diameterPeerKey, diameterPeerValue in diameterPeers.items():
-                                    diameterPeer = Peer.model_validate(pydantic_core.from_json(json.dumps(diameterPeerValue)))
+                                    diameterPeer = Peer.model_validate(pydantic.from_json(json.dumps(diameterPeerValue)))
                                     if diameterPeer.IpAddress == inboundData.SenderIp and diameterPeer.Port == inboundData.SenderPort:
                                         self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_response_count_host',
                                                     metricType='gauge', metricAction='inc',

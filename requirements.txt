@@ -17,7 +17,6 @@ Werkzeug==2.2.3
 mysqlclient
 prometheus_flask_exporter
 pydantic==2.8.2
-pydantic_core==2.20.1
 tzlocal==4.3
 influxdb==5.3.1
 xmltodict==0.14.2
