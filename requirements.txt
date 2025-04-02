@@ -1,4 +1,4 @@
-aiohttp==3.8.5
+aiohttp
 Flask==2.2.3
 flask_restx==1.1.0
 Jinja2==3.1.2
@@ -8,7 +8,7 @@ pycryptodome==3.17
 pymongo==4.3.3
 pysctp==0.7.2
 pysnmp==4.4.12
-PyYAML==5.4.1
+PyYAML
 redis==5.0.0
 Requests==2.31.0
 SQLAlchemy==2.0.9
