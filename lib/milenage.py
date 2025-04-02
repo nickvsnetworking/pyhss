@@ -8,8 +8,8 @@ of patent rights can be found in the PATENTS file in the same directory.
 """
 
 import hmac
-from Crypto.Cipher import AES
-from Crypto.Random import random
+from Cryptodome.Cipher import AES
+from Cryptodome.Random import random
 
 from lte import BaseLTEAuthAlgo
 
