@@ -184,7 +184,7 @@ while True:
         imsi = str(input("IMSI:\t"))
         apn = str(input("APN:\t"))
         ccr_type = int(input("ccr_type:\t"))
-        SendRequest(diameter.Request_16777238_272(imsi=imsi, apn=apn, ccr_type=ccr_type))
+        SendRequest(diameter.Request_16777238_272(imsi=imsi, apn=apn, ccr_type=ccr_type, destinationRealm=DestinationRealm, destinationHost=DestinationHost))
     elif request == "OCS-CCR":
         imsi = str(input("IMSI:\t"))
         ccr_type = int(input("ccr_type:\t"))
