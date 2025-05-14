@@ -139,7 +139,7 @@ class ULRController(GsupController):
         self.__all_ipa_peers = all_peers
 
     def __update_subscriber(self, peer: IPAPeer, imsi: str) -> Optional[IPAPeer]:
-        old_id = self._database.update_gsup(imsi, peer.role, peer.primary_id)
+        old_id = self._database.update_hlr(imsi, peer.role, peer.primary_id)
 
         if old_id is None:
             return None
