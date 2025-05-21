@@ -1728,7 +1728,6 @@ class Database:
         session = Session()
         try:
             result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-            self.logTool.log(service='Database', level='debug', message="Updating serving MME & Timestamp", redisClient=self.redisMessaging)
             result.last_seen_eci = last_seen_eci
             result.last_seen_enodeb_id = last_seen_enodeb_id
             result.last_seen_cell_id = last_seen_cell_id
@@ -1737,6 +1736,7 @@ class Database:
             result.last_seen_mnc = last_seen_mnc
             result.last_location_update_timestamp = last_location_update_timestamp
 
+            self.logTool.log(service='Database', level='debug', message=f"Updating Subscriber location for IMSI: {imsi}", redisClient=self.redisMessaging)
             session.commit()
             objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
             self.handleWebhook(objectData, 'PATCH')
@@ -1758,7 +1758,7 @@ class Database:
                 else:
                     self.logTool.log(service='Database', level='debug', message="Config does not allow sync of HSS events", redisClient=self.redisMessaging)
         except Exception as E:
-            self.logTool.log(service='Database', level='error', message="Error occurred in Update_Serving_MME: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message="Error occurred in update_subscriber_location: " + str(E), redisClient=self.redisMessaging)
         finally:
             self.safe_close(session)
 
