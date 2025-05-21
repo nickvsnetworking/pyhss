@@ -105,6 +105,13 @@ class SUBSCRIBER(Base):
     gsup_serving_msc_timestamp = Column(DateTime, doc='GSUP: Timestamp of attach to MSC')
     gsup_serving_sgsn = Column(String(512), doc='GSUP: SGSN serving this subscriber')
     gsup_serving_sgsn_timestamp = Column(DateTime, doc='GSUP: Timestamp of attach to SGSN')
+    last_seen_eci = Column(String(64), doc='Last ECI seen serving this subscriber')
+    last_seen_enodeb_id = Column(String(64), doc='Last eNodeB seen serving this subscriber')
+    last_seen_cell_id = Column(String(64), doc='Last Cell ID seen serving this subscriber')
+    last_seen_tac = Column(String(64), doc='Last Tracking Area Code seen serving this subscriber')
+    last_seen_mcc = Column(String(3), doc='Last MCC seen serving this subscriber')
+    last_seen_mnc = Column(String(3), doc='Last MNC seen serving this subscriber')
+    last_location_update_timestamp = Column(DateTime, doc='Timestamp of last CCR providing location information')
     last_modified = Column(String(100), default=datetime.datetime.now(tz=timezone.utc), doc='Timestamp of last modification')
     operation_logs = relationship("SUBSCRIBER_OPERATION_LOG", back_populates="subscriber")
 
@@ -1716,6 +1723,44 @@ class Database:
             raise ValueError(str(e))
 
 
+    def update_subscriber_location(self, imsi: str, last_seen_eci: str, last_seen_enodeb_id: str, last_seen_cell_id: str, last_seen_tac: str, last_seen_mcc: str, last_seen_mnc: str, last_location_update_timestamp, propagate=True) -> str:
+        Session = sessionmaker(bind = self.engine)
+        session = Session()
+        try:
+            result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
+            self.logTool.log(service='Database', level='debug', message="Updating serving MME & Timestamp", redisClient=self.redisMessaging)
+            result.last_seen_eci = last_seen_eci
+            result.last_seen_enodeb_id = last_seen_enodeb_id
+            result.last_seen_cell_id = last_seen_cell_id
+            result.last_seen_tac = last_seen_tac
+            result.last_seen_mcc = last_seen_mcc
+            result.last_seen_mnc = last_seen_mnc
+            result.last_location_update_timestamp = last_location_update_timestamp
+
+            session.commit()
+            objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
+            self.handleWebhook(objectData, 'PATCH')
+
+            #Sync state change with geored
+            if propagate == True:
+                if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
+                    self.logTool.log(service='Database', level='debug', message="Propagate Location changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored({
+                        "imsi": str(imsi), 
+                        "last_seen_eci": result.last_seen_eci,
+                        "last_seen_enodeb_id": result.last_seen_enodeb_id,
+                        "last_seen_cell_id": result.last_seen_cell_id,
+                        "last_seen_tac": result.last_seen_tac,
+                        "last_seen_mcc": result.last_seen_mcc,
+                        "last_seen_mnc": result.last_seen_mnc,
+                        "last_location_update_timestamp": result.last_location_update_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        })
+                else:
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of HSS events", redisClient=self.redisMessaging)
+        except Exception as E:
+            self.logTool.log(service='Database', level='error', message="Error occurred in Update_Serving_MME: " + str(E), redisClient=self.redisMessaging)
+        finally:
+            self.safe_close(session)
 
     def Update_Serving_MME(self, imsi, serving_mme, serving_mme_realm=None, serving_mme_peer=None, serving_mme_timestamp=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Updating Serving MME for sub " + str(imsi) + " to MME " + str(serving_mme), redisClient=self.redisMessaging)
