@@ -1605,7 +1605,10 @@ class Diameter:
             
             #Precedence
             self.logTool.log(service='HSS', level='debug', message="Defining Precedence information", redisClient=self.redisMessaging)
-            Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+            if ChargingRules['precedence'] != None:
+                Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(ChargingRules['precedence'], 4))
+            else:
+                Precedence = self.generate_vendor_avp(1010, "c0", 10415, self.int_to_hex(0, 4))
             self.logTool.log(service='HSS', level='debug', message="Defined Precedence " + str(Precedence), redisClient=self.redisMessaging)
 
             #Rating Group
