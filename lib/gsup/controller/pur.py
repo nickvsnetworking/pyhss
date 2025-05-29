@@ -38,7 +38,7 @@ class PURController(GsupController):
             return
 
         try:
-            self._database.update_gsup(imsi, peer.role, None)
+            self._database.update_hlr(imsi, peer.role, None)
             await self._logger.logAsync(service='GSUP', level='INFO', message=f"Subscriber {imsi} purged from {peer}")
             response = GsupMessageBuilder().with_msg_type(MsgType.PURGE_MS_RESULT).with_ie('imsi', imsi).build()
             await self._send_gsup_response(peer, response)
