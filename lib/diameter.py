@@ -2765,7 +2765,9 @@ class Diameter:
                 subscriber_details = self.database.Get_Subscriber(imsi=imsi)
                 stored_apn = self.database.Get_APN_by_Name(apn=apn)
                 if subscriber_details and stored_apn:
-                    serving_apn = self.database.Get_Serving_APN(self, subscriber_id=subscriber_details.get('subscriber_id', None), apn_id=stored_apn.get('apn_id', None))
+                    matching_subscriber_id = subscriber_details.get('subscriber_id', None)
+                    matching_apn_id = stored_apn.get('apn_id', None)
+                    serving_apn = self.database.Get_Serving_APN(subscriber_id=matching_subscriber_id, apn_id=matching_apn_id)
                     if serving_apn:
                         serving_apn_session_id = serving_apn.get('pcrf_session_id', "")
                         if serving_apn_session_id == session_id_string:
