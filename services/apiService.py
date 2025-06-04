@@ -1817,6 +1817,8 @@ class PyHSS_PCRF_CLR_Subscriber(Resource):
 
             imsi = jsonData.get('imsi', None)
             msisdn = jsonData.get('msisdn', None)
+            subscriberData = None
+            imsSubscriberData = None
 
             if not imsi and not msisdn:
                 result = {"Result": "Error: IMSI or MSISDN Required"}
@@ -1827,7 +1829,8 @@ class PyHSS_PCRF_CLR_Subscriber(Resource):
                 imsSubscriberData = databaseClient.Get_IMS_Subscriber(imsi=imsi)
             else:
                 imsSubscriberData = databaseClient.Get_IMS_Subscriber(msisdn=msisdn)
-                subscriberData = databaseClient.Get_Subscriber(imsi=imsSubscriberData.get('imsi', None))
+                imsi = imsSubscriberData.get('imsi', None)
+                subscriberData = databaseClient.Get_Subscriber(imsi=imsi)
             
             try:
                 servingMmePeer = subscriberData.get('serving_mme_peer').split(';')[0]
@@ -1835,7 +1838,6 @@ class PyHSS_PCRF_CLR_Subscriber(Resource):
                 result = {"Result": "Error: Subscriber is not currently served by an MME"}
                 return result, 400
             
-            imsi = imsSubscriberData.get('imsi', None)
             servingMmeRealm = subscriberData.get('serving_mme_realm', None)
             servingMme = subscriberData.get('serving_mme', None)
 
