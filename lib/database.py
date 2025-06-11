@@ -1756,42 +1756,46 @@ class Database:
             raise ValueError(str(e))
 
 
-    def update_subscriber_location(self, imsi: str, last_seen_eci: str, last_seen_enodeb_id: str, last_seen_cell_id: str, last_seen_tac: str, last_seen_mcc: str, last_seen_mnc: str, last_location_update_timestamp, propagate=True) -> str:
+    def update_subscriber_location(self, imsi: str, last_seen_eci=None, last_seen_enodeb_id=None, last_seen_cell_id=None, last_seen_tac=None, last_seen_mcc=None, last_seen_mnc=None, last_location_update_timestamp=None, propagate=True) -> str:
         Session = sessionmaker(bind = self.engine)
         session = Session()
+
         try:
             result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-            result.last_seen_eci = last_seen_eci
-            result.last_seen_enodeb_id = last_seen_enodeb_id
-            result.last_seen_cell_id = last_seen_cell_id
-            result.last_seen_tac = last_seen_tac
-            result.last_seen_mcc = last_seen_mcc
-            result.last_seen_mnc = last_seen_mnc
-            result.last_location_update_timestamp = last_location_update_timestamp
+            try:
+                self.logTool.log(service='Database', level='debug', message=f"Updating Subscriber Location for {imsi}", redisClient=self.redisMessaging)
+                if last_seen_eci:
+                    result.last_seen_eci = last_seen_eci
+                if last_seen_enodeb_id:
+                    result.last_seen_enodeb_id = last_seen_enodeb_id
+                if last_seen_cell_id:
+                    result.last_seen_cell_id = last_seen_cell_id
+                if last_seen_tac:
+                    result.last_seen_tac = last_seen_tac
+                if last_seen_mcc:
+                    result.last_seen_mcc = last_seen_mcc
+                if last_seen_mnc:
+                    result.last_seen_mnc = last_seen_mnc
+                if last_location_update_timestamp:
+                    result.last_location_update_timestamp = last_location_update_timestamp
+                session.commit()
+                objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
+                self.handleWebhook(objectData, 'PATCH')
+            except:
+                pass
 
-            self.logTool.log(service='Database', level='debug', message=f"Updating Subscriber location for IMSI: {imsi}", redisClient=self.redisMessaging)
-            session.commit()
-            objectData = self.GetObj(SUBSCRIBER, result.subscriber_id)
-            self.handleWebhook(objectData, 'PATCH')
-
-            #Sync state change with geored
             if propagate == True:
                 if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
-                    self.logTool.log(service='Database', level='debug', message="Propagate Location changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
-                    self.handleGeored({
-                        "imsi": str(imsi), 
-                        "last_seen_eci": result.last_seen_eci,
-                        "last_seen_enodeb_id": result.last_seen_enodeb_id,
-                        "last_seen_cell_id": result.last_seen_cell_id,
-                        "last_seen_tac": result.last_seen_tac,
-                        "last_seen_mcc": result.last_seen_mcc,
-                        "last_seen_mnc": result.last_seen_mnc,
-                        "last_location_update_timestamp": result.last_location_update_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
-                        })
+                    self.logTool.log(service='Database', level='debug', message="Propagate Subscriber Location changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
+                    self.handleGeored({"imsi": str(imsi), "last_seen_eci": last_seen_eci, "last_seen_enodeb_id": last_seen_enodeb_id,
+                                        "last_seen_cell_id": last_seen_cell_id, "last_seen_tac": last_seen_tac, "last_seen_mcc": last_seen_mcc,
+                                        "last_seen_mnc": last_seen_mnc, "last_location_update_timestamp": last_location_update_timestamp})
                 else:
-                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of HSS events", redisClient=self.redisMessaging)
+                    self.logTool.log(service='Database', level='debug', message="Config does not allow sync of IMS events", redisClient=self.redisMessaging)
         except Exception as E:
-            self.logTool.log(service='Database', level='error', message="Error occurred in update_subscriber_location: " + str(E), redisClient=self.redisMessaging)
+            self.logTool.log(service='Database', level='error', message="An error occurred, rolling back session: " + str(E), redisClient=self.redisMessaging)
+            self.safe_rollback(session)
+            raise
         finally:
             self.safe_close(session)
 
@@ -1883,7 +1887,6 @@ class Database:
             self.logTool.log(service='Database', level='error', message="Error occurred in Update_Serving_MME: " + str(E), redisClient=self.redisMessaging)
         finally:
             self.safe_close(session)
-
 
     def Update_Proxy_CSCF(self, imsi, proxy_cscf, pcscf_realm=None, pcscf_peer=None, pcscf_timestamp=None, pcscf_active_session=None, propagate=True):
         self.logTool.log(service='Database', level='debug', message="Update_Proxy_CSCF for sub " + str(imsi) + " to pcscf " + str(proxy_cscf) + " with realm " + str(pcscf_realm) + " and peer " + str(pcscf_peer) + " for session id " + str(pcscf_active_session), redisClient=self.redisMessaging)

@@ -220,6 +220,19 @@ GeoRed_model = api.model('GeoRed', {
     'emergency_subscriber_access_network_gateway_address': fields.String(description=EMERGENCY_SUBSCRIBER.access_network_gateway_address.doc),
     'emergency_subscriber_access_network_charging_address': fields.String(description=EMERGENCY_SUBSCRIBER.access_network_charging_address.doc),
     'emergency_subscriber_delete': fields.Boolean(description="Whether to delete the emergency subscriber on receipt"),
+    'serving_msc': fields.String(description=SUBSCRIBER.serving_msc.doc),
+    'serving_msc_timestamp': fields.String(description=SUBSCRIBER.serving_msc_timestamp.doc),
+    'serving_vlr': fields.String(description=SUBSCRIBER.serving_vlr.doc),
+    'serving_vlr_timestamp': fields.String(description=SUBSCRIBER.serving_vlr_timestamp.doc),
+    'serving_sgsn': fields.String(description=SUBSCRIBER.serving_sgsn.doc),
+    'serving_sgsn_timestamp': fields.String(description=SUBSCRIBER.serving_sgsn_timestamp.doc),
+    'last_seen_eci': fields.String(description=SUBSCRIBER.last_seen_eci.doc),
+    'last_seen_enodeb_id': fields.String(description=SUBSCRIBER.last_seen_enodeb_id.doc),
+    'last_seen_cell_id': fields.String(description=SUBSCRIBER.last_seen_cell_id.doc),
+    'last_seen_tac': fields.String(description=SUBSCRIBER.last_seen_tac.doc),
+    'last_seen_mcc': fields.String(description=SUBSCRIBER.last_seen_mcc.doc),
+    'last_seen_mnc': fields.String(description=SUBSCRIBER.last_seen_mnc.doc),
+    'last_location_update_timestamp': fields.String(description=SUBSCRIBER.last_location_update_timestamp.doc)
 })
 
 def no_auth_required(f):
@@ -2071,6 +2084,28 @@ class PyHSS_Geored(Resource):
             if 'serving_mme' in json_data:
                 print("Updating serving MME")
                 response_data.append(databaseClient.Update_Serving_MME(imsi=str(json_data['imsi']), serving_mme=json_data['serving_mme'], serving_mme_realm=json_data['serving_mme_realm'], serving_mme_peer=json_data['serving_mme_peer'], propagate=False))
+                redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
+                                    metricType='counter', metricAction='inc', 
+                                    metricValue=1.0, metricHelp='Number of Geored Pushes Received',
+                                    metricLabels={
+                                        "endpoint": "HSS",
+                                        "geored_host": request.remote_addr,
+                                    },
+                                    metricExpiry=60,
+                                    usePrefix=True, 
+                                    prefixHostname=originHostname, 
+                                    prefixServiceName='metric')
+            if 'last_seen_mcc' in json_data:
+                print("Updating Subscriber Location")
+                response_data.append(databaseClient.update_subscriber_location(imsi=str(json_data['imsi']),
+                                                                                last_seen_eci=json_data['last_seen_eci'],
+                                                                                last_seen_enodeb_id=json_data['last_seen_enodeb_id'],
+                                                                                last_seen_cell_id=json_data['last_seen_cell_id'],
+                                                                                last_seen_tac=json_data['last_seen_tac'],
+                                                                                last_seen_mcc=json_data['last_seen_mcc'],
+                                                                                last_seen_mnc=json_data['last_seen_mnc'],
+                                                                                last_location_update_timestamp=json_data['last_location_update_timestamp'],
+                                                                                propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
