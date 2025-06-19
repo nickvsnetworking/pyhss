@@ -52,11 +52,7 @@ class GsupMessageBuilder:
 
     def with_msisdn_ie(self, msisdn: str):
         ie = {
-            'ton_npi': {
-                'ext': False,
-                'type_of_number': 'unknown',
-                'numbering_plan_id': 'sc_specific_6'
-            },
+            'bcd_len': (len(msisdn) + 1) // 2,
             'digits': msisdn
         }
         return self.with_ie('msisdn', ie)
