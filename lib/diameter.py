@@ -3611,24 +3611,22 @@ class Diameter:
                     pass
                 if identifier == None:
                     try:
-                        ueIP = subscriptionId.split('@')[1].split(':')[0]
-                        ue = self.database.Get_UE_by_IP(ueIP)
+                        ue = self.database.Get_UE_by_IP(ueIp)
                         subscriberId = ue.get('subscriber_id', None)
                         subscriberDetails = self.database.Get_Subscriber(subscriber_id=subscriberId)
                         imsi = subscriberDetails.get('imsi', None)
-                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
+                        self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIp}", redisClient=self.redisMessaging)
                     except Exception as e:
                         pass
             else:
                 imsi = None
                 msisdn = None
                 try:
-                    ueIP = self.get_avp_data(avps, 8)[0].decode('ascii') # Framed-IP-Address AVP
-                    ue = self.database.Get_UE_by_IP(ueIP)
+                    ue = self.database.Get_UE_by_IP(ueIp)
                     subscriberId = ue.get('subscriber_id', None)
                     subscriberDetails = self.database.Get_Subscriber(subscriber_id=subscriberId)
                     imsi = subscriberDetails.get('imsi', None)
-                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIP}", redisClient=self.redisMessaging)
+                    self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Found IMSI {imsi} by IP: {ueIp}", redisClient=self.redisMessaging)
                 except Exception as e:
                     pass
 
