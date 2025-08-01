@@ -87,6 +87,9 @@ hss:
   # Static Identifier for the subscriber context with the Delete Subscriber Data Request.
   dsr_external_identifier: "example"
 
+  # Whether to ignore Purge UE Requests - leaving the subscriber state with the last served mme instead of null.
+  ignore_purge_ue_request: False
+
   #S-CSCF Pool
   scscf_pool:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'

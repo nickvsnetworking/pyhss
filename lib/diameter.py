@@ -54,6 +54,7 @@ class Diameter:
         self.emergency_subscriber_expiry = self.config.get('hss', {}).get('emergency_subscriber_expiry', 3600)
         self.sendDsrOnMmeChange = self.config.get('hss', {}).get('send_dsr_on_mme_change', False)
         self.dsrExternalIdentifier = self.config.get('hss', {}).get('dsr_external_identifier', "subscriber")
+        self.ignorePurgeUeRequest = self.config.get('hss', {}).get('ignore_purge_ue_request', False)
 
         self.templateLoader = jinja2.FileSystemLoader(searchpath="../")
         self.templateEnv = jinja2.Environment(loader=self.templateLoader)
@@ -2374,8 +2375,8 @@ class Diameter:
 
         response = self.generate_diameter_packet("01", "40", 321, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         
-
-        self.database.Update_Serving_MME(imsi, None)
+        if self.ignorePurgeUeRequest == False:
+            self.database.Update_Serving_MME(imsi, None)
         self.logTool.log(service='HSS', level='debug', message="Successfully Generated PUA", redisClient=self.redisMessaging)
         return response
 
