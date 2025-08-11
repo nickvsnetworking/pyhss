@@ -411,10 +411,6 @@ class GeoredService:
             if self.georedPeers is not None:
                 if not len(self.georedPeers) > 0:
                     georedEnabled = False
-            
-            if self.webhookPeers is not None:
-                if not len(self.webhookPeers) > 0:
-                    webhooksEnabled = False
 
             if not georedEnabled and not webhooksEnabled:
                 await(self.logTool.logAsync(service='Geored', level='info', message=f"[Geored] [startService] Geored and Webhook services both disabled or missing peers, exiting."))
