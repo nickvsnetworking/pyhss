@@ -9,6 +9,7 @@ pymongo==4.3.3
 pysctp==0.7.2
 pyosmocom
 comp128==1.0.0
+alembic
 pysnmp==4.4.12
 PyYAML
 redis==5.0.0
