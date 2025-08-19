@@ -92,7 +92,8 @@ class ULRTransaction:
                            .with_msg_type(MsgType.INSERT_DATA_REQUEST)
                            .with_ie('imsi', self.__subscriber_info.imsi)
                            .with_msisdn_ie(self.__subscriber_info.msisdn)
-                           .with_ie('destination_name', '')
+                           .with_ie('cn_domain', 2)
+                           .with_ie('message_class', 1)
                            )
 
         cn_domain = GsupMessageUtil.get_first_ie_by_name('cn_domain', self.__ulr)
