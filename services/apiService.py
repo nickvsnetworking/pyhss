@@ -1839,7 +1839,6 @@ class PyHSS_PCRF_CLR_Subscriber(Resource):
             
             if imsi:
                 subscriberData = databaseClient.Get_Subscriber(imsi=imsi)
-                imsSubscriberData = databaseClient.Get_IMS_Subscriber(imsi=imsi)
             else:
                 imsSubscriberData = databaseClient.Get_IMS_Subscriber(msisdn=msisdn)
                 imsi = imsSubscriberData.get('imsi', None)
@@ -1869,7 +1868,8 @@ class PyHSS_PCRF_CLR_Subscriber(Resource):
 
         except Exception as E:
             print("Flask Exception: " + str(E))
-            return handle_exception(E)
+            result = {"Result": f"Unahndled error: {E}"}
+            return result, 500
 
 @ns_pcrf.route('/pcscf_restoration_subscriber')
 class PyHSS_PCRF_PSCSF_Restoration_Subscriber(Resource):
