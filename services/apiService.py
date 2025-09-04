@@ -2129,16 +2129,40 @@ class PyHSS_Geored(Resource):
                     json_data['serving_pgw_peer'] = None
                 if 'serving_pgw_timestamp' not in json_data:
                     json_data['serving_pgw_timestamp'] = None
-                response_data.append(databaseClient.Update_Serving_APN(
-                    imsi=str(json_data['imsi']), 
-                    apn=json_data['serving_apn'],
-                    pcrf_session_id=json_data['pcrf_session_id'],
-                    serving_pgw=json_data['serving_pgw'],
-                    subscriber_routing=json_data['subscriber_routing'],
-                    serving_pgw_realm=json_data['serving_pgw_realm'],
-                    serving_pgw_peer=json_data['serving_pgw_peer'],
-                    serving_pgw_timestamp=json_data['serving_pgw_timestamp'],
-                    propagate=False))
+                if json_data['serving_pgw'] == None:
+                    subscriber_details = databaseClient.Get_Subscriber(imsi=str(json_data['imsi']))
+                    stored_apn = databaseClient.Get_APN_by_Name(apn=json_data['serving_apn'])
+                    matching_apn_id = stored_apn.get('apn_id', None)
+                    matching_subscriber_id = subscriber_details.get('subscriber_id', None)
+                    serving_apn = databaseClient.Get_Serving_APN(subscriber_id=matching_subscriber_id, apn_id=matching_apn_id)
+                    if serving_apn:
+                        serving_apn_session_id = serving_apn.get('pcrf_session_id', "")
+                        print(f"Stored Session ID for {json_data['imsi']} is {serving_apn_session_id}, Session ID recieved in Geored update is: {json_data['pcrf_session_id']}")
+                        if serving_apn_session_id == json_data['pcrf_session_id']:
+                            response_data.append(databaseClient.Update_Serving_APN(
+                                imsi=str(json_data['imsi']), 
+                                apn=json_data['serving_apn'],
+                                pcrf_session_id=json_data['pcrf_session_id'],
+                                serving_pgw=json_data['serving_pgw'],
+                                subscriber_routing=json_data['subscriber_routing'],
+                                serving_pgw_realm=json_data['serving_pgw_realm'],
+                                serving_pgw_peer=json_data['serving_pgw_peer'],
+                                serving_pgw_timestamp=json_data['serving_pgw_timestamp'],
+                                propagate=False))
+                            print(f"Removed Serving APN {json_data['serving_apn']} for: {json_data['imsi']}")
+                        else:
+                            print("Incoming Session ID does not match stored session ID - refusing to remove Serving APN.")
+                else:
+                    response_data.append(databaseClient.Update_Serving_APN(
+                        imsi=str(json_data['imsi']), 
+                        apn=json_data['serving_apn'],
+                        pcrf_session_id=json_data['pcrf_session_id'],
+                        serving_pgw=json_data['serving_pgw'],
+                        subscriber_routing=json_data['subscriber_routing'],
+                        serving_pgw_realm=json_data['serving_pgw_realm'],
+                        serving_pgw_peer=json_data['serving_pgw_peer'],
+                        serving_pgw_timestamp=json_data['serving_pgw_timestamp'],
+                        propagate=False))
                 redisMessaging.sendMetric(serviceName='api', metricName='prom_flask_http_geored_endpoints',
                                     metricType='counter', metricAction='inc', 
                                     metricValue=1.0, metricHelp='Number of Geored Pushes Received',
