@@ -2734,8 +2734,8 @@ class Diameter:
                     if subscriber_details.get('high_priority', False) == True:
                         if 'ims' not in apn:
                             AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(6), 4))
-                            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
-                            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
+                            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(0), 4))
+                            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(1), 4))
                             AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
                             AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(6), 4))
                             avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
