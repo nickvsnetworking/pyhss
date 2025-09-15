@@ -2635,6 +2635,7 @@ class Diameter:
             try:
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Getting Get_Charging_Rules for IMSI " + str(imsi) + " using APN " + str(apn) + " from database", redisClient=self.redisMessaging)                                            #Get subscriber details
                 ChargingRules = self.database.Get_Charging_Rules(imsi=imsi, apn=apn)
+                subscriber_details = self.database.Get_Subscriber(imsi=imsi)
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Got Charging Rules: " + str(ChargingRules), redisClient=self.redisMessaging)
             except Exception as E:
                 #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
@@ -2724,18 +2725,34 @@ class Diameter:
                     APN_AMBR = self.generate_vendor_avp(1435, "c0", 10415, AMBR)
 
                     self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Setting APN Allocation-Retention-Priority", redisClient=self.redisMessaging)
-                    #AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
+                    # AVP: Allocation-Retention-Priority(1034) l=60 f=V-- vnd=TGPP
                     # Per TS 29.212, we need to flip our stored values for capability and vulnerability:
                     # PRE-EMPTION_CAPABILITY_ENABLED (0)
                     # PRE-EMPTION_CAPABILITY_DISABLED (1)
                     # PRE-EMPTION_VULNERABILITY_ENABLED (0)
                     # PRE-EMPTION_VULNERABILITY_DISABLED (1)
-                    AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
-                    AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
-                    AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
-                    AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
-                    AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
-                    avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+                    if subscriber_details.get('high_priority', False) == True:
+                        if 'ims' not in apn:
+                            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(6), 4))
+                            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
+                            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
+                            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(6), 4))
+                            avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+                        else:
+                            AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
+                            AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
+                            AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
+                            AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                            AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
+                            avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
+                    else:
+                        AVP_Priority_Level = self.generate_vendor_avp(1046, "80", 10415, self.int_to_hex(int(apn_data['arp_priority']), 4))
+                        AVP_Preemption_Capability = self.generate_vendor_avp(1047, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_capability']), 4))
+                        AVP_Preemption_Vulnerability = self.generate_vendor_avp(1048, "80", 10415, self.int_to_hex(int(not apn_data['arp_preemption_vulnerability']), 4))
+                        AVP_ARP = self.generate_vendor_avp(1034, "80", 10415, AVP_Priority_Level + AVP_Preemption_Capability + AVP_Preemption_Vulnerability)
+                        AVP_QoS = self.generate_vendor_avp(1028, "c0", 10415, self.int_to_hex(int(apn_data['qci']), 4))
+                        avp += self.generate_vendor_avp(1049, "80", 10415, AVP_QoS + AVP_ARP)
                 except Exception as E:
                     self.logTool.log(service='HSS', level='error', message=E, redisClient=self.redisMessaging)
                     self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to populate default_EPS_QoS from DB for sub " + str(imsi), redisClient=self.redisMessaging)
@@ -2743,7 +2760,6 @@ class Diameter:
                     if len(default_EPS_QoS) > 0:
                         avp += self.generate_vendor_avp(1049, "80", 10415, default_EPS_QoS)
 
-        
                 self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Creating QoS Information", redisClient=self.redisMessaging)
                 #QoS-Information
                 try:

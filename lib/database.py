@@ -94,6 +94,7 @@ class SUBSCRIBER(Base):
     default_apn = Column(Integer, ForeignKey('apn.apn_id'), doc='APN ID to use for the default APN', nullable=False)
     apn_list = Column(String(64), doc='Comma separated list of allowed APNs', nullable=False)
     msisdn = Column(String(18), doc='Primary Phone number of Subscriber')
+    high_priority = Column(Boolean, default=0, doc='Whether to statically set the QCI and ARP for the internet apn to a predefined value')
     ue_ambr_dl = Column(Integer, default=999999, doc='Downlink Aggregate Maximum Bit Rate')
     ue_ambr_ul = Column(Integer, default=999999, doc='Uplink Aggregate Maximum Bit Rate')
     nam = Column(Integer, default=0, doc='Network Access Mode [3GPP TS. 123 008 2.1.1.2] - 0 (PACKET_AND_CIRCUIT) or 2 (ONLY_PACKET)')
