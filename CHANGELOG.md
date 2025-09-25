@@ -5,7 +5,27 @@ All notable changes to PyHSS are documented in this file, beginning from [Servic
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - Unreleased
+## [1.0.2] - 2024-07-03
+
+### Added
+
+- Configurable DWRs sendable to connected peers.
+- Configurable outbound roaming rules on a per-network and per-subscriber basis.
+- /pcrf/clr_subscriber for ease of use.
+- Support for OCS webhook notifications on CCR-I and CCR-T.
+
+### Fixed
+
+- Removed '+' from MSISDNs when storing in the database.
+- CCR-based logical bug when emergency attach procedure is performed.
+- Repeated ECRs leaking open SQL sessions.
+- Forced string evaluation for tacDatabasePath.
+
+## [1.0.1] - 2024-01-23
+
+
+### Removed
+ - Assert on missing "IMS Services" for AAA/Audio Request
 
 ### Changed
 
@@ -14,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gx RAR now dynamically creates TFT up to 512k based on UE request.
 - SQN Resync now propogates via Geored when enabled 
 - Renamed sh_profile to xcap_profile in ims_subscriber
+- Rebuilt keys using unique namespace for redis-sentinel / stateless compatibility.
 
 ### Fixed
 
@@ -31,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Control of outbound roaming S6a AIR and ULA responses through roaming_rule and roaming_network objects.
 - Roaming management on a per-subscriber basis, through subscriber.roaming_enabled and subscriber.roaming_rule_list.
 - Support for Gx and Rx auth of unknown subscribers attaching via SOS.
+- Preliminary support for SCTP.
+- Additional prometheus metrics.
 
 ## [1.0.0] - 2023-09-27
 
@@ -73,3 +96,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multithreading in all services, except for metricService
 
 [1.0.0]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.0
+[1.0.1]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.1
+[1.0.2]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.2

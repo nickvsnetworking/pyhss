@@ -1,5 +1,5 @@
 [Unit]
-Description=PyHSS Metric Service
+Description=PyHSS HSS Service
 PartOf=pyhss.service
 
 
@@ -7,7 +7,7 @@ PartOf=pyhss.service
 Environment="PYTHONUNBUFFERED=1"
 User=root
 WorkingDirectory=/etc/pyhss/services/
-ExecStart=python3 metricService.py
+ExecStart=python3 gsupService.py
 Restart=always
 
 [Install]

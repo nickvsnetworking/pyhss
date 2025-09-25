@@ -1,5 +1,7 @@
 ## HSS Parameters
-hss:
+hss:  
+  # Transport Type. "TCP" and "SCTP" are valid options.
+  # Note: SCTP works but is still experimental. TCP has been load-tested and performs in a production environment.
   transport: "TCP"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
   bind_ip: ["0.0.0.0"]
@@ -39,6 +41,12 @@ hss:
   #The maximum time to wait, in seconds, before discarding a diameter request.
   diameter_request_timeout: 3
 
+  # Whether to send a DWR to connected peers.
+  send_dwr: False
+
+  # How often to send a DWR to connected peers if enabled, in seconds.
+  send_dwr_interval: 5
+
   #The amount of time, in seconds, before purging a disconnected client from the Active Diameter Peers key in redis.
   active_diameter_peers_timeout: 10
 
@@ -73,6 +81,15 @@ hss:
       # Whether or not to a subscriber to connect to an undefined network when outbound roaming.
       allow_undefined_networks: True
 
+  # SCTP Socket Parameters
+  sctp:
+    rtoMax: 5000
+    rtoMin: 500
+    rtoInitial: 1000
+
+  gsup:
+    bind_ip: "0.0.0.0"
+    bind_port: 4222
 
 api:
   page_size: 200
@@ -88,6 +105,8 @@ benchmarking:
 eir:
   imsi_imei_logging: True    #Store current IMEI / IMSI pair in backend
   no_match_response: 2       #Greylist
+  store_offnet_imsi: False  # Whether or not to store an IMEI / IMSI pair that doesn't exist in the AUC
+  simSwapNotification: False # If the IMEI for a stored IMSI/IMEI combo changes, notify the webhook endpoint
   # Define an optional TAC csv file path
   #tac_database_csv: '/etc/pyhss/tac_database.csv'
 
@@ -98,7 +117,6 @@ logging:
     diameter_logging_file: /var/log/pyhss_diameter.log
     geored_logging_file: /var/log/pyhss_geored.log
     metric_logging_file: /var/log/pyhss_metrics.log
-  log_to_terminal: True
   sqlalchemy_sql_echo: False
   sqlalchemy_pool_recycle: 15
   sqlalchemy_pool_size: 30
@@ -106,17 +124,25 @@ logging:
 
 ## Database Parameters
 database:
-  db_type: mysql    #Supported types are MySQL and Postgres
+  db_type: mysql    #Supported types are MySQL, Postgres and sqlite
   server: 127.0.0.1
   username: dbeaver
   password: password
-  database: hss2
+  database: hss2 # for sqlite, this should be a path to the database file
+  readCacheEnabled: True
+  readCacheInterval: 60
 
 ## External Webhook Notifications
 webhooks:
   enabled: False
   endpoints:
-  - http://127.0.0.1:8181
+    - 'http://127.0.0.1:8181'
+
+### Notifications to OCS on Credit Control Requests
+ocs:
+  enabled: False
+  endpoints:
+    - 'http://127.0.0.1:8282'
 
 ## Geographic Redundancy Parameters
 geored:
@@ -126,21 +152,36 @@ geored:
     - 'http://hss01.mnc001.mcc001.3gppnetwork.org:8080'
     - 'http://hss02.mnc001.mcc001.3gppnetwork.org:8080'
 
-#Redis is required to run PyHSS. A locally running instance is recommended for production.
+#Redis is required to run PyHSS. An instance running on a local network is recommended for production.
 redis:
-  # Whether to use a UNIX socket instead of a tcp connection to redis. Host and port is ignored if useUnixSocket is True.
-  useUnixSocket: False
+  # Which connection type to attempt. Valid options are: tcp, unix, sentinel
+  # tcp - Connection via a standard TCP socket to a given host and port.
+  # unix - Connect to redis via a unix socket, provided by unixSocketPath.
+  # sentinel - Connect to one or more redis sentinel hosts.
+  connectionType: "tcp"
   unixSocketPath: '/var/run/redis/redis-server.sock'
   host: localhost
   port: 6379
-  # [Deprecated] Additional peers to query for roaming SOS subscribers
-  additionalPeers:
-    - "redis2.mnc001.mcc001.3gppnetwork.org:6379"
+  sentinel:
+    masterName: exampleMaster
+    hosts:
+      - exampleSentinel.mnc001.mcc001.3gppnetwork.org:
+        port: 6379
+        password: ''
+
 
 prometheus:
   enabled: False
   port: 8081    #If the API is run the API runs on the next port number up from this
   async_subscriber_count: False    #If enabled the subscriber count will be updated asynchronously for Prometheus
+
+influxdb:
+  enabled: False
+  host: "127.0.0.1"
+  port: 8086
+  username: exampleUser
+  password: examplePassword
+  database: example
 
 snmp:
   port: 1161

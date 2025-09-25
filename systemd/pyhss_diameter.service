@@ -4,6 +4,7 @@ PartOf=pyhss.service
 
 
 [Service]
+Environment="PYTHONUNBUFFERED=1"
 User=root
 WorkingDirectory=/etc/pyhss/services/
 ExecStart=python3 diameterService.py

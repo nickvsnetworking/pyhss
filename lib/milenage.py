@@ -80,6 +80,65 @@ class Milenage(BaseLTEAuthAlgo):
         CryptoLogger.debug("Successfully ran milenage.generate_eutran_vector")
         return rand, xres, autn, kasme
 
+    def generate_2g3g_vector(self, key, opc, rand, sqn):
+        """
+        Generate the E-EUTRAN key vector.
+        Args:
+            key (bytes): 128 bit subscriber key
+            opc (bytes): 128 bit operator variant algorithm configuration field
+            sqn (int): 48 bit sequence number
+        Returns:
+            rand (bytes): 128 bit random challenge
+            xres (bytes): 128 bit expected result
+            autn (bytes): 128 bit authentication token
+            kasme (bytes): 256 bit base network authentication code
+        """
+        CryptoLogger.debug("Called milenage.generate_maa_vector")
+
+        CryptoLogger.debug("Generating SQN bytes")
+        CryptoLogger.debug("Current SQN value is " + str(sqn) + " and is " + str(len(str(sqn))) + " long")
+        sqn_bytes = bytearray.fromhex('{:012x}'.format(sqn))
+        #With some inputs a space is added here.
+        #See https://stackoverflow.com/questions/57697983/how-do-i-interpret-spaces-in-python-byte-arrays
+        CryptoLogger.debug("Generated SQN bytes")
+        CryptoLogger.debug("SQN bytes is " + str(sqn_bytes))
+
+        CryptoLogger.debug("Generating f1")
+        mac_a, _ = Milenage.f1(key, sqn_bytes, rand, opc, self.amf)
+        CryptoLogger.debug("Generated f1")
+
+
+        CryptoLogger.debug("Generating f2_f5")
+        xres, ak = Milenage.f2_f5(key, rand, opc)
+        CryptoLogger.debug("Generated f2_f5")
+
+        res = Milenage.f2(key, rand, opc)
+
+        CryptoLogger.debug("Generating ck")
+        ck = Milenage.f3(key, rand, opc)
+        CryptoLogger.debug("Generating ik")
+        ik = Milenage.f4(key, rand, opc)
+
+
+        CryptoLogger.debug("Generate generate_autn")
+        autn = Milenage.generate_autn(sqn_bytes, ak, mac_a, self.amf)
+
+        # Translate XRES to SRES
+        # zero-padding for xres
+        xres += b'\x00' * (16 - len(xres))
+        sres = bytearray(4)
+
+        for i in range(0, 4):
+            sres[i] = xres[i] ^ xres[i + 4] ^ xres[i + 8] ^ xres[i + 12]
+
+        # Translate CK to Kc
+        kc = bytearray(8)
+
+        for i in range(0, 8):
+            kc[i] = ck[i] ^ ck[i + 8] ^ ik[i] ^ ik[i + 8]
+
+        return res, sres, autn, ck, ik, kc
+
     def generate_maa_vector(self, key, opc, sqn, plmn):
         """
         Generate the E-EUTRAN key vector.
@@ -234,6 +293,21 @@ class Milenage(BaseLTEAuthAlgo):
         #  MAC-A = f1 = OUT1[0] .. OUT1[63]
         #  MAC-S = f1* = OUT1[64] .. OUT1[127]
         return out1[:8], out1[8:]
+
+    @classmethod
+    def f2(cls, key, rand, opc):
+        crypt_in = xor(rand, opc)
+        temp = cls.encrypt(key, crypt_in)
+
+        crypt_in = xor(temp, opc)
+        crypt_in = bytearray(crypt_in)
+        crypt_in[15] ^= 1
+        out = cls.encrypt(key, crypt_in)
+
+        out = xor(out, opc)
+        res = out[8:16]
+
+        return res
 
     @classmethod
     def f2_f5(cls, key, rand, opc):

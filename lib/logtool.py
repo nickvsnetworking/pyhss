@@ -1,6 +1,7 @@
 import logging
 import logging.handlers as handlers
 import os, sys, time
+import socket
 from datetime import datetime
 sys.path.append(os.path.realpath('../'))
 import asyncio
@@ -41,6 +42,7 @@ class LogTool:
 
         self.redisMessagingAsync = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
+        self.hostname = socket.gethostname()
     
     async def logAsync(self, service: str, level: str, message: str, redisClient=None) -> bool:
         """
@@ -55,7 +57,7 @@ class LogTool:
         timestamp = time.time()
         dateTimeString = datetime.fromtimestamp(timestamp).strftime("%m/%d/%Y %H:%M:%S %Z").strip()
         print(f"[{dateTimeString}] [{level.upper()}] {message}")
-        await(redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60))
+        await(redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='log'))
         return True
     
     def log(self, service: str, level: str, message: str, redisClient=None) -> bool:
@@ -71,7 +73,7 @@ class LogTool:
         timestamp = time.time()
         dateTimeString = datetime.fromtimestamp(timestamp).strftime("%m/%d/%Y %H:%M:%S %Z").strip()
         print(f"[{dateTimeString}] [{level.upper()}] {message}")
-        redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60)
+        redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
         return True
 
     def setupFileLogger(self, loggerName: str, logFilePath: str):

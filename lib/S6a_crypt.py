@@ -1,14 +1,19 @@
+from comp128.comp128v1 import Comp128v1
+from comp128.comp128v23 import Comp128v23
 from milenage import Milenage
 import binascii
-import base64
 import logging
 import os
 import sys
 sys.path.append(os.path.realpath('../'))
 import yaml
 
-with open("../config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
+try:
+    with open("../config.yaml", 'r') as stream:
+        config = (yaml.safe_load(stream))
+except:
+    with open("config.yaml", 'r') as stream:
+        config = (yaml.safe_load(stream))
 
 # logtool = logtool.LogTool()
 # logtool.setup_logger('CryptoLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
@@ -110,6 +115,54 @@ def generate_maa_vector(key, op_c, amf, sqn, plmn):
     # print("ck: " + str(ck))
     # print("ik: " + str(ik))
     return (rand, autn, xres, ck, ik)
+
+
+def generate_2g3g_vector(key, op_c, amf, sqn, algo):
+    CryptoLogger.debug("Generating 2G/3G Authentication Vector")
+    key = key.encode('utf-8')
+    CryptoLogger.debug("Input K:  " + str(key))
+    key = binascii.unhexlify(key)
+
+    op_c = op_c.encode('utf-8')
+    CryptoLogger.debug("Input OPc:  " + str(op_c))
+    op_c = binascii.unhexlify(op_c)
+
+    amf = str(amf)
+    amf = amf.encode('utf-8')
+    amf = binascii.unhexlify(amf)
+    CryptoLogger.debug("Input AMF: " + str(amf))
+
+    sqn = int(sqn)
+    CryptoLogger.debug("Input SQN: " + str(sqn))
+
+    kc = None
+    sres = None
+    rand = Milenage.generate_rand()
+
+    if algo == 1:
+        crypto_obj = Comp128v1()
+        sres, kc = crypto_obj.comp128v1(bytearray(key), rand)
+    elif algo == 2:
+        crypto_obj = Comp128v23()
+        sres, kc = crypto_obj.comp128v2(bytearray(key), rand)
+    elif algo == 3:
+        crypto_obj = Comp128v23()
+        sres, kc = crypto_obj.comp128v3(bytearray(key), rand, sres, kc)
+
+    # Case: SIM only supports 2G Auth
+    if op_c == b'':
+        return dict(rand=rand, sres=sres, kc=kc)
+
+    crypto_obj = Milenage(amf)
+    (res, milenage_sres, autn, ck, ik, milenage_kc) = crypto_obj.generate_2g3g_vector(key, op_c, rand, sqn)
+
+    # Case: SIM supports both 2G and 3G Auth -> leave kc and sres as is
+    # Case: SIM only supports 3G Auth -> overwrite kc and sres with milenage values
+    if sres is None or kc is None:
+        sres = milenage_sres
+        kc = milenage_kc
+
+    return dict(rand=rand, autn=autn, res=res, sres=sres, ck=ck, ik=ik, kc=kc)
 
 def generate_eap_aka_vector(key, op_c, amf, sqn, plmn):
     CryptoLogger.debug("Generating EAP-AKA Vector")

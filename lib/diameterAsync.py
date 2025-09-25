@@ -2,6 +2,10 @@
 import math
 import asyncio
 import yaml
+import uuid
+import socket
+import traceback
+import binascii
 from messagingAsync import RedisMessagingAsync
 
 
@@ -9,25 +13,40 @@ class DiameterAsync:
 
     def __init__(self, logTool):
         self.diameterCommandList = [
+                # Generic Diameter Messages RFC6733
                 {"commandCode": 257, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_257, "failureResultCode": 5012 ,"requestAcronym": "CER", "responseAcronym": "CEA", "requestName": "Capabilites Exchange Request", "responseName": "Capabilites Exchange Answer"},
-                {"commandCode": 280, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_280, "failureResultCode": 5012 ,"requestAcronym": "DWR", "responseAcronym": "DWA", "requestName": "Device Watchdog Request", "responseName": "Device Watchdog Answer"},
+                {"commandCode": 280, "applicationId": 0, "flags": 80, "requestMethod": self.Request_280, "responseMethod": self.Answer_280, "failureResultCode": 5012 ,"requestAcronym": "DWR", "responseAcronym": "DWA", "requestName": "Device Watchdog Request", "responseName": "Device Watchdog Answer"},
                 {"commandCode": 282, "applicationId": 0, "flags": 80, "responseMethod": self.Answer_282, "failureResultCode": 5012 ,"requestAcronym": "DPR", "responseAcronym": "DPA", "requestName": "Disconnect Peer Request", "responseName": "Disconnect Peer Answer"},
+
+                # Gx PCEF/PCRF
                 {"commandCode": 300, "applicationId": 16777216, "responseMethod": self.Answer_16777216_300, "failureResultCode": 4100 ,"requestAcronym": "UAR", "responseAcronym": "UAA", "requestName": "User Authentication Request", "responseName": "User Authentication Answer"},
                 {"commandCode": 301, "applicationId": 16777216, "responseMethod": self.Answer_16777216_301, "failureResultCode": 4100 ,"requestAcronym": "SAR", "responseAcronym": "SAA", "requestName": "Server Assignment Request", "responseName": "Server Assignment Answer"},
                 {"commandCode": 302, "applicationId": 16777216, "responseMethod": self.Answer_16777216_302, "failureResultCode": 4100 ,"requestAcronym": "LIR", "responseAcronym": "LIA", "requestName": "Location Information Request", "responseName": "Location Information Answer"},
                 {"commandCode": 303, "applicationId": 16777216, "responseMethod": self.Answer_16777216_303, "failureResultCode": 4100 ,"requestAcronym": "MAR", "responseAcronym": "MAA", "requestName": "Multimedia Authentication Request", "responseName": "Multimedia Authentication Answer"},
+
+                # Gy PCEF/OCS
                 {"commandCode": 306, "applicationId": 16777217, "responseMethod": self.Answer_16777217_306, "failureResultCode": 5001 ,"requestAcronym": "UDR", "responseAcronym": "UDA", "requestName": "User Data Request", "responseName": "User Data Answer"},
                 {"commandCode": 307, "applicationId": 16777217, "responseMethod": self.Answer_16777217_307, "failureResultCode": 5001 ,"requestAcronym": "PRUR", "responseAcronym": "PRUA", "requestName": "Profile Update Request", "responseName": "Profile Update Answer"},
+
+                # Rx PCEF/P-CSCF
                 {"commandCode": 265, "applicationId": 16777236, "responseMethod": self.Answer_16777236_265, "failureResultCode": 4100 ,"requestAcronym": "AAR", "responseAcronym": "AAA", "requestName": "AA Request", "responseName": "AA Answer"},
                 {"commandCode": 275, "applicationId": 16777236, "responseMethod": self.Answer_16777236_275, "failureResultCode": 4100 ,"requestAcronym": "STR", "responseAcronym": "STA", "requestName": "Session Termination Request", "responseName": "Session Termination Answer"},
                 {"commandCode": 274, "applicationId": 16777236, "responseMethod": self.Answer_16777236_274, "failureResultCode": 4100 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},
+
+                # Re OCS
                 {"commandCode": 258, "applicationId": 16777238, "responseMethod": self.Answer_16777238_258, "failureResultCode": 4100 ,"requestAcronym": "RAR", "responseAcronym": "RAA", "requestName": "Re Auth Request", "responseName": "Re Auth Answer"},
                 {"commandCode": 272, "applicationId": 16777238, "responseMethod": self.Answer_16777238_272, "failureResultCode": 5012 ,"requestAcronym": "CCR", "responseAcronym": "CCA", "requestName": "Credit Control Request", "responseName": "Credit Control Answer"},
+
+                # S6a MME
                 {"commandCode": 318, "applicationId": 16777251, "flags": "c0", "responseMethod": self.Answer_16777251_318, "failureResultCode": 4100 ,"requestAcronym": "AIR", "responseAcronym": "AIA", "requestName": "Authentication Information Request", "responseName": "Authentication Information Answer"},
                 {"commandCode": 316, "applicationId": 16777251, "responseMethod": self.Answer_16777251_316, "failureResultCode": 4100 ,"requestAcronym": "ULR", "responseAcronym": "ULA", "requestName": "Update Location Request", "responseName": "Update Location Answer"},
                 {"commandCode": 321, "applicationId": 16777251, "responseMethod": self.Answer_16777251_321, "failureResultCode": 5012 ,"requestAcronym": "PUR", "responseAcronym": "PUA", "requestName": "Purge UE Request", "responseName": "Purge UE Answer"},
                 {"commandCode": 323, "applicationId": 16777251, "responseMethod": self.Answer_16777251_323, "failureResultCode": 5012 ,"requestAcronym": "NOR", "responseAcronym": "NOA", "requestName": "Notify Request", "responseName": "Notify Answer"},
+
+                # S13 EIR
                 {"commandCode": 324, "applicationId": 16777252, "responseMethod": self.Answer_16777252_324, "failureResultCode": 4100 ,"requestAcronym": "ECR", "responseAcronym": "ECA", "requestName": "ME Identity Check Request", "responseName": "ME Identity Check Answer"},
+
+                # SLh LCS
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
             ]
 
@@ -41,7 +60,7 @@ class DiameterAsync:
         self.redisMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
         self.logTool = logTool
-        
+        self.hostname = socket.gethostname()
 
     #Generates rounding for calculating padding
     async def myRound(self, n, base=4):
@@ -51,6 +70,15 @@ class DiameterAsync:
             return math.floor(n/4.0) * 4
         else:
             return 4
+
+    #Converts string to hex
+    async def string_to_hex(self, string):
+        string_bytes = string.encode('utf-8')
+        return str(binascii.hexlify(string_bytes), 'ascii')
+
+    #Converts int to hex padded to required number of bytes
+    async def int_to_hex(self, input_int, output_bytes):
+        return format(input_int,"x").zfill(output_bytes*2)
 
     async def roundUpToMultiple(self, n, multiple):
         return ((n + multiple - 1) // multiple) * multiple
@@ -246,7 +274,7 @@ class DiameterAsync:
                 if peerType not in peerTypes:
                     return []
                 filteredConnectedPeers = []
-                activePeers = await(self.redisMessaging.getValue(key="ActiveDiameterPeers"))
+                activePeers = await(self.redisMessaging.getValue(key="ActiveDiameterPeers", usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter'))
 
                 for key, value in activePeers.items():
                     if activePeers.get(key, {}).get('peerType', '') == 'pgw' and activePeers.get(key, {}).get('connectionStatus', '') == 'connected':
@@ -298,7 +326,91 @@ class DiameterAsync:
                 continue
         
         return response
-    
+
+    async def generateId(self, length):
+        length = length * 2
+        return str(uuid.uuid4().hex[:length])
+
+    #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
+    #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
+    async def generate_avp(self, avp_code, avp_flags, avp_content):
+        avp_code = format(avp_code,"x").zfill(8)
+        
+        avp_length = 1 ##This is a placeholder that's overwritten later
+
+        #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
+        avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_content)
+        avp_length = int(len(avp)/2)
+
+        if avp_length % 4  == 0:    #Multiple of 4 - No Padding needed
+            avp_padding = ''
+        else:                       #Not multiple of 4 - Padding needed
+            rounded_value = await(self.myRound(avp_length))
+            avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
+
+        avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_content) + str(avp_padding)
+        return avp
+
+    #Generates an AVP with inputs provided (AVP Code, AVP Flags, AVP Content, Padding)
+    #AVP content must already be in HEX - This can be done with binascii.hexlify(avp_content.encode())
+    async def generate_vendor_avp(self, avp_code, avp_flags, avp_vendorid, avp_content):
+        avp_code = format(avp_code,"x").zfill(8)
+        
+        avp_length = 1 ##This is a placeholder that gets overwritten later
+
+        avp_vendorid = format(int(avp_vendorid),"x").zfill(8)
+        
+        #AVP Must always be a multiple of 4 - Round up to nearest multiple of 4 and fill remaining bits with padding
+        avp = str(avp_code) + str(avp_flags) + str("000000") + str(avp_vendorid) + str(avp_content)
+        avp_length = int(len(avp)/2)
+
+        if avp_length % 4  == 0:    #Multiple of 4 - No Padding needed
+            avp_padding = ''
+        else:                       #Not multiple of 4 - Padding needed
+            rounded_value = await(self.myRound(avp_length))
+            # await(self.logTool.debug(message="Rounded value is " + str(rounded_value), redisClient=self.redisMessaging))
+            # await(self.logTool.debug(message="Has " + str( int( rounded_value - avp_length)) + " bytes of padding", redisClient=self.redisMessaging))
+            avp_padding = format(0,"x").zfill(int( rounded_value - avp_length) * 2)
+
+
+        
+        avp = str(avp_code) + str(avp_flags) + str(format(avp_length,"x").zfill(6)) + str(avp_vendorid) + str(avp_content) + str(avp_padding)
+        return avp
+
+    async def generate_diameter_packet(self, packet_version, packet_flags, packet_command_code, packet_application_id, packet_hop_by_hop_id, packet_end_to_end_id, avp):
+        try:
+            packet_length = 228
+            packet_length = format(packet_length,"x").zfill(6)
+        
+            packet_command_code = format(packet_command_code,"x").zfill(6)
+            
+            packet_application_id = format(packet_application_id,"x").zfill(8)
+            
+            packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
+            packet_length = int(round(len(packet_hex))/2)
+            packet_length = format(packet_length,"x").zfill(6)
+            
+            packet_hex = packet_version + packet_length + packet_flags + packet_command_code + packet_application_id + packet_hop_by_hop_id + packet_end_to_end_id + avp
+            return packet_hex
+        except Exception as e:
+            await(self.logTool.error(message=f"Exception: {e}", redisClient=self.redisMessaging))
+
+    async def Request_280(self, originHost: str, originRealm: str, endToEndIdentifier: str=None):
+        """
+        Builds a Device Watchdog Request.
+        """
+        try:
+            if not endToEndIdentifier:
+                endToEndIdentifier = await(self.generateId(4))
+            avp = ''
+            avp += await(self.generate_avp(264, 40, await(self.string_to_hex(originHost)))) #Origin Host
+            avp += await(self.generate_avp(296, 40, await(self.string_to_hex(originRealm)))) #Origin Realm
+            response = await(self.generate_diameter_packet("01", "80", 280, 0, (await(self.generateId(4))), endToEndIdentifier, avp)) #Generate Diameter packet
+            return response
+        except Exception as e:
+            await(self.logTool.error(message=f"Error: {traceback.format_exc()}", redisClient=self.redisMessaging))
+            return None
+
     async def Answer_257(self):
         pass
 

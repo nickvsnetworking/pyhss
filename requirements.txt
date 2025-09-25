@@ -1,4 +1,4 @@
-aiohttp==3.8.5
+aiohttp
 Flask==2.2.3
 flask_restx==1.1.0
 Jinja2==3.1.2
@@ -7,8 +7,11 @@ prometheus_client==0.16.0
 pycryptodome==3.17
 pymongo==4.3.3
 pysctp==0.7.2
+pyosmocom
+comp128==1.0.0
+alembic
 pysnmp==4.4.12
-PyYAML==6.0
+PyYAML
 redis==5.0.0
 Requests==2.31.0
 SQLAlchemy==2.0.9
@@ -16,3 +19,8 @@ SQLAlchemy_Utils==0.41.1
 Werkzeug==2.2.3
 mysqlclient
 prometheus_flask_exporter
+pydantic==2.8.2
+pydantic_core==2.20.1
+tzlocal==4.3
+influxdb==5.3.1
+xmltodict==0.14.2

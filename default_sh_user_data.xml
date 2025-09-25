@@ -24,6 +24,16 @@
     <Sh-IMS-Data>
         <S-CSCFName>{{ Sh_template_vars['scscf'] }}</S-CSCFName>
         <IMSUserState>{{ Sh_template_vars['imsUserState'] }}</IMSUserState>
+        <!-- The following values are not 3gpp-standardised. Remove if your deployment requires 3gpp-compliant XML. -->
+        <InboundCommunicationBarred>{{ Sh_template_vars['inboundCommunicationBarred'] }}</InboundCommunicationBarred>
+        <OutboundCommunicationBarred>{{ Sh_template_vars['outboundCommunicationBarred'] }}</OutboundCommunicationBarred>
+        <CallForwardActive>{{ Sh_template_vars['callForwarding']['enabled'] }}</CallForwardActive>
+        <CallForwardUnconditional>{{ Sh_template_vars['callForwarding']['unconditional'] }}</CallForwardUnconditional>
+        <CallForwardNotRegistered>{{ Sh_template_vars['callForwarding']['notRegistered'] }}</CallForwardNotRegistered>
+        <CallForwardNoAnswer>{{ Sh_template_vars['callForwarding']['noAnswer'] }}</CallForwardNoAnswer>
+        <CallForwardBusy>{{ Sh_template_vars['callForwarding']['busy'] }}</CallForwardBusy>
+        <CallForwardNotReachable>{{ Sh_template_vars['callForwarding']['notReachable'] }}</CallForwardNotReachable>
+        <CallForwardNoReplyTimer>{{ Sh_template_vars['callForwarding']['noReplyTimer'] }}</CallForwardNoReplyTimer>
     </Sh-IMS-Data>
 
 </Sh-Data>
