@@ -7,7 +7,7 @@ import os
 import random
 import ipaddress
 import jinja2
-from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER, geored_check_updated_endpoints
+from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER, IMS_SUBSCRIBER, geored_check_updated_endpoints
 from messaging import RedisMessaging
 from redis import Redis
 import datetime

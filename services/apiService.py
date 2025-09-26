@@ -2,6 +2,7 @@ import sys
 import json
 from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, reqparse, abort
+from database import geored_check_updated_endpoints
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 import os
