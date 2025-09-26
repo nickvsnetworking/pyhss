@@ -72,6 +72,11 @@ class LogService:
                 self.logTool.log(service='Log', level='error', message=f"[Log] Error: {e}", redisClient=self.redisMessaging)
                 continue
 
-if __name__ == '__main__':
+
+def main():
     logService = LogService()
     logService.handleLogs()
+
+
+if __name__ == '__main__':
+    main()

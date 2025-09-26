@@ -450,6 +450,10 @@ class DiameterService:
                 await(server.serve_forever())
 
 
-if __name__ == '__main__':
+def main():
     diameterService = DiameterService()
     asyncio.run(diameterService.startServer())
+
+
+if __name__ == '__main__':
+    main()

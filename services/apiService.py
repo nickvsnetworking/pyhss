@@ -2372,6 +2372,10 @@ class PyHSS_Push_CLR(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Unable to send CLR: " + str(E)}
             return response_json
 
-if __name__ == '__main__':
+
+def main():
     apiService.run(debug=False, host='0.0.0.0', port=8080)
 
+
+if __name__ == '__main__':
+    main()

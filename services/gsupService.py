@@ -30,9 +30,13 @@ from logtool import LogTool
 from pyhss_config import config
 
 
-if __name__ == '__main__':
+def main():
     bind_ip = config['hss']['gsup']['bind_ip']
     bind_port = config['hss']['gsup']['bind_port']
 
     gsup_server = GsupServer(bind_ip, bind_port, 60, LogTool(config))
     asyncio.run(gsup_server.start_server())
+
+
+if __name__ == '__main__':
+    main()

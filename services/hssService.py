@@ -144,9 +144,12 @@ class HssService:
             except Exception as e:
                 self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 continue
-            
+
+
+def main():
+    hssService = HssService()
+    hssService.handleQueue()
 
 
 if __name__ == '__main__':
-    hssService = HssService()
-    hssService.handleQueue()
+    main()

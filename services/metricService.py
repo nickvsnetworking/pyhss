@@ -125,8 +125,7 @@ class MetricService:
             self.handleMetrics()
 
 
-if __name__ == '__main__':
-
+def main():
     metricService = MetricService()
     metricServiceThread = threading.Thread(target=metricService.getMetrics)
     metricServiceThread.start()
@@ -137,3 +136,7 @@ if __name__ == '__main__':
     })
 
     prometheusWebClient.run(host='0.0.0.0', port=9191)
+
+
+if __name__ == '__main__':
+    main()

@@ -436,6 +436,10 @@ class GeoredService:
                         pass
 
 
-if __name__ == '__main__':
+def main():
     georedService = GeoredService()
     asyncio.run(georedService.startService())
+
+
+if __name__ == '__main__':
+    main()
