@@ -7,7 +7,7 @@ import os
 import random
 import ipaddress
 import jinja2
-from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER
+from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER, geored_check_updated_endpoints
 from messaging import RedisMessaging
 from redis import Redis
 import datetime
@@ -3589,7 +3589,7 @@ class Diameter:
                         ipApnName = ipApnName.get('apn', None)
                     else:
                         #If we didn't find a serving APN for the IP, try the other local HSS'.
-                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', [])
+                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', geored_check_updated_endpoints(self.config))
                         for localGeoredEndpoint in localGeoredEndpoints:
                             endpointUrl = f"{localGeoredEndpoint}/pcrf/pcrf_serving_apn_ip/{ueIp}"
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Searching remote HSS for serving apn: {endpointUrl}", redisClient=self.redisMessaging)
@@ -4072,7 +4072,7 @@ class Diameter:
                 try:
                     if not servingApn or servingApn == None or servingApn == 'None':
                         #If we didn't find a serving APN for the Subscriber, try the other local HSS'.
-                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', [])
+                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', geored_check_updated_endpoints(self.config))
                         for localGeoredEndpoint in localGeoredEndpoints:
                             endpointUrl = f"{localGeoredEndpoint}/pcrf/pcrf_subscriber_imsi/{imsi}"
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Searching remote HSS for serving apn: {endpointUrl}", redisClient=self.redisMessaging)

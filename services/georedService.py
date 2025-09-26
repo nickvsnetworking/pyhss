@@ -7,6 +7,7 @@ sys.path.append(os.path.realpath('../lib'))
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
 from logtool import LogTool
+from database import geored_check_updated_endpoints
 
 class GeoredService:
     """
@@ -31,7 +32,7 @@ class GeoredService:
         self.redisGeoredMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisWebhookMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         
-        self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
+        self.georedPeers = geored_check_updated_endpoints(self.config)
         self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
         self.ocsPeers = self.config.get('ocs', {}).get('endpoints', [])
         self.ocsNotificationsEnabled = self.config.get('ocs', {}).get('enabled', False)
@@ -339,6 +340,7 @@ class GeoredService:
 
                 socketSession = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False))
                 async with socketSession as session:
+                    self.georedPeers = geored_check_updated_endpoints(self.config)
                     for remotePeer in self.georedPeers:
                         georedTasks.append(self.sendGeored(asyncSession=session, url=remotePeer+'/geored/', operation=georedOperation, body=georedBody))
                     await asyncio.gather(*georedTasks)
@@ -408,6 +410,7 @@ class GeoredService:
             georedEnabled = self.config.get('geored', {}).get('enabled', False)
             webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
 
+            self.georedPeers = geored_check_updated_endpoints(self.config)
             if self.georedPeers is not None:
                 if not len(self.georedPeers) > 0:
                     georedEnabled = False

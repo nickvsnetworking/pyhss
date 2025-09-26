@@ -1560,7 +1560,9 @@ class PyHSS_OAM_Reconcile_IMS(Resource):
                 if 'cscf' in keys:
                     response_dict['localhost'][keys] = local_result[keys]
 
-            for remote_HSS in config['geored']['sync_endpoints']:
+            #Get remote HSS results
+            remote_peers = config.get('geored', {}).get('sync_endpoints', geored_check_updated_endpoints(config))
+            for remote_HSS in remote_peers:
                 print("Pulling data from remote HSS: " + str(remote_HSS))
                 try:
                     response = requests.get(remote_HSS + '/ims_subscriber/ims_subscriber_imsi/' + str(imsi))
@@ -2311,6 +2313,30 @@ class PyHSS_Geored(Resource):
 
 @ns_geored.route('/peers')
 class PyHSS_Geored_Peers(Resource):
+    def patch(self):
+        '''Update the configured geored peers'''
+        try:
+            json_data = request.get_json(force=True)
+            print("JSON Data sent: " + str(json_data))
+            georedEnabled = config.get('geored', {}).get('enabled', False)
+            if not georedEnabled:
+                return {'result': 'Failed', 'Reason' : "Geored not enabled"}
+            if 'endpoints' not in json_data:
+                return {'result': 'Failed', 'Reason' : "No endpoints in request"}
+            if not isinstance(json_data['endpoints'], list):
+                return {'result': 'Failed', 'Reason' : "Endpoints must be a list"}
+            config['geored']['endpoints'] = json_data['endpoints']
+            update_file = config.get('geored', {}).get('update_file', '/tmp/pyhss_geored_endpoints.txt')
+            if update_file and update_file != '':
+                # Writing the data to a YAML file
+                with open(update_file, 'w') as file:
+                    yaml.dump(config['geored']['endpoints'], file)
+
+            return {'result': 'Success'}, 200
+        except Exception as E:
+            print("Exception when updating geored peers: " + str(E))
+            response_json = {'result': 'Failed', 'Reason' : "Unable to update Geored peers: " + str(E)}
+            return response_json
     def get(self):
         '''Return the configured geored peers'''
         try:

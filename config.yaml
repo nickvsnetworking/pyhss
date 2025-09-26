@@ -166,6 +166,7 @@ ocs:
 geored:
   enabled: False
   sync_actions: ['HSS', 'IMS', 'PCRF', 'EIR']    #What event actions should be synced
+  update_file: '/etc/pyhss/geored_last_update'   #File to store latest geored endpoints
   endpoints:                         #List of PyHSS API Endpoints to update
     - 'http://hss01.mnc001.mcc001.3gppnetwork.org:8080'
     - 'http://hss02.mnc001.mcc001.3gppnetwork.org:8080'
