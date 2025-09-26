@@ -12,9 +12,6 @@ import json
 import redis
 import diameter
 import time
-import yaml
-with open("config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
 
 #Values to change / tweak
 recv_ip = yaml_config['hss']['bind_ip']                                                         #IP of this Machine
