@@ -115,7 +115,7 @@ class Diameter:
                 # S6a MME
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
-                {"commandCode": 320, "applicationId": 16777251, "requestMethod": self.Request_16777251_320, "failureResultCode": 5012 ,"requestAcronym": "DSR", "responseAcronym": "DSR", "requestName": "Delete Subscriber Data Request", "responseName": "Delete Subscriber Data Answer"}
+                {"commandCode": 320, "applicationId": 16777251, "requestMethod": self.Request_16777251_320, "failureResultCode": 5012 ,"requestAcronym": "DSR", "responseAcronym": "DSR", "requestName": "Delete Subscriber Data Request", "responseName": "Delete Subscriber Data Answer"},
 
                 # Rx PCEF/P-CSCF
                 {"commandCode": 274, "applicationId": 16777236, "requestMethod": self.Request_16777236_274, "failureResultCode": 5012 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},                
