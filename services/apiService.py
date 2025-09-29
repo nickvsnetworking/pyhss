@@ -237,6 +237,11 @@ GeoRed_model = api.model('GeoRed', {
     'last_location_update_timestamp': fields.String(description=SUBSCRIBER.last_location_update_timestamp.doc)
 })
 
+
+GeoRed_Peers_model = api.model('GeoRed_Peers', {
+    'peers': fields.List(fields.String, required=True, description='List of GeoRed Peers to update')
+})
+
 def no_auth_required(f):
     f.no_auth_required = True
     return f
@@ -2326,6 +2331,8 @@ class PyHSS_Geored(Resource):
 
 @ns_geored.route('/peers')
 class PyHSS_Geored_Peers(Resource):
+    @ns_geored.doc('Update the configured geored peers')
+    @ns_geored.expect(GeoRed_Peers_model)
     def patch(self):
         '''Update the configured geored peers'''
         try:
@@ -2350,6 +2357,7 @@ class PyHSS_Geored_Peers(Resource):
             print("Exception when updating geored peers: " + str(E))
             response_json = {'result': 'Failed', 'Reason' : "Unable to update Geored peers: " + str(E)}
             return response_json
+    @ns_geored.doc('Return the configured geored peers')
     def get(self):
         '''Return the configured geored peers'''
         try:
