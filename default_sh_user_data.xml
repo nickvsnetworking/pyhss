@@ -36,4 +36,307 @@
         <CallForwardNoReplyTimer>{{ Sh_template_vars['callForwarding']['noReplyTimer'] }}</CallForwardNoReplyTimer>
     </Sh-IMS-Data>
 
+    {% if Sh_template_vars['repository_data'] is none %}
+    <RepositoryData>
+        <ServiceIndication>MMTEL-Services</ServiceIndication>
+        <SequenceNumber>0</SequenceNumber>
+        <ServiceData>
+            <ss:MMTelServices xmlns:ss="http://uri.etsi.org/ngn/params/xml/simservs/xcap"
+                              xmlns:cp="urn:ietf:params:xml:ns:common-policy">
+                <!--Optional:-->
+                <ss:complete-originating-identity-presentation>
+                    <ss:originating-identity-presentation active="true"/>
+                    <ss:operator-originating-identity-presentation authorized="false">
+                        <!--Optional:-->
+                        <ss:restriction-override>override-active</ss:restriction-override>
+                    </ss:operator-originating-identity-presentation>
+                </ss:complete-originating-identity-presentation>
+                <!--Optional:-->
+                <ss:complete-originating-identity-restriction>
+                    <ss:originating-identity-presentation-restriction active="true">
+                        <!--Optional:-->
+                        <ss:default-behaviour>presentation-restricted</ss:default-behaviour>
+                    </ss:originating-identity-presentation-restriction>
+                    <ss:operator-originating-identity-presentation-restriction authorized="true">
+                        <ss:mode>permanent</ss:mode>
+                        <ss:restriction>only-identity</ss:restriction>
+                    </ss:operator-originating-identity-presentation-restriction>
+                </ss:complete-originating-identity-restriction>
+                <!--Optional:-->
+                <ss:complete-terminating-identity-presentation>
+                    <ss:terminating-identity-presentation active="true"/>
+                    <ss:operator-terminating-identity-presentation authorized="true">
+                        <!--Optional:-->
+                        <ss:restriction-override>override-not-active</ss:restriction-override>
+                    </ss:operator-terminating-identity-presentation>
+                </ss:complete-terminating-identity-presentation>
+                <!--Optional:-->
+                <ss:complete-terminating-identity-restriction>
+                    <ss:terminating-identity-presentation-restriction active="true">
+                        <!--Optional:-->
+                        <ss:default-behaviour>presentation-not-restricted</ss:default-behaviour>
+                    </ss:terminating-identity-presentation-restriction>
+                    <ss:operator-terminating-identity-presentation-restriction authorized="false">
+                        <ss:mode>permanent</ss:mode>
+                    </ss:operator-terminating-identity-presentation-restriction>
+                </ss:complete-terminating-identity-restriction>
+                <!--Optional:-->
+                <ss:complete-malicious-communication-identification>
+                    <ss:operator-malicious-communication-identification authorized="true">
+                        <ss:mode>temporary</ss:mode>
+                    </ss:operator-malicious-communication-identification>
+                </ss:complete-malicious-communication-identification>
+                <!--Optional:-->
+                <ss:complete-communication-diversion>
+                    <ss:communication-diversion active="true">
+                        <!--Optional:-->
+                        <ss:NoReplyTimer>180</ss:NoReplyTimer>
+                        <!--Optional:-->
+                        <cp:ruleset>
+                            <!--Zero or more repetitions:-->
+                            <cp:rule id="string1">
+                                <!--Optional:-->
+                                <cp:conditions>
+                                    <!--You have a CHOICE of the next 4 items at this level-->
+                                    <!--Optional:-->
+                                    <cp:identity>
+                                        <!--You have a CHOICE of the next 3 items at this level-->
+                                        <cp:one id="https://www.test.com/foedere/ferant">
+                                            <!--You may enter ANY elements at this point-->
+                                            <!--AnyElement/-->
+                                        </cp:one>
+                                        <cp:many domain="string">
+                                            <!--You have a CHOICE of the next 2 items at this level-->
+                                            <cp:except domain="string"
+                                                       id="https://www.corp.org/et/turbine"/>
+                                            <!--You may enter ANY elements at this point-->
+                                            <!--AnyElement/-->
+                                        </cp:many>
+                                        <!--You may enter ANY elements at this point-->
+                                        <!--AnyElement/-->
+                                    </cp:identity>
+                                    <!--Optional:-->
+                                    <cp:sphere value="string"/>
+                                    <!--Optional:-->
+                                    <cp:validity>
+                                        <cp:from>2010-03-18T17:05:32</cp:from>
+                                        <cp:until>2018-12-28T20:51:14+01:00</cp:until>
+                                    </cp:validity>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:conditions>
+                                <!--Optional:-->
+                                <cp:actions>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:actions>
+                                <!--Optional:-->
+                                <cp:transformations>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:transformations>
+                            </cp:rule>
+                        </cp:ruleset>
+                    </ss:communication-diversion>
+                    <ss:operator-communication-diversion authorized="false">
+                        <ss:communication-retention-on-invocation>
+                            retain-until-alerting-at-diverted-to-user
+                        </ss:communication-retention-on-invocation>
+                        <ss:retention-when-diverting-rejected-at-diverted-to-user>
+                            no-action-at-diverting-user
+                        </ss:retention-when-diverting-rejected-at-diverted-to-user>
+                        <ss:total-number-of-diversions-for-each-communication>100
+                        </ss:total-number-of-diversions-for-each-communication>
+                        <ss:cdiv-indication-timer>60</ss:cdiv-indication-timer>
+                        <ss:communication-forwarding-on-no-reply-timer>100
+                        </ss:communication-forwarding-on-no-reply-timer>
+                    </ss:operator-communication-diversion>
+                </ss:complete-communication-diversion>
+                <!--Optional:-->
+                <ss:complete-communication-waiting>
+                    <ss:communication-waiting active="true"/>
+                    <ss:operator-communication-waiting authorized="false">
+                        <ss:calling-user-receives-notification-his-call-is-waiting>false
+                        </ss:calling-user-receives-notification-his-call-is-waiting>
+                    </ss:operator-communication-waiting>
+                </ss:complete-communication-waiting>
+                <!--Optional:-->
+                <ss:complete-communication-hold>
+                    <ss:operator-communication-hold authorized="false"/>
+                </ss:complete-communication-hold>
+                <!--Optional:-->
+                <ss:complete-communication-barring>
+                    <ss:incoming-communication-barring active="true" password-required="false">
+                        <!--Optional:-->
+                        <cp:ruleset>
+                            <!--Zero or more repetitions:-->
+                            <cp:rule id="string2">
+                                <!--Optional:-->
+                                <cp:conditions>
+                                    <!--You have a CHOICE of the next 4 items at this level-->
+                                    <!--Optional:-->
+                                    <cp:identity>
+                                        <!--You have a CHOICE of the next 3 items at this level-->
+                                        <cp:one id="https://www.sample.com/aris/coniunx">
+                                            <!--You may enter ANY elements at this point-->
+                                            <!--AnyElement/-->
+                                        </cp:one>
+                                        <cp:many domain="string">
+                                            <!--You have a CHOICE of the next 2 items at this level-->
+                                            <cp:except domain="string"
+                                                       id="https://www.any.com/claustra/circum"/>
+                                            <!--You may enter ANY elements at this point-->
+                                            <!--AnyElement/-->
+                                        </cp:many>
+                                        <!--You may enter ANY elements at this point-->
+                                        <!--AnyElement/-->
+                                    </cp:identity>
+                                    <!--Optional:-->
+                                    <cp:sphere value="string"/>
+                                    <!--Optional:-->
+                                    <cp:validity>
+                                        <cp:from>2017-08-17T07:44:20</cp:from>
+                                        <cp:until>2012-04-24T23:37:57+02:00</cp:until>
+                                    </cp:validity>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:conditions>
+                                <!--Optional:-->
+                                <cp:actions>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:actions>
+                                <!--Optional:-->
+                                <cp:transformations>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:transformations>
+                            </cp:rule>
+                        </cp:ruleset>
+                    </ss:incoming-communication-barring>
+                    <ss:outgoing-communication-barring active="true" password-required="false">
+                        <!--Optional:-->
+                        <cp:ruleset>
+                            <!--Zero or more repetitions:-->
+                            <cp:rule id="string">
+                                <!--Optional:-->
+                                <cp:conditions>
+                                    <!--You have a CHOICE of the next 4 items at this level-->
+                                    <!--Optional:-->
+                                    <cp:identity>
+                                        <!--You have a CHOICE of the next 3 items at this level-->
+                                        <cp:one id="https://www.test.org/pectore/talia">
+                                            <!--You may enter ANY elements at this point-->
+                                            <!--AnyElement/-->
+                                        </cp:one>
+                                        <cp:many domain="string">
+                                            <!--You have a CHOICE of the next 2 items at this level-->
+                                            <cp:except domain="string"
+                                                       id="https://www.corp.edu/annos/sciret"/>
+                                            <!--You may enter ANY elements at this point-->
+                                            <!--AnyElement/-->
+                                        </cp:many>
+                                        <!--You may enter ANY elements at this point-->
+                                        <!--AnyElement/-->
+                                    </cp:identity>
+                                    <!--Optional:-->
+                                    <cp:sphere value="string"/>
+                                    <!--Optional:-->
+                                    <cp:validity>
+                                        <cp:from>2018-07-19T10:02:25+02:00</cp:from>
+                                        <cp:until>2004-12-06T04:41:44+01:00</cp:until>
+                                    </cp:validity>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:conditions>
+                                <!--Optional:-->
+                                <cp:actions>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:actions>
+                                <!--Optional:-->
+                                <cp:transformations>
+                                    <!--You may enter ANY elements at this point-->
+                                    <!--AnyElement/-->
+                                </cp:transformations>
+                            </cp:rule>
+                        </cp:ruleset>
+                    </ss:outgoing-communication-barring>
+                    <ss:operator-incoming-communication-barring authorized="true"/>
+                    <ss:operator-outgoing-communication-barring authorized="true"/>
+                </ss:complete-communication-barring>
+                <!--Optional:-->
+                <ss:complete-completion-of-communication-busy-subscriber>
+                    <ss:operator-completion-of-communication-busy-subscriber authorized="true"/>
+                </ss:complete-completion-of-communication-busy-subscriber>
+                <!--Optional:-->
+                <ss:complete-completion-of-communication-no-reply>
+                    <ss:operator-completion-of-communication-no-reply authorized="true"/>
+                </ss:complete-completion-of-communication-no-reply>
+                <!--Optional:-->
+                <ss:complete-message-waiting-indication>
+                    <ss:operator-message-waiting-indication authorized="false"/>
+                </ss:complete-message-waiting-indication>
+                <!--Optional:-->
+                <ss:complete-conference>
+                    <ss:operator-conference authorized="true"/>
+                </ss:complete-conference>
+                <!--Optional:-->
+                <ss:complete-advice-of-charge>
+                    <ss:operator-advice-of-charge authorized="true">
+                        <ss:service-type>
+                            <!--Optional:-->
+                            <ss:operator-aoc-d activated="true">
+                                <ss:aoc-obligatory-type>AoCI</ss:aoc-obligatory-type>
+                            </ss:operator-aoc-d>
+                            <!--Optional:-->
+                            <ss:operator-aoc-e activated="false">
+                                <ss:aoc-obligatory-type>AoCI</ss:aoc-obligatory-type>
+                            </ss:operator-aoc-e>
+                            <!--Optional:-->
+                            <ss:operator-aoc-s activated="false">
+                                <ss:aoc-obligatory-type>AoCI</ss:aoc-obligatory-type>
+                            </ss:operator-aoc-s>
+                        </ss:service-type>
+                        <ss:Currency>EUR</ss:Currency>
+                    </ss:operator-advice-of-charge>
+                </ss:complete-advice-of-charge>
+                <!--Optional:-->
+                <ss:complete-explicit-communication-transfer>
+                    <ss:operator-explicit-communication-transfer authorized="true"/>
+                </ss:complete-explicit-communication-transfer>
+                <!--Optional:-->
+                <ss:complete-customized-alerting-tone>
+                    <ss:operator-customized-alerting-tone authorized="true"/>
+                </ss:complete-customized-alerting-tone>
+                <!--Optional:-->
+                <ss:complete-flexible-alerting>
+                    <ss:flexible-alerting-default active="true"/>
+                    <ss:flexible-alerting-specific active="true">
+                        <!--Zero or more repetitions:-->
+                        <ss:identity active="true">https://www.corp.org/iovisque/in</ss:identity>
+                        <!--You may enter ANY elements at this point-->
+                        <!--AnyElement/-->
+                    </ss:flexible-alerting-specific>
+                    <!--You have a CHOICE of the next 2 items at this level-->
+                    <ss:operator-flexible-alerting authorized="true">
+                        <ss:default-group>https://www.my.edu/coniunx/adorat</ss:default-group>
+                    </ss:operator-flexible-alerting>
+                    <ss:operator-flexible-alerting-group authorized="true">
+                        <ss:identity>https://www.your.com/aris/nimborum</ss:identity>
+                        <ss:group-type>multiple-users</ss:group-type>
+                        <ss:membership>demand</ss:membership>
+                        <ss:members>
+                            <!--Zero or more repetitions:-->
+                            <ss:member active="true">https://www.test.edu/molemque/ferant
+                            </ss:member>
+                        </ss:members>
+                    </ss:operator-flexible-alerting-group>
+                </ss:complete-flexible-alerting>
+            </ss:MMTelServices>
+        </ServiceData>
+    </RepositoryData>
+    {% else %}
+    {{ Sh_template_vars['repository_data'] }}
+    {% endif %}    
 </Sh-Data>
