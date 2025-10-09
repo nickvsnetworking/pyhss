@@ -5,18 +5,7 @@ import binascii
 import logging
 import os
 import sys
-sys.path.append(os.path.realpath('../'))
-import yaml
 
-try:
-    with open("../config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
-except:
-    with open("config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
-
-# logtool = logtool.LogTool()
-# logtool.setup_logger('CryptoLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 CryptoLogger = logging.getLogger('CryptoLogger')
 
 CryptoLogger.info("Initialised Diameter Logger, importing database")
