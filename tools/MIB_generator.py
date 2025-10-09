@@ -4,11 +4,7 @@
 import sys
 import re
 import os
-
-import yaml
 import sys
-with open(os.path.dirname(__file__) + '/../config.yaml') as stream:
-    yaml_config = (yaml.safe_load(stream))
 
 global generic_counter
 global oid_dict
