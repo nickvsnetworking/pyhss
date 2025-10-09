@@ -3,7 +3,9 @@ import logging.handlers as handlers
 import os, sys, time
 import socket
 from datetime import datetime
-sys.path.append(os.path.realpath('../'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 import asyncio
 from messagingAsync import RedisMessagingAsync
 from messaging import RedisMessaging

@@ -5,7 +5,9 @@ from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 import os
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 import time
 import requests
 import traceback

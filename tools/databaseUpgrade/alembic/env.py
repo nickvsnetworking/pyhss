@@ -3,7 +3,9 @@ from sqlalchemy import create_engine
 from alembic import context
 import sys
 import os
-sys.path.append(os.path.realpath('lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../../../lib"))
+
 from database import Base
 from pyhss_config import config
 

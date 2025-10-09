@@ -8,7 +8,9 @@ from flask import Flask
 from influxdb import InfluxDBClient
 import threading
 import traceback
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messaging import RedisMessaging
 from banners import Banners
 from logtool import LogTool

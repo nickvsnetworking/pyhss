@@ -4,7 +4,9 @@ import time, uuid
 from datetime import datetime
 from tzlocal import get_localzone
 import sctp, socket
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync
 from banners import Banners

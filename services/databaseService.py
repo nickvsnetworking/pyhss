@@ -4,7 +4,9 @@ import asyncio
 import socket
 import datetime
 import traceback
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
 from logtool import LogTool

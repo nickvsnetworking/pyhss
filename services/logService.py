@@ -2,7 +2,9 @@ import os, sys, json, socket
 from datetime import datetime
 import time
 import logging
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messaging import RedisMessaging
 from banners import Banners
 from logtool import LogTool
