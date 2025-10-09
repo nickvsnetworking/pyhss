@@ -15,10 +15,8 @@ from logtool import LogTool
 from diameter import Diameter
 from messaging import RedisMessaging
 import database
-import yaml
+from pyhss_config import config
 
-with open("../config.yaml", 'r') as stream:
-    config = (yaml.safe_load(stream))
 
 siteName = config.get("hss", {}).get("site_name", "")
 originHostname = socket.gethostname()

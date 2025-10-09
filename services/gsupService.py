@@ -24,20 +24,13 @@ import os
 import sys
 
 sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
-import yaml
 
 from gsup.server import GsupServer
 from logtool import LogTool
+from pyhss_config import config
+
 
 if __name__ == '__main__':
-    config = None
-    try:
-        with open("../config.yaml", "r") as configFile:
-            config = yaml.safe_load(configFile)
-    except:  # noqa
-        print("Error reading configuration file")
-        exit(1)
-
     bind_ip = config['hss']['gsup']['bind_ip']
     bind_port = config['hss']['gsup']['bind_port']
 

@@ -1,11 +1,11 @@
 from logging.config import fileConfig
 from sqlalchemy import create_engine
 from alembic import context
-import yaml
 import sys
 import os
 sys.path.append(os.path.realpath('lib'))
 from database import Base
+from pyhss_config import config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -29,15 +29,13 @@ target_metadata = Base.metadata
 
 def get_url_from_config() -> str:
     """
-    Reads config.yaml and returns the database url.
+    Returns the database url from the PyHSS config.
     """
-    with open("../../config.yaml", 'r') as stream:
-        try:
-            config = yaml.safe_load(stream)
-            db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])
-            return db_string
-        except Exception as e:
-            print(e)
+    try:
+        db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])
+        return db_string
+    except Exception as e:
+        print(e)
 
 
 def run_migrations_offline() -> None:
