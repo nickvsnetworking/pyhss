@@ -147,7 +147,7 @@ def generate_2g3g_vector(key, op_c, amf, sqn, algo):
         sres, kc = crypto_obj.comp128v2(bytearray(key), rand)
     elif algo == 3:
         crypto_obj = Comp128v23()
-        sres, kc = crypto_obj.comp128v3(bytearray(key), rand, sres, kc)
+        sres, kc = crypto_obj.comp128v3(bytearray(key), rand)
 
     # Case: SIM only supports 2G Auth
     if op_c == b'':
