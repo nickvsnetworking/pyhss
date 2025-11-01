@@ -25,9 +25,10 @@ from osmocom.gsup.message import GsupMessage, MsgType
 
 from database import Database
 from gsup.controller.abstract_controller import GsupController
-from gsup.protocol.gsup_msg import GsupMessageUtil, GsupMessageBuilder
+from gsup.protocol.gsup_msg import GsupMessageUtil, GsupMessageBuilder, GMMCause
 from gsup.protocol.ipa_peer import IPAPeer
 from logtool import LogTool
+from utils import validate_imsi, InvalidIMSI
 
 
 class AIRController(GsupController):
@@ -45,6 +46,7 @@ class AIRController(GsupController):
             return
 
         try:
+            validate_imsi(imsi)
             subscriber = self._database.Get_Subscriber(imsi=imsi)
             rand = GsupMessageUtil.get_first_ie_by_name('rand', request_dict)
             auts = GsupMessageUtil.get_first_ie_by_name('auts', request_dict)
@@ -62,11 +64,24 @@ class AIRController(GsupController):
             response_msg = response_msg.build()
 
             await self._send_gsup_response(peer, response_msg)
-
+        except InvalidIMSI as e:
+            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Invalid IMSI: {imsi}")
+            await self._send_gsup_response(
+                peer,
+                GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
+                .with_ie('imsi', imsi)
+                .with_ie('cause', GMMCause.INV_MAND_INFO.value)
+                .build(),
+            )
         except ValueError as e:
             await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi}")
-            await self._send_gsup_response(peer, GsupMessageBuilder().with_msg_type(
-                MsgType.SEND_AUTH_INFO_ERROR).with_ie('imsi', imsi).build())
+            await self._send_gsup_response(
+                peer,
+                GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
+                .with_ie('imsi', imsi)
+                .with_ie('cause', GMMCause.IMSI_UNKNOWN.value)
+                .build(),
+            )
         except Exception as e:
             await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}, {traceback.format_exc()}")
             await self._send_gsup_response(peer, GsupMessageBuilder().with_msg_type(

@@ -19,6 +19,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from enum import Enum
 from osmocom.gsup.message import MsgType, GsupMessage
 
 
@@ -111,3 +112,37 @@ class GsupMessageUtil:
             if ie_name in ie:
                 ies.append(ie)
         return ies
+
+
+# 3GPP TS 24.008 Chapter 10.5.5.14 / Table 10.5.147
+class GMMCause(Enum):
+    IMSI_UNKNOWN = 0x02
+    ILLEGAL_MS = 0x03
+    IMEI_NOT_ACCEPTED = 0x05
+    ILLEGAL_ME = 0x06
+    GPRS_NOTALLOWED = 0x07
+    GPRS_OTHER_NOTALLOWED = 0x08
+    MS_ID_NOT_DERIVED = 0x09
+    IMPL_DETACHED = 0x0a
+    PLMN_NOTALLOWED = 0x0b
+    LA_NOTALLOWED = 0x0c
+    ROAMING_NOTALLOWED = 0x0d
+    NO_GPRS_PLMN = 0x0e
+    NO_SUIT_CELL_IN_LA = 0x0f
+    MSC_TEMP_NOTREACH = 0x10
+    NET_FAIL = 0x11
+    MAC_FAIL = 0x14
+    SYNC_FAIL = 0x15
+    CONGESTION = 0x16
+    GSM_AUTH_UNACCEPT = 0x17
+    NOT_AUTH_FOR_CSG = 0x19
+    SMS_VIA_GPRS_IN_RA = 0x1c
+    NO_PDP_ACTIVATED = 0x28
+    SEM_INCORR_MSG = 0x5f
+    INV_MAND_INFO = 0x60
+    MSGT_NOTEXIST_NOTIMPL = 0x61
+    MSGT_INCOMP_P_STATE = 0x62
+    IE_NOTEXIST_NOTIMPL = 0x63
+    COND_IE_ERR = 0x64
+    MSG_INCOMP_P_STATE = 0x65
+    PROTO_ERR_UNSPEC = 0x6f
