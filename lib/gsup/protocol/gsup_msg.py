@@ -33,18 +33,18 @@ class GsupMessageBuilder:
         self.gsup_dict['msg_type'] = msg_type.name
         return self
 
-    def with_ie(self, name: str, value):
+    def with_ie(self, name: str, value, merge: bool = True):
         if 'ies' not in self.gsup_dict:
             self.gsup_dict['ies'] = []
 
-        for ie in self.gsup_dict['ies']:
-            if name in ie and isinstance(ie[name], list) and isinstance(value, dict):
-                ie[name].append(value)
-                return self
-            elif name in ie and isinstance(ie[name], list) and isinstance(value, list):
-                ie[name].extend(value)
-                return self
-
+        if merge:
+            for ie in self.gsup_dict['ies']:
+                if name in ie and isinstance(ie[name], list) and isinstance(value, dict):
+                    ie[name].append(value)
+                    return self
+                elif name in ie and isinstance(ie[name], list) and isinstance(value, list):
+                    ie[name].extend(value)
+                    return self
 
         self.gsup_dict['ies'].append({
             name: value

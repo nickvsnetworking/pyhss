@@ -35,6 +35,15 @@ class AIRController(GsupController):
     def __init__(self, logger: LogTool, database: Database):
         super().__init__(logger, database)
 
+    def get_num_vectors_req(self, message: dict):
+        # OSMO_GSUP_MAX_NUM_AUTH_INFO
+        max_num = 5
+
+        ret = GsupMessageUtil.get_first_ie_by_name('num_vectors_req', message)
+        if not ret or ret > max_num:
+            return max_num
+        return ret
+
     async def handle_message(self, peer: IPAPeer, message: GsupMessage):
         request_dict = message.to_dict()
         imsi = GsupMessageUtil.get_first_ie_by_name(GsupMessageUtil.GSUP_MSG_IE_IMSI, request_dict)
@@ -54,12 +63,20 @@ class AIRController(GsupController):
             resync_required = rand is not None and auts is not None
             if resync_required:
                 self._database.Get_Vectors_AuC(subscriber['auc_id'], 'sqn_resync', rand=rand, auts=auts.hex())
-            vectors = self._database.Get_Vectors_AuC(subscriber['auc_id'], '2g3g', requested_vectors=1)
+
+            # Use request_vectors=1 as Get_Vectors_AuC currently doesn't
+            # increment SEQ for each requested vector:
+            # https://github.com/nickvsnetworking/pyhss/issues/266
+            vectors = []
+            for i in range(self.get_num_vectors_req(request_dict)):
+                vectors += self._database.Get_Vectors_AuC(subscriber['auc_id'], '2g3g', requested_vectors=1)
 
             response_msg = ((GsupMessageBuilder()
-                             .with_msg_type(MsgType.SEND_AUTH_INFO_RESULT))
-                            .with_ie('imsi', imsi)
-                            .with_ie('auth_tuple', vectors))
+                            .with_msg_type(MsgType.SEND_AUTH_INFO_RESULT))
+                            .with_ie('imsi', imsi))
+
+            for vector in vectors:
+                response_msg.with_ie('auth_tuple', [vector], False)
 
             response_msg = response_msg.build()
 
