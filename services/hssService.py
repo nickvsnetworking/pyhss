@@ -8,12 +8,10 @@ import sys
 import yaml
 import os
 
-sys.path.append(os.path.realpath('../lib'))
-
 # Bestehende PyHSS Imports
 from diameter import Diameter
 from database import Database
-from logTool import LogTool
+from logtool import LogTool
 from messaging import RedisMessaging
 
 # Neue Zn-Interface Imports
