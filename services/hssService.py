@@ -8,6 +8,8 @@ import sys
 import yaml
 import os
 
+sys.path.append(os.path.realpath('../lib'))
+
 # Bestehende PyHSS Imports
 from diameter import Diameter
 from database import Database
