@@ -9,13 +9,13 @@ import yaml
 import os
 
 # Bestehende PyHSS Imports
-from lib.diameter import Diameter
-from lib.database import Database
-from lib.logTool import LogTool
-from lib.messaging import RedisMessaging
+from diameter import Diameter
+from database import Database
+from logTool import LogTool
+from messaging import RedisMessaging
 
 # Neue Zn-Interface Imports
-from lib.zn_interface import initialize_zn_interface, ZnInterface, ZnDiameterExtension
+from zn_interface import initialize_zn_interface, ZnInterface, ZnDiameterExtension
 
 
 def load_config():
