@@ -20,7 +20,7 @@ from zn_interface import initialize_zn_interface, ZnInterface, ZnDiameterExtensi
 
 def load_config():
     """Lädt die Konfiguration aus config.yaml"""
-    with open('config.yaml', 'r') as file:
+    with open('"../config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     return config
 
