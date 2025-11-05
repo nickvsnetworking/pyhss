@@ -1,0 +1,15 @@
+.github/**
+.git/**
+.gitignore
+
+docs/**
+README.md
+systemd/**
+tests/**
+tools/**
+config.yaml
+
+venv/**
+
+docker/Dockerfile
+docker/docker-compose.yaml
