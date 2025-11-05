@@ -8,7 +8,7 @@ import sys
 import yaml
 import os
 
-sys.path.append(os.path.realpath('../lib'))
+sys.path.insert(0, os.path.realpath('../lib'))
 
 # Bestehende PyHSS Imports
 from diameter import Diameter
@@ -46,14 +46,24 @@ def initialize_hss_service():
     )
     
     # Datenbank initialisieren
-    database = Database(config)
+    database = Database(log_tool, redis_messaging)
     
     # Diameter Protokoll initialisieren
+    # Extract parameters from config
+    origin_host = config.get('hss', {}).get('OriginHost', 'hss01')
+    origin_realm = config.get('hss', {}).get('OriginRealm', 'epc.mnc001.mcc001.3gppnetwork.org')
+    product_name = config.get('hss', {}).get('ProductName', 'pyHSS')
+    mcc = config.get('hss', {}).get('MCC', '001')
+    mnc = config.get('hss', {}).get('MNC', '01')
+
     diameter = Diameter(
         logTool=log_tool,
-        redisMessaging=redis_messaging,
-        database=database,
-        config=config
+        originHost=origin_host,
+        originRealm=origin_realm,
+        productName=product_name,
+        mcc=mcc,
+        mnc=mnc,
+        redisMessaging=redis_messaging
     )
     
     log_tool.log(
