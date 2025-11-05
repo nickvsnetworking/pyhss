@@ -1,6 +1,6 @@
 import asyncio
 import sys, os, json
-import time, json, yaml
+import time, json
 import socket
 from prometheus_client import make_wsgi_app, start_http_server, Counter, Gauge, Summary, Histogram, CollectorRegistry
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
@@ -8,33 +8,30 @@ from flask import Flask
 from influxdb import InfluxDBClient
 import threading
 import traceback
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messaging import RedisMessaging
 from banners import Banners
 from logtool import LogTool
+from pyhss_config import config
+
 
 class MetricService:
 
     def __init__(self, redisHost: str='127.0.0.1', redisPort: int=6379):
-        try:
-            with open("../config.yaml", "r") as self.configFile:
-                self.config = yaml.safe_load(self.configFile)
-        except:
-            print(f"[Metric] Fatal Error - config.yaml not found, exiting.")
-            quit()
-    
         self.redisMessaging = RedisMessaging(host=redisHost, port=redisPort)
         self.banners = Banners()
-        self.logTool = LogTool(config=self.config)
+        self.logTool = LogTool(config=config)
         self.registry = CollectorRegistry(auto_describe=True)
         self.logTool.log(service='Metric', level='info', message=f"{self.banners.metricService()}", redisClient=self.redisMessaging)
         self.hostname = socket.gethostname()
-        self.influxEnabled = self.config.get('influxdb', {}).get('enabled', None)
-        self.influxDatabase = self.config.get('influxdb', {}).get('database', None)
-        self.influxUser = self.config.get('influxdb', {}).get('username', None)
-        self.influxPassword = self.config.get('influxdb', {}).get('password', None)
-        self.influxHost = self.config.get('influxdb', {}).get('host', None)
-        self.influxPort = self.config.get('influxdb', {}).get('port', None)
+        self.influxEnabled = config.get('influxdb', {}).get('enabled', None)
+        self.influxDatabase = config.get('influxdb', {}).get('database', None)
+        self.influxUser = config.get('influxdb', {}).get('username', None)
+        self.influxPassword = config.get('influxdb', {}).get('password', None)
+        self.influxHost = config.get('influxdb', {}).get('host', None)
+        self.influxPort = config.get('influxdb', {}).get('port', None)
 
     def processInfluxdb(self, influxData: dict) -> bool:
         """
@@ -128,8 +125,7 @@ class MetricService:
             self.handleMetrics()
 
 
-if __name__ == '__main__':
-
+def main():
     metricService = MetricService()
     metricServiceThread = threading.Thread(target=metricService.getMetrics)
     metricServiceThread.start()
@@ -140,3 +136,7 @@ if __name__ == '__main__':
     })
 
     prometheusWebClient.run(host='0.0.0.0', port=9191)
+
+
+if __name__ == '__main__':
+    main()

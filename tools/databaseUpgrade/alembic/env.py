@@ -1,20 +1,22 @@
 from logging.config import fileConfig
 from sqlalchemy import create_engine
 from alembic import context
-import yaml
 import sys
 import os
-sys.path.append(os.path.realpath('lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../../../lib"))
+
 from database import Base
+from pyhss_config import config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-config = context.config
+alembic_config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+if alembic_config.config_file_name is not None:
+    fileConfig(alembic_config.config_file_name)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -29,15 +31,13 @@ target_metadata = Base.metadata
 
 def get_url_from_config() -> str:
     """
-    Reads config.yaml and returns the database url.
+    Returns the database url from the PyHSS config.
     """
-    with open("../../config.yaml", 'r') as stream:
-        try:
-            config = yaml.safe_load(stream)
-            db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])
-            return db_string
-        except Exception as e:
-            print(e)
+    try:
+        db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])
+        return db_string
+    except Exception as e:
+        print(e)
 
 
 def run_migrations_offline() -> None:
@@ -52,7 +52,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = alembic_config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,

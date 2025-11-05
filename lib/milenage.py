@@ -16,7 +16,6 @@ from lte import BaseLTEAuthAlgo
 import logging
 import os
 import sys
-sys.path.append(os.path.realpath('../'))
 
 CryptoLogger = logging.getLogger('CryptoLogger')
 
