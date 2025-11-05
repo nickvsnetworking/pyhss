@@ -131,7 +131,6 @@ def main():
         diameter, database, log_tool, redis_messaging = initialize_hss_service()
         
         print("HSS Service started successfully")
-        print(f"Listening on {diameter.bind_ip}:{diameter.bind_port}")
         print(f"Origin-Host: {diameter.OriginHost}")
         print(f"Origin-Realm: {diameter.OriginRealm}")
         
