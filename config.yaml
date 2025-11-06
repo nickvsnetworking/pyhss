@@ -81,6 +81,15 @@ hss:
   # How long an emergency subscriber entry will last for in the table before expiring, in minutes.
   emergency_subscriber_expiry: 3600
 
+  # Whether to send a Delete Subscriber Data Request to the Old MME on an Update Location Request.
+  send_dsr_on_mme_change: False
+
+  # Static Identifier for the subscriber context with the Delete Subscriber Data Request.
+  dsr_external_identifier: "example"
+
+  # Whether to ignore Purge UE Requests - leaving the subscriber state with the last served mme instead of null.
+  ignore_purge_ue_request: False
+
   #S-CSCF Pool
   scscf_pool:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
