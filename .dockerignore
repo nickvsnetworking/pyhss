@@ -1,15 +1,17 @@
-.github/**
-.git/**
+.github
+.git
 .gitignore
+.idea
 
-docs/**
+
+docs
 README.md
-systemd/**
-tests/**
-tools/**
+systemd
+tests
+tools
 config.yaml
 
-venv/**
+venv
 
 docker/Dockerfile
 docker/docker-compose.yaml

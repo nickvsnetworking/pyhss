@@ -72,6 +72,9 @@ COPY --from=python-venv /opt/pyhss/venv /opt/pyhss/venv
 USER pyhss
 COPY . /opt/pyhss
 
+# Delete docker folder from the final image. COPY --exclude and dockerignore are not an option here
+RUN rm -rf /opt/pyhss/docker
+
 # Copy configuration template and processing script
 COPY docker/config.yaml /opt/pyhss/config.yaml.template
 COPY docker/launch-container.sh /opt/pyhss/launch-container.sh
