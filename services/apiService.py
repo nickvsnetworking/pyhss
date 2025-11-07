@@ -201,6 +201,7 @@ GeoRed_model = api.model('GeoRed', {
     'serving_pgw_realm' : fields.String(description=Serving_APN.serving_pgw_realm.doc),
     'serving_pgw_peer' : fields.String(description=Serving_APN.serving_pgw_peer.doc),
     'serving_pgw_timestamp' : fields.String(description=Serving_APN.serving_pgw_timestamp.doc),
+    'af_subscriptions' : fields.String(description=Serving_APN.af_subscriptions.doc),
     'scscf' : fields.String(description=IMS_SUBSCRIBER.scscf.doc),
     'scscf_realm' : fields.String(description=IMS_SUBSCRIBER.scscf_realm.doc),
     'scscf_peer' : fields.String(description=IMS_SUBSCRIBER.scscf_peer.doc),
@@ -731,7 +732,8 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             if 'msisdn' in json_data:
                 json_data['msisdn'] = json_data['msisdn'].replace('+', '')
             if 'msisdn_list' in json_data:
-                json_data['msisdn_list'] = json_data['msisdn_list'].replace('+', '')
+                if json_data['msisdn_list'] != None:
+                    json_data['msisdn_list'] = json_data['msisdn_list'].replace('+', '')
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
@@ -755,7 +757,8 @@ class PyHSS_IMS_SUBSCRIBER(Resource):
             if 'msisdn' in json_data:
                 json_data['msisdn'] = json_data['msisdn'].replace('+', '')
             if 'msisdn_list' in json_data:
-                json_data['msisdn_list'] = json_data['msisdn_list'].replace('+', '')
+                if json_data['msisdn_list'] != None:
+                    json_data['msisdn_list'] = json_data['msisdn_list'].replace('+', '')
             print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
@@ -2099,6 +2102,15 @@ class PyHSS_Geored(Resource):
                                     usePrefix=True, 
                                     prefixHostname=originHostname, 
                                     prefixServiceName='metric')
+
+            if 'af_subscriptions' in json_data:
+                print("Updating af_subscriptions of serving APN")
+                response_data.append(databaseClient.Update_AF_Suscriptions(
+                    imsi=str(json_data['imsi']), 
+                    serving_apn=json_data['serving_apn'],
+                    af_subscriptions=json_data['af_subscriptions'],
+                    propate=False))
+
             if 'last_seen_mcc' in json_data:
                 print("Updating Subscriber Location")
                 response_data.append(databaseClient.update_subscriber_location(imsi=str(json_data['imsi']),
