@@ -1,12 +1,24 @@
+#!/usr/bin/env python3
+"""
+HSS Service mit Zn-Interface Integration
+Zeigt wie das Zn-Interface in den bestehenden PyHSS Service integriert wird
+"""
+
 import os, sys, json, yaml, time, traceback, socket
-sys.path.append(os.path.realpath('../lib'))
-from messaging import RedisMessaging
+
+sys.path.insert(0, os.path.realpath('../lib'))
+
+# Bestehende PyHSS Imports
 from diameter import Diameter
-from banners import Banners
+from database import Database
 from logtool import LogTool
+from messaging import RedisMessaging
+from banners import Banners
 from baseModels import Peer, InboundData, OutboundData
 import pydantic_core
 
+# Neue Zn-Interface Imports
+from zn_interface import initialize_zn_interface, ZnInterface, ZnDiameterExtension
 
 class HssService:
     
@@ -35,6 +47,44 @@ class HssService:
         self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
         self.hostname = socket.gethostname()
         self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
+
+        # Zn-Interface initialisieren (wenn aktiviert)
+        zn_enabled = self.config.get('hss', {}).get('Zn_enabled', False)
+        
+        if zn_enabled:
+            self.logTool.log(
+                service='HSS',
+                level='info',
+                message="Zn-Interface is enabled, initializing...",
+                redisClient=self.redisMessaging
+            )
+            
+            try:
+                # Zn-Interface Extension registrieren
+                zn_extension, zn_interface = initialize_zn_interface(self.diameterLibrary, self.config)
+                
+                self.logTool.log(
+                    service='HSS',
+                    level='info',
+                    message="Zn-Interface successfully initialized and registered",
+                    redisClient=self.redisMessaging
+                )
+                
+            except Exception as e:
+                self.logTool.log(
+                    service='HSS',
+                    level='error',
+                    message=f"Failed to initialize Zn-Interface: {str(e)}",
+                    redisClient=self.redisMessaging
+                )
+                raise
+        else:
+            self.logTool.log(
+                service='HSS',
+                level='info',
+                message="Zn-Interface is disabled in configuration",
+                redisClient=self.redisMessaging
+            )
 
     def handleQueue(self):
         """
@@ -149,8 +199,34 @@ class HssService:
                 self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 continue
             
+def main():
+    """
+    Hauptfunktion - Startet den HSS Service
+    """
+    try:
+        # Service initialisieren
+        hssService = HssService()
+        print("HSS Service started successfully")
+        print(f"Origin-Host: {hssService.diameterLibrary.OriginHost}")
+        print(f"Origin-Realm: {hssService.diameterLibrary.OriginRealm}")
+        
+        # Zeige ob Zn-Interface aktiv ist
+        if hssService.config.get('hss', {}).get('Zn_enabled', False):
+            print("✓ Zn-Interface (GBA) enabled")
+            bsf_hostname = hssService.config.get('hss', {}).get('bsf', {}).get('bsf_hostname', 'N/A')
+            print(f"  BSF Hostname: {bsf_hostname}")
+        else:
+            print("✗ Zn-Interface (GBA) disabled")
+
+        hssService.handleQueue()
+
+    except KeyboardInterrupt:
+        print("\nShutting down HSS Service...")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Fatal error: {str(e)}")
+        sys.exit(1)
 
 
-if __name__ == '__main__':
-    hssService = HssService()
-    hssService.handleQueue()
+if __name__ == "__main__":
+    main()

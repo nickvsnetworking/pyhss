@@ -102,7 +102,29 @@ class Diameter:
 
                 # SLh LCS
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
+
+                # Zn MAR
+                {"commandCode": 303, "applicationId": 16777220, "responseMethod": self.Answer_16777220_303, "requestAcronym": "MAR", "responseAcronym": "MAA"}
             ]
+
+    
+        # Add Zh/Zn Interface commands (Application ID: 16777220)
+        # These are added separately to make the Zn addition clear
+        zn_commands = [
+            {"commandCode": 303, "applicationId": 16777220, 
+             "responseMethod": self.Answer_16777220_303, "failureResultCode": 5001,
+             "requestAcronym": "MAR", "responseAcronym": "MAA", 
+             "requestName": "Multimedia Authentication Request (Zn)", 
+             "responseName": "Multimedia Authentication Answer (Zn)"},
+        ]
+        
+        # Only add Zn commands if enabled in config
+        if self.config.get('hss', {}).get('Zn_enabled', False):
+            self.diameterResponseList.extend(zn_commands)
+            self.logTool.log(service='HSS', level='info', 
+                           message="Zn-Interface commands added to Diameter command list",
+                           redisClient=self.redisMessaging)
+            self._initialize_zn_interface()
 
         self.diameterRequestList = [
                 # Gx PCEF/PCRF
@@ -115,12 +137,39 @@ class Diameter:
                 # S6a MME
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
-                {"commandCode": 320, "applicationId": 16777251, "requestMethod": self.Request_16777251_320, "failureResultCode": 5012 ,"requestAcronym": "DSR", "responseAcronym": "DSR", "requestName": "Delete Subscriber Data Request", "responseName": "Delete Subscriber Data Answer"}
+                {"commandCode": 320, "applicationId": 16777251, "requestMethod": self.Request_16777251_320, "failureResultCode": 5012 ,"requestAcronym": "DSR", "responseAcronym": "DSR", "requestName": "Delete Subscriber Data Request", "responseName": "Delete Subscriber Data Answer"},
+
+                # Rx PCEF/P-CSCF
+                {"commandCode": 274, "applicationId": 16777236, "requestMethod": self.Request_16777236_274, "failureResultCode": 5012 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},                
 
                 # Rx PCEF/P-CSCF
                 {"commandCode": 274, "applicationId": 16777236, "requestMethod": self.Request_16777236_274, "failureResultCode": 5012 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},                
 
         ]
+
+    def _initialize_zn_interface(self):
+        """
+        Initialize Zn-Interface specific components
+        """
+        try:
+            # Import Zn-Interface module
+            from lib.zn_interface import ZnInterface
+            
+            self.zn_interface = ZnInterface(self, self.database, self.config)
+            
+            self.logTool.log(service='HSS', level='info', 
+                           message="Zn-Interface initialized successfully",
+                           redisClient=self.redisMessaging)
+        except ImportError as e:
+            self.logTool.log(service='HSS', level='error', 
+                           message=f"Failed to import Zn-Interface module: {str(e)}",
+                           redisClient=self.redisMessaging)
+            self.zn_enabled = False
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', 
+                           message=f"Failed to initialize Zn-Interface: {str(e)}",
+                           redisClient=self.redisMessaging)
+            self.zn_enabled = False        
 
     #Generates rounding for calculating padding
     def myround(self, n, base=4):
@@ -1750,6 +1799,7 @@ class Diameter:
         avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777238),"x").zfill(8) +  "0000010a4000000c000028af")      #Vendor-Specific-Application-ID (Gx)
         avp += self.generate_avp(258, 40, format(int(16777238),"x").zfill(8))                            #Auth-Application-ID - Diameter Gx
         avp += self.generate_avp(258, 40, format(int(10),"x").zfill(8))                                  #Auth-Application-ID - Diameter CER
+        avp += self.generate_avp(258, 40, format(int(16777236),"x").zfill(8))                            #Auth-Application-ID - Diameter Rx
         avp += self.generate_avp(265, 40, format(int(5535),"x").zfill(8))                                #Supported-Vendor-ID (3GGP v2)
         avp += self.generate_avp(265, 40, format(int(10415),"x").zfill(8))                               #Supported-Vendor-ID (3GPP)
         avp += self.generate_avp(265, 40, format(int(13019),"x").zfill(8))                               #Supported-Vendor-ID 13019 (ETSI)
@@ -5273,6 +5323,269 @@ class Diameter:
 
 
         response = self.generate_diameter_packet("01", "c0", 324, 16777252, self.generate_id(4), self.generate_id(4), avp)     #Generate Diameter packet
+        return response
+
+    # ============================================================================
+    # ZN-INTERFACE SPECIFIC METHODS
+    # ============================================================================
+    def Answer_16777220_303(self, packet_vars, avps):
+        """
+        3GPP Zh/Zn Multimedia Authentication Answer (MAA) for GBA
+        Implements 3GPP TS 29.109
+        
+        This method handles MAR requests from BSF for GBA bootstrapping.
+        
+        Args:
+            packet_vars: Diameter packet variables (headers)
+            avps: List of AVPs from the request
+            
+        Returns:
+            Diameter MAA response packet
+        """
+        avp = ''
+        
+        self.logTool.log(service='HSS', level='info', 
+                        message="Processing Multimedia Authentication Request (MAR) for Zn-Interface (GBA)",
+                        redisClient=self.redisMessaging)
+        
+        # Extract Session-ID from request
+        try:
+            session_id = self.get_avp_data(avps, 263)[0]
+            avp += self.generate_avp(263, 40, session_id)
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', 
+                            message=f"Failed to get Session-ID: {str(e)}",
+                            redisClient=self.redisMessaging)
+            return self.Respond_ResultCode(packet_vars, avps, 5012)
+        
+        # Add Origin-Host and Origin-Realm
+        avp += self.generate_avp(264, 40, self.OriginHost)
+        avp += self.generate_avp(296, 40, self.OriginRealm)
+        
+        # Extract User-Name (IMPI)
+        try:
+            username_avp = self.get_avp_data(avps, 1)[0]
+            username = binascii.unhexlify(username_avp).decode('utf-8')
+            
+            # Extract IMSI from username (format: imsi@realm)
+            if '@' in username:
+                imsi = username.split('@')[0]
+            else:
+                imsi = username
+            
+            self.logTool.log(service='HSS', level='debug', 
+                            message=f"Processing MAR for IMSI: {imsi}",
+                            redisClient=self.redisMessaging)
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', 
+                            message=f"Failed to extract username: {str(e)}",
+                            redisClient=self.redisMessaging)
+            return self.Respond_ResultCode(packet_vars, avps, 5001)
+        
+        # Extract Public-Identity (IMPU)
+        try:
+            public_identity_avp = self.get_avp_data(avps, 601)[0]
+            public_identity = binascii.unhexlify(public_identity_avp).decode('utf-8')
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', 
+                            message=f"Failed to extract public identity: {str(e)}",
+                            redisClient=self.redisMessaging)
+            return self.Respond_ResultCode(packet_vars, avps, 5001)
+        
+        # Get subscriber details from database
+        try:
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi)
+            if subscriber_details is None:
+                self.logTool.log(service='HSS', level='warning', 
+                                message=f"Subscriber not found: {imsi}",
+                                redisClient=self.redisMessaging)
+                
+                # Send metrics for unknown subscriber
+                self.redisMessaging.sendMetric(
+                    serviceName='diameter',
+                    metricName='prom_diam_auth_event_count',
+                    metricType='counter',
+                    metricAction='inc',
+                    metricValue=1.0,
+                    metricLabels={
+                        "diameter_application_id": 16777220,
+                        "diameter_cmd_code": 303,
+                        "event": "Unknown_Subscriber",
+                        "imsi_prefix": str(imsi[0:6])
+                    },
+                    metricHelp='Diameter GBA Authentication Counters',
+                    metricExpiry=60,
+                    usePrefix=True,
+                    prefixHostname=self.hostname,
+                    prefixServiceName='metric'
+                )
+                
+                return self.Respond_ResultCode(packet_vars, avps, 5001)
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', 
+                            message=f"Database error: {str(e)}",
+                            redisClient=self.redisMessaging)
+            return self.Respond_ResultCode(packet_vars, avps, 5012)
+        
+        # Extract authentication scheme (GBA_ME or GBA_U)
+        auth_scheme = "GBA_ME"  # Default
+        try:
+            sip_auth_data = self.get_avp_data(avps, 612)[0]
+            for sub_avp in self.decode_avp(sip_auth_data):
+                if sub_avp['avp_code'] == 608:
+                    auth_scheme = binascii.unhexlify(sub_avp['misc_data']).decode('utf-8')
+                    self.logTool.log(service='HSS', level='debug', 
+                                    message=f"Auth scheme requested: {auth_scheme}",
+                                    redisClient=self.redisMessaging)
+        except:
+            pass  # Use default if not specified
+        
+        # Generate PLMN
+        plmn = self.generate_plmn(subscriber_details.get('msisdn', ''))
+        
+        # Generate authentication vectors for GBA
+        try:
+            from lib.S6a_crypt import generate_maa_vector
+            
+            # Get AuC data
+            auc_id = subscriber_details.get('auc_id')
+            auc = self.database.Get_AuC(auc_id)
+            
+            if auc is None:
+                self.logTool.log(service='HSS', level='error', 
+                                message=f"No AuC data for subscriber: {imsi}",
+                                redisClient=self.redisMessaging)
+                return self.Respond_ResultCode(packet_vars, avps, 4181)
+            
+            # Increment and update SQN
+            sqn = int(auc['sqn'])
+            sqn += 1
+            self.database.Update_AuC(auc_id, sqn=sqn)
+            
+            # Generate MAA vector
+            (rand, autn, xres, ck, ik) = generate_maa_vector(
+                auc['ki'],
+                auc['opc'],
+                auc['amf'],
+                sqn,
+                plmn
+            )
+            
+            self.logTool.log(service='HSS', level='debug', 
+                            message="Successfully generated GBA authentication vector",
+                            redisClient=self.redisMessaging)
+            
+        except Exception as e:
+            self.logTool.log(service='HSS', level='error', 
+                            message=f"Failed to generate auth vector: {str(e)}",
+                            redisClient=self.redisMessaging)
+            return self.Respond_ResultCode(packet_vars, avps, 4181)
+        
+        # Build MAA response AVPs
+        
+        # Public-Identity
+        avp += self.generate_vendor_avp(601, "c0", 10415, 
+                                       str(binascii.hexlify(str.encode(public_identity)), 'ascii'))
+        
+        # User-Name
+        avp += self.generate_avp(1, 40, 
+                                str(binascii.hexlify(str.encode(username)), 'ascii'))
+        
+        # SIP-Auth-Data-Item construction
+        # AVP 613: SIP-Item-Number
+        avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, 
+                                                       format(int(0), "x").zfill(8))
+        
+        # AVP 608: SIP-Authentication-Scheme
+        avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, 
+                                                                 str(binascii.hexlify(auth_scheme.encode()), 'ascii'))
+        
+        # AVP 609: SIP-Authenticate (RAND || AUTN)
+        SIP_Authenticate = rand + autn
+        avp_SIP_Authenticate = self.generate_vendor_avp(609, "c0", 10415, 
+                                                        str(binascii.hexlify(SIP_Authenticate), 'ascii'))
+        
+        # AVP 610: SIP-Authorization (XRES)
+        avp_SIP_Authorization = self.generate_vendor_avp(610, "c0", 10415, 
+                                                         str(binascii.hexlify(xres), 'ascii'))
+        
+        # AVP 625: Confidentiality-Key (CK)
+        avp_Confidentiality_Key = self.generate_vendor_avp(625, "c0", 10415, 
+                                                           str(binascii.hexlify(ck), 'ascii'))
+        
+        # AVP 626: Integrity-Key (IK)
+        avp_Integrity_Key = self.generate_vendor_avp(626, "c0", 10415, 
+                                                     str(binascii.hexlify(ik), 'ascii'))
+        
+        # Combine all SIP-Auth-Data-Item sub-AVPs
+        auth_data_item = (avp_SIP_Item_Number + 
+                         avp_SIP_Authentication_Scheme + 
+                         avp_SIP_Authenticate + 
+                         avp_SIP_Authorization + 
+                         avp_Confidentiality_Key + 
+                         avp_Integrity_Key)
+        
+        # AVP 612: SIP-Auth-Data-Item (grouped AVP)
+        avp += self.generate_vendor_avp(612, "c0", 10415, auth_data_item)
+        
+        # AVP 607: SIP-Number-Auth-Items (number of authentication items = 1)
+        avp += self.generate_vendor_avp(607, "c0", 10415, "00000001")
+        
+        # AVP 268: Result-Code (DIAMETER_SUCCESS = 2001 = 0x7D1)
+        avp += self.generate_avp(268, 40, "000007d1")
+        
+        # AVP 277: Auth-Session-State (NO_STATE_MAINTAINED = 1)
+        avp += self.generate_avp(277, 40, "00000001")
+        
+        # AVP 260: Vendor-Specific-Application-Id for Zh/Zn
+        # Vendor-Id: 10415 (3GPP), Auth-Application-Id: 16777220 (Zh/Zn)
+        avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c010055d4")
+        
+        # Generate B-TID for logging (optional)
+        if self.zn_enabled and hasattr(self, 'zn_interface'):
+            try:
+                btid = self.zn_interface.generate_btid(rand)
+                self.logTool.log(service='HSS', level='info', 
+                                message=f"Generated B-TID: {btid} for IMSI: {imsi}",
+                                redisClient=self.redisMessaging)
+            except:
+                pass
+        
+        # Send success metrics
+        self.redisMessaging.sendMetric(
+            serviceName='diameter',
+            metricName='prom_diam_auth_event_count',
+            metricType='counter',
+            metricAction='inc',
+            metricValue=1.0,
+            metricLabels={
+                "diameter_application_id": 16777220,
+                "diameter_cmd_code": 303,
+                "event": "Successful_GBA_Auth",
+                "imsi_prefix": str(imsi[0:6])
+            },
+            metricHelp='Diameter GBA Authentication Counters',
+            metricExpiry=60,
+            usePrefix=True,
+            prefixHostname=self.hostname,
+            prefixServiceName='metric'
+        )
+        
+        # Generate Diameter MAA response packet
+        response = self.generate_diameter_packet(
+            "01",  # Version
+            "40",  # Flags (Response bit set)
+            303,   # Command Code
+            16777220,  # Application ID (Zh/Zn)
+            packet_vars['hop-by-hop-identifier'],
+            packet_vars['end-to-end-identifier'],
+            avp
+        )
+        
+        self.logTool.log(service='HSS', level='info', 
+                        message=f"Successfully processed MAR for IMSI {imsi}, returning MAA",
+                        redisClient=self.redisMessaging)
+        
         return response
 
     #3GPP Rx - Abort Session Request
