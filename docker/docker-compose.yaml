@@ -12,6 +12,8 @@ services:
     container_name: "pyhss_api"
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/oam/ping"]
       interval: 10s
@@ -32,6 +34,8 @@ services:
     container_name: "pyhss_diameter"
     ports:
       - "127.0.0.1:3868:3868"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "3868"]
       interval: 10s
@@ -48,6 +52,8 @@ services:
     environment:
       CONTAINER_ROLE: "hss"
     container_name: "pyhss_hss"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
     depends_on:
       pyhss_diameter:
         condition: service_healthy
@@ -61,6 +67,8 @@ services:
       CONTAINER_ROLE: "gsup"
     ports:
       - "127.0.0.1:4222:4222"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "4222"]
       interval: 10s
@@ -104,3 +112,4 @@ services:
 volumes:
   redis_data:
   mysql_data:
+  pyhss_logs:

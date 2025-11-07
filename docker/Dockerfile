@@ -69,8 +69,11 @@ ENV PATH="/opt/pyhss/venv/bin:$PATH"
 COPY --from=python-venv /opt/pyhss/venv /opt/pyhss/venv
 
 # Copy application code
-USER pyhss
 COPY . /opt/pyhss
+
+# Change log directory ownership back to pyhss user and delete the docker folder
+RUN chown pyhss:pyhss /opt/pyhss/log
+VOLUME /opt/pyhss/log
 
 # Delete docker folder from the final image. COPY --exclude and dockerignore are not an option here
 RUN rm -rf /opt/pyhss/docker
@@ -91,5 +94,6 @@ EXPOSE 4222
 # Metrics
 EXPOSE 9191
 
+USER pyhss
 WORKDIR /opt/pyhss/services
 CMD ["/opt/pyhss/launch-container.sh"]
