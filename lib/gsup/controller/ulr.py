@@ -199,7 +199,7 @@ class ULRController(GsupController):
             builder.with_ie('cause', GMMCause.IMSI_UNKNOWN.value)
             await self._send_gsup_response(peer, builder.build())
         except Exception as e:
-            await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}")
+            await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}, {traceback.format_exc()}")
             if imsi is not None:
                 await self._send_gsup_response(peer, GsupMessageBuilder().with_msg_type(
                     MsgType.UPDATE_LOCATION_ERROR).with_ie('imsi', imsi).build())
