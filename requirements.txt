@@ -14,7 +14,7 @@ pysnmp==4.4.12
 PyYAML
 redis==5.0.0
 Requests==2.31.0
-SQLAlchemy==2.0.9
+SQLAlchemy==2.0.44
 SQLAlchemy_Utils==0.41.1
 Werkzeug==2.2.3
 mysqlclient
