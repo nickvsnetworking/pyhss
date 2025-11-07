@@ -3384,6 +3384,7 @@ class Diameter:
                 if "@" in public_identity:
                     imsi = public_identity.split('@')[0]   #Strip Domain
                     domain = public_identity.split('@')[1] #Get Domain Part
+                    public_identity = imsi
                 
                 if len(public_identity) == 15:
                     self.logTool.log(service='HSS', level='debug', message="Got IMSI: " + str(imsi), redisClient=self.redisMessaging)                                                              

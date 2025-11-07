@@ -27,9 +27,10 @@ from osmocom.gsup.message import GsupMessage, MsgType
 
 from database import Database
 from gsup.controller.abstract_controller import GsupController
-from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
+from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil, GMMCause
 from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
 from logtool import LogTool
+from utils import validate_imsi, InvalidIMSI
 
 
 class ULRSubscriberInfo:
@@ -156,6 +157,7 @@ class ULRController(GsupController):
             imsi = GsupMessageUtil.get_first_ie_by_name('imsi', request_dict)
             if imsi is None:
                 raise ValueError(f"Missing IMSI in GSUP message from peer {peer}")
+            validate_imsi(imsi)
             subscriber = self._database.Get_Subscriber(imsi=imsi)
             apns = list()
             msisdn = subscriber['msisdn']
@@ -180,11 +182,21 @@ class ULRController(GsupController):
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
             self.__ulr_transactions[peer.name] = transaction
             await transaction.begin()
+        except InvalidIMSI as e:
+            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Invalid IMSI: {imsi}")
+            await self._send_gsup_response(
+                peer,
+                GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
+                .with_ie('imsi', imsi)
+                .with_ie('cause', GMMCause.INV_MAND_INFO.value)
+                .build(),
+            )
         except ValueError as e:
             builder = GsupMessageBuilder().with_msg_type(MsgType.UPDATE_LOCATION_ERROR)
             await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi} {traceback.format_exc()}")
             if imsi is not None:
                 builder.with_ie('imsi', imsi)
+            builder.with_ie('cause', GMMCause.IMSI_UNKNOWN.value)
             await self._send_gsup_response(peer, builder.build())
         except Exception as e:
             await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}")
