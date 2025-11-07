@@ -7,7 +7,7 @@ import os
 import random
 import ipaddress
 import jinja2
-from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER, IMS_SUBSCRIBER
+from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER, IMS_SUBSCRIBER, geored_check_updated_endpoints
 from messaging import RedisMessaging
 from redis import Redis
 import datetime
@@ -138,6 +138,9 @@ class Diameter:
                 {"commandCode": 317, "applicationId": 16777251, "requestMethod": self.Request_16777251_317, "failureResultCode": 5012 ,"requestAcronym": "CLR", "responseAcronym": "CLA", "requestName": "Cancel Location Request", "responseName": "Cancel Location Answer"},
                 {"commandCode": 319, "applicationId": 16777251, "requestMethod": self.Request_16777251_319, "failureResultCode": 5012 ,"requestAcronym": "ISD", "responseAcronym": "ISA", "requestName": "Insert Subscriber Data Request", "responseName": "Insert Subscriber Data Answer"},
                 {"commandCode": 320, "applicationId": 16777251, "requestMethod": self.Request_16777251_320, "failureResultCode": 5012 ,"requestAcronym": "DSR", "responseAcronym": "DSR", "requestName": "Delete Subscriber Data Request", "responseName": "Delete Subscriber Data Answer"},
+
+                # Rx PCEF/P-CSCF
+                {"commandCode": 274, "applicationId": 16777236, "requestMethod": self.Request_16777236_274, "failureResultCode": 5012 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},                
 
                 # Rx PCEF/P-CSCF
                 {"commandCode": 274, "applicationId": 16777236, "requestMethod": self.Request_16777236_274, "failureResultCode": 5012 ,"requestAcronym": "ASR", "responseAcronym": "ASA", "requestName": "Abort Session Request", "responseName": "Abort Session Answer"},                
@@ -3758,7 +3761,8 @@ class Diameter:
                         ipApnName = ipApnName.get('apn', None)
                     else:
                         #If we didn't find a serving APN for the IP, try the other local HSS'.
-                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', self.config.get('geored', {}).get('endpoints', []))
+
+                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', geored_check_updated_endpoints(self.config))
                         for localGeoredEndpoint in localGeoredEndpoints:
                             endpointUrl = f"{localGeoredEndpoint}/pcrf/pcrf_serving_apn_ip/{ueIp}"
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_265] [AAA] Searching remote HSS for serving apn: {endpointUrl}", redisClient=self.redisMessaging)
@@ -4269,7 +4273,7 @@ class Diameter:
                 try:
                     if not servingApn or servingApn == None or servingApn == 'None':
                         #If we didn't find a serving APN for the Subscriber, try the other local HSS'.
-                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', self.config.get('geored', {}).get('endpoints', []))
+                        localGeoredEndpoints = self.config.get('geored', {}).get('local_endpoints', geored_check_updated_endpoints(self.config))
                         for localGeoredEndpoint in localGeoredEndpoints:
                             endpointUrl = f"{localGeoredEndpoint}/pcrf/pcrf_subscriber_imsi/{imsi}"
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [Answer_16777236_275] [STA] Searching remote HSS for serving apn: {endpointUrl}", redisClient=self.redisMessaging)
