@@ -72,7 +72,7 @@ class GsupRequestDispatcher:
 
     async def __send_gsup_response(self, peer: IPAPeer, response: GsupMessage):
         data = response.to_bytes()
-        IPA.add_header(data, self.ipa.PROTO['OSMO'], self.ipa.EXT['GSUP'])
+        data = IPA.add_header(data, self.ipa.PROTO['OSMO'], self.ipa.EXT['GSUP'])
         peer.writer.write(data)
         await peer.writer.drain()
 
@@ -95,7 +95,7 @@ class GsupRequestDispatcher:
                 builder.with_ie('imsi', imsi)
             await self.logger.logAsync(service='GSUP', level='WARN',
                                        message=f"Unhandled GSUP message {gsup.msg_type} from {peer}. Responding with error.")
-            await self.__send_gsup_response(peer, builder)
+            await self.__send_gsup_response(peer, builder.build())
             return
 
         raise ValueError(
