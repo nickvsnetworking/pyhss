@@ -596,7 +596,7 @@ class Diameter:
             try:
                 failsafeCounter += 1
 
-                if failsafeCounter > 100:
+                if failsafeCounter > 250:
                     self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [decodeAvpPacket] Diameter AVP Decoder Failsafe activated: {data}", redisClient=self.redisMessaging)
                     break
                 avp_vars = {}
