@@ -2412,8 +2412,8 @@ class Diameter:
                 apn = self.get_avp_data(avps, 30)[0]               #Get APN from AVP
                 apn = binascii.unhexlify(apn).decode('utf-8')      #Format it
             except Exception as e:
-                self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to get APN from AVP: " + str(e), redisClient=self.redisMessaging)
-                apn = "unknown"
+                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to get APN from AVP: " + str(e), redisClient=self.redisMessaging)
+                apn = "internet"
             # Strip plmn based domain from apn, if present
             try:
                 if '.' in apn:
@@ -2421,12 +2421,12 @@ class Diameter:
                         assert('mnc' in apn)
                         apn = apn.split('.')[0]
             except Exception as e:
-                self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to strip PLMN from APN: " + str(e), redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to strip PLMN from APN: " + str(e), redisClient=self.redisMessaging)
                 try:
                     apn = bytes.fromhex(self.get_avp_data(avps, 30)[0]).decode('utf-8')
                 except:
-                    self.logTool.log(service='HSS', level='error', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to re-get APN from AVP", redisClient=self.redisMessaging)
-                    apn = "unknown"
+                    self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] Failed to re-get APN from AVP", redisClient=self.redisMessaging)
+                    apn = "internet"
 
             self.logTool.log(service='HSS', level='debug', message="[diameter.py] [Answer_16777238_272] [CCA] CCR for APN " + str(apn), redisClient=self.redisMessaging)
 
