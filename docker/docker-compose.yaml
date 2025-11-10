@@ -1,9 +1,115 @@
 services:
-  pyhss:
-    image: pyhss
-    container_name: pyhss
-    volumes:
-      - ./config.yaml:/pyhss/config.yaml
+
+  pyhss_api:
+    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    env_file:
+        - ../docker/.env
+    environment:
+      CONTAINER_ROLE: "api"
+    container_name: "pyhss_api"
     ports:
-      - "8080:8080" # REST API  
-      - "3868:3868" # Diameter
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/oam/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  pyhss_diameter:
+    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    env_file:
+        - ../docker/.env
+    environment:
+      CONTAINER_ROLE: "diameter"
+    container_name: "pyhss_diameter"
+    ports:
+      - "127.0.0.1:3868:3868"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "3868"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      pyhss_api:
+        condition: service_healthy
+
+  pyhss_hss:
+    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    env_file:
+        - ../docker/.env
+    environment:
+      CONTAINER_ROLE: "hss"
+    container_name: "pyhss_hss"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
+    depends_on:
+      pyhss_diameter:
+        condition: service_healthy
+
+  pyhss_gsup:
+    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    env_file:
+        - ../docker/.env
+    container_name: "pyhss_gsup"
+    environment:
+      CONTAINER_ROLE: "gsup"
+    ports:
+      - "127.0.0.1:4222:4222"
+    volumes:
+      - pyhss_logs:/opt/pyhss/logs
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  redis:
+    image: "redis:7.0-alpine"
+    container_name: "redis"
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["redis-server", "--appendonly", "yes"]
+
+  mysql:
+    image: "mysql:8.0"
+    container_name: "mysql"
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "changemeinproduction"
+      MYSQL_DATABASE: "hss"
+      MYSQL_USER: "pyhss"
+      MYSQL_PASSWORD: "changemeinproduction"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  redis_data:
+  mysql_data:
+  pyhss_logs:

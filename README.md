@@ -52,6 +52,45 @@ If you're provisioning the HSS for the first time, you'll also want to run:
 
 The rest of the services aren't strictly necessary, however your own configuration will dictate whether or not they are required.
 
+### Using Docker (compose)
+
+A docker-compose file is provided to make spinning up PyHSS quick and easy. For development purposes, you can simply run:
+
+```shell
+cd docker && docker compose up --build -d 
+```
+
+This will start the following services, bound to 127.0.0.1 to avoid exposing them to the network by default:
+
+ - PyHSS Diameter Service (Port 3868/tcp)
+ - PyHSS HSS Service
+ - PyHSS API Service (Port 8080/tcp)
+ - PyHSS GSUP Service (Port 4222/tcp)
+ - Redis (Port 6379/tcp)
+ - MySQL (Port 3306/tcp)
+
+For production, just pull the following image:
+
+```shell
+docker pull ghcr.io/nickvsnetworking/pyhss/pyhss:latest
+```
+
+The `latest` tag is automatically built from current master.  For configuration, please reference `docker/config.yaml`.
+Every option in the configuration can be changed through environment variables, which are documented in the `docker/.env` file.
+
+Each container needs a `CONTAINER_ROLE` variable as well with one of the following values:
+
+ - diameter
+ - hss
+ - api
+ - geored
+ - logs
+ - metrics
+ - gsup
+ - database
+
+See the `docker/docker-compose.yaml` file for an example of how to set this up. This variable determines which service the container will run.
+
 ## Structure
 
 PyHSS uses a queued microservices model. Each service performs a specific set of tasks, and uses redis messages to communicate with other services.
