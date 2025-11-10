@@ -690,7 +690,7 @@ class Diameter:
                     # Increment our failsafe counter, which will fail after 100 tries. This prevents a rare validation error from causing the function to hang permanently.
                     failsafeCounter += 1
 
-                    if failsafeCounter > 100:
+                    if failsafeCounter > 250:
                         self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [decodeAvpPacket] Diameter Sub-AVP Decoder Failsafe activated: {data}", redisClient=self.redisMessaging)
                         break
                     
