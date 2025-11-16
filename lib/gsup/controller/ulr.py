@@ -93,7 +93,6 @@ class ULRTransaction:
                            .with_msg_type(MsgType.INSERT_DATA_REQUEST)
                            .with_ie('imsi', self.__subscriber_info.imsi)
                            .with_msisdn_ie(self.__subscriber_info.msisdn)
-                           .with_ie('destination_name', '')
                            )
 
         cn_domain = GsupMessageUtil.get_first_ie_by_name('cn_domain', self.__ulr)
@@ -110,7 +109,6 @@ class ULRTransaction:
             self.__old_peer = self.__cb_update_subscriber(self.__peer, imsi)
         response_builder = (GsupMessageBuilder()
                             .with_ie('imsi', self.__subscriber_info.imsi)
-                            .with_ie('destination_name', None)
                             )
 
         msg_type = MsgType.UPDATE_LOCATION_RESULT
@@ -127,7 +125,6 @@ class ULRTransaction:
         request_builder = (GsupMessageBuilder()
                            .with_msg_type(MsgType.LOCATION_CANCEL_REQUEST)
                            .with_ie('imsi', self.__subscriber_info.imsi)
-                           .with_ie('destination_name', None)
                            )
         await self.__cb_response_sender(self.__old_peer, request_builder.build())
         self.__state = self.__TransactionState.END_STATE_CANCEL_LOCATION_SENT
