@@ -21,4 +21,4 @@ For an example of using the API checkout `tests_API.py` which contains examples 
 
 From the API we can also do some funky things like seeing the Diameter peers connected to PyHSS, and manually triggering inserting Charging Rules to an Active Subscriber on the PyHSS PCRF.
 
-An example systemd file is included in this directory (``API.service``) to run this as a service.
+An example systemd file is included in `systemd/pyhss_api.service` to run this as a service.
