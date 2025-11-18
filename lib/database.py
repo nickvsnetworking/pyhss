@@ -19,17 +19,11 @@ import pprint
 import S6a_crypt
 from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
-import yaml
 import json
 import socket
 import traceback
+from pyhss_config import config
 
-try:
-    with open("../config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
-except:
-    with open("config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
 
 Base = declarative_base()
 class APN(Base):
@@ -357,23 +351,17 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
 class Database:
 
     def __init__(self, logTool, redisMessaging=None):
-        try:
-            with open("../config.yaml", 'r') as stream:
-                self.config = (yaml.safe_load(stream))
-        except:
-            with open("config.yaml", 'r') as stream:
-                self.config = (yaml.safe_load(stream))
 
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
-        self.tacDatabasePath = self.config.get('eir', {}).get('tac_database_csv', None)
-        self.imsiImeiLogging = self.config.get('eir', {}).get('imsi_imei_logging', True)
-        self.simSwapNotificationEnabled = self.config.get('eir', {}).get('simSwapNotification', False)
-        self.georedEnabled = self.config.get('geored', {}).get('enabled', True)
-        self.eirNoMatchResponse = int(self.config.get('eir', {}).get('no_match_response', 2))
-        self.eirStoreOffnetImsi = self.config.get('eir', {}).get('store_offnet_imsi', False)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
+        self.tacDatabasePath = config.get('eir', {}).get('tac_database_csv', None)
+        self.imsiImeiLogging = config.get('eir', {}).get('imsi_imei_logging', True)
+        self.simSwapNotificationEnabled = config.get('eir', {}).get('simSwapNotification', False)
+        self.georedEnabled = config.get('geored', {}).get('enabled', True)
+        self.eirNoMatchResponse = int(config.get('eir', {}).get('no_match_response', 2))
+        self.eirStoreOffnetImsi = config.get('eir', {}).get('store_offnet_imsi', False)
 
         self.logTool = logTool
         if redisMessaging:
@@ -381,14 +369,14 @@ class Database:
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
-        db_type = str(self.config['database']['db_type'])
+        db_type = str(config['database']['db_type'])
 
         if db_type == 'postgresql':
-            db_string = 'postgresql+psycopg2://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'])
+            db_string = 'postgresql+psycopg2://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])
         elif db_type == 'mysql':
-            db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
+            db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'] + "?autocommit=true")
         elif db_type == 'sqlite':
-            db_string = "sqlite:///" + str(self.config['database']['database'])
+            db_string = "sqlite:///" + str(config['database']['database'])
         else:
             raise RuntimeError(f'Invalid database.db_type set "{db_type}"')
 
@@ -396,10 +384,10 @@ class Database:
         
         self.engine = create_engine(
             db_string, 
-            echo = self.config['logging'].get('sqlalchemy_sql_echo', False), 
-            pool_recycle=self.config['logging'].get('sqlalchemy_pool_recycle', 5),
-            pool_size=self.config['logging'].get('sqlalchemy_pool_size', 30),
-            max_overflow=self.config['logging'].get('sqlalchemy_max_overflow', 0))
+            echo = config['logging'].get('sqlalchemy_sql_echo', False), 
+            pool_recycle=config['logging'].get('sqlalchemy_pool_recycle', 5),
+            pool_size=config['logging'].get('sqlalchemy_pool_size', 30),
+            max_overflow=config['logging'].get('sqlalchemy_max_overflow', 0))
 
         # Create database if it does not exist.
         if not database_exists(self.engine.url):
@@ -975,9 +963,9 @@ class Database:
                 self.logTool.log(service='Database', level='warning', message="Failed to send Geored message invalid operation type, received: " + str(operation), redisClient=self.redisMessaging)
                 return
             georedDict = {}
-            if self.config.get('geored', {}).get('enabled', False):
-                if self.config.get('geored', {}).get('endpoints', []) is not None:
-                    if len(self.config.get('geored', {}).get('endpoints', [])) > 0:
+            if config.get('geored', {}).get('enabled', False):
+                if config.get('geored', {}).get('endpoints', []) is not None:
+                    if len(config.get('geored', {}).get('endpoints', [])) > 0:
                         georedDict['body'] = jsonData
                         georedDict['operation'] = operation
                         georedDict['timestamp'] = time.time_ns()
@@ -996,8 +984,8 @@ class Database:
             return False
 
     def handleWebhook(self, objectData, operation: str="PATCH"):
-        webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
-        endpointList = self.config.get('webhooks', {}).get('endpoints', [])
+        webhooksEnabled = config.get('webhooks', {}).get('enabled', False)
+        endpointList = config.get('webhooks', {}).get('endpoints', [])
         webhook = {}
 
         if not webhooksEnabled:
@@ -1478,8 +1466,8 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Filtering to locally served IMS Subs only", redisClient=self.redisMessaging)
                     try:
                         serving_hss = result['serving_mme_peer'].split(';')[1]
-                        self.logTool.log(service='Database', level='debug', message="Serving HSS: " + str(serving_hss) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
-                        if serving_hss == self.config['hss']['OriginHost']:
+                        self.logTool.log(service='Database', level='debug', message="Serving HSS: " + str(serving_hss) + " and this is: " + str(config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_hss == config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="Serving HSS matches local HSS", redisClient=self.redisMessaging)
                             Served_Subs[result['imsi']] = {}
                             Served_Subs[result['imsi']] = result
@@ -1522,8 +1510,8 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only", redisClient=self.redisMessaging)
                     try:
                         serving_ims_hss = result['scscf_peer'].split(';')[1]
-                        self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
-                        if serving_ims_hss == self.config['hss']['OriginHost']:
+                        self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_ims_hss == config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS matches local HSS for " + str(result['imsi']), redisClient=self.redisMessaging)
                             Served_Subs[result['imsi']] = {}
                             Served_Subs[result['imsi']] = result
@@ -1563,8 +1551,8 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Filtering to locally served IMS Subs only", redisClient=self.redisMessaging)
                     try:
                         serving_pcrf = result['serving_pgw_peer'].split(';')[1]
-                        self.logTool.log(service='Database', level='debug', message="Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
-                        if serving_pcrf == self.config['hss']['OriginHost']:
+                        self.logTool.log(service='Database', level='debug', message="Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_pcrf == config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="Serving PCRF matches local PCRF", redisClient=self.redisMessaging)
                             self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
                             
@@ -1718,7 +1706,7 @@ class Database:
         self.logTool.log(service='Database', level='debug', message=self.UpdateObj(AUC, {'sqn': sqn}, auc_id, True), redisClient=self.redisMessaging)
 
         if propagate:
-            if self.config['geored'].get('enabled', False) == True:
+            if config['geored'].get('enabled', False) == True:
                 aucBody = {
                     "auc_id": auc_id,
                     "sqn": sqn,
@@ -1785,7 +1773,7 @@ class Database:
                 pass
 
             if propagate == True:
-                if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
+                if 'HSS' in config['geored'].get('sync_actions', []) and config['geored'].get('enabled', False) == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate Subscriber Location changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "last_seen_eci": last_seen_eci, "last_seen_enodeb_id": last_seen_enodeb_id,
                                         "last_seen_cell_id": last_seen_cell_id, "last_seen_tac": last_seen_tac, "last_seen_mcc": last_seen_mcc,
@@ -1805,7 +1793,7 @@ class Database:
         session = Session()
         try:
             result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-            if self.config['hss']['CancelLocationRequest_Enabled'] == True:
+            if config['hss']['CancelLocationRequest_Enabled'] == True:
                 self.logTool.log(service='Database', level='debug', message="Evaluating if we should trigger sending a CLR.", redisClient=self.redisMessaging)
                 if result.serving_mme != None:
                     serving_hss = str(result.serving_mme_peer).split(';',1)[1]
@@ -1817,13 +1805,13 @@ class Database:
                         self.logTool.log(service='Database', level='debug', message="This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR", redisClient=self.redisMessaging)
                     elif (str(result.serving_mme) != str(serving_mme)):
                         self.logTool.log(service='Database', level='debug', message="There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR", redisClient=self.redisMessaging)
-                        if serving_hss != self.config['hss']['OriginHost']:
+                        if serving_hss != config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss), redisClient=self.redisMessaging)
-                            URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                            URL = 'http://' + serving_hss + '.' + config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                         else:
                             self.logTool.log(service='Database', level='debug', message="This subscriber is served by this HSS we need to send a CLR to old MME from this HSS", redisClient=self.redisMessaging)
                         
-                        URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                        URL = 'http://' + serving_hss + '.' + config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                         self.logTool.log(service='Database', level='debug', message="Sending CLR to API at " + str(URL), redisClient=self.redisMessaging)
 
                         clrBody = {
@@ -1872,7 +1860,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
+                if 'HSS' in config['geored'].get('sync_actions', []) and config['geored'].get('enabled', False) == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate MME changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({
                         "imsi": str(imsi), 
@@ -1932,7 +1920,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'IMS' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'IMS' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": result.pcscf_realm, "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": result.pcscf_peer, "pcscf_active_session": pcscf_active_session})
                 else:
@@ -1986,7 +1974,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'IMS' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'IMS' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": result.scscf_realm, "scscf_timestamp": scscf_timestamp_string, "scscf_peer": result.scscf_peer})
                 else:
@@ -2138,7 +2126,7 @@ class Database:
         #Sync state change with geored
         if propagate == True:
             try:
-                if 'PCRF' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'PCRF' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate PCRF changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi),
                                     'serving_apn' : apn,
@@ -2617,7 +2605,7 @@ class Database:
         #Sync state change with geored
         if propagate == True:
             try:
-                if 'EIR' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'EIR' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate EIR changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored(
                         {"imsi": str(imsi), 
@@ -2725,7 +2713,7 @@ class Database:
         except Exception as e:
             self.logTool.log(service='Database', level='error', message=f"Error Storing IMSI / IMEI Binding: {traceback.format_exc()}", redisClient=self.redisMessaging)
         self.safe_close(session)
-        return self.config['eir']['no_match_response']
+        return config['eir']['no_match_response']
 
     def Get_EIR_Rules(self):
         self.logTool.log(service='Database', level='debug', message="Getting all EIR Rules", redisClient=self.redisMessaging)

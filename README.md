@@ -37,7 +37,11 @@ The underlying library - ``diameter.py`` can be easily worked with to add suppor
 
 ## Usage
 
-Basic configuration is set in the ``config.yaml`` file,
+Basic configuration is set in the `config.yaml` file, which gets loaded from:
+* The path in the `PYHSS_CONFIG` environment variable (if set)
+* `/etc/pyhss/config.yaml`
+* `/usr/share/pyhss/config.yaml`
+* The same directory as this `README.md`
 
 You will need to set the IP address to bind to (IPv4 or IPv6), the Diameter hostname, realm, your PLMN and transport type to use (SCTP or TCP).
 

@@ -5,7 +5,9 @@ from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 import os
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 import time
 import requests
 import traceback
@@ -15,10 +17,8 @@ from logtool import LogTool
 from diameter import Diameter
 from messaging import RedisMessaging
 import database
-import yaml
+from pyhss_config import config
 
-with open("../config.yaml", 'r') as stream:
-    config = (yaml.safe_load(stream))
 
 siteName = config.get("hss", {}).get("site_name", "")
 originHostname = socket.gethostname()
@@ -2372,6 +2372,10 @@ class PyHSS_Push_CLR(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Unable to send CLR: " + str(E)}
             return response_json
 
-if __name__ == '__main__':
+
+def main():
     apiService.run(debug=False, host='0.0.0.0', port=8080)
 
+
+if __name__ == '__main__':
+    main()

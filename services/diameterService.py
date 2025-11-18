@@ -1,10 +1,12 @@
 import asyncio
 import sys, os, json
-import time, yaml, uuid
+import time, uuid
 from datetime import datetime
 from tzlocal import get_localzone
 import sctp, socket
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messagingAsync import RedisMessagingAsync
 from diameterAsync import DiameterAsync
 from banners import Banners
@@ -12,6 +14,7 @@ from logtool import LogTool
 from baseModels import Peer, InboundData, OutboundData
 import pydantic_core
 import traceback
+from pyhss_config import config
 
 class DiameterService:
     """
@@ -21,17 +24,10 @@ class DiameterService:
     """
 
     def __init__(self):
-        try:
-            with open("../config.yaml", "r") as self.configFile:
-                self.config = yaml.safe_load(self.configFile)
-        except:
-            print(f"[Diameter] [__init__] Fatal Error - config.yaml not found, exiting.")
-            quit()
-
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
         self.redisReaderMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisWriterMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisPeerMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
@@ -39,22 +35,22 @@ class DiameterService:
         self.redisMetricMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisDwrMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.banners = Banners()
-        self.logTool = LogTool(config=self.config)
+        self.logTool = LogTool(config=config)
         self.diameterLibrary = DiameterAsync(logTool=self.logTool)
         self.activePeers = {}
-        self.enableOutboundDwr = self.config.get('hss', {}).get('send_dwr', False)
-        self.outboundDwrInterval = int(self.config.get('hss', {}).get('send_dwr_interval', 5))
-        self.originHost = self.config.get('hss', {}).get('OriginHost', 'hss01')
-        self.originRealm = self.config.get('hss', {}).get('OriginRealm', "epc.mnc001.mcc001.3gppnetwork.org")
-        self.diameterRequestTimeout = int(self.config.get('hss', {}).get('diameter_request_timeout', 10))
-        self.benchmarking = self.config.get('benchmarking', {}).get('enabled', False)
-        self.benchmarkingInterval = self.config.get('benchmarking', {}).get('reporting_interval', 3600)
+        self.enableOutboundDwr = config.get('hss', {}).get('send_dwr', False)
+        self.outboundDwrInterval = int(config.get('hss', {}).get('send_dwr_interval', 5))
+        self.originHost = config.get('hss', {}).get('OriginHost', 'hss01')
+        self.originRealm = config.get('hss', {}).get('OriginRealm', "epc.mnc001.mcc001.3gppnetwork.org")
+        self.diameterRequestTimeout = int(config.get('hss', {}).get('diameter_request_timeout', 10))
+        self.benchmarking = config.get('benchmarking', {}).get('enabled', False)
+        self.benchmarkingInterval = config.get('benchmarking', {}).get('reporting_interval', 3600)
         self.diameterRequests = 0
         self.diameterResponses = 0
-        self.workerPoolSize = int(self.config.get('hss', {}).get('diameter_service_workers', 10))
+        self.workerPoolSize = int(config.get('hss', {}).get('diameter_service_workers', 10))
         self.hostname = socket.gethostname()
-        self.useExternalSocketService = self.config.get('hss', {}).get('use_external_socket_service', False)
-        self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
+        self.useExternalSocketService = config.get('hss', {}).get('use_external_socket_service', False)
+        self.diameterPeerKey = config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
     
     async def validateDiameterInbound(self, clientAddress: str, clientPort: str, inboundData) -> bool:
         """
@@ -121,7 +117,7 @@ class DiameterService:
                     await(asyncio.sleep(1))
                     continue
 
-                activeDiameterPeersTimeout = self.config.get('hss', {}).get('active_diameter_peers_timeout', 3600)
+                activeDiameterPeersTimeout = config.get('hss', {}).get('active_diameter_peers_timeout', 3600)
 
                 activePeers = self.activePeers
                 stalePeers = []
@@ -408,15 +404,15 @@ class DiameterService:
                 asyncio.create_task(self.inboundDataWorker(coroutineUuid=f'inboundDataWorker-{i}'))
 
             if host is None:
-                host=str(self.config.get('hss', {}).get('bind_ip', '0.0.0.0')[0])
+                host=str(config.get('hss', {}).get('bind_ip', '0.0.0.0')[0])
             
             if port is None:
-                port=int(self.config.get('hss', {}).get('bind_port', 3868))
+                port=int(config.get('hss', {}).get('bind_port', 3868))
             
             if type is None:
-                type=str(self.config.get('hss', {}).get('transport', 'TCP'))
+                type=str(config.get('hss', {}).get('transport', 'TCP'))
 
-            self.socketTimeout = int(self.config.get('hss', {}).get('client_socket_timeout', 300))
+            self.socketTimeout = int(config.get('hss', {}).get('client_socket_timeout', 300))
             
             if self.benchmarking:
                 logProcessedMessagesTask = asyncio.create_task(self.logProcessedMessages())
@@ -429,9 +425,9 @@ class DiameterService:
                 self.sctpSocket.events.clear()
                 self.sctpSocket.bind((host, port))
                 self.sctpRtoInfo = self.sctpSocket.get_rtoinfo()
-                self.sctpRtoMin = self.config.get('hss', {}).get('sctp', {}).get('rtoMin', 500)
-                self.sctpRtoMax = self.config.get('hss', {}).get('sctp', {}).get('rtoMax', 5000)
-                self.sctpRtoInitial = self.config.get('hss', {}).get('sctp', {}).get('rtoInitial', 1000)
+                self.sctpRtoMin = config.get('hss', {}).get('sctp', {}).get('rtoMin', 500)
+                self.sctpRtoMax = config.get('hss', {}).get('sctp', {}).get('rtoMax', 5000)
+                self.sctpRtoInitial = config.get('hss', {}).get('sctp', {}).get('rtoInitial', 1000)
                 self.sctpRtoInfo.initial = int(self.sctpRtoInitial)
                 self.sctpRtoInfo.max = int(self.sctpRtoMax)
                 self.sctpRtoInfo.min = int(self.sctpRtoMin)
@@ -454,6 +450,10 @@ class DiameterService:
                 await(server.serve_forever())
 
 
-if __name__ == '__main__':
+def main():
     diameterService = DiameterService()
     asyncio.run(diameterService.startServer())
+
+
+if __name__ == '__main__':
+    main()

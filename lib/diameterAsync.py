@@ -1,12 +1,12 @@
 #Diameter Packet Decoder / Encoder & Tools
 import math
 import asyncio
-import yaml
 import uuid
 import socket
 import traceback
 import binascii
 from messagingAsync import RedisMessagingAsync
+from pyhss_config import config
 
 
 class DiameterAsync:
@@ -50,13 +50,10 @@ class DiameterAsync:
                 {"commandCode": 8388622, "applicationId": 16777291, "responseMethod": self.Answer_16777291_8388622, "failureResultCode": 4100 ,"requestAcronym": "LRR", "responseAcronym": "LRA", "requestName": "LCS Routing Info Request", "responseName": "LCS Routing Info Answer"},
             ]
 
-        with open("../config.yaml", 'r') as stream:
-            self.config = (yaml.safe_load(stream))
-            
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
         self.redisMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
         self.logTool = logTool
