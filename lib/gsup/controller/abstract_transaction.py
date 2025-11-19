@@ -20,7 +20,10 @@
 from abc import ABC
 from datetime import datetime
 
-from osmocom.gsup.message import GsupMessage
+from osmocom.gsup.message import GsupMessage, MsgType
+
+from baseModels import SubscriberInfo
+from gsup.protocol.gsup_msg import GsupMessageBuilder
 
 
 class AbstractTransaction(ABC):
@@ -40,3 +43,23 @@ class AbstractTransaction(ABC):
 
     def _is_timed_out(self):
         return (datetime.now() - self._started_at).seconds > self._timeout_seconds
+
+    @staticmethod
+    def _build_isd_request(subscriber_info: SubscriberInfo, cn_domain: str) -> GsupMessage:
+        request_builder = (GsupMessageBuilder()
+                           .with_msg_type(MsgType.INSERT_DATA_REQUEST)
+                           .with_ie('imsi', subscriber_info.imsi)
+                           .with_msisdn_ie(subscriber_info.msisdn)
+                           )
+
+        if cn_domain == 'ps':
+            for index, apn in enumerate(subscriber_info.apns):
+                request_builder.with_pdp_info_ie(index, apn['ip_version'], apn['name'])
+
+        return request_builder.build()
+
+    @staticmethod
+    def _validate_cn_domain(cn_domain: str):
+        valid_domains = list(['ps', 'cs'])
+        if not cn_domain in valid_domains:
+            raise ValueError(f"CN domain must be one of: {', '.join(valid_domains)}")

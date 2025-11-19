@@ -58,7 +58,9 @@ class ULRTransaction(AbstractTransaction):
         if self.__state != self.__TransactionState.BEGIN_STATE_INITIAL:
             raise ValueError("ULR Transaction already started")
 
-        await self.__send_isd_request()
+        cn_domain = GsupMessageUtil.get_first_ie_by_name('cn_domain', self.__ulr)
+        self._validate_cn_domain(cn_domain)
+        await self.__cb_response_sender(self.__peer, self._build_isd_request(self.__subscriber_info, cn_domain))
         self.__state = self.__TransactionState.ISD_REQUEST_SENT
 
     async def continue_invoke(self, response: GsupMessage):
@@ -78,20 +80,6 @@ class ULRTransaction(AbstractTransaction):
             return self.__old_peer is None
 
         return self.__state == self.__TransactionState.END_STATE_CANCEL_LOCATION_SENT
-
-    async def __send_isd_request(self):
-        request_builder = (GsupMessageBuilder()
-                           .with_msg_type(MsgType.INSERT_DATA_REQUEST)
-                           .with_ie('imsi', self.__subscriber_info.imsi)
-                           .with_msisdn_ie(self.__subscriber_info.msisdn)
-                           )
-
-        cn_domain = GsupMessageUtil.get_first_ie_by_name('cn_domain', self.__ulr)
-        if cn_domain == 'ps':
-            for index, apn in enumerate(self.__subscriber_info.apns):
-                request_builder.with_pdp_info_ie(index, apn['ip_version'], apn['name'])
-
-        await self.__cb_response_sender(self.__peer, request_builder.build())
 
     async def __handle_insert_subscriber_data_response(self):
         imsi = GsupMessageUtil.get_first_ie_by_name('imsi', self.__insert_subscriber_data_response.to_dict())
