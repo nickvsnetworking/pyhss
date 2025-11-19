@@ -1,0 +1,26 @@
+name: Debian package
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: jtdor/build-deb-action@v1
+      env:
+        DEB_BUILD_OPTIONS: noautodbgsym
+      with:
+        buildpackage-opts: --build=binary --no-sign
+
+    - name: Archive build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian-package
+        path: "debian/artifacts/*.deb"
