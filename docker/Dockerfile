@@ -65,8 +65,8 @@ COPY --from=envsubst /usr/local/bin/envsubst /usr/local/bin/envsubst
 RUN useradd -d /opt/pyhss -r -m pyhss
 
 # Copy Python virtual environment from the previous stage and set PATH
-ENV PATH="/opt/pyhss/venv/bin:$PATH"
-COPY --from=python-venv /opt/pyhss/venv /opt/pyhss/venv
+ENV PATH="/opt/venv/bin:$PATH"
+COPY --from=python-venv /opt/pyhss/venv /opt/venv
 
 # Copy application code
 COPY . /opt/pyhss
