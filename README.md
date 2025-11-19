@@ -105,7 +105,7 @@ Should you desire to run / debug PyHSS through your IDE like PyCharm to Run / De
    * Select the docker interpreter as runtime
    * Be sure to configure the env vars to use the `docker/.env` file
    * Setup these additional env vars: `CONFIG_TEMPLATE=/opt/pyhss/docker/config.yaml;PYHSS_CONFIG=/tmp/config.yaml;PYTHONUNBUFFERED=1`
-   * Be sure that the container run options look like this: `--entrypoint=/opt/pyhss/docker/launch-container.sh -v /home/YOUR_USER/git/pyhss:/opt/pyhss -p 0.0.0.0:4222:4222 --network docker_default --rm`
+   * Be sure that the container run options look like this: `--entrypoint=/opt/pyhss/docker/launch-container.sh -v /home/YOUR_USER/git/pyhss:/opt/pyhss -p 127.0.0.1:4222:4222 --network docker_default --rm`
    * NOTE: The port example is for the GSUP daemon. Refer to the compose file for the relevant ports of your daemon
    * NOTE: the path `/home/YOUR_USER/git/pyhss` is meant to point to your local source tree
    * NOTE: The `--network docker_default` might need to be replaced with the network that is used by compose
