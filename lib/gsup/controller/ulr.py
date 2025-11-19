@@ -28,13 +28,14 @@ from osmocom.gsup.message import GsupMessage, MsgType
 from baseModels import SubscriberInfo
 from database import Database
 from gsup.controller.abstract_controller import GsupController
+from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil, GMMCause
 from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
 from logtool import LogTool
 from utils import validate_imsi, InvalidIMSI
 
 
-class ULRTransaction:
+class ULRTransaction(AbstractTransaction):
     class __TransactionState(IntEnum):
         BEGIN_STATE_INITIAL = 0
         ISD_REQUEST_SENT = 1
@@ -43,6 +44,7 @@ class ULRTransaction:
 
     def __init__(self, peer: IPAPeer, ulr: GsupMessage, cb_response_sender: Callable[[IPAPeer, GsupMessage], None],
                  cb_update_subscriber: Callable[[IPAPeer, str], Optional[IPAPeer]], subscriber_info: SubscriberInfo):
+        super().__init__()
         self.__peer = peer
         self.__ulr = ulr.to_dict()
         self.__subscriber_info = subscriber_info
@@ -51,17 +53,15 @@ class ULRTransaction:
         self.__insert_subscriber_data_response = None
         self.__state = self.__TransactionState.BEGIN_STATE_INITIAL
         self.__old_peer = None
-        self.__timeout_seconds = 10
-        self.__started_at = datetime.now()
 
-    async def begin(self):
+    async def begin_invoke(self):
         if self.__state != self.__TransactionState.BEGIN_STATE_INITIAL:
             raise ValueError("ULR Transaction already started")
 
         await self.__send_isd_request()
         self.__state = self.__TransactionState.ISD_REQUEST_SENT
 
-    async def handle_insert_subscriber_data_response(self, response: GsupMessage):
+    async def continue_invoke(self, response: GsupMessage):
         if self.__state != self.__TransactionState.ISD_REQUEST_SENT:
             raise ValueError("ULR Transaction not in ISD_REQUEST_SENT state")
 
@@ -71,16 +71,13 @@ class ULRTransaction:
             await self.__send_cancel_location_request()
 
     def is_finished(self):
-        if self.__is_timed_out():
+        if self._is_timed_out():
             return True
 
         if self.__state == self.__TransactionState.END_STATE_ULR_SENT:
             return self.__old_peer is None
 
         return self.__state == self.__TransactionState.END_STATE_CANCEL_LOCATION_SENT
-
-    def __is_timed_out(self):
-        return (datetime.now() - self.__started_at).seconds > self.__timeout_seconds
 
     async def __send_isd_request(self):
         request_builder = (GsupMessageBuilder()
@@ -152,7 +149,7 @@ class ULRController(GsupController):
             subscriber_info = self._database.Get_Gsup_SubscriberInfo(imsi)
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
             self.__ulr_transactions[peer.name] = transaction
-            await transaction.begin()
+            await transaction.begin_invoke()
         except InvalidIMSI as e:
             await self._logger.logAsync(service='GSUP', level='WARN', message=f"Invalid IMSI: {imsi}")
             await self._send_gsup_response(
