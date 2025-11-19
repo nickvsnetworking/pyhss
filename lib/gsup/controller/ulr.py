@@ -20,9 +20,9 @@
 """
 
 import traceback
-from datetime import datetime
 from enum import IntEnum
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Awaitable
+
 from osmocom.gsup.message import GsupMessage, MsgType
 
 from baseModels import SubscriberInfo
@@ -30,7 +30,7 @@ from database import Database
 from gsup.controller.abstract_controller import GsupController
 from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil, GMMCause
-from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
+from gsup.protocol.ipa_peer import IPAPeer
 from logtool import LogTool
 from utils import validate_imsi, InvalidIMSI
 
@@ -42,7 +42,7 @@ class ULRTransaction(AbstractTransaction):
         END_STATE_ULR_SENT = 2
         END_STATE_CANCEL_LOCATION_SENT = 3
 
-    def __init__(self, peer: IPAPeer, ulr: GsupMessage, cb_response_sender: Callable[[IPAPeer, GsupMessage], None],
+    def __init__(self, peer: IPAPeer, ulr: GsupMessage, cb_response_sender: Callable[[IPAPeer, GsupMessage], Awaitable[None]],
                  cb_update_subscriber: Callable[[IPAPeer, str], Optional[IPAPeer]], subscriber_info: SubscriberInfo):
         super().__init__()
         self.__peer = peer
