@@ -95,6 +95,24 @@ Each container needs a `CONTAINER_ROLE` variable as well with one of the followi
 
 See the `docker/docker-compose.yaml` file for an example of how to set this up. This variable determines which service the container will run.
 
+### For developers: Configuring your IDE to run / debug inside the docker container
+
+Should you desire to run / debug PyHSS through your IDE like PyCharm to Run / Debug services through docker, you can.
+
+1. Create a Python interpreter on docker (not docker compose) that uses the image `ghcr.io/nickvsnetworking/pyhss/pyhss:development`
+2. Prepare the docker image by running `cd docker && docker compose build`. You'll need to rebuild only if requirements.txt changes.
+3. Create a Run configuration for each script:
+   * Select the docker interpreter as runtime
+   * Be sure to configure the env vars to use the `docker/.env` file
+   * Setup these additional env vars: `CONFIG_TEMPLATE=/opt/pyhss/docker/config.yaml;PYHSS_CONFIG=/tmp/config.yaml;PYTHONUNBUFFERED=1`
+   * Be sure that the container run options look like this: `--entrypoint=/opt/pyhss/docker/launch-container.sh -v /home/YOUR_USER/git/pyhss:/opt/pyhss -p 0.0.0.0:4222:4222 --network docker_default --rm`
+   * NOTE: The port example is for the GSUP daemon. Refer to the compose file for the relevant ports of your daemon
+   * NOTE: the path `/home/YOUR_USER/git/pyhss` is meant to point to your local source tree
+   * NOTE: The `--network docker_default` might need to be replaced with the network that is used by compose
+4. Start the entire environment with `docker compose up -d`
+5. Stop the service you'd like to manually run / debug. For instance: `docker compose stop pyhss_api`
+6. Use your IDE run configuration to launch the desired service
+
 ## Structure
 
 PyHSS uses a queued microservices model. Each service performs a specific set of tasks, and uses redis messages to communicate with other services.
