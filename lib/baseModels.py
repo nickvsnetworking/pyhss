@@ -39,7 +39,13 @@ class OutboundData(BaseModel):
         for modelField, modelValue in updatedData.items():
             setattr(self, modelField, modelValue)
 
+class LocationInfo2G(BaseModel):
+    vlr: Optional[str]
+    sgsn: Optional[str]
+    msc: Optional[str]
+
 class SubscriberInfo(BaseModel):
+    location_info_2g: LocationInfo2G
     apns: List[Dict[str, str]]
     msisdn: str
     imsi: str

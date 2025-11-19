@@ -16,6 +16,7 @@ import socket
 from logtool import LogTool
 from diameter import Diameter
 from messaging import RedisMessaging
+from baseModels import SubscriberInfo
 import database
 from pyhss_config import config
 
@@ -559,6 +560,11 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
+
+            #If the subscriber is enabled, trigger an ISD in 2G
+            if 'enabled' in json_data and json_data['enabled'] == True:
+                update_event = databaseClient.Get_Gsup_SubscriberInfo(json_data['imsi'])
+                redisMessaging.sendMessage('subscriber_update', update_event.model_dump_json())
 
             #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
             if 'enabled' in json_data and json_data['enabled'] == False:

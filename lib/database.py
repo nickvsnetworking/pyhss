@@ -17,7 +17,7 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
-from baseModels import SubscriberInfo
+from baseModels import SubscriberInfo, LocationInfo2G
 from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
 import json
@@ -1700,7 +1700,9 @@ class Database:
                 ip_version_str = ip_version_to_str[apn.ip_version]
             subscriber_apn_info.append({'name': apn.apn, 'ip_version': ip_version_str})
 
-        return SubscriberInfo(apns=subscriber_apn_info, msisdn=msisdn, imsi=imsi)
+        location_info_2g = LocationInfo2G(vlr=subscriber.get('serving_vlr'), sgsn=subscriber.get('serving_sgsn'), msc=subscriber.get('serving_msc'))
+
+        return SubscriberInfo(apns=subscriber_apn_info, msisdn=msisdn, imsi=imsi, location_info_2g=location_info_2g)
 
     def Get_APN(self, apn_id):
         self.logTool.log(service='Database', level='debug', message="Getting APN " + str(apn_id), redisClient=self.redisMessaging)
