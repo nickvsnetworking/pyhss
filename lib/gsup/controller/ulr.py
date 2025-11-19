@@ -22,22 +22,16 @@
 import traceback
 from datetime import datetime
 from enum import IntEnum
-from typing import Callable, List, Dict, Optional
+from typing import Callable, Dict, Optional
 from osmocom.gsup.message import GsupMessage, MsgType
 
+from baseModels import SubscriberInfo
 from database import Database
 from gsup.controller.abstract_controller import GsupController
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil, GMMCause
 from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
 from logtool import LogTool
 from utils import validate_imsi, InvalidIMSI
-
-
-class ULRSubscriberInfo:
-    def __init__(self, apns: List[Dict[str, str]], msisdn: str, imsi: str):
-        self.apns = apns
-        self.msisdn = msisdn
-        self.imsi = imsi
 
 
 class ULRTransaction:
@@ -48,7 +42,7 @@ class ULRTransaction:
         END_STATE_CANCEL_LOCATION_SENT = 3
 
     def __init__(self, peer: IPAPeer, ulr: GsupMessage, cb_response_sender: Callable[[IPAPeer, GsupMessage], None],
-                 cb_update_subscriber: Callable[[IPAPeer, str], Optional[IPAPeer]], subscriber_info: ULRSubscriberInfo):
+                 cb_update_subscriber: Callable[[IPAPeer, str], Optional[IPAPeer]], subscriber_info: SubscriberInfo):
         self.__peer = peer
         self.__ulr = ulr.to_dict()
         self.__subscriber_info = subscriber_info
@@ -155,27 +149,7 @@ class ULRController(GsupController):
             if imsi is None:
                 raise ValueError(f"Missing IMSI in GSUP message from peer {peer}")
             validate_imsi(imsi)
-            subscriber = self._database.Get_Subscriber(imsi=imsi)
-            apns = list()
-            msisdn = subscriber['msisdn']
-
-            ip_version_to_str = {
-                0: 'ipv4',
-                1: 'ipv6',
-                2: 'ipv4v6',
-                3: 'ipv4v6',
-            }
-
-            for apn in apns:
-                db_apn = self._database.Get_APN_by_Name(apn)
-                ip_version_str = None
-                if db_apn['ip_version'] in ip_version_to_str:
-                    ip_version_str = ip_version_to_str[db_apn['ip_version']]
-                apns.append({'name': apn, 'ip_version': ip_version_str})
-
-            subscriber_info = ULRSubscriberInfo(apns, msisdn, imsi)
-
-
+            subscriber_info = self._database.Get_Gsup_SubscriberInfo(imsi)
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
             self.__ulr_transactions[peer.name] = transaction
             await transaction.begin()

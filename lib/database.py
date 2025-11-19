@@ -17,6 +17,7 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
+from baseModels import SubscriberInfo
 from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
 import json
@@ -1671,6 +1672,35 @@ class Database:
             return vector_dict
         else:
             self.logTool.log(service='Database', level='error', message="Invalid action: " + str(action), redisClient=self.redisMessaging)
+
+    def Get_Gsup_SubscriberInfo(self, imsi: str) -> SubscriberInfo:
+        subscriber = self.Get_Subscriber(imsi=imsi)
+        msisdn = subscriber['msisdn']
+
+        apn_list_value = subscriber.get('apn_list', '')
+        if isinstance(apn_list_value, str):
+            apn_ids = [int(x) for x in apn_list_value.split(',') if x.strip()]
+        else:
+            apn_ids = []
+
+        session = Session(self.engine)
+        apns = [] if not apn_ids else session.query(APN).filter(APN.apn_id.in_(apn_ids)).all()
+
+        ip_version_to_str = {
+            0: 'ipv4',
+            1: 'ipv6',
+            2: 'ipv4v6',
+            3: 'ipv4v6',
+        }
+
+        subscriber_apn_info = list()
+        for apn in apns:
+            ip_version_str = None
+            if apn.ip_version in ip_version_to_str:
+                ip_version_str = ip_version_to_str[apn.ip_version]
+            subscriber_apn_info.append({'name': apn.apn, 'ip_version': ip_version_str})
+
+        return SubscriberInfo(apns=subscriber_apn_info, msisdn=msisdn, imsi=imsi)
 
     def Get_APN(self, apn_id):
         self.logTool.log(service='Database', level='debug', message="Getting APN " + str(apn_id), redisClient=self.redisMessaging)
