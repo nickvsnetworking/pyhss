@@ -53,6 +53,22 @@ CREATE TABLE auc (
 	UNIQUE (iccid),
 	UNIQUE (imsi)
 );
+CREATE TABLE auth_sqn_ind (
+	client_name VARCHAR(255) NOT NULL,
+	ind_id INTEGER NOT NULL,
+	PRIMARY KEY (ind_id),
+	UNIQUE (client_name)
+);
+CREATE TABLE auth_sqn_seq (
+	auc_id INTEGER,
+	ind_id INTEGER,
+	seq BIGINT,
+	seq_id INTEGER NOT NULL,
+	PRIMARY KEY (seq_id),
+	UNIQUE (auc_id, ind_id),
+	FOREIGN KEY(auc_id) REFERENCES auc (auc_id),
+	FOREIGN KEY(ind_id) REFERENCES auth_sqn_ind (ind_id)
+);
 CREATE TABLE charging_rule (
 	arp_preemption_capability BOOLEAN,
 	arp_preemption_vulnerability BOOLEAN,

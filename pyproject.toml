@@ -45,6 +45,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 120
 include = [
+	"lib/SQN.py",
 	"lib/databaseSchema.py",
 	"lib/pyhss_config.py",
 	"tests/test_database_upgrade.py",

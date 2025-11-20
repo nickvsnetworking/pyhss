@@ -123,11 +123,9 @@ def test_database(create_test_db):
 
     # Generate Vectors
     print("Generating Vectors")
-    print(database.Get_Vectors_AuC_air(auc_id, "12ff"))
-    print(database.Get_Vectors_AuC_sip_auth(auc_id, "12ff"))
-
-    # Update AuC
-    database.Update_AuC(auc_id, sqn=100)
+    ind = database.Get_AUTH_SQN_IND("test:test_database.py")
+    print(database.Get_Vectors_AuC_air(auc_id, "12ff", ind))
+    print(database.Get_Vectors_AuC_sip_auth(auc_id, "12ff", ind))
 
     # New Subscriber
     subscriber_json = {
@@ -225,7 +223,8 @@ def test_database(create_test_db):
 
     # Generate Vectors for IMS Subscriber
     print("Generating Vectors for IMS Subscriber")
-    print(database.Get_Vectors_AuC_sip_auth(auc_id, "12ff"))
+    ind = database.Get_AUTH_SQN_IND("test:test_database.py")
+    print(database.Get_Vectors_AuC_sip_auth(auc_id, "12ff", ind))
 
     # print("Generating Resync for IMS Subscriber")
     # print(Get_Vectors_AuC_sqn_resync(auc_id, '7964347dfdfe432289522183fcfb', '1bc9f096002d3716c65e4e1f4c1c0d17'))
