@@ -59,6 +59,7 @@ class AIRController(GsupController):
             subscriber = self._database.Get_Subscriber(imsi=imsi)
             rand = GsupMessageUtil.get_first_ie_by_name('rand', request_dict)
             auts = GsupMessageUtil.get_first_ie_by_name('auts', request_dict)
+            ind = self._database.Get_AUTH_SQN_IND(f"gsup:sernr={peer.tags['SERNR']}")
 
             resync_required = rand is not None and auts is not None
             if resync_required:
@@ -69,7 +70,7 @@ class AIRController(GsupController):
             # https://github.com/nickvsnetworking/pyhss/issues/266
             vectors = []
             for i in range(self.get_num_vectors_req(request_dict)):
-                vectors += self._database.Get_Vectors_AuC_2g3g(subscriber['auc_id'], 1)
+                vectors += self._database.Get_Vectors_AuC_2g3g(subscriber['auc_id'], ind, 1)
 
             response_msg = ((GsupMessageBuilder()
                             .with_msg_type(MsgType.SEND_AUTH_INFO_RESULT))

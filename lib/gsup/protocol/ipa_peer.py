@@ -67,5 +67,9 @@ class IPAPeer:
             raise ValueError(
                 "Role not found in tags. 'sgsn' or 'msc' must appear in one of there tags: " + ', '.join(
                     self._ROLE_PREFERENCE_TAGS))
+
+        if "SERNR" not in tags:
+            raise ValueError("Client didn't send tag SERNR")
+
     def __str__(self):
         return f"[{self.name} ({self.role.name})]"
