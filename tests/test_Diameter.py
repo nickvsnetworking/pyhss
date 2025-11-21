@@ -7,6 +7,9 @@ global log
 log= logging.getLogger("UnitTestLogger")
 import diameter as DiameterLib
 import traceback
+from logtool import LogTool
+from pyhss_config import config
+
 
 class Diameter_Tests(unittest.TestCase):
     diameter_inst = 0
@@ -29,6 +32,7 @@ class Diameter_Tests(unittest.TestCase):
 
     def test_A_Instantiate(self):
         diameter_inst = DiameterLib.Diameter(
+            LogTool(config),
             str('OriginHost'), str('OriginRealm'), 
             str('UnitTest_Diameter'), str('001'), str('001')
         )
