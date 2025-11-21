@@ -239,4 +239,4 @@ class GsupServer:
 
             except Exception as e:
                 await self.logger.logAsync(service='GSUP', level='ERROR',
-                                           message=f"Error processing subscriber update: {e}")
+                                           message=f"Error processing subscriber update: {traceback.format_exc()}")
