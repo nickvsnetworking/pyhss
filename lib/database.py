@@ -7,7 +7,7 @@ from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 import  os
 import datetime, time
 from datetime import timezone
