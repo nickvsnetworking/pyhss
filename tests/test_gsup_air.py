@@ -98,6 +98,7 @@ class GSUPClient:
         response = self.__read_response()
 
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.SEND_AUTH_INFO_RESULT
 
     def send_ulr_request(self, imsi):
         request = (GsupMessageBuilder()
@@ -111,10 +112,7 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
-
-        if response.msg_type != MsgType.INSERT_DATA_REQUEST:
-            print(f"Received error response: {response.msg_type()}")
-            return
+        assert response.msg_type == MsgType.INSERT_DATA_REQUEST
 
         # Send the insert data response
         insert_data_resp = (GsupMessageBuilder()
@@ -128,14 +126,12 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.UPDATE_LOCATION_RESULT
 
     def wait_for_location_cancel(self):
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
-
-        if response.msg_type != MsgType.LOCATION_CANCEL_REQUEST:
-            print(f"Received error response: {response.msg_type()}")
-            return
+        assert response.msg_type == MsgType.LOCATION_CANCEL_REQUEST
 
         # Send the location cancel response
         cancel_resp = (GsupMessageBuilder()
@@ -157,6 +153,7 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.PURGE_MS_RESULT
 
     def __read_response(self) -> GsupMessage:
         resp_hdr = self.sock.recv(3)
