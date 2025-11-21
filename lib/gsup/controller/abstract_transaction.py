@@ -49,6 +49,7 @@ class AbstractTransaction(ABC):
         request_builder = (GsupMessageBuilder()
                            .with_msg_type(MsgType.INSERT_DATA_REQUEST)
                            .with_ie('imsi', subscriber_info.imsi)
+                           .with_ie('cn_domain', cn_domain)
                            .with_msisdn_ie(subscriber_info.msisdn)
                            )
 
