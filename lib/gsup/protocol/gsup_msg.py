@@ -75,13 +75,9 @@ class GsupMessageBuilder:
             }
         })
 
-        pdp_info.append(
-            {
-                'access_point_name': apn_name
-            }
-        )
-
-        pdp_info.append({'qos': None})
+        pdp_info.append({
+            'access_point_name': apn_name
+        })
 
         return self.with_ie('pdp_info', pdp_info, False)
 
