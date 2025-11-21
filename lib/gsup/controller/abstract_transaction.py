@@ -17,8 +17,8 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import time
 from abc import ABC
-from datetime import datetime
 
 from osmocom.gsup.message import GsupMessage, MsgType
 
@@ -29,7 +29,7 @@ from gsup.protocol.gsup_msg import GsupMessageBuilder
 class AbstractTransaction(ABC):
 
     def __init__(self):
-        self._started_at = datetime.now()
+        self._started_at = time.monotonic()
         self._timeout_seconds = 10
 
     async def begin_invoke(self):
@@ -42,7 +42,7 @@ class AbstractTransaction(ABC):
         pass
 
     def _is_timed_out(self):
-        return (datetime.now() - self._started_at).seconds > self._timeout_seconds
+        return (time.monotonic() - self._started_at) > self._timeout_seconds
 
     @staticmethod
     def _build_isd_request(subscriber_info: SubscriberInfo, cn_domain: str) -> GsupMessage:
