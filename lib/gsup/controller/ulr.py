@@ -95,7 +95,6 @@ class ULRTransaction(AbstractTransaction):
             msg_type = MsgType.UPDATE_LOCATION_ERROR
 
         response_builder.with_msg_type(msg_type)
-        response_builder.with_ie('imsi', self.__subscriber_info.imsi)
         response = response_builder.build()
         await self.__cb_response_sender(self.__peer, response)
         self.__state = self.__TransactionState.END_STATE_ULR_SENT
