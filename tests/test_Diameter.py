@@ -51,19 +51,17 @@ class Diameter_Tests(unittest.TestCase):
 
     def test_B_Recv_AIR(self):
         packet_vars, avps = self.__class__.diameter_inst.decode_diameter_packet(self.__class__.Diameter_AIR)
-        log.debug("Received request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
-        if packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
-                log.info("Received Request with command code 318 (3GPP Authentication-Information-Request) - Generating (AIA)")
-                try:
-                    response = self.__class__.diameter_inst.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
-                    log.info("Generated AIR")
-                except Exception as e:
-                    log.info("Failed to generate Diameter Response for AIR")
-                    log.info(e)
-                    traceback.print_exc()
-                    log.info("Generated DIAMETER_USER_DATA_NOT_AVAILABLE AIR")
+        assert packet_vars == {
+            "ApplicationId": 16777251,
+            "command_code": 318,
+            "end-to-end-identifier": "6d1969c8",
+            "flags": "c0",
+            "flags_bin": "11000000",
+            "hop-by-hop-identifier": "30d06879",
+            "length": 276,
+            "packet_version": "01",
+        }
 
-        self.assertEqual(packet_vars['ApplicationId'], 0, "Application ID Mismatch")
 
 if __name__ == '__main__':
     logging.basicConfig( stream=sys.stderr )
