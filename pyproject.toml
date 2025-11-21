@@ -28,3 +28,16 @@ packages = [
 
 [tool.setuptools.package-dir]
 pyhss = ""
+
+[tool.pytest.ini_options]
+addopts = "--tb=native"
+log_level = "DEBUG"
+pythonpath = "lib"
+env = [
+	"PYHSS_CONFIG=tests/config.yaml"
+]
+filterwarnings = [
+	# Warning appears inside SQLAlchemy code, also might not make sense:
+	# https://github.com/python/cpython/issues/135834
+	"ignore:The default datetime adapter is deprecated as of Python 3.12"
+]
