@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
 class Peer(BaseModel):
@@ -46,6 +46,6 @@ class LocationInfo2G(BaseModel):
 
 class SubscriberInfo(BaseModel):
     location_info_2g: LocationInfo2G
-    apns: List[Dict[str, str]]
+    apns: List[Dict[str, Any]]
     msisdn: str
     imsi: str

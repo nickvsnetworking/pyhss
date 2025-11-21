@@ -54,8 +54,8 @@ class AbstractTransaction(ABC):
                            )
 
         if cn_domain == 'ps':
-            for index, apn in enumerate(subscriber_info.apns):
-                request_builder.with_pdp_info_ie(index, apn['ip_version'], apn['name'])
+            for _, apn in enumerate(subscriber_info.apns):
+                request_builder.with_pdp_info_ie(apn['apn_id'], apn['ip_version'], apn['name'])
 
         return request_builder.build()
 

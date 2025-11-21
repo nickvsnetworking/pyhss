@@ -1698,7 +1698,7 @@ class Database:
             ip_version_str = None
             if apn.ip_version in ip_version_to_str:
                 ip_version_str = ip_version_to_str[apn.ip_version]
-            subscriber_apn_info.append({'name': apn.apn, 'ip_version': ip_version_str})
+            subscriber_apn_info.append({'apn_id':apn.apn_id, 'name': apn.apn, 'ip_version': ip_version_str})
 
         location_info_2g = LocationInfo2G(vlr=subscriber.get('serving_vlr'), sgsn=subscriber.get('serving_sgsn'), msc=subscriber.get('serving_msc'))
 
