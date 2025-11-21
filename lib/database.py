@@ -1,7 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
@@ -406,8 +406,8 @@ class Database:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
             self.tacData = {}
 
-    # Create individual tables if they do not exist.
-        inspector = Inspector.from_engine(self.engine)
+        # Create individual tables if they do not exist
+        inspector = inspect(self.engine)
         for table_name in Base.metadata.tables.keys():
             if table_name not in inspector.get_table_names():
                 self.logTool.log(service='Database', level='debug', message=f"Creating table {table_name}", redisClient=self.redisMessaging)
