@@ -49,13 +49,14 @@ class AbstractTransaction(ABC):
         request_builder = (GsupMessageBuilder()
                            .with_msg_type(MsgType.INSERT_DATA_REQUEST)
                            .with_ie('imsi', subscriber_info.imsi)
-                           .with_ie('cn_domain', cn_domain)
                            .with_msisdn_ie(subscriber_info.msisdn)
                            )
 
         if cn_domain == 'ps':
             for _, apn in enumerate(subscriber_info.apns):
                 request_builder.with_pdp_info_ie(apn['apn_id'], apn['ip_version'], apn['name'])
+
+        request_builder.with_ie('cn_domain', cn_domain)
 
         return request_builder.build()
 
