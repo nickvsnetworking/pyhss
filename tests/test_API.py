@@ -532,8 +532,26 @@ class GeoRed_MME(unittest.TestCase):
         r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
         #Add Subscriber ID into Template for Validating
         self.__class__.subscriber_template_data['subscriber_id'] = self.__class__.subscriber_id
+        self.__class__.subscriber_template_data['last_location_update_timestamp'] = None
+        self.__class__.subscriber_template_data['last_seen_cell_id'] = None
+        self.__class__.subscriber_template_data['last_seen_eci'] = None
+        self.__class__.subscriber_template_data['last_seen_enodeb_id'] = None
+        self.__class__.subscriber_template_data['last_seen_mcc'] = None
+        self.__class__.subscriber_template_data['last_seen_mnc'] = None
+        self.__class__.subscriber_template_data['last_seen_tac'] = None
+        self.__class__.subscriber_template_data['roaming_enabled'] = True
+        self.__class__.subscriber_template_data['roaming_rule_list'] = None
         self.__class__.subscriber_template_data['serving_mme'] = None
+        self.__class__.subscriber_template_data['serving_mme_peer'] = None
+        self.__class__.subscriber_template_data['serving_mme_realm'] = None
         self.__class__.subscriber_template_data['serving_mme_timestamp'] = None
+        self.__class__.subscriber_template_data['serving_msc'] = None
+        self.__class__.subscriber_template_data['serving_msc_timestamp'] = None
+        self.__class__.subscriber_template_data['serving_sgsn'] = None
+        self.__class__.subscriber_template_data['serving_sgsn_timestamp'] = None
+        self.__class__.subscriber_template_data['serving_vlr'] = None
+        self.__class__.subscriber_template_data['serving_vlr_timestamp'] = None
+
         payload = payload_without_last_modified(r.json())
         self.assertEqual(self.__class__.subscriber_template_data, payload, "JSON body should match input")
 
