@@ -191,9 +191,28 @@ class Subscriber_Tests(unittest.TestCase):
         r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
         #Add Subscriber ID into Template for Validating
         self.__class__.template_data['subscriber_id'] = self.__class__.subscriber_id
+        self.__class__.template_data['last_location_update_timestamp'] = None
+        self.__class__.template_data['last_seen_cell_id'] = None
+        self.__class__.template_data['last_seen_eci'] = None
+        self.__class__.template_data['last_seen_enodeb_id'] = None
+        self.__class__.template_data['last_seen_mcc'] = None
+        self.__class__.template_data['last_seen_mnc'] = None
+        self.__class__.template_data['last_seen_tac'] = None
+        self.__class__.template_data['roaming_enabled'] = True
+        self.__class__.template_data['roaming_rule_list'] = None
         self.__class__.template_data['serving_mme'] = None
+        self.__class__.template_data['serving_mme_peer'] = None
+        self.__class__.template_data['serving_mme_realm'] = None
         self.__class__.template_data['serving_mme_timestamp'] = None
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        self.__class__.template_data['serving_msc'] = None
+        self.__class__.template_data['serving_msc_timestamp'] = None
+        self.__class__.template_data['serving_sgsn'] = None
+        self.__class__.template_data['serving_sgsn_timestamp'] = None
+        self.__class__.template_data['serving_vlr'] = None
+        self.__class__.template_data['serving_vlr_timestamp'] = None
+
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_D_Patch_Subscriber(self):
         headers = {"Content-Type": "application/json"}
@@ -243,8 +262,18 @@ class IMS_Subscriber(unittest.TestCase):
         r = requests.get(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
         #Add IMS_Subscriber ID into Template for Validating
         self.__class__.template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
+        self.__class__.template_data['pcscf'] = None
+        self.__class__.template_data['pcscf_active_session'] = None
+        self.__class__.template_data['pcscf_peer'] = None
+        self.__class__.template_data['pcscf_realm'] = None
+        self.__class__.template_data['pcscf_timestamp'] = None
         self.__class__.template_data['scscf'] = None
+        self.__class__.template_data['scscf_peer'] = None
+        self.__class__.template_data['scscf_realm'] = None
         self.__class__.template_data['scscf_timestamp'] = None
+        self.__class__.template_data['sh_template_path'] = None
+        self.__class__.template_data['xcap_profile'] = None
+
         payload = payload_without_last_modified(r.json())
         self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
