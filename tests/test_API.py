@@ -2,10 +2,18 @@ import unittest
 import requests
 import json
 import logging
+import pytest
 import sys
+from fixtures import create_test_db, run_pyhss_api
 
 log = logging.getLogger("UnitTestLogger")
 base_url = 'http://localhost:5000'
+
+
+@pytest.fixture(autouse=True)
+def autouse_fixtures(create_test_db, run_pyhss_api):
+    return
+
 
 class API_Tests(unittest.TestCase):
     def test_A_API_Response(self):
