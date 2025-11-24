@@ -9,6 +9,8 @@ from fixtures import create_test_db, run_pyhss_api
 log = logging.getLogger("UnitTestLogger")
 base_url = 'http://localhost:8080'
 
+unittest.TestCase.maxDiff = None
+
 
 @pytest.fixture(autouse=True)
 def autouse_fixtures(create_test_db, run_pyhss_api):
