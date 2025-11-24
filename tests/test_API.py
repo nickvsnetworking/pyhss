@@ -15,6 +15,12 @@ def autouse_fixtures(create_test_db, run_pyhss_api):
     return
 
 
+def payload_without_last_modified(payload):
+    assert "last_modified" in payload
+    del payload["last_modified"]
+    return payload
+
+
 class API_Tests(unittest.TestCase):
     def test_A_API_Response(self):
         r = requests.get(str(base_url) + '/swagger.json')
@@ -48,20 +54,23 @@ class APN_Tests(unittest.TestCase):
         r = requests.get(str(base_url) + '/apn/' + str(self.__class__.apn_id))
         #Add APN ID into Template for Validating
         self.__class__.template_data['apn_id'] = self.__class__.apn_id
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_D_Patch_APN(self):
         headers = {"Content-Type": "application/json"}
         patch_template_data = self.__class__.template_data
         patch_template_data['apn'] = 'PatchedValue'
         r = requests.patch(str(base_url) + '/apn/' + str(self.__class__.apn_id), data=json.dumps(patch_template_data), headers=headers)
-        self.assertEqual(patch_template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(patch_template_data, payload, "JSON body should match input")
 
     def test_E_Get_Patched_APN(self):
         r = requests.get(str(base_url) + '/apn/' + str(self.__class__.apn_id))
         #Add APN ID into Template for Validating
         self.__class__.template_data['apn'] = 'PatchedValue'
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_F_Delete_Patched_APN(self):
         r = requests.delete(str(base_url) + '/apn/' + str(self.__class__.apn_id))
@@ -104,17 +113,20 @@ class AUC_Tests(unittest.TestCase):
         self.__class__.template_data['auc_id'] = self.__class__.auc_id
         self.__class__.template_data.pop('opc')
         self.__class__.template_data.pop('ki')
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_D_Patch_AUC(self):
         headers = {"Content-Type": "application/json"}
         self.__class__.template_data['sim_vendor'] = "Nick1234"    
         r = requests.patch(str(base_url) + '/auc/' + str(self.__class__.auc_id), data=json.dumps(self.__class__.template_data), headers=headers)
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_E_Get_Patched_AUC(self):
         r = requests.get(str(base_url) + '/auc/' + str(self.__class__.auc_id))
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_F_Delete_Patched_AUC(self):
         r = requests.delete(str(base_url) + '/auc/' + str(self.__class__.auc_id))
@@ -178,16 +190,19 @@ class Subscriber_Tests(unittest.TestCase):
         self.__class__.template_data['msisdn'] = '123414299213'
         self.__class__.template_data['apn_list'] = self.__class__.template_data['apn_list'] + "," + str(self.__class__.apn_secondary)
         r = requests.patch(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id), data=json.dumps(self.__class__.template_data), headers=headers)
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_E_Get_Patched_Subscriber(self):
         r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_F_Get_Patched_Subscriber_by_MSISDN(self):
         r = requests.get(str(base_url) + '/subscriber/msisdn/' + str(self.__class__.template_data['msisdn']))
         self.__class__.template_data['attributes'] = []
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_Z_Delete_Patched_Subscriber(self):
         r = requests.delete(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
@@ -220,17 +235,20 @@ class IMS_Subscriber(unittest.TestCase):
         self.__class__.template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
         self.__class__.template_data['scscf'] = None
         self.__class__.template_data['scscf_timestamp'] = None
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_D_Patch_IMS_Subscriber(self):
         headers = {"Content-Type": "application/json"}
         self.__class__.template_data['msisdn'] = "5132312321"
         r = requests.patch(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id), data=json.dumps(self.__class__.template_data), headers=headers)
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_E_Get_Patched_IMS_Subscriber(self):
         r = requests.get(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
-        self.assertEqual(self.__class__.template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.template_data, payload, "JSON body should match input")
 
     def test_F_Delete_Patched_IMS_Subscriber(self):
         r = requests.delete(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
@@ -311,10 +329,11 @@ class ChargingRule_Tests(unittest.TestCase):
 
     def test_G_Get_Charging_Rule(self):
         r = requests.get(str(base_url) + '/charging_rule/' + str(self.__class__.charging_rule_id))
+        payload = payload_without_last_modified(r.json())
         #Add TFT ID into Template for Validating
         charging_rule_template = self.__class__.charging_rule_template
         charging_rule_template['charging_rule_id'] = self.__class__.charging_rule_id
-        self.assertEqual(charging_rule_template, r.json(), "JSON body should match input")
+        self.assertEqual(charging_rule_template, payload, "JSON body should match input")
 
     def test_H_Patch_Charging_Rule(self):
         headers = {"Content-Type": "application/json"}
@@ -322,18 +341,21 @@ class ChargingRule_Tests(unittest.TestCase):
         patch_charging_rule_template['rule_name'] = 'updated-via-api'
         patch_charging_rule_template['charging_rule_id'] = self.__class__.charging_rule_id
         r = requests.patch(str(base_url) + '/charging_rule/' + str(self.__class__.charging_rule_id), data=json.dumps(patch_charging_rule_template), headers=headers)
-        self.assertEqual(patch_charging_rule_template, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(patch_charging_rule_template, payload, "JSON body should match input")
 
     def test_I_Get_Patched_Charging_Rule(self):
         r = requests.get(str(base_url) + '/charging_rule/' + str(self.__class__.charging_rule_id))
+        payload = payload_without_last_modified(r.json())
         #Add charging_rule_id into Template for Validating
         patch_charging_rule_template = self.__class__.charging_rule_template
         patch_charging_rule_template['rule_name'] = 'updated-via-api'
         patch_charging_rule_template['charging_rule_id'] = self.__class__.charging_rule_id
-        self.assertEqual(patch_charging_rule_template, r.json(), "JSON body should match input")
+        self.assertEqual(patch_charging_rule_template, payload, "JSON body should match input")
 
     def test_J_Get_Full_Charging_Rule(self):
         r = requests.get(str(base_url) + '/pcrf/' + str(self.__class__.charging_rule_id))
+        payload = payload_without_last_modified(r.json())
         #Add charging_rule_id into Template for Validating
         patch_charging_rule_template = self.__class__.charging_rule_template
         patch_charging_rule_template['rule_name'] = 'updated-via-api'
@@ -341,7 +363,7 @@ class ChargingRule_Tests(unittest.TestCase):
         patch_charging_rule_template['tft'] = []
         patch_charging_rule_template['tft'].append(self.__class__.tft_template1)
         patch_charging_rule_template['tft'].append(self.__class__.tft_template2)
-        self.assertEqual(patch_charging_rule_template, r.json(), "JSON body should match input")
+        self.assertEqual(patch_charging_rule_template, payload, "JSON body should match input")
 
     def test_X_Delete_TFT2(self):
         r = requests.delete(str(base_url) + '/tft/' + str(self.__class__.tft_id))
@@ -378,19 +400,20 @@ class EIR_Tests(unittest.TestCase):
     def test_A_create_EIR_1(self):
         headers = {"Content-Type": "application/json"}
         r = requests.put(str(base_url) + '/eir/', data=json.dumps(self.__class__.eir_template1), headers=headers)
-        self.__class__.eir_template1 = r.json()
+        self.__class__.eir_template1 = payload_without_last_modified(r.json())
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
     def test_A_create_EIR_2(self):
         headers = {"Content-Type": "application/json"}
         r = requests.put(str(base_url) + '/eir/', data=json.dumps(self.__class__.eir_template2), headers=headers)
-        self.__class__.eir_template2 = r.json()
+        self.__class__.eir_template2 = payload_without_last_modified(r.json())
         self.__class__.eir_id = r.json()['eir_id']
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
     def test_C_Get_EIR(self):
         r = requests.get(str(base_url) + '/eir/' + str(self.__class__.eir_id))
-        self.assertEqual(self.__class__.eir_template2, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.eir_template2, payload, "JSON body should match input")
 
     def test_D_Patch_EIR(self):
         headers = {"Content-Type": "application/json"}
@@ -398,7 +421,8 @@ class EIR_Tests(unittest.TestCase):
         patch_eir_template2['match_response_code'] = 3
         patch_eir_template2['eir_id'] = self.__class__.eir_id
         r = requests.patch(str(base_url) + '/eir/' + str(self.__class__.eir_id), data=json.dumps(patch_eir_template2), headers=headers)
-        self.assertEqual(patch_eir_template2, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(patch_eir_template2, payload, "JSON body should match input")
 
     def test_E_Get_Patched_EIR(self):
         r = requests.get(str(base_url) + '/eir/' + str(self.__class__.eir_id))
@@ -406,7 +430,8 @@ class EIR_Tests(unittest.TestCase):
         patch_eir_template2 = self.__class__.eir_template2
         patch_eir_template2['match_response_code'] = 3
         patch_eir_template2['eir_id'] = self.__class__.eir_id
-        self.assertEqual(patch_eir_template2, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(patch_eir_template2, payload, "JSON body should match input")
 
     def test_I_Get_All_EIR_Rules(self):
         r = requests.get(str(base_url) + '/oam/eir_rules')
@@ -470,7 +495,8 @@ class GeoRed_MME(unittest.TestCase):
         self.__class__.subscriber_template_data['subscriber_id'] = self.__class__.subscriber_id
         self.__class__.subscriber_template_data['serving_mme'] = None
         self.__class__.subscriber_template_data['serving_mme_timestamp'] = None
-        self.assertEqual(self.__class__.subscriber_template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.subscriber_template_data, payload, "JSON body should match input")
 
     def test_G_1_GeoRed_MME_Update_MME_Sub(self):
         headers = {"Content-Type": "application/json"}
@@ -486,9 +512,9 @@ class GeoRed_MME(unittest.TestCase):
         #Add Subscriber ID into Template for Validating
         self.__class__.subscriber_template_data['subscriber_id'] = self.__class__.subscriber_id
         self.__class__.subscriber_template_data['serving_mme'] = "test1234"
-        response_json = r.json()
-        response_json['serving_mme_timestamp'] = self.__class__.subscriber_template_data['serving_mme_timestamp']
-        self.assertEqual(self.__class__.subscriber_template_data, response_json, "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        payload['serving_mme_timestamp'] = self.__class__.subscriber_template_data['serving_mme_timestamp']
+        self.assertEqual(self.__class__.subscriber_template_data, payload, "JSON body should match input")
 
     def test_G_3_GeoRed_MME_Clear_MME_Sub(self):
         headers = {"Content-Type": "application/json"}
@@ -504,7 +530,8 @@ class GeoRed_MME(unittest.TestCase):
         #Add Subscriber ID into Template for Validating
         self.__class__.subscriber_template_data['serving_mme'] = None
         self.__class__.subscriber_template_data['serving_mme_timestamp'] = None
-        self.assertEqual(self.__class__.subscriber_template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.subscriber_template_data, payload, "JSON body should match input")
 
     def test_Z_GeoRed_MME_Delete_Patched_Subscriber(self):
         r = requests.delete(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
@@ -604,7 +631,8 @@ class GeoRed_IMS(unittest.TestCase):
         self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
         self.__class__.ims_template_data['scscf'] = None
         self.__class__.ims_template_data['scscf_timestamp'] = None
-        self.assertEqual(self.__class__.ims_template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.ims_template_data, payload, "JSON body should match input")
 
     def test_C_GeoRed_IMS_Update_SCSCF_Sub(self):
         headers = {"Content-Type": "application/json"}
@@ -620,9 +648,9 @@ class GeoRed_IMS(unittest.TestCase):
         #Add Subscriber ID into Template for Validating
         self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
         self.__class__.ims_template_data['scscf'] = "test1234"
-        response_json = r.json()
-        response_json['scscf_timestamp'] = self.__class__.ims_template_data['scscf_timestamp']
-        self.assertEqual(self.__class__.ims_template_data, response_json, "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        payload['scscf_timestamp'] = self.__class__.ims_template_data['scscf_timestamp']
+        self.assertEqual(self.__class__.ims_template_data, payload, "JSON body should match input")
 
     def test_G_3_GeoRed_IMS_Clear_SCCSF_Sub(self):
         headers = {"Content-Type": "application/json"}
@@ -639,7 +667,8 @@ class GeoRed_IMS(unittest.TestCase):
         self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
         self.__class__.ims_template_data['scscf'] = None
         self.__class__.ims_template_data['scscf_timestamp'] = None
-        self.assertEqual(self.__class__.ims_template_data, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.ims_template_data, payload, "JSON body should match input")
 
     def test_W_GeoRed_IMS_Delete_IMS_Subscriber(self):
         r = requests.delete(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
