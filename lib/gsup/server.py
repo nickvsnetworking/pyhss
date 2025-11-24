@@ -23,15 +23,18 @@ import asyncio
 import traceback
 from asyncio import StreamReader, StreamWriter
 from typing import Dict, List
+import json
 
 from osmocom.gsup.message import GsupMessage
 
 from banners import Banners
+from baseModels import SubscriberInfo
 from database import Database
 from gsup.protocol.ipa_peer import IPAPeer
 from gsup.protocol.osmocom_ipa import IPA
 from gsup.request_dispatcher import GsupRequestDispatcher
 from logtool import LogTool
+from messaging import RedisMessaging
 
 
 class GsupServer:
@@ -39,11 +42,12 @@ class GsupServer:
     SUPPORTED_IPA_EXTENSIONS = list(['GSUP'])
     SUPPORTED_IPA_MSGTS = list(['PING', 'PONG', 'ID_GET', 'ID_RESP', 'ID_ACK'])
 
-    def __init__(self, host: str, port: int, socket_timeout: int, logger: LogTool):
+    def __init__(self, host: str, port: int, socket_timeout: int, logger: LogTool, redis_messaging: RedisMessaging):
         self.host = host
         self.port = port
         self.socket_timeout = socket_timeout
         self.logger = logger
+        self.redis_messaging = redis_messaging
         self.active_connections: Dict[str, IPAPeer] = dict()
         self.connections_pending_activation: List[str] = list()
         self.connections_pending_pings: Dict[str, int] = dict()
@@ -52,6 +56,7 @@ class GsupServer:
 
     async def start_server(self):
         server = await asyncio.start_server(self.__handle_connection, self.host, self.port)
+        asyncio.create_task(self._listen_for_subscriber_updates())
         self.logger.log(service='GSUP', level='INFO', message=f"{Banners().gsupService()}")
         self.logger.log(service='GSUP', level='INFO', message=f"GSUP server started on {self.host}:{self.port}")
         async with server:
@@ -216,3 +221,22 @@ class GsupServer:
         if request is None:
             raise ValueError(f"Error parsing GSUP message from peer {peer}")
         await self.gsup_handler.dispatch(peer, request)
+
+    async def _listen_for_subscriber_updates(self):
+        """
+        Listens for subscriber update events on a Redis queue and processes them.
+        """
+        await self.logger.logAsync(service='GSUP', level='INFO', message="Listening for subscriber updates")
+        while True:
+            try:
+                _, message_data = await asyncio.to_thread(self.redis_messaging.awaitMessage, 'subscriber_update')
+                update_data = json.loads(message_data)
+                update_event = SubscriberInfo(**update_data)
+
+                await self.logger.logAsync(service='GSUP', level='INFO',
+                                           message=f"Received subscriber update for IMSI {update_event.imsi} with new MSISDN {update_event.msisdn}")
+                await self.gsup_handler.dispatch_subscriber_update(update_event)
+
+            except Exception as e:
+                await self.logger.logAsync(service='GSUP', level='ERROR',
+                                           message=f"Error processing subscriber update: {traceback.format_exc()}")

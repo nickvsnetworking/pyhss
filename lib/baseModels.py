@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
 class Peer(BaseModel):
@@ -38,3 +38,14 @@ class OutboundData(BaseModel):
     def update(self, **updatedData):
         for modelField, modelValue in updatedData.items():
             setattr(self, modelField, modelValue)
+
+class LocationInfo2G(BaseModel):
+    vlr: Optional[str]
+    sgsn: Optional[str]
+    msc: Optional[str]
+
+class SubscriberInfo(BaseModel):
+    location_info_2g: LocationInfo2G
+    apns: List[Dict[str, Any]]
+    msisdn: str
+    imsi: str

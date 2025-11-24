@@ -23,10 +23,11 @@ from typing import Dict
 
 from osmocom.gsup.message import GsupMessage, MsgType
 
+from baseModels import SubscriberInfo
 from database import Database
 from gsup.controller.abstract_controller import GsupController
 from gsup.controller.air import AIRController
-from gsup.controller.isr import ISRController
+from gsup.controller.isr import ISRController, ISDTransaction
 from gsup.controller.noop import NoopController
 from gsup.controller.pur import PURController
 from gsup.controller.ulr import ULRTransaction, ULRController
@@ -39,14 +40,16 @@ from logtool import LogTool
 class GsupRequestDispatcher:
     def __init__(self, logger: LogTool, database: Database, all_peers: Dict[str, IPAPeer]):
         self.__ulr_transactions: Dict[str, ULRTransaction] = dict()
+        self.__isd_transactions: Dict[str, ISDTransaction] = dict()
         self.logger = logger
         self.database = database
+        self.__all_peers = all_peers
         self.ipa = IPA()
         self.controller_mapping: Dict[MsgType, GsupController] = {
                 MsgType.SEND_AUTH_INFO_REQUEST: AIRController(logger, database),
                 MsgType.UPDATE_LOCATION_REQUEST: ULRController(logger, database, self.__ulr_transactions, all_peers),
-                MsgType.INSERT_DATA_RESULT: ISRController(logger, database, self.__ulr_transactions),
-                MsgType.INSERT_DATA_ERROR: ISRController(logger, database, self.__ulr_transactions),
+                MsgType.INSERT_DATA_RESULT: ISRController(logger, database, self.__ulr_transactions, self.__isd_transactions, all_peers),
+                MsgType.INSERT_DATA_ERROR: ISRController(logger, database, self.__ulr_transactions, self.__isd_transactions, all_peers),
                 MsgType.LOCATION_CANCEL_RESULT: NoopController(logger, database),
                 MsgType.LOCATION_CANCEL_ERROR: NoopController(logger, database),
                 MsgType.AUTH_FAIL_REPORT: NoopController(logger, database),
@@ -56,13 +59,13 @@ class GsupRequestDispatcher:
 
     async def dispatch(self, peer: IPAPeer, request: GsupMessage):
         # clean up old transactions
-        transactions_to_remove = []
-        for peer_name in list(self.__ulr_transactions.keys()):
-            if self.__ulr_transactions[peer_name].is_finished():
-                transactions_to_remove.append(peer_name)
-
-        for peer_name in transactions_to_remove:
+        ulr_to_remove = [peer_name for peer_name, trx in self.__ulr_transactions.items() if trx.is_finished()]
+        for peer_name in ulr_to_remove:
             del self.__ulr_transactions[peer_name]
+
+        isd_to_remove = [peer_name for peer_name, trx in self.__isd_transactions.items() if trx.is_finished()]
+        for peer_name in isd_to_remove:
+            del self.__isd_transactions[peer_name]
 
         if request.msg_type in self.controller_mapping:
             await self.controller_mapping[request.msg_type].handle_message(peer, request)
@@ -100,3 +103,9 @@ class GsupRequestDispatcher:
 
         raise ValueError(
             f"Unhandled GSUP message {gsup.msg_type} from {peer} to which I don't know how to respond. Closing connection.")
+
+
+    async def dispatch_subscriber_update(self, update_event: SubscriberInfo):
+        controller = ISRController(self.logger, self.database, self.__ulr_transactions, self.__isd_transactions,
+                                   self.__all_peers)
+        await controller.handle_subscriber_update(update_event)
