@@ -85,6 +85,7 @@ class APN_Tests(unittest.TestCase):
 
 class AUC_Tests(unittest.TestCase):
     auc_id = 0
+    algo = "3"
     template_data = {
     "ki": "fad51018f65affc04e6d56d699df3a76",
     "opc": '44d51018f65affc04e6d56d699df3a76',
@@ -117,6 +118,7 @@ class AUC_Tests(unittest.TestCase):
         r = requests.get(str(base_url) + '/auc/' + str(self.__class__.auc_id))
         #Add AUC ID into Template for Validating
         self.__class__.template_data['auc_id'] = self.__class__.auc_id
+        self.__class__.template_data['algo'] = self.__class__.algo
         self.__class__.template_data.pop('opc')
         self.__class__.template_data.pop('ki')
         payload = payload_without_last_modified(r.json())
