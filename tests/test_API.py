@@ -696,8 +696,18 @@ class GeoRed_IMS(unittest.TestCase):
         r = requests.get(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
         #Add IMS_Subscriber ID into Template for Validating
         self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
+        self.__class__.ims_template_data['pcscf'] = None
+        self.__class__.ims_template_data['pcscf_active_session'] = None
+        self.__class__.ims_template_data['pcscf_peer'] = None
+        self.__class__.ims_template_data['pcscf_realm'] = None
+        self.__class__.ims_template_data['pcscf_timestamp'] = None
         self.__class__.ims_template_data['scscf'] = None
+        self.__class__.ims_template_data['scscf_peer'] = None
+        self.__class__.ims_template_data['scscf_realm'] = None
         self.__class__.ims_template_data['scscf_timestamp'] = None
+        self.__class__.ims_template_data['sh_template_path'] = None
+        self.__class__.ims_template_data['xcap_profile'] = None
+
         payload = payload_without_last_modified(r.json())
         self.assertEqual(self.__class__.ims_template_data, payload, "JSON body should match input")
 
@@ -715,6 +725,10 @@ class GeoRed_IMS(unittest.TestCase):
         #Add Subscriber ID into Template for Validating
         self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
         self.__class__.ims_template_data['scscf'] = "test1234"
+
+        # FIXME: Update_Serving_CSCF() has str(scscf_peer)
+        self.__class__.ims_template_data['scscf_peer'] = "None"
+
         payload = payload_without_last_modified(r.json())
         payload['scscf_timestamp'] = self.__class__.ims_template_data['scscf_timestamp']
         self.assertEqual(self.__class__.ims_template_data, payload, "JSON body should match input")
@@ -734,6 +748,7 @@ class GeoRed_IMS(unittest.TestCase):
         self.__class__.ims_template_data['ims_subscriber_id'] = self.__class__.ims_subscriber_id
         self.__class__.ims_template_data['scscf'] = None
         self.__class__.ims_template_data['scscf_timestamp'] = None
+        self.__class__.ims_template_data['scscf_peer'] = None
         payload = payload_without_last_modified(r.json())
         self.assertEqual(self.__class__.ims_template_data, payload, "JSON body should match input")
 
