@@ -559,7 +559,9 @@ class GeoRed_MME(unittest.TestCase):
         headers = {"Content-Type": "application/json"}
         r = requests.patch(str(base_url) + '/geored/', data=json.dumps({
             "imsi": str(self.__class__.subscriber_template_data['imsi']),
-            "serving_mme": "test1234"
+            "serving_mme": "test1234",
+            "serving_mme_realm": "test_realm",
+            "serving_mme_peer": "test_peer",
         }), headers=headers)
         log.debug("Updated Subscriber with GeoRed")
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
@@ -569,6 +571,8 @@ class GeoRed_MME(unittest.TestCase):
         #Add Subscriber ID into Template for Validating
         self.__class__.subscriber_template_data['subscriber_id'] = self.__class__.subscriber_id
         self.__class__.subscriber_template_data['serving_mme'] = "test1234"
+        self.__class__.subscriber_template_data['serving_mme_realm'] = "test_realm"
+        self.__class__.subscriber_template_data['serving_mme_peer'] = "test_peer"
         payload = payload_without_last_modified(r.json())
         payload['serving_mme_timestamp'] = self.__class__.subscriber_template_data['serving_mme_timestamp']
         self.assertEqual(self.__class__.subscriber_template_data, payload, "JSON body should match input")
@@ -577,7 +581,9 @@ class GeoRed_MME(unittest.TestCase):
         headers = {"Content-Type": "application/json"}
         r = requests.patch(str(base_url) + '/geored/', data=json.dumps({
             "imsi": str(self.__class__.subscriber_template_data['imsi']),
-            "serving_mme": None
+            "serving_mme": None,
+            "serving_mme_realm": None,
+            "serving_mme_peer": None,
         }), headers=headers)
         log.debug("Updated Subscriber with GeoRed")
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
@@ -586,6 +592,8 @@ class GeoRed_MME(unittest.TestCase):
         r = requests.get(str(base_url) + '/subscriber/' + str(self.__class__.subscriber_id))
         #Add Subscriber ID into Template for Validating
         self.__class__.subscriber_template_data['serving_mme'] = None
+        self.__class__.subscriber_template_data['serving_mme_realm'] = None
+        self.__class__.subscriber_template_data['serving_mme_peer'] = None
         self.__class__.subscriber_template_data['serving_mme_timestamp'] = None
         payload = payload_without_last_modified(r.json())
         self.assertEqual(self.__class__.subscriber_template_data, payload, "JSON body should match input")
@@ -641,6 +649,7 @@ class GeoRed_PCRF(unittest.TestCase):
             "pcrf_session_id": "sdfjkakjs",
             "ue_ip": "1.2.3.4",
             "serving_pgw": "pgwtestGeored",
+            "subscriber_routing": "test-subscriber-routing",
         }), headers=headers)
         log.debug("Updated PCRF with GeoRed")
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
@@ -653,6 +662,7 @@ class GeoRed_PCRF(unittest.TestCase):
             "pcrf_session_id": "sdfjkakjs",
             "ue_ip": "1.2.3.4",
             "serving_pgw": None,
+            "subscriber_routing": None,
         }), headers=headers)
         log.debug("Cleared PCRF with GeoRed")
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
