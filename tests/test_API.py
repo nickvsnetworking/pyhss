@@ -7,7 +7,7 @@ import sys
 from fixtures import create_test_db, run_pyhss_api
 
 log = logging.getLogger("UnitTestLogger")
-base_url = 'http://localhost:5000'
+base_url = 'http://localhost:8080'
 
 
 @pytest.fixture(autouse=True)
