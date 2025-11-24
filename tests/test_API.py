@@ -3,8 +3,8 @@ import requests
 import json
 import logging
 import sys
-global log
-log= logging.getLogger("UnitTestLogger")
+
+log = logging.getLogger("UnitTestLogger")
 base_url = 'http://localhost:5000'
 
 class API_Tests(unittest.TestCase):
