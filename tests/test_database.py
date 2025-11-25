@@ -32,12 +32,14 @@ from database import (
     SUBSCRIBER,
     TFT,
 )
+from logtool import LogTool
+from pyhss_config import config
 from fixtures import create_test_db
 
 
 def test_database(create_test_db):
     DeleteAfter = True
-    database = Database()
+    database = Database(LogTool(config))
 
     # Define Charging Rule
     charging_rule = {
