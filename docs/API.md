@@ -5,8 +5,7 @@ A Flask-Restx based API service is available for all CRUD operations on the data
 You can start this by running:
 
 ```shell
-export FLASK_APP=PyHSS_API.py
-flask run --host=0.0.0.0 --port=8080
+python3 services/apiService.py
 ```
 
 And browsing to ``http://hssip:8080/docs/``.
@@ -21,4 +20,4 @@ For an example of using the API checkout `tests_API.py` which contains examples 
 
 From the API we can also do some funky things like seeing the Diameter peers connected to PyHSS, and manually triggering inserting Charging Rules to an Active Subscriber on the PyHSS PCRF.
 
-An example systemd file is included in this directory (``API.service``) to run this as a service.
+An example systemd file is included in `systemd/pyhss_api.service` to run this as a service.
