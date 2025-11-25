@@ -116,8 +116,8 @@ def test_database(create_test_db):
 
     # Create AuC
     auc_json = {
-        "ki": binascii.b2a_hex(os.urandom(16)).zfill(16),
-        "opc": binascii.b2a_hex(os.urandom(16)).zfill(16),
+        "ki": bytes.hex(os.urandom(16)).zfill(16),
+        "opc": bytes.hex(os.urandom(16)).zfill(16),
         "amf": "9000",
         "sqn": 0,
     }
