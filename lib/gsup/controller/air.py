@@ -28,6 +28,7 @@ from gsup.controller.abstract_controller import GsupController
 from gsup.protocol.gsup_msg import GsupMessageUtil, GsupMessageBuilder, GMMCause
 from gsup.protocol.ipa_peer import IPAPeer
 from logtool import LogTool
+from rat import SubscriberRATRestriction, RAT
 from utils import validate_imsi, InvalidIMSI
 
 
@@ -56,7 +57,29 @@ class AIRController(GsupController):
 
         try:
             validate_imsi(imsi)
-            subscriber = self._database.Get_Subscriber(imsi=imsi)
+            subscriber = self._database.Get_Subscriber(imsi=imsi, get_attributes=True)
+
+            rat_type = GsupMessageUtil.get_first_ie_by_name('current_rat_type', request_dict)
+            rat_type_to_check = RAT.GERAN  # Default to 2G if not specified
+            if rat_type == 'GERAN-A':
+                rat_type_to_check = RAT.GERAN
+            elif rat_type == 'UTRAN-Iu':
+                rat_type_to_check = RAT.UTRAN
+            elif rat_type == 'EUTRAN-SGs':
+                rat_type_to_check = RAT.EUTRAN
+
+            if not SubscriberRATRestriction.is_rat_allowed(subscriber['attributes'], rat=rat_type_to_check):
+                await self._logger.logAsync(service='GSUP', level='WARN',
+                                            message=f"RAT {rat_type_to_check.value} not allowed for subscriber {imsi}. Responding with error.")
+                await self._send_gsup_response(
+                    peer,
+                    GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
+                    .with_ie('imsi', imsi)
+                    .with_ie('cause', GMMCause.NO_SUIT_CELL_IN_LA)
+                    .build(),
+                )
+                return
+
             rand = GsupMessageUtil.get_first_ie_by_name('rand', request_dict)
             auts = GsupMessageUtil.get_first_ie_by_name('auts', request_dict)
 
