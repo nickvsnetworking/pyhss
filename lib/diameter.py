@@ -2333,7 +2333,7 @@ class Diameter:
                         rand = str(sub_avp['misc_data'])[:32]
                         rand = binascii.unhexlify(rand)
                         #Calculate correct SQN
-                        self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                        self.database.Get_Vectors_AuC_sqn_resync(subscriber_details['auc_id'], auts, rand)
 
                     #Get number of requested vectors
                     if sub_avp['avp_code'] == 1410:
@@ -2348,7 +2348,7 @@ class Diameter:
             while requested_vectors != 0:
                 self.logTool.log(service='HSS', level='debug', message="Generating vector number " + str(requested_vectors), redisClient=self.redisMessaging)
                 plmn = self.get_avp_data(avps, 1407)[0]                                                     #Get PLMN from request
-                vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "air", plmn=plmn)
+                vector_dict = self.database.Get_Vectors_AuC_air(subscriber_details['auc_id'], plmn)
                 eutranvector = ''                                                                           #This goes into the payload of AVP 10415 (Authentication info)
                 eutranvector += self.generate_vendor_avp(1419, "c0", 10415, self.int_to_hex(requested_vectors, 4))
                 eutranvector += self.generate_vendor_avp(1447, "c0", 10415, vector_dict['rand'])                                #And is made up of other AVPs joined together with RAND
@@ -3203,7 +3203,7 @@ class Diameter:
                 auts = str(sub_avp_612['misc_data'])[32:]
                 rand = str(sub_avp_612['misc_data'])[:32]
                 rand = binascii.unhexlify(rand)
-                self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sqn_resync", auts=auts, rand=rand)
+                self.database.Get_Vectors_AuC_sqn_resync(subscriber_details['auc_id'], auts, rand)
                 self.logTool.log(service='HSS', level='debug', message="Resynced SQN in DB", redisClient=self.redisMessaging)
                 self.redisMessaging.sendMetric(serviceName='diameter', metricName='prom_diam_auth_event_count',
                                                 metricType='counter', metricAction='inc', 
@@ -3232,7 +3232,7 @@ class Diameter:
         #Determine Vectors to Generate
         if auth_scheme == "Digest-MD5":
             self.logTool.log(service='HSS', level='debug', message="Generating MD5 Challenge", redisClient=self.redisMessaging)
-            vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "Digest-MD5", username=imsi, plmn=plmn)
+            vector_dict = self.database.Get_Vectors_AuC_digest_md5(subscriber_details['auc_id'])
             avp_SIP_Item_Number = self.generate_vendor_avp(613, "c0", 10415, format(int(0),"x").zfill(8))
             avp_SIP_Authentication_Scheme = self.generate_vendor_avp(608, "c0", 10415, str(binascii.hexlify(b'Digest-MD5'),'ascii'))
             #Nonce
@@ -3242,7 +3242,7 @@ class Diameter:
             auth_data_item = avp_SIP_Item_Number + avp_SIP_Authentication_Scheme + avp_SIP_Authenticate + avp_SIP_Authorization
         else:
             self.logTool.log(service='HSS', level='debug', message="Generating AKA-MD5 Auth Challenge", redisClient=self.redisMessaging)
-            vector_dict = self.database.Get_Vectors_AuC(subscriber_details['auc_id'], "sip_auth", plmn=plmn)
+            vector_dict = self.database.Get_Vectors_AuC_sip_auth(subscriber_details['auc_id'], plmn)
         
 
             #diameter.3GPP-SIP-Auth-Data-Items:
