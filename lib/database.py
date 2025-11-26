@@ -1039,7 +1039,7 @@ class Database:
 
         try:
             if obj_id is not None:
-                result = session.query(obj_type).get(obj_id)
+                result = session.get(obj_type, obj_id)
                 if result is None:
                     raise ValueError(f"No {obj_type} found with id {obj_id}")
 
@@ -1207,7 +1207,7 @@ class Database:
         session = Session()
 
         try:
-            res = session.query(obj_type).get(obj_id)
+            res = session.get(obj_type, obj_id)
             if res is None:
                 raise ValueError("The specified row does not exist")
             objectData = self.GetObj(obj_type, obj_id)
