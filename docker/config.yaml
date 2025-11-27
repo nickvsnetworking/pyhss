@@ -26,9 +26,6 @@ hss:
   #Your Home Mobile Network Code (Used for PLMN calcluation)
   MNC: "${HSS_MNC:-01}"
 
-  #Enable GMLC / SLh Interface
-  SLh_enabled: ${HSS_SLH_ENABLED:-False}
-
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: ${HSS_CLIENT_SOCKET_TIMEOUT:-300}
 

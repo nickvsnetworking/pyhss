@@ -10,7 +10,6 @@ hss:
   site_name: "Sydney"
   MCC: "001"
   MNC: "01"
-  SLh_enabled: False
   client_socket_timeout: 120
   client_socket_timeout: 300
   diameter_request_timeout: 3
