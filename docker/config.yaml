@@ -29,9 +29,6 @@ hss:
   #Enable GMLC / SLh Interface
   SLh_enabled: ${HSS_SLH_ENABLED:-False}
 
-  #IMSI of Test Subscriber for Unit Checks (Optional)
-  test_sub_imsi: "${HSS_TEST_SUB_IMSI:-001021234567890}"
-
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: ${HSS_CLIENT_SOCKET_TIMEOUT:-300}
 
