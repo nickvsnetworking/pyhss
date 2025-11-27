@@ -96,9 +96,6 @@ redis:
         port: 6379
         password: ''
 
-prometheus:
-  enabled: False
-
 influxdb:
   enabled: False
 

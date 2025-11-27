@@ -175,11 +175,6 @@ redis:
         port: ${REDIS_SENTINEL_PORT:-6379}
         password: "${REDIS_SENTINEL_PASSWORD:-}"
 
-prometheus:
-  enabled: ${PROMETHEUS_ENABLED:-False}
-  port: ${PROMETHEUS_PORT:-8081}    #If the API is run the API runs on the next port number up from this
-  async_subscriber_count: ${PROMETHEUS_ASYNC_SUBSCRIBER_COUNT:-False}    #If enabled the subscriber count will be updated asynchronously for Prometheus
-
 influxdb:
   enabled: ${INFLUXDB_ENABLED:-False}
   host: "${INFLUXDB_HOST:-127.0.0.1}"
