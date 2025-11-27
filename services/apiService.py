@@ -2299,9 +2299,9 @@ class PyHSS_Geored(Resource):
                                     prefixServiceName='metric')
             return response_data, 200
         except Exception as E:
-            print("Exception when updating: " + str(E))
+            print(f"Exception when updating: {traceback.format_exc()}")
             response_json = {'result': 'Failed', 'Reason' : str(E), 'Partial Response Data' : str(response_data)}
-            return response_json
+            return response_json, 500
 
     def get(self):
         '''Return the active geored schema'''
@@ -2311,9 +2311,9 @@ class PyHSS_Geored(Resource):
                 geored_model_json[key] = 'string'
             return geored_model_json, 200
         except Exception as E:
-            print("Exception when returning geored schema: " + str(E))
+            print(f"Exception when returning geored schema: {traceback.format_exc()}")
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
-            return response_json
+            return response_json, 500
 
 @ns_geored.route('/peers')
 class PyHSS_Geored_Peers(Resource):

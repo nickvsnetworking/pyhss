@@ -31,6 +31,12 @@ from osmocom.gsup.message import MsgType, GsupMessage
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
 from gsup.protocol.osmocom_ipa import IPA
 
+from fixtures import (
+    create_test_db,
+    run_pyhss_gsup,
+    run_pyhss_hss,
+    run_redis,
+)
 
 
 class GSUPClient:
@@ -92,6 +98,7 @@ class GSUPClient:
         response = self.__read_response()
 
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.SEND_AUTH_INFO_RESULT
 
     def send_ulr_request(self, imsi):
         request = (GsupMessageBuilder()
@@ -105,10 +112,7 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
-
-        if response.msg_type != MsgType.INSERT_DATA_REQUEST:
-            print(f"Received error response: {response.msg_type()}")
-            return
+        assert response.msg_type == MsgType.INSERT_DATA_REQUEST
 
         # Send the insert data response
         insert_data_resp = (GsupMessageBuilder()
@@ -122,14 +126,12 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.UPDATE_LOCATION_RESULT
 
     def wait_for_location_cancel(self):
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
-
-        if response.msg_type != MsgType.LOCATION_CANCEL_REQUEST:
-            print(f"Received error response: {response.msg_type()}")
-            return
+        assert response.msg_type == MsgType.LOCATION_CANCEL_REQUEST
 
         # Send the location cancel response
         cancel_resp = (GsupMessageBuilder()
@@ -151,6 +153,7 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.PURGE_MS_RESULT
 
     def __read_response(self) -> GsupMessage:
         resp_hdr = self.sock.recv(3)
@@ -164,8 +167,7 @@ class GSUPClient:
         self.sock.close()
 
 
-
-if __name__ == '__main__':
+def test_gsup_air(run_redis, create_test_db, run_pyhss_hss, run_pyhss_gsup):
     client = GSUPClient('127.0.0.1', 4222, 'SGSN-NG')
     client2 = GSUPClient('127.0.0.1', 4222, 'SGSN')
 

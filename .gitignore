@@ -29,3 +29,7 @@ lib/__pycache__/milenage.cpython-36.pyc
 .vscode/settings.json
 .cspell/custom-dictionary-workspace.txt
 pyhss.egg-info
+
+!tests/config.yaml
+tests/.pyhss.db
+.venv

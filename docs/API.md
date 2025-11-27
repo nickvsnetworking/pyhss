@@ -16,7 +16,7 @@ Note: When creating objects you do not need to set the ID field, for example whe
 
 ![Gif showing how to add data to PyHSS via Swagger API](https://github.com/nickvsnetworking/pyhss/raw/master/docs/images/PyHSS_API_Swagger.gif)
 
-For an example of using the API checkout `tests_API.py` which contains examples of working with the RESTful API in Python using the *requests* library.
+For an example of using the API checkout `test_API.py` which contains examples of working with the RESTful API in Python using the *requests* library.
 
 From the API we can also do some funky things like seeing the Diameter peers connected to PyHSS, and manually triggering inserting Charging Rules to an Active Subscriber on the PyHSS PCRF.
 

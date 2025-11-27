@@ -134,6 +134,14 @@ The [RESTful API](docs/API.md) allows for easy, safe CRUD operations on the subs
 If REST isn't your jam and you instead want to interact directly with Python, `database.py` can be imported into your project and contains all the same hooks as the API.
 
 ## Installation
+
+Create and activate a virtual environment:
+
+```shell
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
 Dependencies can be installed using Pip3:
 
 ```shell
@@ -159,6 +167,16 @@ To get everything more production ready checkout [Monit with PyHSS](docs/monit.m
 Historically stats were collected through Redis counters and exposed via an SNMP service, this feature has been left for backward compatibility, but now Prometheus is the recommended method for collecting metrics going forward.
 
 More info about the legacy monitoring the system is available in [SNMP Readme](docs/monitoring.md).
+
+## Running tests
+
+Activate the virtual environment (see [installation](#installation), then
+install test dependencies and execute the tests as follows:
+
+```shell
+pip3 install -r requirements-test.txt
+pytest
+```
 
 ## About
 
