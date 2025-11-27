@@ -167,7 +167,7 @@ class GSUPClient:
         self.sock.close()
 
 
-def main():
+def test_gsup_air(run_redis, create_test_db, run_pyhss_hss, run_pyhss_gsup):
     client = GSUPClient('127.0.0.1', 4222, 'SGSN-NG')
     client2 = GSUPClient('127.0.0.1', 4222, 'SGSN')
 
@@ -182,11 +182,3 @@ def main():
 
     client.disconnect()
     client2.disconnect()
-
-
-def test_gsup_air(run_redis, create_test_db, run_pyhss_hss, run_pyhss_gsup):
-    main()
-
-
-if __name__ == '__main__':
-    main()

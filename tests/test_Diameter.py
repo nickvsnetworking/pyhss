@@ -1,12 +1,8 @@
 import unittest
-import requests
-import json
 import logging
-import sys
 global log
 log= logging.getLogger("UnitTestLogger")
 import diameter as DiameterLib
-import traceback
 from logtool import LogTool
 from pyhss_config import config
 
@@ -61,9 +57,3 @@ class Diameter_Tests(unittest.TestCase):
             "length": 276,
             "packet_version": "01",
         }
-
-
-if __name__ == '__main__':
-    logging.basicConfig( stream=sys.stderr )
-    logging.getLogger("UnitTestLogger").setLevel( logging.DEBUG )
-    unittest.main()

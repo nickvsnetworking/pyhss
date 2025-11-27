@@ -3,7 +3,6 @@ import requests
 import json
 import logging
 import pytest
-import sys
 from fixtures import create_test_db, run_pyhss_api
 
 log = logging.getLogger("UnitTestLogger")
@@ -756,10 +755,3 @@ class GeoRed_IMS(unittest.TestCase):
         r = requests.delete(str(base_url) + '/ims_subscriber/' + str(self.__class__.ims_subscriber_id))
         xres = {"Result": "OK"}
         self.assertEqual(xres, r.json(), "JSON body should match " + str(xres))
-
-
-if __name__ == '__main__':
-    logging.basicConfig( stream=sys.stderr )
-    logging.getLogger("UnitTestLogger").setLevel( logging.DEBUG )
-    runner = unittest.TextTestRunner(failfast=True)
-    unittest.main(testRunner=runner)
