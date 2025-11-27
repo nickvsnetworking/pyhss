@@ -107,7 +107,11 @@ def create_test_db():
 def run_redis():
     cmd = ["redis-server", os.path.join(top_dir, "tests/redis.conf")]
     print(f"+ {cmd}")
-    proc = subprocess.Popen(cmd, env=pyhss_env)
+    try:
+        proc = subprocess.Popen(cmd, env=pyhss_env)
+    except FileNotFoundError:
+        logging.error("redis-server not found. Please install Redis to run the tests.")
+        raise
 
     try:
         wait_for_tcp_port(6379)
