@@ -18,7 +18,6 @@ hss:
   lock_provisioning: False
   provisioning_key: "changeThisKeyInProduction"
   CancelLocationRequest_Enabled: False
-  Insert_Subscriber_Data_Force: False
   Default_iFC: 'default_ifc.xml'
   Default_Sh_UserData: 'default_sh_user_data.xml'
   use_external_socket_service: False
