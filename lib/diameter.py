@@ -21,6 +21,7 @@ from baseModels import Peer, OutboundData
 import pydantic_core
 import xml.etree.ElementTree as ET
 from pyhss_config import config
+from rat import SubscriberRATRestriction, RAT
 
 
 class Diameter:
@@ -1837,7 +1838,7 @@ class Diameter:
         imsi = self.get_avp_data(avps, 1)[0]                                                            #Get IMSI from User-Name AVP in request
         imsi = binascii.unhexlify(imsi).decode('utf-8')                                                  #Convert IMSI
         try:
-            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi, get_attributes=True)
             self.logTool.log(service='HSS', level='debug', message="Got back subscriber_details: " + str(subscriber_details), redisClient=self.redisMessaging)
 
             if subscriber_details['enabled'] == 0:
@@ -1852,6 +1853,26 @@ class Diameter:
                 avp += self.generate_avp(277, 40, "00000001")                                                   #Auth-Session-State
                 self.logTool.log(service='HSS', level='debug', message=f"Successfully Generated ULA for disabled Subscriber: {imsi}", redisClient=self.redisMessaging)
                 response = self.generate_diameter_packet("01", "40", 316, 16777251, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)
+                return response
+
+            rat_type_checker = SubscriberRATRestriction(logger=self.logTool, service="HSS")
+            if not rat_type_checker.is_rat_allowed(subscriber_details["attributes"], RAT.EUTRAN):
+                self.logTool.log(service='HSS', level='debug', message=f"Subscriber {imsi} is not allowed on EUTRAN RAT",
+                                 redisClient=self.redisMessaging)
+
+                # Experimental Result AVP(Response Code for Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')  # AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5421, 4))  # AVP Experimental-Result-Code: DIAMETER_ERROR_RAT_NOT_ALLOWED (5421)
+                avp += self.generate_avp(297, 40, avp_experimental_result)  # AVP Experimental-Result(297)
+
+                avp += self.generate_avp(277, 40, "00000001")  # Auth-Session-State
+                self.logTool.log(service='HSS', level='debug',
+                                 message=f"Successfully Generated ULA for disabled Subscriber: {imsi}",
+                                 redisClient=self.redisMessaging)
+                response = self.generate_diameter_packet("01", "40", 316, 16777251,
+                                                         packet_vars['hop-by-hop-identifier'],
+                                                         packet_vars['end-to-end-identifier'], avp)
                 return response
 
         except ValueError as e:
