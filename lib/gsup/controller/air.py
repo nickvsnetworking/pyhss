@@ -66,17 +66,15 @@ class AIRController(GsupController):
             if resync_required:
                 self._database.Get_Vectors_AuC_sqn_resync(subscriber['auc_id'], auts.hex(), rand)
 
-            # Use request_vectors=1 as Get_Vectors_AuC_2g3g currently doesn't
-            # increment SEQ for each requested vector:
-            # https://github.com/nickvsnetworking/pyhss/issues/266
-            vectors = []
-            for i in range(self.get_num_vectors_req(request_dict)):
-                vectors += self._database.Get_Vectors_AuC_2g3g(subscriber['auc_id'], ind, 1)
-
             response_msg = ((GsupMessageBuilder()
                             .with_msg_type(MsgType.SEND_AUTH_INFO_RESULT))
                             .with_ie('imsi', imsi))
 
+            vectors = self._database.Get_Vectors_AuC_2g3g(
+                subscriber['auc_id'],
+                ind,
+                self.get_num_vectors_req(request_dict),
+            )
             for vector in vectors:
                 response_msg.with_ie('auth_tuple', [vector], False)
 
