@@ -70,6 +70,7 @@ class AUC(Base):
     opc = Column(String(32), doc='SIM Key - Network Operators key OPc', nullable=False)
     amf = Column(String(4), doc='Authentication Management Field', nullable=False)
     sqn = Column(BigInteger, doc='Authentication sequence number')
+    sqn_ind_bitlen = Column(Integer, default=None, doc="Number of IND bits at lower SQN end (default is 5 if set to None)")
     iccid = Column(String(20), unique=True, doc='Integrated Circuit Card Identification Number')
     imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
     batch_name = Column(String(20), doc='Name of SIM Batch')

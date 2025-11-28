@@ -48,6 +48,7 @@ CREATE TABLE auc (
 	puk2 VARCHAR(20),
 	sim_vendor VARCHAR(20),
 	sqn BIGINT,
+	sqn_ind_bitlen INTEGER,
 	PRIMARY KEY (auc_id),
 	UNIQUE (iccid),
 	UNIQUE (imsi)
