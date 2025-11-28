@@ -91,7 +91,7 @@ class AIRController(GsupController):
                 .build(),
             )
         except ValueError as e:
-            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi}")
+            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi}, {traceback.format_exc()}")
             await self._send_gsup_response(
                 peer,
                 GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
