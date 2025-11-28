@@ -10,8 +10,6 @@ hss:
   site_name: "Sydney"
   MCC: "001"
   MNC: "01"
-  SLh_enabled: False
-  client_socket_timeout: 120
   client_socket_timeout: 300
   diameter_request_timeout: 3
   send_dwr: False
@@ -20,8 +18,6 @@ hss:
   lock_provisioning: False
   provisioning_key: "changeThisKeyInProduction"
   CancelLocationRequest_Enabled: False
-  Insert_Subscriber_Data_Force: False
-  Default_iFC: 'default_ifc.xml'
   Default_Sh_UserData: 'default_sh_user_data.xml'
   use_external_socket_service: False
   diameter_peer_key: diameterPeers
@@ -98,9 +94,6 @@ redis:
       - exampleSentinel.mnc001.mcc001.3gppnetwork.org:
         port: 6379
         password: ''
-
-prometheus:
-  enabled: False
 
 influxdb:
   enabled: False

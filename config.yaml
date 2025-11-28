@@ -26,15 +26,6 @@ hss:
   #Your Home Mobile Network Code (Used for PLMN calcluation)
   MNC: "01"
 
-  #Enable GMLC / SLh Interface
-  SLh_enabled: False
-
-  #IMSI of Test Subscriber for Unit Checks (Optional)
-  test_sub_imsi: '001021234567890'
-
-  #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
-  client_socket_timeout: 120
-
   #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
   client_socket_timeout: 300
 
@@ -58,13 +49,6 @@ hss:
 
   #If enabled sends CLRs to old MME when new MME attaches active sub
   CancelLocationRequest_Enabled: False
-
-  #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
-  Insert_Subscriber_Data_Force: False
-
-  #Default Initial Filter Criteria for IMS Subscribers
-  #Jinja Formatted Template, see the example for variables passed to it.
-  Default_iFC: 'default_ifc.xml'
 
   #Default Sh User Data
   Default_Sh_UserData: 'default_sh_user_data.xml'
@@ -180,18 +164,6 @@ redis:
   unixSocketPath: '/var/run/redis/redis-server.sock'
   host: localhost
   port: 6379
-  sentinel:
-    masterName: exampleMaster
-    hosts:
-      - exampleSentinel.mnc001.mcc001.3gppnetwork.org:
-        port: 6379
-        password: ''
-
-
-prometheus:
-  enabled: False
-  port: 8081    #If the API is run the API runs on the next port number up from this
-  async_subscriber_count: False    #If enabled the subscriber count will be updated asynchronously for Prometheus
 
 influxdb:
   enabled: False
