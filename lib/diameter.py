@@ -21,6 +21,7 @@ from baseModels import Peer, OutboundData
 import pydantic_core
 import xml.etree.ElementTree as ET
 from pyhss_config import config
+from rat import SubscriberRATRestriction, RAT
 
 
 class Diameter:
@@ -2151,7 +2152,35 @@ class Diameter:
         plmn = self.get_avp_data(avps, 1407)[0]                                                          #Get PLMN from User-Name AVP in request
 
         try:
-            subscriber_details = self.database.Get_Subscriber(imsi=imsi)                                               #Get subscriber details
+            subscriber_details = self.database.Get_Subscriber(imsi=imsi, get_attributes=True)                                               #Get subscriber details
+            if not SubscriberRATRestriction.is_rat_allowed(subscriber_details['attributes'], RAT.EUTRAN):
+                self.logTool.log(service='HSS', level='debug', message=f"Subscriber {imsi} is not allowed for EUTRAN RAT",
+                                 redisClient=self.redisMessaging)
+                avp = ''
+                session_id = self.get_avp_data(avps, 263)[0]  # Get Session-ID
+                avp += self.generate_avp(263, 40, session_id)  # Session-ID AVP set
+                avp += self.generate_avp(264, 40, self.OriginHost)  # Origin Host
+                avp += self.generate_avp(296, 40, self.OriginRealm)  # Origin Realm
+
+                # Experimental Result AVP(Response Code for Failure)
+                avp_experimental_result = ''
+                avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')  # AVP Vendor ID
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5421,4))  # AVP Experimental-Result-Code: DIAMETER_ERROR_RAT_NOT_ALLOWED (5421)
+                avp += self.generate_avp(297, 40, avp_experimental_result)  # AVP Experimental-Result(297)
+
+                avp += self.generate_avp(277, 40, "00000001")  # Auth-Session-State
+                avp += self.generate_avp(260, 40, "000001024000000c" + format(int(16777251), "x").zfill(
+                    8) + "0000010a4000000c000028af")  # Vendor-Specific-Application-ID (S6a)
+                response = self.generate_diameter_packet("01", "40", 318, 16777251,
+                                                         packet_vars['hop-by-hop-identifier'],
+                                                         packet_vars['end-to-end-identifier'],
+                                                         avp)  # Generate Diameter packet
+                self.logTool.log(service='HSS', level='debug',
+                                 message=f"Successfully Generated AIA for disabled Subscriber: {imsi}",
+                                 redisClient=self.redisMessaging)
+                self.logTool.log(service='HSS', level='debug', message=f"{response}", redisClient=self.redisMessaging)
+                return response
+
             if subscriber_details['enabled'] == 0:
                 self.logTool.log(service='HSS', level='debug', message=f"Subscriber {imsi} is disabled", redisClient=self.redisMessaging)
                 avp = ''
