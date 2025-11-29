@@ -18,7 +18,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:
+    # For Python versions < 3.11, use the strenum package
+    from strenum import StrEnum
+
 from typing import Optional, Dict, List
 
 from logtool import LogTool
