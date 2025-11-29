@@ -1847,7 +1847,7 @@ class Diameter:
                 #Experimental Result AVP(Response Code for Failure)
                 avp_experimental_result = ''
                 avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4), avps=avps, packet_vars=packet_vars)                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+                avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
                 avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
                 
                 avp += self.generate_avp(277, 40, "00000001")                                                   #Auth-Session-State
