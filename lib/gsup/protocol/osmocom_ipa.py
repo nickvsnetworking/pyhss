@@ -213,7 +213,7 @@ class IPA(object):
         """
         encoded = bytearray()
         if id_tags is None:
-            id_tags = ['UNIT', 'MACADDR', 'TYPE', 'SWVERSION', 'LOCATION', 'UNITNAME']
+            id_tags = ['UNIT', 'MACADDR', 'TYPE', 'SWVERSION', 'LOCATION', 'UNITNAME', 'SERNR']
 
         for tag in id_tags:
             if tag not in self._IDTAG:
