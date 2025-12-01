@@ -1,4 +1,6 @@
 #!/usr/bin/env sh
+# Copyright 2025 Lennart Rosam <hello@takuto.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 set -e
 
 ARCH="$(dpkg --print-architecture)"

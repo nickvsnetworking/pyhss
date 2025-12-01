@@ -1,3 +1,6 @@
+# Copyright 2024 David Kneipp <david@davidkneipp.com>
+# Copyright 2025 Lennart Rosam <hello@takuto.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 

@@ -1,3 +1,6 @@
+# Copyright 2021-2023 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2024 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import logging
 import logging.handlers as handlers
 import os, sys, time

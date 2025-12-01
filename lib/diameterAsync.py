@@ -1,4 +1,6 @@
-#Diameter Packet Decoder / Encoder & Tools
+# Diameter Packet Decoder / Encoder & Tools
+# Copyright 2023-2024 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import math
 import asyncio
 import uuid

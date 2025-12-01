@@ -1,3 +1,6 @@
+# Copyright 2022 Nick <nick@nickvsnetworking.com>
+# Copyright 2024 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from milenage import Milenage
 import binascii
 import base64

@@ -1,3 +1,8 @@
+# Copyright 2021-2025 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
+# Copyright 2024-2025 Lennart Rosam <hello@takuto.de>
+# Copyright 2024-2025 Alexander Couzens <lynxis@fe80.eu>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float

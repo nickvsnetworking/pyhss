@@ -1,4 +1,7 @@
-#Diameter Packet Decoder / Encoder & Tools
+# Diameter Packet Decoder / Encoder & Tools
+# Copyright 2019-2025 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import socket
 import binascii
 import math

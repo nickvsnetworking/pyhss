@@ -1,3 +1,7 @@
+# Copyright 2019-2025 Nick <nick@nickvsnetworking.com>
+# Copyright 2023 David Kneipp <david@davidkneipp.com>
+# Copyright 2024 Lennart Rosam <hello@takuto.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from comp128.comp128v1 import Comp128v1
 from comp128.comp128v23 import Comp128v23
 from milenage import Milenage
