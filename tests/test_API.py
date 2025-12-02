@@ -327,20 +327,21 @@ class ChargingRule_Tests(unittest.TestCase):
     def test_A_create_TFT_1(self):
         headers = {"Content-Type": "application/json"}
         r = requests.put(str(base_url) + '/tft/', data=json.dumps(self.__class__.tft_template1), headers=headers)
-        self.__class__.tft_template1 = r.json()
+        self.__class__.tft_template1 = payload_without_last_modified(r.json())
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
     def test_B_create_TFT_2(self):
         headers = {"Content-Type": "application/json"}
         r = requests.put(str(base_url) + '/tft/', data=json.dumps(self.__class__.tft_template2), headers=headers)
         self.__class__.tft_id = r.json()['tft_id']
-        self.__class__.tft_template2 = r.json()
+        self.__class__.tft_template2 = payload_without_last_modified(r.json())
         log.debug("Created TFT ID " + str(self.__class__.tft_id))
         self.assertEqual(r.status_code, 200, "Status Code should be 200 OK")
 
     def test_C_Get_TFT(self):
         r = requests.get(str(base_url) + '/tft/' + str(self.__class__.tft_id))
-        self.assertEqual(self.__class__.tft_template2, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(self.__class__.tft_template2, payload, "JSON body should match input")
 
     def test_D_Patch_TFT(self):
         headers = {"Content-Type": "application/json"}
@@ -348,15 +349,17 @@ class ChargingRule_Tests(unittest.TestCase):
         patch_tft_template2['tft_string'] = 'permit out ip from 10.98.0.20 80 to any 1-65535'
         patch_tft_template2['tft_id'] = self.__class__.tft_id
         r = requests.patch(str(base_url) + '/tft/' + str(self.__class__.tft_id), data=json.dumps(patch_tft_template2), headers=headers)
-        self.assertEqual(patch_tft_template2, r.json(), "JSON body should match input")
+        payload = payload_without_last_modified(r.json())
+        self.assertEqual(patch_tft_template2, payload, "JSON body should match input")
 
     def test_E_Get_Patched_TFT(self):
         r = requests.get(str(base_url) + '/tft/' + str(self.__class__.tft_id))
+        payload = payload_without_last_modified(r.json())
         #Add TFT ID into Template for Validating
         patch_tft_template2 = self.__class__.tft_template2
         patch_tft_template2['tft_string'] = 'permit out ip from 10.98.0.20 80 to any 1-65535'
         patch_tft_template2['tft_id'] = self.__class__.tft_id
-        self.assertEqual(patch_tft_template2, r.json(), "JSON body should match input")
+        self.assertEqual(patch_tft_template2, payload, "JSON body should match input")
 
     def test_F_create_Charging_Rule(self):
         headers = {"Content-Type": "application/json"}
@@ -394,6 +397,8 @@ class ChargingRule_Tests(unittest.TestCase):
     def test_J_Get_Full_Charging_Rule(self):
         r = requests.get(str(base_url) + '/pcrf/' + str(self.__class__.charging_rule_id))
         payload = payload_without_last_modified(r.json())
+        payload["tft"][0] = payload_without_last_modified(payload["tft"][0])
+        payload["tft"][1] = payload_without_last_modified(payload["tft"][1])
         #Add charging_rule_id into Template for Validating
         patch_charging_rule_template = self.__class__.charging_rule_template
         patch_charging_rule_template['rule_name'] = 'updated-via-api'
