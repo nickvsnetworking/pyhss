@@ -147,11 +147,23 @@ class ULRController(GsupController):
                 raise ULRError(f"Invalid IMSI: {imsi}", GMMCause.INV_MAND_INFO) from e
 
             rat_type = GsupMessageUtil.get_first_ie_by_name('current_rat_type', request_dict)
-            rat_type_to_check = RAT.GERAN  # Default to 2G if not specified
+
+            # Check 2G / 3G by default but not 4G. Running 4G over GSUP with PyHSS is rare enough to
+            # not warrant checking by default.
+            rat_types_to_check = [RAT.GERAN, RAT.UTRAN]
 
             # Current RAT Type is a list for some reason. Maybe a bug in osmocom?
-            if rat_type is not None and rat_type[0] == 'utran':
-                rat_type_to_check = RAT.UTRAN
+            if rat_type is not None:
+                if rat_type[0] == 'geran':
+                    rat_types_to_check = [RAT.GERAN]
+                elif rat_type[0] == 'utran':
+                    rat_types_to_check = [RAT.UTRAN]
+                elif rat_type[0] == 'eutran':
+                    rat_types_to_check = [RAT.EUTRAN]
+                else:
+                    await self._logger.logAsync(service="GSUP", level="WARN", message=f"Unknown RAT type received in ULR: {rat_type[0]}. Checking both 2G and 3G RAT restrictions")
+            else:
+                await self._logger.logAsync(service="GSUP", level="WARN", message="No RAT type received in ULR, checking both 2G and 3G RAT restrictions")
 
             try:
                 subscriber_info = self._database.Get_Gsup_SubscriberInfo(imsi)
@@ -159,9 +171,9 @@ class ULRController(GsupController):
             except ValueError as e:
                 raise ULRError(f"Subscriber not found: {imsi}", GMMCause.IMSI_UNKNOWN) from e
 
-            if not self.__rat_restriction_checker.is_rat_allowed(subscriber['attributes'], rat_type_to_check):
-                raise ULRError(f"RAT {rat_type_to_check.value} not allowed for subscriber {imsi}", GMMCause.NO_SUIT_CELL_IN_LA)
-
+            for rat_type_to_check in rat_types_to_check:
+                if not self.__rat_restriction_checker.is_rat_allowed(subscriber['attributes'], rat_type_to_check):
+                    raise ULRError(f"RAT {rat_type_to_check.value} not allowed for subscriber {imsi}", GMMCause.NO_SUIT_CELL_IN_LA)
 
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
             self.__ulr_transactions[peer.name] = transaction
