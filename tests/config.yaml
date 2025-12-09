@@ -60,9 +60,6 @@ logging:
 
 database:
   db_type: sqlite
-  server: 127.0.0.1
-  username: dbeaver
-  password: password
   database: tests/.pyhss.db
 
 webhooks:
