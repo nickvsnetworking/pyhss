@@ -125,12 +125,26 @@ logging:
   sqlalchemy_max_overflow: 0
 
 ## Database Parameters
+# PyHSS supports multiple database types. The default is SQLite, suitable for
+# development and small scale deployments. For big scale deployments, consider
+# using MySQL or PostgreSQL instead (see below).
 database:
-  db_type: mysql    #Supported types are MySQL, Postgres and sqlite
-  server: 127.0.0.1
-  username: dbeaver
-  password: password
-  database: hss2 # for sqlite, this should be a path to the database file
+  db_type: sqlite
+  database: hss.db
+
+# database:
+#   db_type: mysql
+#   server: 127.0.0.1
+#   username: dbeaver
+#   password: password
+#   database: hss2
+
+# database:
+#   db_type: postgresql
+#   server: 127.0.0.1
+#   username: dbeaver
+#   password: password
+#   database: hss2
 
 ## External Webhook Notifications
 webhooks:
