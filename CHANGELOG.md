@@ -9,7 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 2G / 3G support via Osmocom GSUP.
 - Support for running PyHSS services in Docker containers and provide official Docker images.
+- Database types postgresql and sqlite.
+- Config loading from `/etc/pyhss/config.yaml`, `/usr/share/pyhss/config.yaml`,
+  the `PYHSS_CONFIG` env var, or (old behavior) `config.yaml` at the top of the
+  source tree, depending on which is available.
+- Running services outside of the source tree.
+- Building PyHSS with `python3 -m build` and as debian package.
+- RAT restriction checking for subscribers.
+
+### Changed
+
+- Set the default database backend to SQLite.
+
+### Removed
+
+- Unused options from config.yaml.
+- Debug prints in API service.
+
+### Fixed
+
+- Fix unit tests and run them with pytest in CI.
+- Let services/apiService return HTTP status code 500 on errors instead of 200.
 
 ## [1.0.2] - 2024-07-03
 
