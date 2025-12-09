@@ -64,8 +64,6 @@ database:
   username: dbeaver
   password: password
   database: tests/.pyhss.db
-  readCacheEnabled: True
-  readCacheInterval: 60
 
 webhooks:
   enabled: False

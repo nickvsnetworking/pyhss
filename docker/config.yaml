@@ -131,8 +131,6 @@ database:
   username: "${DATABASE_USERNAME:-dbeaver}"
   password: "${DATABASE_PASSWORD:-password}"
   database: "${DATABASE_NAME:-hss2}" # for sqlite, this should be a path to the database file
-  readCacheEnabled: ${DATABASE_READ_CACHE_ENABLED:-True}
-  readCacheInterval: ${DATABASE_READ_CACHE_INTERVAL:-60}
 
 ## External Webhook Notifications
 webhooks:
