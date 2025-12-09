@@ -48,7 +48,7 @@ class DiameterService:
         self.diameterRequests = 0
         self.diameterResponses = 0
         self.workerPoolSize = int(config.get('hss', {}).get('diameter_service_workers', 10))
-        self.hostname = socket.gethostname()
+        self.hostname = self.originHost
         self.useExternalSocketService = config.get('hss', {}).get('use_external_socket_service', False)
         self.diameterPeerKey = config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
     

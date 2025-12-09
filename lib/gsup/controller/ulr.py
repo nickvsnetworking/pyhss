@@ -32,7 +32,15 @@ from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil, GMMCause
 from gsup.protocol.ipa_peer import IPAPeer
 from logtool import LogTool
+from rat import RAT, SubscriberRATRestriction
 from utils import validate_imsi, InvalidIMSI
+
+
+class ULRError(ValueError):
+    def __init__(self, message: str, gmm_cause: GMMCause):
+        super().__init__(message)
+        self.gmm_cause = gmm_cause
+        self.message = message
 
 
 class ULRTransaction(AbstractTransaction):
@@ -113,6 +121,7 @@ class ULRController(GsupController):
         super().__init__(logger, database)
         self.__ulr_transactions = ulr_transactions
         self.__all_ipa_peers = all_peers
+        self.__rat_restriction_checker = SubscriberRATRestriction(logger=self._logger, service='GSUP')
 
     def __update_subscriber(self, peer: IPAPeer, imsi: str) -> Optional[IPAPeer]:
         old_id = self._database.update_hlr(imsi, peer.role, peer.primary_id)
@@ -132,27 +141,52 @@ class ULRController(GsupController):
             imsi = GsupMessageUtil.get_first_ie_by_name('imsi', request_dict)
             if imsi is None:
                 raise ValueError(f"Missing IMSI in GSUP message from peer {peer}")
-            validate_imsi(imsi)
-            subscriber_info = self._database.Get_Gsup_SubscriberInfo(imsi)
+            try:
+                validate_imsi(imsi)
+            except InvalidIMSI as e:
+                raise ULRError(f"Invalid IMSI: {imsi}", GMMCause.INV_MAND_INFO) from e
+
+            rat_type = GsupMessageUtil.get_first_ie_by_name('current_rat_type', request_dict)
+
+            # Check 2G / 3G by default but not 4G. Running 4G over GSUP with PyHSS is rare enough to
+            # not warrant checking by default.
+            rat_types_to_check = [RAT.GERAN, RAT.UTRAN]
+
+            # Current RAT Type is a list for some reason. Maybe a bug in osmocom?
+            if rat_type is not None:
+                if rat_type[0] == 'geran':
+                    rat_types_to_check = [RAT.GERAN]
+                elif rat_type[0] == 'utran':
+                    rat_types_to_check = [RAT.UTRAN]
+                elif rat_type[0] == 'eutran':
+                    rat_types_to_check = [RAT.EUTRAN]
+                else:
+                    await self._logger.logAsync(service="GSUP", level="WARN", message=f"Unknown RAT type received in ULR: {rat_type[0]}. Checking both 2G and 3G RAT restrictions")
+            else:
+                await self._logger.logAsync(service="GSUP", level="WARN", message="No RAT type received in ULR, checking both 2G and 3G RAT restrictions")
+
+            try:
+                subscriber_info = self._database.Get_Gsup_SubscriberInfo(imsi)
+                subscriber = self._database.Get_Subscriber(imsi=imsi, get_attributes=True)
+            except ValueError as e:
+                raise ULRError(f"Subscriber not found: {imsi}", GMMCause.IMSI_UNKNOWN) from e
+
+            for rat_type_to_check in rat_types_to_check:
+                if not self.__rat_restriction_checker.is_rat_allowed(subscriber['attributes'], rat_type_to_check):
+                    raise ULRError(f"RAT {rat_type_to_check.value} not allowed for subscriber {imsi}", GMMCause.NO_SUIT_CELL_IN_LA)
+
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
             self.__ulr_transactions[peer.name] = transaction
             await transaction.begin_invoke()
-        except InvalidIMSI as e:
-            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Invalid IMSI: {imsi}")
+        except ULRError as e:
+            await self._logger.logAsync(service='GSUP', level='WARN', message=e.message)
             await self._send_gsup_response(
                 peer,
-                GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
+                GsupMessageBuilder().with_msg_type(MsgType.UPDATE_LOCATION_ERROR)
                 .with_ie('imsi', imsi)
-                .with_ie('cause', GMMCause.INV_MAND_INFO.value)
-                .build(),
+                .with_ie('cause', e.gmm_cause.value)
+                .build()
             )
-        except ValueError as e:
-            builder = GsupMessageBuilder().with_msg_type(MsgType.UPDATE_LOCATION_ERROR)
-            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi} {traceback.format_exc()}")
-            if imsi is not None:
-                builder.with_ie('imsi', imsi)
-            builder.with_ie('cause', GMMCause.IMSI_UNKNOWN.value)
-            await self._send_gsup_response(peer, builder.build())
         except Exception as e:
             await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}, {traceback.format_exc()}")
             if imsi is not None:
