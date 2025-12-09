@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Support for running PyHSS services in Docker containers and provide official Docker images.
 
 ## [1.0.2] - 2024-07-03
@@ -28,8 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.1] - 2024-01-23
 
-
 ### Removed
+
  - Assert on missing "IMS Services" for AAA/Audio Request
 
 ### Changed
