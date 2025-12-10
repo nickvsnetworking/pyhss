@@ -20,6 +20,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 3s
+      start_interval: 0.1s
     depends_on:
       redis:
         condition: service_healthy
@@ -41,6 +43,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 3s
+      start_interval: 0.1s
     depends_on:
       pyhss_api:
         condition: service_healthy
@@ -76,6 +80,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 3s
+      start_interval: 0.1s
     depends_on:
       redis:
         condition: service_healthy
@@ -92,6 +98,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 3s
+      start_interval: 0.1s
     command: ["redis-server", "--appendonly", "yes"]
 
 volumes:
