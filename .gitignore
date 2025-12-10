@@ -33,3 +33,4 @@ pyhss.egg-info
 !tests/config.yaml
 tests/.pyhss.db
 .venv
+hss.db

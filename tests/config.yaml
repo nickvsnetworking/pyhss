@@ -60,12 +60,7 @@ logging:
 
 database:
   db_type: sqlite
-  server: 127.0.0.1
-  username: dbeaver
-  password: password
   database: tests/.pyhss.db
-  readCacheEnabled: True
-  readCacheInterval: 60
 
 webhooks:
   enabled: False
@@ -88,12 +83,6 @@ redis:
   connectionType: "tcp"
   host: localhost
   port: 6379
-  sentinel:
-    masterName: pyhss_tests
-    hosts:
-      - exampleSentinel.mnc001.mcc001.3gppnetwork.org:
-        port: 6379
-        password: ''
 
 influxdb:
   enabled: False
