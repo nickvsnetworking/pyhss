@@ -187,3 +187,6 @@ It is now deployed by several mid-tier operators, private LTE networks and lab n
 Any contributions are welcome, just submit a PR or contact me.
 
 You can contact me at nick (at) nickvsnetworking.com or via my blog at [nickvsnetworking.com](https://nickvsnetworking.com)
+
+A matrix room for discussing PyHSS is available at:
+[#pyhss:matrix.org](https://matrix.to/#/#pyhss:matrix.org)
