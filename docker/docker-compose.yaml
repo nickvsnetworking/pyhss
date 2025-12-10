@@ -14,6 +14,7 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - pyhss_logs:/opt/pyhss/logs
+      - pyhss_sqlite:/var/lib/pyhss
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/oam/ping"]
       interval: 10s
@@ -21,8 +22,6 @@ services:
       retries: 5
     depends_on:
       redis:
-        condition: service_healthy
-      mysql:
         condition: service_healthy
 
   pyhss_diameter:
@@ -36,6 +35,7 @@ services:
       - "127.0.0.1:3868:3868"
     volumes:
       - pyhss_logs:/opt/pyhss/logs
+      - pyhss_sqlite:/var/lib/pyhss
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "3868"]
       interval: 10s
@@ -54,6 +54,7 @@ services:
     container_name: "pyhss_hss"
     volumes:
       - pyhss_logs:/opt/pyhss/logs
+      - pyhss_sqlite:/var/lib/pyhss
     depends_on:
       pyhss_diameter:
         condition: service_healthy
@@ -69,6 +70,7 @@ services:
       - "127.0.0.1:4222:4222"
     volumes:
       - pyhss_logs:/opt/pyhss/logs
+      - pyhss_sqlite:/var/lib/pyhss
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "4222"]
       interval: 10s
@@ -76,8 +78,6 @@ services:
       retries: 5
     depends_on:
       redis:
-        condition: service_healthy
-      mysql:
         condition: service_healthy
 
   redis:
@@ -94,22 +94,7 @@ services:
       retries: 5
     command: ["redis-server", "--appendonly", "yes"]
 
-  mysql:
-    image: "mysql:8.0"
-    container_name: "mysql"
-    ports:
-      - "127.0.0.1:3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: "changemeinproduction"
-      MYSQL_DATABASE: "hss"
-      MYSQL_USER: "pyhss"
-      MYSQL_PASSWORD: "changemeinproduction"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-    volumes:
-      - mysql_data:/var/lib/mysql
-
 volumes:
   redis_data:
-  mysql_data:
   pyhss_logs:
+  pyhss_sqlite:
