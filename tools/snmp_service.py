@@ -1,4 +1,6 @@
-#This SNMP service pulls stats written to Redis by PyHSS and presents them as SNMP
+# This SNMP service pulls stats written to Redis by PyHSS and presents them as SNMP
+# Copyright 2021 Nick <nick@nickvsnetworking.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
 
 #Pulled from https://stackoverflow.com/questions/58909285/how-to-add-variable-in-the-mib-tree

@@ -1,4 +1,7 @@
 # This utility prints PyHSS stats stored in Redis
+# Copyright 2021 Nick <nick@nickvsnetworking.com>
+# Copyright 2024 Victor Seva <linuxmaniac@torreviejawireless.org>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
 import json
 import redis

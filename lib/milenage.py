@@ -1,12 +1,9 @@
-"""
-Copyright (c) 2016-present, Facebook, Inc.
-All rights reserved.
-
-This source code is licensed under the BSD-style license found in the
-LICENSE file in the root directory of this source tree. An additional grant
-of patent rights can be found in the PATENTS file in the same directory.
-"""
-
+# Copyright 2020 The Magma Authors
+# Copyright 2019-2023 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2024 David Kneipp <david@davidkneipp.com>
+# Copyright 2025 Lennart Rosam <hello@takuto.de>
+# Copyright 2025 Alexander Couzens <lynxis@fe80.eu>
+# SPDX-License-Identifier: BSD-3-Clause
 import hmac
 from Crypto.Cipher import AES
 from Crypto.Random import random

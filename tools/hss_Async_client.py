@@ -1,4 +1,6 @@
-#Allows sending of Diameter commands to a Diameter client connected to the HSS
+# Allows sending of Diameter commands to a Diameter client connected to the HSS
+# Copyright 2022-2023 Nick <nick@nickvsnetworking.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import os
 import sys
 import inspect

@@ -1,23 +1,7 @@
-"""
-    Copyright (C) 2021, 2022 Nick <nick@nickvsnetworking.com>
-    Copyright (C) 2023 David Kneipp <david@davidkneipp.com>
-    Copyright (C) 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
-
-    SPDX-License-Identifier: AGPL-3.0-or-later
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
+# Copyright 2021-2022 Nick <nick@nickvsnetworking.com>
+# Copyright 2023 David Kneipp <david@davidkneipp.com>
+# Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import binascii
 import os
 import pprint

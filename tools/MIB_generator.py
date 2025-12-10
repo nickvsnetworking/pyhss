@@ -1,6 +1,8 @@
-#This generates OIDs for all the Redis values to be presented as SNMP
-#It outputs a file of OIDs and their meaning and generates code that can be copied into snmp_service.py to update it
-
+# This generates OIDs for all the Redis values to be presented as SNMP.
+# It outputs a file of OIDs and their meaning and generates code that can be
+# copied into snmp_service.py to update it.
+# Copyright 2021 Nick <nick@nickvsnetworking.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
 import re
 import os
