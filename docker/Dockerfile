@@ -75,6 +75,11 @@ COPY . /opt/pyhss
 RUN chown pyhss:pyhss /opt/pyhss/log
 VOLUME /opt/pyhss/log
 
+# Create a volume for the sqlite database
+RUN mkdir /var/lib/pyhss && \
+    chown pyhss:pyhss /var/lib/pyhss/
+VOLUME /var/lib/pyhss
+
 # Delete docker folder from the final image. COPY --exclude and dockerignore are not an option here
 RUN rm -rf /opt/pyhss/docker
 
