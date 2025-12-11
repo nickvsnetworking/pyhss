@@ -69,6 +69,12 @@ CREATE TABLE charging_rule (
 	tft_group_id INTEGER,
 	PRIMARY KEY (charging_rule_id)
 );
+CREATE TABLE database_schema_version (
+	comment VARCHAR(512),
+	date DATETIME DEFAULT CURRENT_TIMESTAMP,
+	upgrade_id INTEGER NOT NULL,
+	PRIMARY KEY (upgrade_id)
+);
 CREATE TABLE eir (
 	eir_id INTEGER NOT NULL,
 	imei VARCHAR(60),
