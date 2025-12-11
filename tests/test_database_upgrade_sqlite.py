@@ -89,11 +89,32 @@ def sqlite_dump_and_compare_with_latest(tmpdir):
         raise RuntimeError("sqlite_dump_and_compare_with_latest failed")
 
 
+def sqlite_import(sql_file):
+    if os.path.exists(test_db):
+        os.unlink(test_db)
+
+    conn = sqlite3.connect(test_db)
+    with open(os.path.join(top_dir, "tests/db_schema", sql_file)) as f:
+        sql_script = f.read()
+    conn.executescript(sql_script)
+    conn.close()
+
+
 def test_sqlite_new_db(tmpdir, monkeypatch):
     if os.path.exists(test_db):
         os.unlink(test_db)
 
     monkeypatch.setitem(config["database"], "database", test_db)
+    db = Database(LogTool(config), main_service=True)
+    db.engine.dispose()
+
+    sqlite_dump_and_compare_with_latest(tmpdir)
+
+
+def test_sqlite_upgrade_from_1_0_1(tmpdir, monkeypatch):
+    monkeypatch.setitem(config["database"], "database", test_db)
+    sqlite_import("20240125_release_1.0.1.sql")
+
     db = Database(LogTool(config), main_service=True)
     db.engine.dispose()
 

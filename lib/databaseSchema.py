@@ -8,7 +8,7 @@ from sqlalchemy_utils import database_exists, create_database
 
 
 class DatabaseSchema:
-    latest = 0
+    latest = 1
 
     def __init__(self, logTool, base, engine: Engine, main_service: bool):
         self.logTool = logTool
@@ -24,6 +24,16 @@ class DatabaseSchema:
     def table_exists(self, table):
         inspector = sqlalchemy.inspect(self.engine)
         return table in inspector.get_table_names()
+
+    def column_exists(self, table, column):
+        inspector = sqlalchemy.inspect(self.engine)
+        columns = inspector.get_columns(table)
+
+        for col in columns:
+            if col["name"] == column:
+                return True
+
+        return False
 
     def get_version(self):
         ret = 0
@@ -118,3 +128,46 @@ class DatabaseSchema:
                     level="warning",
                     message=f"Database schema version {version} is higher than latest known version {self.latest}",
                 )
+            if version < self.latest:
+                self.upgrade_all()
+
+    def upgrade_msg(self, new_version):
+        self.logTool.log(
+            service="Database",
+            level="info",
+            message=f"Upgrading database schema to version {new_version}",
+        )
+
+    def add_column(self, table, column, typename):
+        if self.column_exists(table, column):
+            return
+        if typename == "DATETIME" and self.engine.name == "postgresql":
+            # PostgreSQL doesn't have DATETIME:
+            # https://www.postgresql.org/docs/current/datatype-datetime.html
+            typename = "TIMESTAMP"
+
+        self.execute(f"ALTER TABLE {table} ADD {column} {typename}")
+
+    def upgrade_from_20240603_release_1_0_1(self):
+        if self.get_version() >= 1:
+            return
+        self.upgrade_msg(1)
+        self.base.metadata.tables["database_schema_version"].create(bind=self.engine)
+        self.add_column("auc", "algo", "VARCHAR(20)")
+        self.add_column("subscriber", "last_location_update_timestamp", "DATETIME")
+        self.add_column("subscriber", "last_seen_cell_id", "VARCHAR(64)")
+        self.add_column("subscriber", "last_seen_eci", "VARCHAR(64)")
+        self.add_column("subscriber", "last_seen_enodeb_id", "VARCHAR(64)")
+        self.add_column("subscriber", "last_seen_mcc", "VARCHAR(3)")
+        self.add_column("subscriber", "last_seen_mnc", "VARCHAR(3)")
+        self.add_column("subscriber", "last_seen_tac", "VARCHAR(64)")
+        self.add_column("subscriber", "serving_msc", "VARCHAR(512)")
+        self.add_column("subscriber", "serving_msc_timestamp", "DATETIME")
+        self.add_column("subscriber", "serving_sgsn", "VARCHAR(512)")
+        self.add_column("subscriber", "serving_sgsn_timestamp", "DATETIME")
+        self.add_column("subscriber", "serving_vlr", "VARCHAR(512)")
+        self.add_column("subscriber", "serving_vlr_timestamp", "DATETIME")
+        self.set_version(1)
+
+    def upgrade_all(self):
+        self.upgrade_from_20240603_release_1_0_1()
