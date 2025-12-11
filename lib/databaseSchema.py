@@ -8,7 +8,7 @@ from sqlalchemy_utils import database_exists, create_database
 
 
 class DatabaseSchema:
-    latest = 0
+    latest = 1
 
     def __init__(self, logTool, base, engine: Engine, main_service: bool):
         self.logTool = logTool
@@ -19,6 +19,7 @@ class DatabaseSchema:
             if main_service:
                 self.init_db()
                 self.init_tables()
+                self.upgrade_all()
             else:
                 self.wait_until_ready()
 
@@ -26,7 +27,7 @@ class DatabaseSchema:
         ret = 0
         try:
             sql = """
-                SELECT version
+                SELECT upgrade_id
                 FROM database_schema_version
                 ORDER BY upgrade_id DESC
                 LIMIT 1
@@ -97,3 +98,59 @@ class DatabaseSchema:
                     level="debug",
                     message=f"Table {table_name} already exists",
                 )
+
+    def execute(self, sql):
+        with self.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(sql))
+            conn.commit()
+
+    def upgrade_msg(self, new_version):
+        self.logTool.log(
+            service="Database",
+            level="info",
+            message=f"Upgrading database schema to version {new_version}",
+        )
+
+    def set_version(self, new_version):
+        self.execute(f"""
+            INSERT INTO database_schema_version (upgrade_id, comment)
+            VALUES ({int(new_version)}, "automatic upgrade from PyHSS")
+        """)
+
+    def column_exists(self, table, column):
+        inspector = sqlalchemy.inspect(self.engine)
+        columns = inspector.get_columns(table)
+
+        for col in columns:
+            if col["name"] == column:
+                return True
+
+        return False
+
+    def add_column(self, table, column, type):
+        if self.column_exists(table, column):
+            return
+        self.execute(f"ALTER TABLE {table} ADD {column} {type}")
+
+    def upgrade_from_20240603_release_1_0_1(self):
+        if self.get_version() >= 1:
+            return
+        self.upgrade_msg(1)
+        self.add_column("auc", "algo", "VARCHAR(20)")
+        self.add_column("subscriber", "last_location_update_timestamp", "DATETIME")
+        self.add_column("subscriber", "last_seen_cell_id", "VARCHAR(64)")
+        self.add_column("subscriber", "last_seen_eci", "VARCHAR(64)")
+        self.add_column("subscriber", "last_seen_enodeb_id", "VARCHAR(64)")
+        self.add_column("subscriber", "last_seen_mcc", "VARCHAR(3)")
+        self.add_column("subscriber", "last_seen_mnc", "VARCHAR(3)")
+        self.add_column("subscriber", "last_seen_tac", "VARCHAR(64)")
+        self.add_column("subscriber", "serving_msc", "VARCHAR(512)")
+        self.add_column("subscriber", "serving_msc_timestamp", "DATETIME")
+        self.add_column("subscriber", "serving_sgsn", "VARCHAR(512)")
+        self.add_column("subscriber", "serving_sgsn_timestamp", "DATETIME")
+        self.add_column("subscriber", "serving_vlr", "VARCHAR(512)")
+        self.add_column("subscriber", "serving_vlr_timestamp", "DATETIME")
+        self.set_version(1)
+
+    def upgrade_all(self):
+        self.upgrade_from_20240603_release_1_0_1()
