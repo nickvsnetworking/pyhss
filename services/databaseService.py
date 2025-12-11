@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2024 David Kneipp <david@davidkneipp.com>
 # Copyright 2025 Victor Seva <linuxmaniac@torreviejawireless.org>
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>

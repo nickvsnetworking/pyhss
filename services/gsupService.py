@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # PyHSS GSUP Service
 # Copyright 2025 Lennart Rosam <hello@takuto.de>
 # Copyright 2025 Alexander Couzens <lynxis@fe80.eu>

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2022-2025 Nick <nick@nickvsnetworking.com>
 # Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
