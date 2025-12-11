@@ -22,9 +22,28 @@ class DatabaseSchema:
             else:
                 self.wait_until_ready()
 
+    def table_exists(self, table):
+        inspector = sqlalchemy.inspect(self.engine)
+        return table in inspector.get_table_names()
+
     def get_version(self):
-        # Future patches will store the current schema version inside the db
-        return 0
+        ret = 0
+        if not self.table_exists("database_schema_version"):
+            return ret
+        try:
+            sql = """
+                SELECT upgrade_id
+                FROM database_schema_version
+                ORDER BY upgrade_id DESC
+                LIMIT 1
+            """
+            with self.engine.connect() as conn:
+                result = conn.execute(sqlalchemy.text(sql)).fetchone()
+                if result:
+                    ret = result[0]
+        except Exception:
+            pass
+        return ret
 
     def is_ready(self):
         if not database_exists(self.engine.url):

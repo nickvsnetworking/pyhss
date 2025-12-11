@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from typing import Optional
 
+import sqlalchemy
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
 from sqlalchemy import create_engine
 from sqlalchemy.sql import desc, func
@@ -32,6 +33,13 @@ from pyhss_config import config
 
 
 Base = declarative_base()
+
+class DATABASE_SCHEMA_VERSION(Base):
+    __tablename__ = "database_schema_version"
+    upgrade_id = Column(Integer, primary_key=True, doc="Schema version")
+    comment = Column(String(512), doc="Notes about this version upgrade")
+    date = Column(DateTime(timezone=True), server_default=sqlalchemy.sql.func.now(), doc="When the upgrade was done")
+
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
