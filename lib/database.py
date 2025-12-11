@@ -6,10 +6,8 @@
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.engine.reflection import Inspector
+from sqlalchemy import create_engine
 from sqlalchemy.sql import desc, func
-from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
 from sqlalchemy.orm import declarative_base
@@ -22,6 +20,7 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
+from databaseSchema import DatabaseSchema
 from baseModels import SubscriberInfo, LocationInfo2G
 from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
@@ -356,7 +355,7 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
 
 class Database:
 
-    def __init__(self, logTool, redisMessaging=None):
+    def __init__(self, logTool, redisMessaging=None, main_service: bool = False):
 
         self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
         self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
@@ -395,13 +394,7 @@ class Database:
             pool_size=config['logging'].get('sqlalchemy_pool_size', 30),
             max_overflow=config['logging'].get('sqlalchemy_max_overflow', 0))
 
-        # Create database if it does not exist.
-        if not database_exists(self.engine.url):
-            self.logTool.log(service='Database', level='debug', message="Creating database", redisClient=self.redisMessaging)
-            create_database(self.engine.url)
-            Base.metadata.create_all(self.engine)
-        else:
-            self.logTool.log(service='Database', level='debug', message="Database already created", redisClient=self.redisMessaging)
+        DatabaseSchema(self.logTool, Base, self.engine, main_service)
 
         #Load IMEI TAC database into Redis if enabled
         if self.tacDatabasePath:
@@ -410,15 +403,6 @@ class Database:
         else:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
             self.tacData = {}
-
-        # Create individual tables if they do not exist
-        inspector = inspect(self.engine)
-        for table_name in Base.metadata.tables.keys():
-            if table_name not in inspector.get_table_names():
-                self.logTool.log(service='Database', level='debug', message=f"Creating table {table_name}", redisClient=self.redisMessaging)
-                Base.metadata.tables[table_name].create(bind=self.engine)
-            else:
-                self.logTool.log(service='Database', level='debug', message=f"Table {table_name} already exists", redisClient=self.redisMessaging)
 
     def load_IMEI_database_into_Redis(self):
         try:
