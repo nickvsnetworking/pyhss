@@ -117,12 +117,20 @@ class DatabaseSchema:
             create_database(self.engine.url)
             self.base.metadata.create_all(self.engine)
         else:
+            version = self.get_version()
             self.logTool.log(
                 service="Database",
                 level="debug",
-                message="Database already created",
+                message=f"Database already created (schema version: {version})",
             )
-            self.ensure_release_1_0_1_or_newer()
+            if version > self.latest:
+                self.logTool.log(
+                    service="Database",
+                    level="warning",
+                    message=f"Database schema version {version} is higher than latest known version {self.latest}",
+                )
+            else:
+                self.ensure_release_1_0_1_or_newer()
 
     def init_tables(self):
         # Create individual tables if they do not exist
