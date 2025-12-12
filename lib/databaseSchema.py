@@ -94,6 +94,48 @@ class DatabaseSchema:
         )
         sys.exit(10)
 
+    def ensure_release_1_0_1_or_newer(self):
+        expected = {
+            "apn": [
+                "nbiot",
+                "nidd_scef_id",
+                "nidd_scef_realm",
+                "nidd_mechanism",
+                "nidd_rds",
+                "nidd_preferred_data_mode",
+            ],
+            "ims_subscriber": [
+                "xcap_profile",
+                "sh_template_path",
+            ],
+            "operation_log": [
+                "roaming_rule_id",
+                "roaming_network_id",
+                "emergency_subscriber_id",
+            ],
+            "subscriber": [
+                "roaming_enabled",
+                "roaming_rule_list",
+            ],
+        }
+
+        for table, columns in expected.items():
+            for column in columns:
+                if not self.column_exists(table, column):
+                    self.logTool.log(
+                        service="Database",
+                        level="warning",
+                        message=f"Database column missing: {table}.{column}",
+                    )
+                    self.logTool.log(
+                        service="Database",
+                        level="error",
+                        message="Database schemas from before PyHSS 1.0.1 are not supported."
+                        " Start with a new database or migrate manually:"
+                        " https://github.com/nickvsnetworking/pyhss/blob/master/CHANGELOG.md#101---2024-01-23",
+                    )
+                    sys.exit(20)
+
     def init_db(self):
         # Create database if it does not exist
         if not database_exists(self.engine.url):
@@ -129,6 +171,7 @@ class DatabaseSchema:
                     message=f"Database schema version {version} is higher than latest known version {self.latest}",
                 )
             if version < self.latest:
+                self.ensure_release_1_0_1_or_newer()
                 self.upgrade_all()
 
     def upgrade_msg(self, new_version):

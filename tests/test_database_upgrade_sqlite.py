@@ -1,6 +1,7 @@
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import os
+import pytest
 import re
 import sqlite3
 import subprocess
@@ -119,3 +120,12 @@ def test_sqlite_upgrade_from_1_0_1(tmpdir, monkeypatch):
     db.engine.dispose()
 
     sqlite_dump_and_compare_with_latest(tmpdir)
+
+
+def test_sqlite_unsupported_1_0_0(tmpdir, monkeypatch):
+    monkeypatch.setitem(config["database"], "database", test_db)
+    sqlite_import("20231009_release_1.0.0.sql")
+
+    with pytest.raises(SystemExit) as e:
+        Database(LogTool(config), main_service=True)
+    assert e.value.code == 20
