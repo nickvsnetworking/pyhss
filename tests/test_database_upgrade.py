@@ -4,6 +4,7 @@ import sqlite3
 import os
 import glob
 import re
+import pytest
 from pathlib import Path
 from database import Database
 from logtool import LogTool
@@ -99,6 +100,9 @@ def test_old_versions(tmpdir, monkeypatch):
 
     pattern = os.path.join(top_dir, "tests/db_schema/*.sql")
     for sql in glob.glob(pattern):
+        if sql.endswith("/20231009_release_1.0.0.sql"):
+            # See test_unsupported_1_0_0() below
+            continue
         if os.path.exists(test_db):
             os.unlink(test_db)
 
@@ -117,3 +121,21 @@ def test_old_versions(tmpdir, monkeypatch):
 
         # Compare
         compare_with_latest_sql(tmpdir)
+
+
+def test_unsupported_1_0_0(tmpdir, monkeypatch):
+    monkeypatch.setitem(config["database"], "database", test_db)
+
+    if os.path.exists(test_db):
+        os.unlink(test_db)
+
+    conn = sqlite3.connect(test_db)
+    sql = os.path.join(top_dir, "tests/db_schema/20231009_release_1.0.0.sql")
+    with open(sql) as f:
+        sql_script = f.read()
+    conn.executescript(sql_script)
+    conn.close()
+
+    with pytest.raises(SystemExit) as e:
+        Database(LogTool(config), main_service=True)
+    assert e.value.code == 20
