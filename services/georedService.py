@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2019-2021 Nick <nick@nickvsnetworking.com>
 # Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
 # SPDX-License-Identifier: AGPL-3.0-or-later

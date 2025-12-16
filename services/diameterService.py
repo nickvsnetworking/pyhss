@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2023-2024 David Kneipp <david@davidkneipp.com>
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
