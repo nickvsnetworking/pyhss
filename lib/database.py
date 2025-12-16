@@ -1639,7 +1639,8 @@ class Database:
         elif action == "2g3g":
             # Mask first bit of AMF
             key_data['amf'] = '0' + key_data['amf'][1:]
-            vect = S6a_crypt.generate_2g3g_vector(key_data['ki'], key_data['opc'], key_data['amf'], int(key_data['sqn']), int(key_data['algo']))
+            algo = int(key_data["algo"]) if key_data["algo"] is not None else 3
+            vect = S6a_crypt.generate_2g3g_vector(key_data['ki'], key_data['opc'], key_data['amf'], int(key_data['sqn']), algo)
             vector_list = []
             self.logTool.log(service='Database', level='debug', message="Generating " + str(kwargs['requested_vectors']) + " vectors for GSM use", redisClient=self.redisMessaging)
             while kwargs['requested_vectors'] != 0:
