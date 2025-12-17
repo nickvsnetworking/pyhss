@@ -18,7 +18,6 @@ from database import (
 )
 from logtool import LogTool
 from pyhss_config import config
-from fixtures import create_test_db
 
 
 def test_database(create_test_db):
