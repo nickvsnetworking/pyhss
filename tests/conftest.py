@@ -22,6 +22,14 @@ pyhss_env = {
 }
 
 
+def pytest_collection_modifyitems(session, config, items):
+    def by_slow(item):
+        return 0 if item.get_closest_marker("slow") is None else 1
+
+    # Run slow tests at the end
+    items.sort(key=by_slow, reverse=False)
+
+
 def wait_for_tcp_port(port, timeout=5):
     hostname = "127.0.0.1"
     start_time = time.time()
