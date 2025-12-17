@@ -51,6 +51,7 @@ include = [
 	"lib/databaseSchema.py",
 	"lib/pyhss_config.py",
 	"tests/test_database_upgrade_mariadb.py",
+	"tests/test_database_upgrade_postgresql.py",
 	"tests/test_database_upgrade_sqlite.py",
 	"tests/test_license_headers.py",
 	"tests/test_milenage.py",
