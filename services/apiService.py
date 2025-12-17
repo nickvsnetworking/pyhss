@@ -518,6 +518,20 @@ class PyHSS_AUC_Get_AKA_Vectors(Resource):
             print(E)
             return handle_exception(E)
 
+@ns_auc.route('/aka/resync/imsi/<string:imsi>/auts/<string:auts>/rand/<string:rand>')
+class PyHSS_AUC_Get_AKA_Vectors_Resync(Resource):
+    def get(self, imsi, auts, rand):
+        '''do SQN resync'''
+        try:
+            #Get data from AuC
+            auc_data = databaseClient.Get_AuC(imsi=imsi)
+            rand = binascii.unhexlify(rand)
+            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='sqn_resync', auts=auts, rand=rand)
+            return vector_dict, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
 @ns_subscriber.route('/<string:subscriber_id>')
 class PyHSS_SUBSCRIBER_Get(Resource):
     def get(self, subscriber_id):
