@@ -498,7 +498,7 @@ class PyHSS_AUC_Get_EAP_AKA_Vectors(Resource):
             #Get data from AuC
             auc_data = databaseClient.Get_AuC(imsi=imsi)
             plmn = diameterClient.EncodePLMN(mcc=plmn[0:3], mnc=plmn[3:])
-            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='eap_aka', plmn=plmn)
+            vector_dict = databaseClient.Get_Vectors_AuC_eap_aka(auc_data['auc_id'], plmn)
             return vector_dict, 200
         except Exception as E:
             print(E)
@@ -512,7 +512,7 @@ class PyHSS_AUC_Get_AKA_Vectors(Resource):
             #Get data from AuC
             auc_data = databaseClient.Get_AuC(imsi=imsi)
             plmn = diameterClient.EncodePLMN(mcc=config['hss']['MCC'], mnc=config['hss']['MNC'])
-            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='aka', plmn=plmn, requested_vectors=int(vector_count))
+            vector_dict = databaseClient.Get_Vectors_AuC_aka(auc_data['auc_id'], plmn, int(vector_count))
             return vector_dict, 200
         except Exception as E:
             print(E)

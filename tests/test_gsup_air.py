@@ -50,6 +50,7 @@ class GSUPClient:
 
         # Send the identity response to the server
         data = self.ipa.tag_unit(self.identity.encode('utf-8'))
+        data = data + self.ipa.tag_serial("TEST-00-00-00-00-00-00".encode('utf-8'))
         data = self.ipa.id_resp(data)
         self.sock.send(data)
 

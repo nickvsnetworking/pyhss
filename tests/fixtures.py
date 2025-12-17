@@ -48,7 +48,7 @@ def create_test_db():
         print(f"Removing previous test DB: {test_db}")
         os.unlink(test_db)
 
-    db = Database(LogTool(config))
+    db = Database(LogTool(config), main_service=True)
     assert os.path.exists(test_db)
 
     db.CreateObj(APN, {
