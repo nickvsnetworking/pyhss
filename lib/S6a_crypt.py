@@ -12,7 +12,7 @@ import sys
 
 CryptoLogger = logging.getLogger('CryptoLogger')
 
-CryptoLogger.info("Initialised Diameter Logger, importing database")
+CryptoLogger.info("Initialised CryptoLogger Logger")
 
 #The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
 
