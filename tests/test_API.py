@@ -7,7 +7,6 @@ import requests
 import json
 import logging
 import pytest
-from fixtures import create_test_db, run_pyhss_api
 
 log = logging.getLogger("UnitTestLogger")
 base_url = 'http://localhost:8080'

@@ -29,7 +29,17 @@ from rat import SubscriberRATRestriction, RAT
 
 class Diameter:
 
-    def __init__(self, logTool, originHost: str="hss01", originRealm: str="epc.mnc999.mcc999.3gppnetwork.org", productName: str="PyHSS", mcc: str="999", mnc: str="999", redisMessaging=None):
+    def __init__(
+        self,
+        logTool,
+        originHost: str = "hss01",
+        originRealm: str = "epc.mnc999.mcc999.3gppnetwork.org",
+        productName: str = "PyHSS",
+        mcc: str = "999",
+        mnc: str = "999",
+        redisMessaging=None,
+        main_service: bool = False,
+    ):
         self.OriginHost = self.string_to_hex(originHost)
         self.OriginRealm = self.string_to_hex(originRealm)
         self.ProductName = self.string_to_hex(productName)
@@ -49,7 +59,7 @@ class Diameter:
         
         self.hostname = socket.gethostname()
 
-        self.database = Database(logTool=logTool)
+        self.database = Database(logTool=logTool, main_service=main_service)
         self.diameterRequestTimeout = int(config.get('hss', {}).get('diameter_request_timeout', 10))
         self.diameterPeerKey = config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
         self.useDraFallback = config.get('hss', {}).get('use_dra_fallback', False)
