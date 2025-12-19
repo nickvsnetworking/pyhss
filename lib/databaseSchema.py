@@ -18,7 +18,6 @@ class DatabaseSchema:
         if not self.is_ready():
             if main_service:
                 self.init_db()
-                self.init_tables()
             else:
                 self.wait_until_ready()
 
@@ -44,6 +43,22 @@ class DatabaseSchema:
         except Exception:
             pass
         return ret
+
+    def execute(self, sql):
+        with self.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(sql))
+            conn.commit()
+
+    def set_version(self, new_version):
+        self.logTool.log(
+            service="Database",
+            level="info",
+            message=f"New database schema version is {new_version}",
+        )
+        self.execute(f"""
+            INSERT INTO database_schema_version (upgrade_id, comment)
+            VALUES ({int(new_version)}, 'automatic upgrade from PyHSS')
+        """)
 
     def is_ready(self):
         if not database_exists(self.engine.url):
@@ -78,28 +93,28 @@ class DatabaseSchema:
                 message="Creating database",
             )
             create_database(self.engine.url)
-            self.base.metadata.create_all(self.engine)
-        else:
+
+        if not self.table_exists("subscriber"):
+            # Assume completely empty database (either because it was just
+            # created, or for mysql/postgresql an admin may create the database
+            # first before an application accesses it with a different user)
             self.logTool.log(
                 service="Database",
                 level="debug",
-                message="Database already created",
+                message="Initializing empty database",
             )
-
-    def init_tables(self):
-        # Create individual tables if they do not exist
-        inspector = sqlalchemy.inspect(self.engine)
-        for table_name in self.base.metadata.tables.keys():
-            if table_name not in inspector.get_table_names():
+            self.base.metadata.create_all(self.engine)
+            self.set_version(self.latest)
+        else:
+            version = self.get_version()
+            self.logTool.log(
+                service="Database",
+                level="debug",
+                message=f"Database already created (schema version: {version})",
+            )
+            if version > self.latest:
                 self.logTool.log(
                     service="Database",
-                    level="debug",
-                    message=f"Creating table {table_name}",
-                )
-                self.base.metadata.tables[table_name].create(bind=self.engine)
-            else:
-                self.logTool.log(
-                    service="Database",
-                    level="debug",
-                    message=f"Table {table_name} already exists",
+                    level="warning",
+                    message=f"Database schema version {version} is higher than latest known version {self.latest}",
                 )
