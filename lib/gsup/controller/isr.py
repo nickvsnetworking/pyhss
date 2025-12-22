@@ -12,7 +12,7 @@ from database import Database
 from gsup.controller.abstract_controller import GsupController
 from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.controller.ulr import ULRTransaction
-from gsup.protocol.ipa_peer import IPAPeer
+from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
 from logtool import LogTool
 
 
@@ -77,22 +77,22 @@ class ISRController(GsupController):
         raise ValueError(f"No transaction found for peer {peer.name} during message {message.msg_type}")
 
     async def handle_subscriber_update(self, subscriber_info: SubscriberInfo):
-        for location, domain in [
-            (subscriber_info.location_info_2g.msc, 'cs'),
-            (subscriber_info.location_info_2g.vlr, 'cs'),
-            (subscriber_info.location_info_2g.sgsn, 'ps'),
+        for location, domain, role in [
+            (subscriber_info.location_info_2g.msc, 'cs', IPAPeerRole.MSC),
+            (subscriber_info.location_info_2g.vlr, 'cs', IPAPeerRole.MSC),
+            (subscriber_info.location_info_2g.sgsn, 'ps', IPAPeerRole.SGSN),
         ]:
-            peer = self.__find_ipa_peer_by_id(location)
+            peer = self.__find_ipa_peer_by_id(location, role)
             if peer is not None and peer.name not in self.__isd_transactions:
                 isd_transaction = ISDTransaction(subscriber_info, peer, domain, self._send_gsup_response)
                 self.__isd_transactions[peer.name] = isd_transaction
                 await isd_transaction.begin_invoke()
 
 
-    def __find_ipa_peer_by_id(self, peer_id: Optional[str]) -> Optional[IPAPeer]:
+    def __find_ipa_peer_by_id(self, peer_id: Optional[str], role: IPAPeerRole) -> Optional[IPAPeer]:
         if peer_id is None:
             return None
         for peer in self.__all_peers.values():
-            if peer.primary_id == peer_id:
+            if peer.primary_id == peer_id and peer.role == role:
                 return peer
         return None
