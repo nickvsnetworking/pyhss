@@ -567,27 +567,27 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             data = databaseClient.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
 
             #If the subscriber is enabled, trigger an ISD in 2G
-            if 'enabled' in json_data and json_data['enabled'] == True:
-                update_event = databaseClient.Get_Gsup_SubscriberInfo(json_data['imsi'])
+            if 'enabled' in data and data['enabled'] == True:
+                update_event = databaseClient.Get_Gsup_SubscriberInfo(data['imsi'])
                 redisMessaging.sendMessage('subscriber_update', update_event.model_dump_json())
 
             #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
-            if 'enabled' in json_data and json_data['enabled'] == False:
+            if 'enabled' in data and data['enabled'] == False:
                 print("Subscriber is now disabled, checking to see if we need to trigger a CLR")
                 #See if we have a serving MME set
                 try:
-                    assert(json_data['serving_mme'])
+                    assert(data['serving_mme'])
                     print("Serving MME set - Sending CLR")
 
                     diameterClient.sendDiameterRequest(
                         requestType='CLR',
-                        hostname=json_data['serving_mme'],
-                        imsi=json_data['imsi'], 
-                        DestinationHost=json_data['serving_mme'], 
-                        DestinationRealm=json_data['serving_mme_realm'], 
+                        hostname=data['serving_mme'],
+                        imsi=data['imsi'],
+                        DestinationHost=data['serving_mme'],
+                        DestinationRealm=data['serving_mme_realm'],
                         CancellationType=1
                     )
-                    print("Sent CLR via Peer " + str(json_data['serving_mme']))
+                    print("Sent CLR via Peer " + str(data['serving_mme']))
                 except:
                     print("No serving MME set - Not sending CLR")
             return data, 200
