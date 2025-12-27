@@ -66,7 +66,7 @@ class ISRController(GsupController):
     async def handle_message(self, peer: IPAPeer, message: GsupMessage):
         transaction = self.__find_transaction_for_imsi(message, peer)
         if transaction.is_finished():
-            raise ValueError(f"ULR Transaction for peer {peer.name} is already finished")
+            raise ValueError(f"ISD Transaction for peer {peer.name} is already finished")
 
         await transaction.continue_invoke(message)
 
