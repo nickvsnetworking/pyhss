@@ -23,7 +23,7 @@ class ISDTransaction(AbstractTransaction):
         ISD_REQUEST_SENT = 1
         END_STATE_ISR_RECEIVED = 2
 
-    def __init__(self, subscriber_info: SubscriberInfo, peer: IPAPeer, cn_domain: str, callback_send_response: Callable[[IPAPeer, GsupMessage], Awaitable[None]]):
+    def __init__(self, subscriber_info: SubscriberInfo, peer: IPAPeer, cn_domain: str, callback_send_response: Callable[[IPAPeer, GsupMessage], Awaitable[None]], logger: LogTool):
         super().__init__()
         self.__ipa_peer = peer
         self.__subscriber_info = subscriber_info
@@ -32,6 +32,7 @@ class ISDTransaction(AbstractTransaction):
 
         self._validate_cn_domain(cn_domain)
         self.__cn_domain = cn_domain
+        self.__logger = logger
 
     async def begin_invoke(self):
         if self.__state != self.__TransactionState.BEGIN_STATE_INITIAL:
@@ -45,8 +46,8 @@ class ISDTransaction(AbstractTransaction):
         if self.__state != self.__TransactionState.ISD_REQUEST_SENT:
             raise ValueError("ISD Transaction not in ISD_REQUEST_SENT state")
 
-        if message.msg_type != MsgType.INSERT_DATA_RESULT:
-            raise ValueError(f"ISD transaction was not successful. Got: {message.msg_type}")
+        if message.msg_type not in [MsgType.INSERT_DATA_RESULT, MsgType.INSERT_DATA_ERROR]:
+            self.__logger.log(service='GSUP', level='WARN', message=f"Received unexpected GSUP message type {message.msg_type.name} in ISD Transaction from peer {self.__ipa_peer.name}. Expected INSERT_DATA_RESULT or INSERT_DATA_ERROR.")
 
         self.__state = self.__TransactionState.END_STATE_ISR_RECEIVED
 
@@ -89,7 +90,7 @@ class ISRController(GsupController):
             imsi = subscriber_info.imsi
             peer = self.__find_ipa_peer_by_id(location, role)
             if peer is not None and peer.name not in self.__isd_transactions:
-                isd_transaction = ISDTransaction(subscriber_info, peer, domain, self._send_gsup_response)
+                isd_transaction = ISDTransaction(subscriber_info, peer, domain, self._send_gsup_response, self._logger)
                 self.__isd_transactions[(peer.name, imsi)] = isd_transaction
                 await isd_transaction.begin_invoke()
 
