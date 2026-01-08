@@ -1,11 +1,14 @@
 # This utility prints PyHSS stats stored in Redis
-import yaml
+# Copyright 2021 Nick <nick@nickvsnetworking.com>
+# Copyright 2024 Victor Seva <linuxmaniac@torreviejawireless.org>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
-with open(sys.path[0] + '/../config.yaml') as stream:
-    yaml_config = (yaml.safe_load(stream))
 import json
 import redis
-r = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
+from pyhss_config import config
+
+
+r = redis.Redis(host=str(config['redis']['host']), port=str(config['redis']['port']), db=0)
 keys = r.keys()
 for key in sorted(keys):
     if key != b'ActivePeerDict':

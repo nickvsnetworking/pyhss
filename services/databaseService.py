@@ -1,16 +1,24 @@
-import os, sys, json, yaml
+#!/usr/bin/env python3
+# Copyright 2024 David Kneipp <david@davidkneipp.com>
+# Copyright 2025 Victor Seva <linuxmaniac@torreviejawireless.org>
+# Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+import os, sys, json
 import uuid, time
 import asyncio
 import socket
 import datetime
 import traceback
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
 from logtool import LogTool
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData, Table
+from pyhss_config import config
 
 class DatabaseService:
     """
@@ -20,35 +28,29 @@ class DatabaseService:
     """
 
     def __init__(self, redisHost: str='127.0.0.1', redisPort: int=6379):
-        try:
-            with open("../config.yaml", "r") as self.configFile:
-                self.config = yaml.safe_load(self.configFile)
-        except:
-            print(f"[Database] Fatal Error - config.yaml not found, exiting.")
-            quit()
-        self.logTool = LogTool(self.config)
+        self.logTool = LogTool(config)
         self.banners = Banners()
 
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
         self.redisDatabaseReadMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisLogMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.hostname = socket.gethostname()
 
         supportedDatabaseTypes = ["mysql", "postgresql"]
-        self.databaseType = self.config.get('database', {}).get('db_type', 'mysql').lower()
+        self.databaseType = config.get('database', {}).get('db_type', 'mysql').lower()
         if not self.databaseType in supportedDatabaseTypes:
             print(f"[Database] Fatal Error - unsupported database type: {self.databaseType}. Supported database types are: {supportedDatabaseTypes}, exiting.")
             quit()
 
-        self.databaseHost = self.config.get('database', {}).get('server', '')
-        self.databaseUsername = self.config.get('database', {}).get('username', '')
-        self.databasePassword = self.config.get('database', {}).get('password', '')
-        self.database = self.config.get('database', {}).get('database', '')
-        self.readCacheEnabled = self.config.get('database', {}).get('readCacheEnabled', True)
-        self.cacheReadInterval = int(self.config.get('database', {}).get('cacheReadInterval', 60))
+        self.databaseHost = config.get('database', {}).get('server', '')
+        self.databaseUsername = config.get('database', {}).get('username', '')
+        self.databasePassword = config.get('database', {}).get('password', '')
+        self.database = config.get('database', {}).get('database', '')
+        self.readCacheEnabled = config.get('database', {}).get('readCacheEnabled', True)
+        self.cacheReadInterval = int(config.get('database', {}).get('cacheReadInterval', 60))
 
         self.sqlAlchemyEngine = create_engine(
             f"{self.databaseType}://{self.databaseUsername}:{self.databasePassword}@{self.databaseHost}/{self.database}"
@@ -139,6 +141,10 @@ class DatabaseService:
                         pass
 
 
-if __name__ == '__main__':
+def main():
     databaseService = DatabaseService()
     asyncio.run(databaseService.startService())
+
+
+if __name__ == '__main__':
+    main()

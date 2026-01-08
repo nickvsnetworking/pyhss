@@ -59,9 +59,7 @@ class GsupMessageBuilder:
         return self.with_ie('msisdn', ie)
 
     def with_pdp_info_ie(self, pdp_ctx_id: int, pdp_type: str, apn_name: str):
-        pdp_info = GsupMessageUtil.get_first_ie_by_name('pdp_info', self.gsup_dict)
-        if pdp_info is None:
-            pdp_info = []
+        pdp_info = []
 
         pdp_info.append({
             'pdp_context_id': pdp_ctx_id
@@ -77,15 +75,11 @@ class GsupMessageBuilder:
             }
         })
 
-        pdp_info.append(
-            {
-                'access_point_name': apn_name
-            }
-        )
+        pdp_info.append({
+            'access_point_name': apn_name
+        })
 
-        pdp_info.append({'qos': None})
-
-        return self.with_ie('pdp_info', pdp_info)
+        return self.with_ie('pdp_info', pdp_info, False)
 
     def build(self) -> GsupMessage:
         if 'msg_type' == "":

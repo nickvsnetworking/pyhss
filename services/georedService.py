@@ -1,12 +1,19 @@
-import os, sys, json, yaml
+#!/usr/bin/env python3
+# Copyright 2019-2021 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+import os, sys, json
 import uuid, time
 import asyncio, aiohttp
 import socket
 import traceback
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messagingAsync import RedisMessagingAsync
 from banners import Banners
 from logtool import LogTool
+from pyhss_config import config
 
 class GeoredService:
     """
@@ -15,30 +22,24 @@ class GeoredService:
     """
 
     def __init__(self, redisHost: str='127.0.0.1', redisPort: int=6379):
-        try:
-            with open("../config.yaml", "r") as self.configFile:
-                self.config = yaml.safe_load(self.configFile)
-        except:
-            print(f"[Geored] Fatal Error - config.yaml not found, exiting.")
-            quit()
-        self.logTool = LogTool(self.config)
+        self.logTool = LogTool(config)
         self.banners = Banners()
 
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
         self.redisGeoredMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisWebhookMessaging = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         
-        self.georedPeers = self.config.get('geored', {}).get('endpoints', [])
-        self.webhookPeers = self.config.get('webhooks', {}).get('endpoints', [])
-        self.ocsPeers = self.config.get('ocs', {}).get('endpoints', [])
-        self.ocsNotificationsEnabled = self.config.get('ocs', {}).get('enabled', False)
-        self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
+        self.georedPeers = config.get('geored', {}).get('endpoints', [])
+        self.webhookPeers = config.get('webhooks', {}).get('endpoints', [])
+        self.ocsPeers = config.get('ocs', {}).get('endpoints', [])
+        self.ocsNotificationsEnabled = config.get('ocs', {}).get('enabled', False)
+        self.benchmarking = config.get('hss').get('enable_benchmarking', False)
         self.hostname = socket.gethostname()
 
-        if not self.config.get('geored', {}).get('enabled'):
+        if not config.get('geored', {}).get('enabled'):
             self.logger.error("[Geored] Fatal Error - geored not enabled under geored.enabled, exiting.")
             quit()
         if self.georedPeers is not None:
@@ -405,8 +406,8 @@ class GeoredService:
         await(self.logTool.logAsync(service='Geored', level='info', message=f"{self.banners.georedService()}"))
         while True:
 
-            georedEnabled = self.config.get('geored', {}).get('enabled', False)
-            webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
+            georedEnabled = config.get('geored', {}).get('enabled', False)
+            webhooksEnabled = config.get('webhooks', {}).get('enabled', False)
 
             if self.georedPeers is not None:
                 if not len(self.georedPeers) > 0:
@@ -439,6 +440,10 @@ class GeoredService:
                         pass
 
 
-if __name__ == '__main__':
+def main():
     georedService = GeoredService()
     asyncio.run(georedService.startService())
+
+
+if __name__ == '__main__':
+    main()

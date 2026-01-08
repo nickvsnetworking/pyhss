@@ -2,7 +2,6 @@
 Description=PyHSS Database Service
 PartOf=pyhss.service
 
-
 [Service]
 Environment="PYTHONUNBUFFERED=1"
 User=root

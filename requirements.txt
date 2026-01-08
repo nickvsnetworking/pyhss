@@ -7,7 +7,7 @@ prometheus_client==0.16.0
 pycryptodome==3.17
 pymongo==4.3.3
 pysctp==0.7.2
-pyosmocom
+pyosmocom==0.0.11
 comp128==1.0.0
 alembic
 pysnmp==4.4.12
@@ -24,3 +24,4 @@ pydantic_core==2.20.1
 tzlocal==4.3
 influxdb==5.3.1
 xmltodict==0.14.2
+StrEnum==0.4.15; python_version < '3.11'

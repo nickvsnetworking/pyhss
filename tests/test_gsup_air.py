@@ -1,29 +1,11 @@
-"""
-    PyHSS GSUP Client for testing
-
-    This file is not really a unit test, but a client that connects to the GSUP server
-    It helped during the development of the GSUP server to test the messages and
-    this file has been left here in the hope that it may be useful.
-
-    Copyright (C) 2025  Lennart Rosam <hello@takuto.de>
-    Copyright (C) 2025  Alexander Couzens <lynxis@fe80.eu>
-
-    SPDX-License-Identifier: AGPL-3.0-or-later
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
-
+# PyHSS GSUP Client for testing
+# This file is not really a unit test, but a client that connects to the GSUP
+# server It helped during the development of the GSUP server to test the
+# messages and this file has been left here in the hope that it may be useful.
+# Copyright 2025 Lennart Rosam <hello@takuto.de>
+# Copyright 2025 Alexander Couzens <lynxis@fe80.eu>
+# Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import socket
 
 from osmocom.gsup.message import MsgType, GsupMessage
@@ -31,6 +13,12 @@ from osmocom.gsup.message import MsgType, GsupMessage
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
 from gsup.protocol.osmocom_ipa import IPA
 
+from fixtures import (
+    create_test_db,
+    run_pyhss_gsup,
+    run_pyhss_hss,
+    run_redis,
+)
 
 
 class GSUPClient:
@@ -92,6 +80,7 @@ class GSUPClient:
         response = self.__read_response()
 
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.SEND_AUTH_INFO_RESULT
 
     def send_ulr_request(self, imsi):
         request = (GsupMessageBuilder()
@@ -105,10 +94,7 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
-
-        if response.msg_type != MsgType.INSERT_DATA_REQUEST:
-            print(f"Received error response: {response.msg_type()}")
-            return
+        assert response.msg_type == MsgType.INSERT_DATA_REQUEST
 
         # Send the insert data response
         insert_data_resp = (GsupMessageBuilder()
@@ -122,14 +108,12 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.UPDATE_LOCATION_RESULT
 
     def wait_for_location_cancel(self):
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
-
-        if response.msg_type != MsgType.LOCATION_CANCEL_REQUEST:
-            print(f"Received error response: {response.msg_type()}")
-            return
+        assert response.msg_type == MsgType.LOCATION_CANCEL_REQUEST
 
         # Send the location cancel response
         cancel_resp = (GsupMessageBuilder()
@@ -151,6 +135,7 @@ class GSUPClient:
 
         response = self.__read_response()
         print(f"Received response: {response.to_dict()}")
+        assert response.msg_type == MsgType.PURGE_MS_RESULT
 
     def __read_response(self) -> GsupMessage:
         resp_hdr = self.sock.recv(3)
@@ -164,8 +149,7 @@ class GSUPClient:
         self.sock.close()
 
 
-
-if __name__ == '__main__':
+def test_gsup_air(run_redis, create_test_db, run_pyhss_hss, run_pyhss_gsup):
     client = GSUPClient('127.0.0.1', 4222, 'SGSN-NG')
     client2 = GSUPClient('127.0.0.1', 4222, 'SGSN')
 

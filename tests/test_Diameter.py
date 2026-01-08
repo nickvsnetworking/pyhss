@@ -1,12 +1,15 @@
+# Copyright 2022-2023 Nick <nick@nickvsnetworking.com>
+# Copyright 2023 David Kneipp <david@davidkneipp.com>
+# Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import unittest
-import requests
-import json
 import logging
-import sys
 global log
 log= logging.getLogger("UnitTestLogger")
 import diameter as DiameterLib
-import traceback
+from logtool import LogTool
+from pyhss_config import config
+
 
 class Diameter_Tests(unittest.TestCase):
     diameter_inst = 0
@@ -29,6 +32,7 @@ class Diameter_Tests(unittest.TestCase):
 
     def test_A_Instantiate(self):
         diameter_inst = DiameterLib.Diameter(
+            LogTool(config),
             str('OriginHost'), str('OriginRealm'), 
             str('UnitTest_Diameter'), str('001'), str('001')
         )
@@ -47,21 +51,13 @@ class Diameter_Tests(unittest.TestCase):
 
     def test_B_Recv_AIR(self):
         packet_vars, avps = self.__class__.diameter_inst.decode_diameter_packet(self.__class__.Diameter_AIR)
-        log.debug("Received request with Command Code: " + str(packet_vars['command_code']) + ", ApplicationID: " + str(packet_vars['ApplicationId']) + " and flags " + str(packet_vars['flags']))
-        if packet_vars['command_code'] == 318 and packet_vars['ApplicationId'] == 16777251 and packet_vars['flags'] == "c0":
-                log.info("Received Request with command code 318 (3GPP Authentication-Information-Request) - Generating (AIA)")
-                try:
-                    response = self.__class__.diameter_inst.Answer_16777251_318(packet_vars, avps)      #Generate Diameter packet
-                    log.info("Generated AIR")
-                except Exception as e:
-                    log.info("Failed to generate Diameter Response for AIR")
-                    log.info(e)
-                    traceback.print_exc()
-                    log.info("Generated DIAMETER_USER_DATA_NOT_AVAILABLE AIR")
-
-        self.assertEqual(packet_vars['ApplicationId'], 0, "Application ID Mismatch")
-
-if __name__ == '__main__':
-    logging.basicConfig( stream=sys.stderr )
-    logging.getLogger("UnitTestLogger").setLevel( logging.DEBUG )
-    unittest.main()
+        assert packet_vars == {
+            "ApplicationId": 16777251,
+            "command_code": 318,
+            "end-to-end-identifier": "6d1969c8",
+            "flags": "c0",
+            "flags_bin": "11000000",
+            "hop-by-hop-identifier": "30d06879",
+            "length": 276,
+            "packet_version": "01",
+        }

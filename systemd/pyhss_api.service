@@ -1,0 +1,13 @@
+[Unit]
+Description=PyHSS API Service
+After=network.target
+
+[Service]
+Environment="PYTHONUNBUFFERED=1"
+User=root
+WorkingDirectory=/etc/pyhss/services/
+ExecStart=python3 apiService.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

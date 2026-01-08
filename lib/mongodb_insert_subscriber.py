@@ -1,5 +1,7 @@
-#Example subscriber added to MongoDB directly
-
+# Example subscriber added to MongoDB directly
+# Copyright 2019-2022 Nick <nick@nickvsnetworking.com>
+# Copyright 2024 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
 sys.path.append("..")
 

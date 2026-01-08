@@ -1,40 +1,39 @@
-import os, sys, json, yaml, time, traceback, socket
-sys.path.append(os.path.realpath('../lib'))
+#!/usr/bin/env python3
+# Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+import os, sys, json, time, traceback, socket
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messaging import RedisMessaging
 from diameter import Diameter
 from banners import Banners
 from logtool import LogTool
 from baseModels import Peer, InboundData, OutboundData
 import pydantic_core
+from pyhss_config import config
 
 
 class HssService:
     
     def __init__(self):
-
-        try:
-            with open("../config.yaml", "r") as self.configFile:
-                self.config = yaml.safe_load(self.configFile)
-        except:
-            print(f"[HSS] Fatal Error - config.yaml not found, exiting.")
-            quit()
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
         self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
-        self.logTool = LogTool(config=self.config)
+        self.logTool = LogTool(config=config)
         self.banners = Banners()
-        self.mnc = self.config.get('hss', {}).get('MNC', '999')
-        self.mcc = self.config.get('hss', {}).get('MCC', '999')
-        self.originRealm = self.config.get('hss', {}).get('OriginRealm', f'mnc{self.mnc}.mcc{self.mcc}.3gppnetwork.org')
-        self.originHost = self.config.get('hss', {}).get('OriginHost', f'hss01')
-        self.productName = self.config.get('hss', {}).get('ProductName', f'PyHSS')
+        self.mnc = config.get('hss', {}).get('MNC', '999')
+        self.mcc = config.get('hss', {}).get('MCC', '999')
+        self.originRealm = config.get('hss', {}).get('OriginRealm', f'mnc{self.mnc}.mcc{self.mcc}.3gppnetwork.org')
+        self.originHost = config.get('hss', {}).get('OriginHost', f'hss01')
+        self.productName = config.get('hss', {}).get('ProductName', f'PyHSS')
         self.logTool.log(service='HSS', level='info', message=f"{self.banners.hssService()}", redisClient=self.redisMessaging)
         self.diameterLibrary = Diameter(logTool=self.logTool, originHost=self.originHost, originRealm=self.originRealm, productName=self.productName, mcc=self.mcc, mnc=self.mnc)
-        self.benchmarking = self.config.get('hss').get('enable_benchmarking', False)
-        self.hostname = socket.gethostname()
-        self.diameterPeerKey = self.config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
+        self.benchmarking = config.get('hss').get('enable_benchmarking', False)
+        self.hostname = self.originHost
+        self.diameterPeerKey = config.get('hss', {}).get('diameter_peer_key', 'diameterPeers')
 
     def handleQueue(self):
         """
@@ -148,9 +147,12 @@ class HssService:
             except Exception as e:
                 self.logTool.log(service='HSS', level='error', message=f"[HSS] [handleQueue] Exception: {traceback.format_exc()}", redisClient=self.redisMessaging)
                 continue
-            
+
+
+def main():
+    hssService = HssService()
+    hssService.handleQueue()
 
 
 if __name__ == '__main__':
-    hssService = HssService()
-    hssService.handleQueue()
+    main()

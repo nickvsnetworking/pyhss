@@ -1,13 +1,18 @@
+# Copyright 2021-2025 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
+# Copyright 2024-2025 Lennart Rosam <hello@takuto.de>
+# Copyright 2024-2025 Alexander Couzens <lynxis@fe80.eu>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from typing import Optional
 
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql import desc, func
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 import  os
 import datetime, time
 from datetime import timezone
@@ -17,19 +22,14 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
+from baseModels import SubscriberInfo, LocationInfo2G
 from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
-import yaml
 import json
 import socket
 import traceback
+from pyhss_config import config
 
-try:
-    with open("../config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
-except:
-    with open("config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
 
 Base = declarative_base()
 class APN(Base):
@@ -358,23 +358,17 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
 class Database:
 
     def __init__(self, logTool, redisMessaging=None):
-        try:
-            with open("../config.yaml", 'r') as stream:
-                self.config = (yaml.safe_load(stream))
-        except:
-            with open("config.yaml", 'r') as stream:
-                self.config = (yaml.safe_load(stream))
 
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
-        self.tacDatabasePath = self.config.get('eir', {}).get('tac_database_csv', None)
-        self.imsiImeiLogging = self.config.get('eir', {}).get('imsi_imei_logging', True)
-        self.simSwapNotificationEnabled = self.config.get('eir', {}).get('simSwapNotification', False)
-        self.georedEnabled = self.config.get('geored', {}).get('enabled', True)
-        self.eirNoMatchResponse = int(self.config.get('eir', {}).get('no_match_response', 2))
-        self.eirStoreOffnetImsi = self.config.get('eir', {}).get('store_offnet_imsi', False)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
+        self.tacDatabasePath = config.get('eir', {}).get('tac_database_csv', None)
+        self.imsiImeiLogging = config.get('eir', {}).get('imsi_imei_logging', True)
+        self.simSwapNotificationEnabled = config.get('eir', {}).get('simSwapNotification', False)
+        self.georedEnabled = config.get('geored', {}).get('enabled', True)
+        self.eirNoMatchResponse = int(config.get('eir', {}).get('no_match_response', 2))
+        self.eirStoreOffnetImsi = config.get('eir', {}).get('store_offnet_imsi', False)
 
         self.logTool = logTool
         if redisMessaging:
@@ -382,14 +376,14 @@ class Database:
         else:
             self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
 
-        db_type = str(self.config['database']['db_type'])
+        db_type = str(config['database']['db_type'])
 
         if db_type == 'postgresql':
-            db_string = 'postgresql+psycopg2://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'])
+            db_string = 'postgresql+psycopg2://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'])
         elif db_type == 'mysql':
-            db_string = 'mysql://' + str(self.config['database']['username']) + ':' + str(self.config['database']['password']) + '@' + str(self.config['database']['server']) + '/' + str(self.config['database']['database'] + "?autocommit=true")
+            db_string = 'mysql://' + str(config['database']['username']) + ':' + str(config['database']['password']) + '@' + str(config['database']['server']) + '/' + str(config['database']['database'] + "?autocommit=true")
         elif db_type == 'sqlite':
-            db_string = "sqlite:///" + str(self.config['database']['database'])
+            db_string = "sqlite:///" + str(config['database']['database'])
         else:
             raise RuntimeError(f'Invalid database.db_type set "{db_type}"')
 
@@ -397,10 +391,10 @@ class Database:
         
         self.engine = create_engine(
             db_string, 
-            echo = self.config['logging'].get('sqlalchemy_sql_echo', False), 
-            pool_recycle=self.config['logging'].get('sqlalchemy_pool_recycle', 5),
-            pool_size=self.config['logging'].get('sqlalchemy_pool_size', 30),
-            max_overflow=self.config['logging'].get('sqlalchemy_max_overflow', 0))
+            echo = config['logging'].get('sqlalchemy_sql_echo', False), 
+            pool_recycle=config['logging'].get('sqlalchemy_pool_recycle', 5),
+            pool_size=config['logging'].get('sqlalchemy_pool_size', 30),
+            max_overflow=config['logging'].get('sqlalchemy_max_overflow', 0))
 
         # Create database if it does not exist.
         if not database_exists(self.engine.url):
@@ -418,8 +412,8 @@ class Database:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
             self.tacData = {}
 
-    # Create individual tables if they do not exist.
-        inspector = Inspector.from_engine(self.engine)
+        # Create individual tables if they do not exist
+        inspector = inspect(self.engine)
         for table_name in Base.metadata.tables.keys():
             if table_name not in inspector.get_table_names():
                 self.logTool.log(service='Database', level='debug', message=f"Creating table {table_name}", redisClient=self.redisMessaging)
@@ -976,9 +970,9 @@ class Database:
                 self.logTool.log(service='Database', level='warning', message="Failed to send Geored message invalid operation type, received: " + str(operation), redisClient=self.redisMessaging)
                 return
             georedDict = {}
-            if self.config.get('geored', {}).get('enabled', False):
-                if self.config.get('geored', {}).get('endpoints', []) is not None:
-                    if len(self.config.get('geored', {}).get('endpoints', [])) > 0:
+            if config.get('geored', {}).get('enabled', False):
+                if config.get('geored', {}).get('endpoints', []) is not None:
+                    if len(config.get('geored', {}).get('endpoints', [])) > 0:
                         georedDict['body'] = jsonData
                         georedDict['operation'] = operation
                         georedDict['timestamp'] = time.time_ns()
@@ -997,8 +991,8 @@ class Database:
             return False
 
     def handleWebhook(self, objectData, operation: str="PATCH"):
-        webhooksEnabled = self.config.get('webhooks', {}).get('enabled', False)
-        endpointList = self.config.get('webhooks', {}).get('endpoints', [])
+        webhooksEnabled = config.get('webhooks', {}).get('enabled', False)
+        endpointList = config.get('webhooks', {}).get('endpoints', [])
         webhook = {}
 
         if not webhooksEnabled:
@@ -1051,7 +1045,7 @@ class Database:
 
         try:
             if obj_id is not None:
-                result = session.query(obj_type).get(obj_id)
+                result = session.get(obj_type, obj_id)
                 if result is None:
                     raise ValueError(f"No {obj_type} found with id {obj_id}")
 
@@ -1219,7 +1213,7 @@ class Database:
         session = Session()
 
         try:
-            res = session.query(obj_type).get(obj_id)
+            res = session.get(obj_type, obj_id)
             if res is None:
                 raise ValueError("The specified row does not exist")
             objectData = self.GetObj(obj_type, obj_id)
@@ -1479,8 +1473,8 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Filtering to locally served IMS Subs only", redisClient=self.redisMessaging)
                     try:
                         serving_hss = result['serving_mme_peer'].split(';')[1]
-                        self.logTool.log(service='Database', level='debug', message="Serving HSS: " + str(serving_hss) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
-                        if serving_hss == self.config['hss']['OriginHost']:
+                        self.logTool.log(service='Database', level='debug', message="Serving HSS: " + str(serving_hss) + " and this is: " + str(config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_hss == config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="Serving HSS matches local HSS", redisClient=self.redisMessaging)
                             Served_Subs[result['imsi']] = {}
                             Served_Subs[result['imsi']] = result
@@ -1523,8 +1517,8 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Filtering Get_Served_IMS_Subscribers to locally served IMS Subs only", redisClient=self.redisMessaging)
                     try:
                         serving_ims_hss = result['scscf_peer'].split(';')[1]
-                        self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
-                        if serving_ims_hss == self.config['hss']['OriginHost']:
+                        self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS: " + str(serving_ims_hss) + " and this is: " + str(config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_ims_hss == config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="Serving IMS-HSS matches local HSS for " + str(result['imsi']), redisClient=self.redisMessaging)
                             Served_Subs[result['imsi']] = {}
                             Served_Subs[result['imsi']] = result
@@ -1564,8 +1558,8 @@ class Database:
                     self.logTool.log(service='Database', level='debug', message="Filtering to locally served IMS Subs only", redisClient=self.redisMessaging)
                     try:
                         serving_pcrf = result['serving_pgw_peer'].split(';')[1]
-                        self.logTool.log(service='Database', level='debug', message="Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(self.config['hss']['OriginHost']), redisClient=self.redisMessaging)
-                        if serving_pcrf == self.config['hss']['OriginHost']:
+                        self.logTool.log(service='Database', level='debug', message="Serving PCRF: " + str(serving_pcrf) + " and this is: " + str(config['hss']['OriginHost']), redisClient=self.redisMessaging)
+                        if serving_pcrf == config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="Serving PCRF matches local PCRF", redisClient=self.redisMessaging)
                             self.logTool.log(service='Database', level='debug', message="Processed result", redisClient=self.redisMessaging)
                             
@@ -1685,6 +1679,37 @@ class Database:
         else:
             self.logTool.log(service='Database', level='error', message="Invalid action: " + str(action), redisClient=self.redisMessaging)
 
+    def Get_Gsup_SubscriberInfo(self, imsi: str) -> SubscriberInfo:
+        subscriber = self.Get_Subscriber(imsi=imsi)
+        msisdn = subscriber['msisdn']
+
+        apn_list_value = subscriber.get('apn_list', '')
+        if isinstance(apn_list_value, str):
+            apn_ids = [int(x) for x in apn_list_value.split(',') if x.strip()]
+        else:
+            apn_ids = []
+
+        session = Session(self.engine)
+        apns = [] if not apn_ids else session.query(APN).filter(APN.apn_id.in_(apn_ids)).all()
+
+        ip_version_to_str = {
+            0: 'ipv4',
+            1: 'ipv6',
+            2: 'ipv4v6',
+            3: 'ipv4v6',
+        }
+
+        subscriber_apn_info = list()
+        for apn in apns:
+            ip_version_str = None
+            if apn.ip_version in ip_version_to_str:
+                ip_version_str = ip_version_to_str[apn.ip_version]
+            subscriber_apn_info.append({'apn_id':apn.apn_id, 'name': apn.apn, 'ip_version': ip_version_str})
+
+        location_info_2g = LocationInfo2G(vlr=subscriber.get('serving_vlr'), sgsn=subscriber.get('serving_sgsn'), msc=subscriber.get('serving_msc'))
+
+        return SubscriberInfo(apns=subscriber_apn_info, msisdn=msisdn, imsi=imsi, location_info_2g=location_info_2g)
+
     def Get_APN(self, apn_id):
         self.logTool.log(service='Database', level='debug', message="Getting APN " + str(apn_id), redisClient=self.redisMessaging)
         Session = sessionmaker(bind = self.engine)
@@ -1719,7 +1744,7 @@ class Database:
         self.logTool.log(service='Database', level='debug', message=self.UpdateObj(AUC, {'sqn': sqn}, auc_id, True), redisClient=self.redisMessaging)
 
         if propagate:
-            if self.config['geored'].get('enabled', False) == True:
+            if config['geored'].get('enabled', False) == True:
                 aucBody = {
                     "auc_id": auc_id,
                     "sqn": sqn,
@@ -1786,7 +1811,7 @@ class Database:
                 pass
 
             if propagate == True:
-                if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
+                if 'HSS' in config['geored'].get('sync_actions', []) and config['geored'].get('enabled', False) == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate Subscriber Location changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "last_seen_eci": last_seen_eci, "last_seen_enodeb_id": last_seen_enodeb_id,
                                         "last_seen_cell_id": last_seen_cell_id, "last_seen_tac": last_seen_tac, "last_seen_mcc": last_seen_mcc,
@@ -1806,7 +1831,7 @@ class Database:
         session = Session()
         try:
             result = session.query(SUBSCRIBER).filter_by(imsi=imsi).one()
-            if self.config['hss']['CancelLocationRequest_Enabled'] == True:
+            if config['hss']['CancelLocationRequest_Enabled'] == True:
                 self.logTool.log(service='Database', level='debug', message="Evaluating if we should trigger sending a CLR.", redisClient=self.redisMessaging)
                 if result.serving_mme != None:
                     serving_hss = str(result.serving_mme_peer).split(';',1)[1]
@@ -1818,13 +1843,13 @@ class Database:
                         self.logTool.log(service='Database', level='debug', message="This MME is unchanged (" + str(serving_mme) + ") - so no need to send a CLR", redisClient=self.redisMessaging)
                     elif (str(result.serving_mme) != str(serving_mme)):
                         self.logTool.log(service='Database', level='debug', message="There is a difference in serving MME, old MME is '" + str(result.serving_mme) + "' new MME is '" + str(serving_mme) + "' - We need to trigger sending a CLR", redisClient=self.redisMessaging)
-                        if serving_hss != self.config['hss']['OriginHost']:
+                        if serving_hss != config['hss']['OriginHost']:
                             self.logTool.log(service='Database', level='debug', message="This subscriber is not served by this HSS it is served by HSS at " + serving_hss + " - We need to trigger sending a CLR on " + str(serving_hss), redisClient=self.redisMessaging)
-                            URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                            URL = 'http://' + serving_hss + '.' + config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                         else:
                             self.logTool.log(service='Database', level='debug', message="This subscriber is served by this HSS we need to send a CLR to old MME from this HSS", redisClient=self.redisMessaging)
                         
-                        URL = 'http://' + serving_hss + '.' + self.config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
+                        URL = 'http://' + serving_hss + '.' + config['hss']['OriginRealm'] + ':8080/push/clr/' + str(imsi)
                         self.logTool.log(service='Database', level='debug', message="Sending CLR to API at " + str(URL), redisClient=self.redisMessaging)
 
                         clrBody = {
@@ -1873,7 +1898,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'HSS' in self.config['geored'].get('sync_actions', []) and self.config['geored'].get('enabled', False) == True:
+                if 'HSS' in config['geored'].get('sync_actions', []) and config['geored'].get('enabled', False) == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate MME changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({
                         "imsi": str(imsi), 
@@ -1933,7 +1958,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'IMS' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'IMS' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "pcscf": result.pcscf, "pcscf_realm": result.pcscf_realm, "pcscf_timestamp": pcscf_timestamp_string, "pcscf_peer": result.pcscf_peer, "pcscf_active_session": pcscf_active_session})
                 else:
@@ -1987,7 +2012,7 @@ class Database:
 
             #Sync state change with geored
             if propagate == True:
-                if 'IMS' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'IMS' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate IMS changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi), "scscf": result.scscf, "scscf_realm": result.scscf_realm, "scscf_timestamp": scscf_timestamp_string, "scscf_peer": result.scscf_peer})
                 else:
@@ -2139,7 +2164,7 @@ class Database:
         #Sync state change with geored
         if propagate == True:
             try:
-                if 'PCRF' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'PCRF' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate PCRF changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored({"imsi": str(imsi),
                                     'serving_apn' : apn,
@@ -2723,7 +2748,7 @@ class Database:
         #Sync state change with geored
         if propagate == True:
             try:
-                if 'EIR' in self.config['geored']['sync_actions'] and self.georedEnabled == True:
+                if 'EIR' in config['geored']['sync_actions'] and self.georedEnabled == True:
                     self.logTool.log(service='Database', level='debug', message="Propagate EIR changes to Geographic PyHSS instances", redisClient=self.redisMessaging)
                     self.handleGeored(
                         {"imsi": str(imsi), 
@@ -2831,7 +2856,7 @@ class Database:
         except Exception as e:
             self.logTool.log(service='Database', level='error', message=f"Error Storing IMSI / IMEI Binding: {traceback.format_exc()}", redisClient=self.redisMessaging)
         self.safe_close(session)
-        return self.config['eir']['no_match_response']
+        return config['eir']['no_match_response']
 
     def Get_EIR_Rules(self):
         self.logTool.log(service='Database', level='debug', message="Getting all EIR Rules", redisClient=self.redisMessaging)
@@ -2884,269 +2909,3 @@ class Database:
             self.logTool.log(service='Database', level='debug', message="Failed to match on 8 digit IMEI", redisClient=self.redisMessaging)
 
         raise ValueError("No matching TAC in IMEI Database")
-
-
-if __name__ == "__main__":
-    import binascii,os,pprint
-    DeleteAfter = True
-    database = Database()
-
-    #Define Charging Rule
-    charging_rule = {
-        'rule_name' : 'charging_rule_A',
-        'qci' : 4,
-        'arp_priority' : 5,
-        'arp_preemption_capability' : True,
-        'arp_preemption_vulnerability' : False,
-        'mbr_dl' : 128000,
-        'mbr_ul' : 128000,
-        'gbr_dl' : 128000,
-        'gbr_ul' : 128000,
-        'tft_group_id' : 1,
-        'precedence' : 100,
-        'rating_group' : 20000
-        }
-    print("Creating Charging Rule A")
-    ChargingRule_newObj_A = database.CreateObj(CHARGING_RULE, charging_rule)
-    print("ChargingRule_newObj A: " + str(ChargingRule_newObj_A))
-    charging_rule['gbr_ul'], charging_rule['gbr_dl'], charging_rule['mbr_ul'], charging_rule['mbr_dl'] = 256000, 256000, 256000, 256000
-    print("Creating Charging Rule B")
-    charging_rule['rule_name'], charging_rule['precedence'], charging_rule['tft_group_id'] = 'charging_rule_B', 80, 2
-    ChargingRule_newObj_B = database.CreateObj(CHARGING_RULE, charging_rule)
-    print("ChargingRule_newObj B: " + str(ChargingRule_newObj_B))
-
-    #Define TFTs
-    tft_template1 = {
-        'tft_group_id' : 1,
-        'tft_string' : 'permit out ip from any to any',
-        'direction' : 1
-    }
-    tft_template2 = {
-        'tft_group_id' : 1,
-        'tft_string' : 'permit out ip from any to any',
-        'direction' : 2
-    }
-    print("Creating TFT")
-    database.CreateObj(TFT, tft_template1)
-    database.CreateObj(TFT, tft_template2)
-
-    tft_template3 = {
-        'tft_group_id' : 2,
-        'tft_string' : 'permit out ip from 10.98.0.0 255.255.255.0 to any',
-        'direction' : 1
-    }
-    tft_template4 = {
-        'tft_group_id' : 2,
-        'tft_string' : 'permit out ip from any to 10.98.0.0 255.255.255.0',
-        'direction' : 2
-    }
-    print("Creating TFT")
-    database.CreateObj(TFT, tft_template3)
-    database.CreateObj(TFT, tft_template4)
-
-
-    apn2 = {
-        'apn':'ims',
-        'apn_ambr_dl' : 9999, 
-        'apn_ambr_ul' : 9999,
-        'arp_priority': 1, 
-        'arp_preemption_capability' : False,
-        'arp_preemption_vulnerability': True,
-        'charging_rule_list' : str(ChargingRule_newObj_A['charging_rule_id']) + "," + str(ChargingRule_newObj_B['charging_rule_id'])
-        }
-    print("Creating APN " + str(apn2['apn']))
-    newObj = database.CreateObj(APN, apn2)
-    print(newObj)
-
-    print("Getting APN " + str(apn2['apn']))
-    print(database.GetObj(APN, newObj['apn_id']))
-    apn_id = newObj['apn_id']
-    UpdatedObj = newObj
-    UpdatedObj['apn'] = 'UpdatedInUnitTest'
-    
-    print("Updating APN " + str(apn2['apn']))
-    newObj = database.UpdateObj(APN, UpdatedObj, newObj['apn_id'])
-    print(newObj)
-
-    #Create AuC
-    auc_json = {
-    "ki": binascii.b2a_hex(os.urandom(16)).zfill(16),
-    "opc": binascii.b2a_hex(os.urandom(16)).zfill(16),
-    "amf": "9000",
-    "sqn": 0
-    }
-    print(auc_json)
-    print("Creating AuC entry")
-    newObj = database.CreateObj(AUC, auc_json)
-    print(newObj)
-
-    #Get AuC
-    print("Getting AuC entry")
-    newObj = database.GetObj(AUC, newObj['auc_id'])
-    auc_id = newObj['auc_id']
-    print(newObj)
-
-    #Update AuC
-    print("Updating AuC entry")
-    newObj['sqn'] = newObj['sqn'] + 10
-    newObj = database.UpdateObj(AUC, newObj, auc_id)
-
-    #Generate Vectors
-    print("Generating Vectors")
-    database.Get_Vectors_AuC(auc_id, "air", plmn='12ff')
-    print(database.Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
-
-
-    #Update AuC
-    database.Update_AuC(auc_id, sqn=100)
-
-    #New Subscriber
-    subscriber_json = {
-        "imsi": "001001000000006",
-        "enabled": True,
-        "msisdn": "12345678",
-        "ue_ambr_dl": 999999,
-        "ue_ambr_ul": 999999,
-        "nam": 0,
-        "subscribed_rau_tau_timer": 600,
-        "auc_id" : auc_id,
-        "default_apn" : apn_id,
-        "apn_list" : apn_id
-    }
-
-    #Delete IMSI if already exists
-    try:
-        existing_sub_data = database.Get_Subscriber(imsi=subscriber_json['imsi'])
-        database.DeleteObj(SUBSCRIBER, existing_sub_data['subscriber_id'])
-    except:
-        print("Did not find old sub to delete")
-
-    print("Creating new Subscriber")
-    print(subscriber_json)
-    newObj = database.CreateObj(SUBSCRIBER, subscriber_json)
-    print(newObj)
-    subscriber_id = newObj['subscriber_id']
-
-    #Get SUBSCRIBER
-    print("Getting Subscriber")
-    newObj = database.GetObj(SUBSCRIBER, subscriber_id)
-    print(newObj)
-
-    #Update SUBSCRIBER
-    print("Updating Subscriber")
-    newObj['ue_ambr_ul'] = 999995
-    newObj = database.UpdateObj(SUBSCRIBER, newObj, subscriber_id)
-
-    #Set MME Location for Subscriber
-    print("Updating Serving MME for Subscriber")
-    database.Update_Serving_MME(imsi=newObj['imsi'], serving_mme="Test123", serving_mme_peer="Test123", serving_mme_realm="TestRealm")
-
-    #Update Serving APN for Subscriber
-    print("Updating Serving APN for Subscriber")
-    database.Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='kjsdlkjfd', serving_pgw='pgw.test.com', subscriber_routing='1.2.3.4')
-
-    print("Getting Charging Rule for Subscriber / APN Combo")
-    ChargingRule = database.Get_Charging_Rules(imsi=newObj['imsi'], apn=apn2['apn'])
-    pprint.pprint(ChargingRule)
-
-    #New IMS Subscriber
-    ims_subscriber_json = {
-        "msisdn": newObj['msisdn'], 
-        "msisdn_list": newObj['msisdn'],
-        "imsi": subscriber_json['imsi'],
-        "ifc_path" : "default_ifc.xml"
-        }
-    print(ims_subscriber_json)
-    newObj = database.CreateObj(IMS_SUBSCRIBER, ims_subscriber_json)
-    print(newObj)
-    ims_subscriber_id = newObj['ims_subscriber_id']
-
-
-    #Test Get Subscriber
-    print("Test Getting Subscriber")
-    GetSubscriber_Result = database.Get_Subscriber(imsi=subscriber_json['imsi'])
-    print(GetSubscriber_Result)
-
-    #Test IMS Get Subscriber
-    print("Getting IMS Subscribers")
-    print(database.Get_IMS_Subscriber(imsi='001001000000006'))
-    print(database.Get_IMS_Subscriber(msisdn='12345678'))
-
-    #Set SCSCF for Subscriber
-    database.Update_Serving_CSCF(newObj['imsi'], "NickTestCSCF")
-    #Get Served Subscriber List
-    print(database.Get_Served_IMS_Subscribers())
-
-    #Clear Serving PGW for PCRF Subscriber
-    print("Clear Serving PGW for PCRF Subscriber")
-    database.Update_Serving_APN(imsi=newObj['imsi'], apn=apn2['apn'], pcrf_session_id='sessionid123', serving_pgw=None, subscriber_routing=None)
-
-    #Clear MME Location for Subscriber    
-    print("Clear MME Location for Subscriber")
-    database.Update_Serving_MME(newObj['imsi'], None)
-
-    #Generate Vectors for IMS Subscriber
-    print("Generating Vectors for IMS Subscriber")
-    print(database.Get_Vectors_AuC(auc_id, "sip_auth", plmn='12ff'))
-
-    #print("Generating Resync for IMS Subscriber")
-    #print(Get_Vectors_AuC(auc_id, "sqn_resync", auts='7964347dfdfe432289522183fcfb', rand='1bc9f096002d3716c65e4e1f4c1c0d17'))
-    
-    #Test getting APNs
-    GetAPN_Result = database.Get_APN(GetSubscriber_Result['default_apn'])
-    print(GetAPN_Result)
-
-    #handleGeored({"imsi": "001001000000006", "serving_mme": "abc123"})
-    
-
-    if DeleteAfter == True:
-        #Delete IMS Subscriber
-        print(database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber_id))
-        #Delete Subscriber
-        print(database.DeleteObj(SUBSCRIBER, subscriber_id))
-        #Delete AuC
-        print(database.DeleteObj(AUC, auc_id))
-        #Delete APN
-        print(database.DeleteObj(APN, apn_id))
-
-    #Whitelist IMEI / IMSI Binding
-    eir_template = {'imei': '1234', 'imsi': '567', 'regex_mode': 0, 'match_response_code': 0}
-    database.CreateObj(EIR, eir_template)
-
-    #Blacklist Example
-    eir_template = {'imei': '99881232', 'imsi': '', 'regex_mode': 0, 'match_response_code': 1}
-    database.CreateObj(EIR, eir_template)
-
-    #IMEI Prefix Regex Example (Blacklist all IMEIs starting with 666)
-    eir_template = {'imei': '^666.*', 'imsi': '', 'regex_mode': 1, 'match_response_code': 1}
-    database.CreateObj(EIR, eir_template)
-
-    #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
-    eir_template = {'imei': '^777.*', 'imsi': '^1234123412341234$', 'regex_mode': 1, 'match_response_code': 2}
-    database.CreateObj(EIR, eir_template)
-
-    print("\n\n\n\n")
-    #Check Whitelist (No Match)
-    assert database.Check_EIR(imei='1234', imsi='') == 2
-
-    print("\n\n\n\n")
-    #Check Whitelist (Matched)
-    assert database.Check_EIR(imei='1234', imsi='567') == 0
-
-    print("\n\n\n\n")
-    #Check Blacklist (Match)
-    assert database.Check_EIR(imei='99881232', imsi='567') == 1
-
-    print("\n\n\n\n")
-    #IMEI Prefix Regex Example (Greylist response for IMEI starting with 777 and IMSI is 1234123412341234)
-    assert database.Check_EIR(imei='7771234', imsi='1234123412341234') == 2
-    
-    print(database.Get_IMEI_IMSI_History('1234123412'))
-
-
-    print("\n\n\n")
-    print(database.Generate_JSON_Model_for_Flask(SUBSCRIBER))
-
-
-
-

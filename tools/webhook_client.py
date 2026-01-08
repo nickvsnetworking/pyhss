@@ -1,3 +1,5 @@
+# Copyright 2023 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from flask import Flask, request, jsonify
 from pprint import pprint
 

@@ -1,4 +1,6 @@
-#Interactive Diameter Client
+# Interactive Diameter Client
+# Copyright 2019-2023 Nick <nick@nickvsnetworking.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import socket
 import sys
 import os
@@ -6,20 +8,18 @@ import diameter
 import time
 import _thread
 global recv_ip
-import yaml
-with open("config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
+from pyhss_config import config
 
 #Values to change / tweak
-recv_ip = yaml_config['hss']['bind_ip']                                                         #IP of this Machine
-diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
-realm = yaml_config['hss']['OriginRealm']                                          #Diameter Realm of this machine
+recv_ip = config['hss']['bind_ip']                                                         #IP of this Machine
+diameter_host = config['hss']['OriginHost']                                                        #Diameter Host of this Machine
+realm = config['hss']['OriginRealm']                                          #Diameter Realm of this machine
 DestinationHost = ""                                             #Diameter Host of Destination
 DestinationRealm = input("Enter Diameter Realm: ")                                                #Diameter Realm of Destination
 hostname = input("Enter IP of Diameter Peer to connect to: ")                                                         #IP of Remote Diameter Host
-mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
-mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
-transport = yaml_config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
+mcc = config['hss']['MCC']                                                                     #Mobile Country Code
+mnc = config['hss']['MNC']                                                                      #Mobile Network Code
+transport = config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 sessionid = str(diameter_host) + ';' + diameter.generate_id(5) + ';1;app_gy'

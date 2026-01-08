@@ -20,35 +20,39 @@
 """
 
 import traceback
-from datetime import datetime
 from enum import IntEnum
-from typing import Callable, List, Dict, Optional
+from typing import Callable, Dict, Optional, Awaitable
+
 from osmocom.gsup.message import GsupMessage, MsgType
 
+from baseModels import SubscriberInfo
 from database import Database
 from gsup.controller.abstract_controller import GsupController
+from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil, GMMCause
-from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
+from gsup.protocol.ipa_peer import IPAPeer
 from logtool import LogTool
+from rat import RAT, SubscriberRATRestriction
 from utils import validate_imsi, InvalidIMSI
 
 
-class ULRSubscriberInfo:
-    def __init__(self, apns: List[Dict[str, str]], msisdn: str, imsi: str):
-        self.apns = apns
-        self.msisdn = msisdn
-        self.imsi = imsi
+class ULRError(ValueError):
+    def __init__(self, message: str, gmm_cause: GMMCause):
+        super().__init__(message)
+        self.gmm_cause = gmm_cause
+        self.message = message
 
 
-class ULRTransaction:
+class ULRTransaction(AbstractTransaction):
     class __TransactionState(IntEnum):
         BEGIN_STATE_INITIAL = 0
         ISD_REQUEST_SENT = 1
         END_STATE_ULR_SENT = 2
         END_STATE_CANCEL_LOCATION_SENT = 3
 
-    def __init__(self, peer: IPAPeer, ulr: GsupMessage, cb_response_sender: Callable[[IPAPeer, GsupMessage], None],
-                 cb_update_subscriber: Callable[[IPAPeer, str], Optional[IPAPeer]], subscriber_info: ULRSubscriberInfo):
+    def __init__(self, peer: IPAPeer, ulr: GsupMessage, cb_response_sender: Callable[[IPAPeer, GsupMessage], Awaitable[None]],
+                 cb_update_subscriber: Callable[[IPAPeer, str], Optional[IPAPeer]], subscriber_info: SubscriberInfo):
+        super().__init__()
         self.__peer = peer
         self.__ulr = ulr.to_dict()
         self.__subscriber_info = subscriber_info
@@ -57,17 +61,17 @@ class ULRTransaction:
         self.__insert_subscriber_data_response = None
         self.__state = self.__TransactionState.BEGIN_STATE_INITIAL
         self.__old_peer = None
-        self.__timeout_seconds = 10
-        self.__started_at = datetime.now()
 
-    async def begin(self):
+    async def begin_invoke(self):
         if self.__state != self.__TransactionState.BEGIN_STATE_INITIAL:
             raise ValueError("ULR Transaction already started")
 
-        await self.__send_isd_request()
+        cn_domain = GsupMessageUtil.get_first_ie_by_name('cn_domain', self.__ulr)
+        self._validate_cn_domain(cn_domain)
+        await self.__cb_response_sender(self.__peer, self._build_isd_request(self.__subscriber_info, cn_domain))
         self.__state = self.__TransactionState.ISD_REQUEST_SENT
 
-    async def handle_insert_subscriber_data_response(self, response: GsupMessage):
+    async def continue_invoke(self, response: GsupMessage):
         if self.__state != self.__TransactionState.ISD_REQUEST_SENT:
             raise ValueError("ULR Transaction not in ISD_REQUEST_SENT state")
 
@@ -77,31 +81,13 @@ class ULRTransaction:
             await self.__send_cancel_location_request()
 
     def is_finished(self):
-        if self.__is_timed_out():
+        if self._is_timed_out():
             return True
 
         if self.__state == self.__TransactionState.END_STATE_ULR_SENT:
             return self.__old_peer is None
 
         return self.__state == self.__TransactionState.END_STATE_CANCEL_LOCATION_SENT
-
-    def __is_timed_out(self):
-        return (datetime.now() - self.__started_at).seconds > self.__timeout_seconds
-
-    async def __send_isd_request(self):
-        request_builder = (GsupMessageBuilder()
-                           .with_msg_type(MsgType.INSERT_DATA_REQUEST)
-                           .with_ie('imsi', self.__subscriber_info.imsi)
-                           .with_msisdn_ie(self.__subscriber_info.msisdn)
-                           .with_ie('destination_name', '')
-                           )
-
-        cn_domain = GsupMessageUtil.get_first_ie_by_name('cn_domain', self.__ulr)
-        if cn_domain == 'ps':
-            for index, apn in enumerate(self.__subscriber_info.apns):
-                request_builder.with_pdp_info_ie(index, apn['ip_version'], apn['name'])
-
-        await self.__cb_response_sender(self.__peer, request_builder.build())
 
     async def __handle_insert_subscriber_data_response(self):
         imsi = GsupMessageUtil.get_first_ie_by_name('imsi', self.__insert_subscriber_data_response.to_dict())
@@ -110,7 +96,6 @@ class ULRTransaction:
             self.__old_peer = self.__cb_update_subscriber(self.__peer, imsi)
         response_builder = (GsupMessageBuilder()
                             .with_ie('imsi', self.__subscriber_info.imsi)
-                            .with_ie('destination_name', None)
                             )
 
         msg_type = MsgType.UPDATE_LOCATION_RESULT
@@ -118,7 +103,6 @@ class ULRTransaction:
             msg_type = MsgType.UPDATE_LOCATION_ERROR
 
         response_builder.with_msg_type(msg_type)
-        response_builder.with_ie('imsi', self.__subscriber_info.imsi)
         response = response_builder.build()
         await self.__cb_response_sender(self.__peer, response)
         self.__state = self.__TransactionState.END_STATE_ULR_SENT
@@ -127,7 +111,6 @@ class ULRTransaction:
         request_builder = (GsupMessageBuilder()
                            .with_msg_type(MsgType.LOCATION_CANCEL_REQUEST)
                            .with_ie('imsi', self.__subscriber_info.imsi)
-                           .with_ie('destination_name', None)
                            )
         await self.__cb_response_sender(self.__old_peer, request_builder.build())
         self.__state = self.__TransactionState.END_STATE_CANCEL_LOCATION_SENT
@@ -138,6 +121,7 @@ class ULRController(GsupController):
         super().__init__(logger, database)
         self.__ulr_transactions = ulr_transactions
         self.__all_ipa_peers = all_peers
+        self.__rat_restriction_checker = SubscriberRATRestriction(logger=self._logger, service='GSUP')
 
     def __update_subscriber(self, peer: IPAPeer, imsi: str) -> Optional[IPAPeer]:
         old_id = self._database.update_hlr(imsi, peer.role, peer.primary_id)
@@ -157,49 +141,54 @@ class ULRController(GsupController):
             imsi = GsupMessageUtil.get_first_ie_by_name('imsi', request_dict)
             if imsi is None:
                 raise ValueError(f"Missing IMSI in GSUP message from peer {peer}")
-            validate_imsi(imsi)
-            subscriber = self._database.Get_Subscriber(imsi=imsi)
-            apns = list()
-            msisdn = subscriber['msisdn']
+            try:
+                validate_imsi(imsi)
+            except InvalidIMSI as e:
+                raise ULRError(f"Invalid IMSI: {imsi}", GMMCause.INV_MAND_INFO) from e
 
-            ip_version_to_str = {
-                0: 'ipv4',
-                1: 'ipv6',
-                2: 'ipv4v6',
-                3: 'ipv4v6',
-            }
+            rat_type = GsupMessageUtil.get_first_ie_by_name('current_rat_type', request_dict)
 
-            for apn in apns:
-                db_apn = self._database.Get_APN_by_Name(apn)
-                ip_version_str = None
-                if db_apn['ip_version'] in ip_version_to_str:
-                    ip_version_str = ip_version_to_str[db_apn['ip_version']]
-                apns.append({'name': apn, 'ip_version': ip_version_str})
+            # Check 2G / 3G by default but not 4G. Running 4G over GSUP with PyHSS is rare enough to
+            # not warrant checking by default.
+            rat_types_to_check = [RAT.GERAN, RAT.UTRAN]
 
-            subscriber_info = ULRSubscriberInfo(apns, msisdn, imsi)
+            # Current RAT Type is a list for some reason. Maybe a bug in osmocom?
+            if rat_type is not None:
+                if rat_type[0] == 'geran':
+                    rat_types_to_check = [RAT.GERAN]
+                elif rat_type[0] == 'utran':
+                    rat_types_to_check = [RAT.UTRAN]
+                elif rat_type[0] == 'eutran':
+                    rat_types_to_check = [RAT.EUTRAN]
+                else:
+                    await self._logger.logAsync(service="GSUP", level="WARN", message=f"Unknown RAT type received in ULR: {rat_type[0]}. Checking both 2G and 3G RAT restrictions")
+            else:
+                await self._logger.logAsync(service="GSUP", level="WARN", message="No RAT type received in ULR, checking both 2G and 3G RAT restrictions")
 
+            try:
+                subscriber_info = self._database.Get_Gsup_SubscriberInfo(imsi)
+                subscriber = self._database.Get_Subscriber(imsi=imsi, get_attributes=True)
+            except ValueError as e:
+                raise ULRError(f"Subscriber not found: {imsi}", GMMCause.IMSI_UNKNOWN) from e
+
+            for rat_type_to_check in rat_types_to_check:
+                if not self.__rat_restriction_checker.is_rat_allowed(subscriber['attributes'], rat_type_to_check):
+                    raise ULRError(f"RAT {rat_type_to_check.value} not allowed for subscriber {imsi}", GMMCause.NO_SUIT_CELL_IN_LA)
 
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
             self.__ulr_transactions[peer.name] = transaction
-            await transaction.begin()
-        except InvalidIMSI as e:
-            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Invalid IMSI: {imsi}")
+            await transaction.begin_invoke()
+        except ULRError as e:
+            await self._logger.logAsync(service='GSUP', level='WARN', message=e.message)
             await self._send_gsup_response(
                 peer,
-                GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
+                GsupMessageBuilder().with_msg_type(MsgType.UPDATE_LOCATION_ERROR)
                 .with_ie('imsi', imsi)
-                .with_ie('cause', GMMCause.INV_MAND_INFO.value)
-                .build(),
+                .with_ie('cause', e.gmm_cause.value)
+                .build()
             )
-        except ValueError as e:
-            builder = GsupMessageBuilder().with_msg_type(MsgType.UPDATE_LOCATION_ERROR)
-            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi} {traceback.format_exc()}")
-            if imsi is not None:
-                builder.with_ie('imsi', imsi)
-            builder.with_ie('cause', GMMCause.IMSI_UNKNOWN.value)
-            await self._send_gsup_response(peer, builder.build())
         except Exception as e:
-            await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}")
+            await self._logger.logAsync(service='GSUP', level='ERROR', message=f"Error handling GSUP message: {str(e)}, {traceback.format_exc()}")
             if imsi is not None:
                 await self._send_gsup_response(peer, GsupMessageBuilder().with_msg_type(
                     MsgType.UPDATE_LOCATION_ERROR).with_ie('imsi', imsi).build())

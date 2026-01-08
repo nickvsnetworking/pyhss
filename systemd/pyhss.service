@@ -7,7 +7,6 @@ Wants=pyhss_hss.service
 Wants=pyhss_log.service
 Wants=pyhss_metric.service
 
-
 [Service]
 Type=oneshot
 ExecStart=/bin/true

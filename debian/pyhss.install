@@ -1,0 +1,15 @@
+# Original systemd services. Services that don't get installed:
+# * pyhss_database.service: https://github.com/nickvsnetworking/pyhss/issues/264
+# * pyhss_geored.service: disabled in the default config
+# * pyhss_log.service: using systemd's journal instead
+# * pyhss.service: meta-service making assumptions about what services are used
+/systemd/pyhss_diameter.service /lib/systemd/system/
+/systemd/pyhss_gsup.service /lib/systemd/system/
+/systemd/pyhss_hss.service /lib/systemd/system/
+/systemd/pyhss_metric.service /lib/systemd/system/
+
+# distro_packaging.conf drop-ins for systemd services
+/debian/systemd/* /lib/systemd/system/
+
+# Config
+/config.yaml /etc/pyhss/

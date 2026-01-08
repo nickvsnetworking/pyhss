@@ -1,11 +1,18 @@
-import os, sys, json, yaml, socket
+#!/usr/bin/env python3
+# Copyright 2023-2024 David Kneipp <david@davidkneipp.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+import os, sys, json, socket
 from datetime import datetime
 import time
 import logging
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 from messaging import RedisMessaging
 from banners import Banners
 from logtool import LogTool
+from pyhss_config import config
+
 
 class LogService:
     """
@@ -15,20 +22,14 @@ class LogService:
     """
 
     def __init__(self):
-        try:
-            with open("../config.yaml", "r") as self.configFile:
-                self.config = yaml.safe_load(self.configFile)
-        except:
-            print(f"[Log] Fatal Error - config.yaml not found, exiting.")
-            quit()
-        self.logTool = LogTool(config=self.config)
+        self.logTool = LogTool(config=config)
         self.banners = Banners()
-        self.redisUseUnixSocket = self.config.get('redis', {}).get('useUnixSocket', False)
-        self.redisUnixSocketPath = self.config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
-        self.redisHost = self.config.get('redis', {}).get('host', 'localhost')
-        self.redisPort = self.config.get('redis', {}).get('port', 6379)
+        self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
+        self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
+        self.redisHost = config.get('redis', {}).get('host', 'localhost')
+        self.redisPort = config.get('redis', {}).get('port', 6379)
         self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
-        self.logFilePaths = self.config.get('logging', {}).get('logfiles', {})
+        self.logFilePaths = config.get('logging', {}).get('logfiles', {})
         self.logLevels = {
         'CRITICAL': {'verbosity': 1, 'logging': logging.CRITICAL},
         'ERROR': {'verbosity': 2, 'logging': logging.ERROR},
@@ -74,6 +75,11 @@ class LogService:
                 self.logTool.log(service='Log', level='error', message=f"[Log] Error: {e}", redisClient=self.redisMessaging)
                 continue
 
-if __name__ == '__main__':
+
+def main():
     logService = LogService()
     logService.handleLogs()
+
+
+if __name__ == '__main__':
+    main()

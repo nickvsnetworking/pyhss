@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyhss"
+version = "1.0.2"
+
+[project.scripts]
+pyhss_api = "pyhss.services.apiService:main"
+pyhss_database = "pyhss.services.databaseService:main"
+pyhss_diameter = "pyhss.services.diameterService:main"
+pyhss_geored = "pyhss.services.georedService:main"
+pyhss_gsup = "pyhss.services.gsupService:main"
+pyhss_hss = "pyhss.services.hssService:main"
+pyhss_log = "pyhss.services.logService:main"
+pyhss_metric = "pyhss.services.metricService:main"
+
+[tool.setuptools]
+packages = [
+	"pyhss.lib",
+	"pyhss.lib.gsup",
+	"pyhss.lib.gsup.controller",
+	"pyhss.lib.gsup.protocol",
+	"pyhss.services",
+	"pyhss.tools",
+]
+
+[tool.setuptools.package-dir]
+pyhss = ""
+
+[tool.pytest.ini_options]
+addopts = "--tb=native"
+log_level = "DEBUG"
+pythonpath = "lib"
+env = [
+	"PYHSS_CONFIG=tests/config.yaml"
+]
+filterwarnings = [
+	# Warning appears inside SQLAlchemy code, also might not make sense:
+	# https://github.com/python/cpython/issues/135834
+	"ignore:The default datetime adapter is deprecated as of Python 3.12"
+]

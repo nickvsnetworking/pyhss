@@ -1,37 +1,35 @@
-#Allows sending of Diameter commands to a Diameter client connected to the HSS
+# Allows sending of Diameter commands to a Diameter client connected to the HSS
+# Copyright 2022-2023 Nick <nick@nickvsnetworking.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import os
 import sys
 import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir) 
-import yaml
-with open('config.yaml') as stream:
-    yaml_config = (yaml.safe_load(stream))
 import json
 import redis
 import diameter
 import time
-import yaml
-with open("config.yaml", 'r') as stream:
-    yaml_config = (yaml.safe_load(stream))
+from pyhss_config import config
+
 
 #Values to change / tweak
-recv_ip = yaml_config['hss']['bind_ip']                                                         #IP of this Machine
-diameter_host = yaml_config['hss']['OriginHost']                                                        #Diameter Host of this Machine
-realm = yaml_config['hss']['OriginRealm']                                          #Diameter Realm of this machine
+recv_ip = config['hss']['bind_ip']                                                         #IP of this Machine
+diameter_host = config['hss']['OriginHost']                                                        #Diameter Host of this Machine
+realm = config['hss']['OriginRealm']                                          #Diameter Realm of this machine
 DestinationHost = ""                                             #Diameter Host of Destination
 DestinationRealm = input("Enter Diameter Realm: ")                                                #Diameter Realm of Destination
 hostname = input("Enter IP of Diameter Peer to connect to: ")                                                         #IP of Remote Diameter Host
-mcc = yaml_config['hss']['MCC']                                                                     #Mobile Country Code
-mnc = yaml_config['hss']['MNC']                                                                      #Mobile Network Code
-transport = yaml_config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
+mcc = config['hss']['MCC']                                                                     #Mobile Country Code
+mnc = config['hss']['MNC']                                                                      #Mobile Network Code
+transport = config['hss']['transport']                                                              #Transport Type - TCP or SCTP (SCTP Support is basic)
 
 diameter = diameter.Diameter(diameter_host, realm, 'PyHSS-client', str(mcc), str(mnc))
 
 supported_calls = ["CER", "DWR", "AIR", "ULR", "UAR", "PUR", "SAR", "MAR", "MCR", "LIR", "RIR", "CLR", "NOR", "DEP", "UDR"]
 
-r = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
+r = redis.Redis(host=str(config['redis']['host']), port=str(config['redis']['port']), db=0)
 
 print("\n\nDiameter Peers:")
 ActivePeerDict = r.get('ActivePeerDict')

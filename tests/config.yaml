@@ -1,0 +1,92 @@
+# pyproject.toml sets PYHSS_CONFIG=tests/config.yaml to use this minimal config
+# while running tests with pytest. See ../config.yaml for reference.
+
+hss:
+  bind_ip: ["127.0.0.1"]
+  bind_port: 3868
+  OriginHost: "hss01"
+  OriginRealm: "epc.mnc001.mcc001.3gppnetwork.org"
+  ProductName: "pyHSS"
+  site_name: "Sydney"
+  MCC: "001"
+  MNC: "01"
+  client_socket_timeout: 300
+  diameter_request_timeout: 3
+  send_dwr: False
+  send_dwr_interval: 5
+  active_diameter_peers_timeout: 10
+  lock_provisioning: False
+  provisioning_key: "changeThisKeyInProduction"
+  CancelLocationRequest_Enabled: False
+  Default_Sh_UserData: 'default_sh_user_data.xml'
+  use_external_socket_service: False
+  diameter_peer_key: diameterPeers
+  use_dra_fallback: False
+  emergency_subscriber_expiry: 3600
+  send_dsr_on_mme_change: False
+  dsr_external_identifier: "example"
+  ignore_purge_ue_request: False
+  scscf_pool:
+    - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
+
+  roaming:
+    outbound:
+      allow_undefined_networks: True
+
+  gsup:
+    bind_ip: "127.0.0.1"
+    bind_port: 4222
+
+api:
+  page_size: 200
+  enable_insecure_auc: False
+
+benchmarking:
+  enabled: True
+  reporting_interval: 3600
+
+eir:
+  imsi_imei_logging: True
+  no_match_response: 2
+  store_offnet_imsi: False
+  simSwapNotification: False
+
+logging:
+  level: DEBUG
+  sqlalchemy_sql_echo: False
+  sqlalchemy_pool_recycle: 15
+  sqlalchemy_pool_size: 30
+  sqlalchemy_max_overflow: 0
+
+database:
+  db_type: sqlite
+  database: tests/.pyhss.db
+
+webhooks:
+  enabled: False
+  endpoints:
+    - 'http://127.0.0.1:8181'
+
+ocs:
+  enabled: False
+  endpoints:
+    - 'http://127.0.0.1:8282'
+
+geored:
+  enabled: False
+  sync_actions: ['HSS', 'IMS', 'PCRF', 'EIR']
+  endpoints:
+    - 'http://hss01.mnc001.mcc001.3gppnetwork.org:8080'
+    - 'http://hss02.mnc001.mcc001.3gppnetwork.org:8080'
+
+redis:
+  connectionType: "tcp"
+  host: localhost
+  port: 6379
+
+influxdb:
+  enabled: False
+
+snmp:
+  port: 1161
+  listen_address: 127.0.0.1

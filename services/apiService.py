@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# Copyright 2022-2025 Nick <nick@nickvsnetworking.com>
+# Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
+# Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# Copyright 2025 Lennart Rosam <hello@takuto.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
 import json
 from flask import Flask, request, jsonify, Response
@@ -5,7 +11,9 @@ from flask_restx import Api, Resource, fields, reqparse, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 import os
-sys.path.append(os.path.realpath('../lib'))
+
+sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
+
 import time
 import requests
 import traceback
@@ -14,11 +22,10 @@ import socket
 from logtool import LogTool
 from diameter import Diameter
 from messaging import RedisMessaging
+from baseModels import SubscriberInfo
 import database
-import yaml
+from pyhss_config import config
 
-with open("../config.yaml", 'r') as stream:
-    config = (yaml.safe_load(stream))
 
 siteName = config.get("hss", {}).get("site_name", "")
 originHostname = socket.gethostname()
@@ -342,13 +349,10 @@ class PyHSS_APN_Get(Resource):
         '''Update APN data for specified APN ID'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             apn_data = databaseClient.UpdateObj(APN, json_data, apn_id, False, operation_id)
 
-            print("Updated object")
-            print(apn_data)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -362,7 +366,6 @@ class PyHSS_APN(Resource):
         '''Create new APN'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             apn_id = databaseClient.CreateObj(APN, json_data, False, operation_id)
@@ -416,14 +419,11 @@ class PyHSS_AUC_Get(Resource):
         '''Update AuC data for specified AuC ID'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             auc_data = databaseClient.UpdateObj(AUC, json_data, auc_id, False, operation_id)
             if not insecureAuc:
                 auc_data = databaseClient.Sanitize_Keys(auc_data)
-            print("Updated object")
-            print(auc_data)
             
             return auc_data, 200
         except Exception as E:
@@ -464,7 +464,6 @@ class PyHSS_AUC(Resource):
         '''Create new AUC'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(AUC, json_data, False, operation_id)
@@ -499,11 +498,8 @@ class PyHSS_AUC_Get_EAP_AKA_Vectors(Resource):
         try:
             #Get data from AuC
             auc_data = databaseClient.Get_AuC(imsi=imsi)
-            print("Got AuC Data OK - Generating Vectors")
             plmn = diameterClient.EncodePLMN(mcc=plmn[0:3], mnc=plmn[3:])
-            print("Encoded PLMN into: " + str(plmn))
             vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='eap_aka', plmn=plmn)
-            print("Got Vectors: " + str(vector_dict))
             return vector_dict, 200
         except Exception as E:
             print(E)
@@ -516,11 +512,22 @@ class PyHSS_AUC_Get_AKA_Vectors(Resource):
         try:
             #Get data from AuC
             auc_data = databaseClient.Get_AuC(imsi=imsi)
-            print("Got AuC Data OK - Generating " + str(vector_count) + " Vectors")
-            
             plmn = diameterClient.EncodePLMN(mcc=config['hss']['MCC'], mnc=config['hss']['MNC'])
             vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='aka', plmn=plmn, requested_vectors=int(vector_count))
-            print("Got Vectors: " + str(vector_dict))
+            return vector_dict, 200
+        except Exception as E:
+            print(E)
+            return handle_exception(E)
+
+@ns_auc.route('/aka/resync/imsi/<string:imsi>/auts/<string:auts>/rand/<string:rand>')
+class PyHSS_AUC_Get_AKA_Vectors_Resync(Resource):
+    def get(self, imsi, auts, rand):
+        '''do SQN resync'''
+        try:
+            #Get data from AuC
+            auc_data = databaseClient.Get_AuC(imsi=imsi)
+            rand = binascii.unhexlify(rand)
+            vector_dict = databaseClient.Get_Vectors_AuC(auc_data['auc_id'], action='sqn_resync', auts=auts, rand=rand)
             return vector_dict, 200
         except Exception as E:
             print(E)
@@ -556,10 +563,14 @@ class PyHSS_SUBSCRIBER_Get(Resource):
             json_data = request.get_json(force=True)
             if 'msisdn' in json_data:
                 json_data['msisdn'] = json_data['msisdn'].replace('+', '')
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(SUBSCRIBER, json_data, subscriber_id, False, operation_id)
+
+            #If the subscriber is enabled, trigger an ISD in 2G
+            if 'enabled' in json_data and json_data['enabled'] == True:
+                update_event = databaseClient.Get_Gsup_SubscriberInfo(json_data['imsi'])
+                redisMessaging.sendMessage('subscriber_update', update_event.model_dump_json())
 
             #If the "enabled" flag on the subscriber is now disabled, trigger a CLR
             if 'enabled' in json_data and json_data['enabled'] == False:
@@ -595,7 +606,6 @@ class PyHSS_SUBSCRIBER(Resource):
             json_data = request.get_json(force=True)
             if 'msisdn' in json_data:
                 json_data['msisdn'] = json_data['msisdn'].replace('+', '')
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(SUBSCRIBER, json_data, False, operation_id)
@@ -648,7 +658,6 @@ class PyHSS_SUBSCRIBER_ROUTING_Create(Resource):
         '''Create new Subscriber Routing Binding'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(SUBSCRIBER_ROUTING, json_data, False, operation_id)
@@ -689,13 +698,10 @@ class PyHSS_SUBSCRIBER_SUBSCRIBER_ROUTING(Resource):
         '''Update SUBSCRIBER data for specified subscriber_routing_id'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(SUBSCRIBER_ROUTING, json_data, subscriber_routing_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -739,8 +745,6 @@ class PyHSS_IMS_SUBSCRIBER_Get(Resource):
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(IMS_SUBSCRIBER, json_data, ims_subscriber_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -775,7 +779,6 @@ class PyHSS_IMS_SUBSCRIBER_MSISDN(Resource):
         '''Get IMS data for MSISDN'''
         try:
             data = databaseClient.Get_IMS_Subscriber(msisdn=msisdn)
-            print("Got back: " + str(data))
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
@@ -787,7 +790,6 @@ class PyHSS_IMS_SUBSCRIBER_IMSI(Resource):
         '''Get IMS data for imsi'''
         try:
             data = databaseClient.Get_IMS_Subscriber(imsi=imsi)
-            print("Got back: " + str(data))
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
@@ -814,7 +816,6 @@ class PyHSS_ROAMING_RULE(Resource):
         '''Create new Roaming Rule'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(ROAMING_RULE, json_data, False, operation_id)
@@ -865,13 +866,10 @@ class PyHSS_ROAMING_RULE_Get(Resource):
         '''Update data for specified roaming_rule_id'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(ROAMING_RULE, json_data, roaming_rule_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -885,7 +883,6 @@ class PyHSS_ROAMING_NETWORK(Resource):
         '''Create new Roaming Network'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(ROAMING_NETWORK, json_data, False, operation_id)
@@ -936,13 +933,10 @@ class PyHSS_ROAMING_NETWORK_Get(Resource):
         '''Update data for specified roaming_network_id'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(ROAMING_NETWORK, json_data, roaming_network_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -976,13 +970,10 @@ class PyHSS_TFT_Get(Resource):
         '''Update tft_id data for specified tft_id'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(TFT, json_data, tft_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -996,7 +987,6 @@ class PyHSS_TFT(Resource):
         '''Create new TFT'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(TFT, json_data, False, operation_id)
@@ -1047,13 +1037,10 @@ class PyHSS_Charging_Rule_Get(Resource):
         '''Update charging_rule_id data for specified charging_rule_id'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(CHARGING_RULE, json_data, charging_rule_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -1067,7 +1054,6 @@ class PyHSS_Charging_Rule(Resource):
         '''Create new ChargingRule'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(CHARGING_RULE, json_data, False, operation_id)
@@ -1118,13 +1104,10 @@ class PyHSS_EIR_Get(Resource):
         '''Update eir_id data for specified eir_id'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(EIR, json_data, eir_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -1138,7 +1121,6 @@ class PyHSS_EIR(Resource):
         '''Create new EIR Rule'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(EIR, json_data, False, operation_id)
@@ -1258,13 +1240,10 @@ class PyHSS_Attributes_Get(Resource):
         '''Update data for specified attribute ID'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.UpdateObj(SUBSCRIBER_ATTRIBUTES, json_data, subscriber_attributes_id, False, operation_id)
 
-            print("Updated object")
-            print(data)
             return data, 200
         except Exception as E:
             print(E)
@@ -1278,7 +1257,6 @@ class PyHSS_Attributes(Resource):
         '''Create new Attribute for Subscriber'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             data = databaseClient.CreateObj(SUBSCRIBER_ATTRIBUTES, json_data, False, operation_id)
@@ -1520,7 +1498,6 @@ class PyHSS_OAM_Serving_Subs(Resource):
         '''Get all Subscribers served by HSS'''
         try:
             data = databaseClient.Get_Served_Subscribers()
-            print("Got back served Subs: " + str(data))
             return data, 200
         except Exception as E:
             print(E)
@@ -1532,7 +1509,6 @@ class PyHSS_OAM_Serving_Subs_PCRF(Resource):
         '''Get all Subscribers served by PCRF'''
         try:
             data = databaseClient.Get_Served_PCRF_Subscribers()
-            print("Got back served Subs: " + str(data))
             return data, 200
         except Exception as E:
             print(E)
@@ -1544,7 +1520,6 @@ class PyHSS_OAM_Serving_Subs_IMS(Resource):
         '''Get all Subscribers served by IMS'''
         try:
             data = databaseClient.Get_Served_IMS_Subscribers()
-            print("Got back served Subs: " + str(data))
             return data, 200
         except Exception as E:
             print(E)
@@ -1682,12 +1657,10 @@ class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
 
             #Resolve Subscriber ID
             subscriber_data = databaseClient.Get_Subscriber(imsi=str(imsi))
-            print("subscriber_data: " + str(subscriber_data))
             serving_sub_final['subscriber_data'] = databaseClient.Sanitize_Datetime(subscriber_data)
 
             #Split the APN list into a list
             apn_list = subscriber_data['apn_list'].split(',')
-            print("Current APN List: " + str(apn_list))
             #Remove the default APN from the list
             try:
                 apn_list.remove(str(subscriber_data['default_apn']))
@@ -1700,9 +1673,7 @@ class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
 
             #Get APN ID from APN
             for list_apn_id in apn_list:
-                print("Getting APN ID " + str(list_apn_id))
                 apn_data = databaseClient.Get_APN(list_apn_id)
-                print(apn_data)
                 try:
                     serving_sub_final['apns'][str(apn_data['apn'])] = {}
                     serving_sub_final['apns'][str(apn_data['apn'])] = databaseClient.Sanitize_Datetime(databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=list_apn_id))
@@ -1710,7 +1681,6 @@ class PyHSS_OAM_Get_PCRF_Subscriber_all_APN(Resource):
                     serving_sub_final['apns'][str(apn_data['apn'])] = {}
                     print("Failed to get Serving APN for APN ID " + str(list_apn_id))
 
-            print("Got back: " + str(serving_sub_final))
             return serving_sub_final, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
@@ -1728,11 +1698,9 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
 
             #Resolve Subscriber ID
             subscriber_data = databaseClient.Get_Subscriber(imsi=str(imsi))
-            print("subscriber_data: " + str(subscriber_data))
 
             #Split the APN list into a list
             apn_list = subscriber_data['apn_list'].split(',')
-            print("Current APN List: " + str(apn_list))
             #Remove the default APN from the list
             try:
                 apn_list.remove(str(subscriber_data['default_apn']))
@@ -1744,17 +1712,13 @@ class PyHSS_OAM_Get_PCRF_Subscriber(Resource):
 
             #Get APN ID from APN
             for list_apn_id in apn_list:
-                print("Getting APN ID " + str(list_apn_id) + " to see if it matches APN " + str(apn_id))
                 #Get each APN in List
                 apn_data = databaseClient.Get_APN(list_apn_id)
-                print(apn_data)
                 if str(apn_data['apn_id']).lower() == str(apn_id).lower():
-                    print("Matched named APN with APN ID")
                     apn_id_final = apn_data['apn_id']
 
             data = databaseClient.Get_Serving_APN(subscriber_id=subscriber_data['subscriber_id'], apn_id=apn_id_final)
             data = databaseClient.Sanitize_Datetime(data)
-            print("Got back: " + str(data))
             return data, 200
         except Exception as E:
             print("Flask Exception: " + str(E))
@@ -1786,7 +1750,6 @@ class PyHSS_PCRF(Resource):
         '''Push predefined Charging Rule to Subscriber'''
     
         json_data = request.get_json(force=True)
-        print("JSON Data sent: " + str(json_data))
         #Get IMSI
         subscriber_data = databaseClient.Get_Subscriber(imsi=str(json_data['imsi']))
         print("subscriber_data: " + str(subscriber_data))
@@ -2034,13 +1997,10 @@ class PyHSS_EMERGENCY_SUBSCRIBER_Get(Resource):
         '''Update emergency_subscriber data for specified emergency_subscriber ID'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             apn_data = databaseClient.UpdateObj(EMERGENCY_SUBSCRIBER, json_data, emergency_subscriber_id, False, operation_id)
 
-            print("Updated object")
-            print(apn_data)
             return apn_data, 200
         except Exception as E:
             print(E)
@@ -2054,7 +2014,6 @@ class PyHSS_EMERGENCY_SUBSCRIBER(Resource):
         '''Create new EMERGENCY_SUBSCRIBER'''
         try:
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             args = parser.parse_args()
             operation_id = args.get('operation_id', None)
             emergency_subscriber_id = databaseClient.CreateObj(EMERGENCY_SUBSCRIBER, json_data, False, operation_id)
@@ -2305,9 +2264,9 @@ class PyHSS_Geored(Resource):
                                     prefixServiceName='metric')
             return response_data, 200
         except Exception as E:
-            print("Exception when updating: " + str(E))
+            print(f"Exception when updating: {traceback.format_exc()}")
             response_json = {'result': 'Failed', 'Reason' : str(E), 'Partial Response Data' : str(response_data)}
-            return response_json
+            return response_json, 500
 
     def get(self):
         '''Return the active geored schema'''
@@ -2317,9 +2276,9 @@ class PyHSS_Geored(Resource):
                 geored_model_json[key] = 'string'
             return geored_model_json, 200
         except Exception as E:
-            print("Exception when returning geored schema: " + str(E))
+            print(f"Exception when returning geored schema: {traceback.format_exc()}")
             response_json = {'result': 'Failed', 'Reason' : "Unable to return Geored Schema: " + str(E)}
-            return response_json
+            return response_json, 500
 
 @ns_geored.route('/peers')
 class PyHSS_Geored_Peers(Resource):
@@ -2359,7 +2318,6 @@ class PyHSS_Push_CLR(Resource):
         try:
             '''Push CLR (Cancel Location Request) to MME'''
             json_data = request.get_json(force=True)
-            print("JSON Data sent: " + str(json_data))
             if 'DestinationHost' not in json_data:
                 json_data['DestinationHost'] = None
             diameterRequest = diameterClient.sendDiameterRequest(
@@ -2384,6 +2342,10 @@ class PyHSS_Push_CLR(Resource):
             response_json = {'result': 'Failed', 'Reason' : "Unable to send CLR: " + str(E)}
             return response_json
 
-if __name__ == '__main__':
+
+def main():
     apiService.run(debug=False, host='0.0.0.0', port=8080)
 
+
+if __name__ == '__main__':
+    main()

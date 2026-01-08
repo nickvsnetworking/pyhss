@@ -1,8 +1,7 @@
-#This SNMP service pulls stats written to Redis by PyHSS and presents them as SNMP
-import yaml
+# This SNMP service pulls stats written to Redis by PyHSS and presents them as SNMP
+# Copyright 2021 Nick <nick@nickvsnetworking.com>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
-with open(sys.path[0] + '/../config.yaml') as stream:
-    yaml_config = (yaml.safe_load(stream))
 
 #Pulled from https://stackoverflow.com/questions/58909285/how-to-add-variable-in-the-mib-tree
 
@@ -13,10 +12,11 @@ from pysnmp.smi import instrum, builder
 from pysnmp.proto.api import v2c
 import datetime
 import redis
+from pyhss_config import config
 
 
 import redis
-redis_store = redis.Redis(host=str(yaml_config['redis']['host']), port=str(yaml_config['redis']['port']), db=0)
+redis_store = redis.Redis(host=str(config['redis']['host']), port=str(config['redis']['port']), db=0)
 # Create SNMP engine
 snmpEngine = engine.SnmpEngine()
 
@@ -26,7 +26,7 @@ snmpEngine = engine.SnmpEngine()
 config.addTransport(
     snmpEngine,
     udp.domainName,
-    udp.UdpTransport().openServerMode((str(yaml_config['snmp']['listen_address']), int(yaml_config['snmp']['port'])))
+    udp.UdpTransport().openServerMode((str(config['snmp']['listen_address']), int(config['snmp']['port'])))
 )
 
 # SNMPv3/USM setup

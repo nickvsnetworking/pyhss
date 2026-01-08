@@ -1,78 +1,179 @@
-## HSS Parameters (Docker)
+## HSS Parameters
 hss:
-  transport: "TCP"
+  # Transport Type. "TCP" and "SCTP" are valid options.
+  # Note: SCTP works but is still experimental. TCP has been load-tested and performs in a production environment.
+  transport: "${HSS_TRANSPORT:-TCP}"
   #IP Addresses to bind on (List) - For TCP only the first IP is used, for SCTP all used for Transport (Multihomed).
-  bind_ip: ["template_HSS_IP"]
+  bind_ip: ["${HSS_BIND_IP:-0.0.0.0}"]
 
   #Port to listen on (Same for TCP & SCTP)
-  bind_port: 3868
+  bind_port: ${HSS_BIND_PORT:-3868}
 
   #Value to populate as the OriginHost in Diameter responses
-  OriginHost: "template_HSS_HOSTNAME.template_EPC_DOMAIN"
+  OriginHost: "${HSS_ORIGIN_HOST:-hss01}"
 
   #Value to populate as the OriginRealm in Diameter responses
-  OriginRealm: "template_EPC_DOMAIN"
+  OriginRealm: "${HSS_ORIGIN_REALM:-epc.mnc001.mcc001.3gppnetwork.org}"
 
   #Value to populate as the Product name in Diameter responses
-  ProductName: "pyHSS"
+  ProductName: "${HSS_PRODUCT_NAME:-pyHSS}"
+
+  #Name of the Site, shown in API
+  site_name: "${HSS_SITE_NAME:-Sydney}"
 
   #Your Home Mobile Country Code (Used for PLMN calcluation)
-  MCC: "template_MCC"
+  MCC: "${HSS_MCC:-001}"
   #Your Home Mobile Network Code (Used for PLMN calcluation)
-  MNC: "template_MNC"
+  MNC: "${HSS_MNC:-01}"
 
-  #Enable GMLC / SLh Interface
-  SLh_enabled: False
+  #The maximum time to wait, in seconds, before disconnecting a client when no data is received.
+  client_socket_timeout: ${HSS_CLIENT_SOCKET_TIMEOUT:-300}
 
-  #IMSI of Test Subscriber for Unit Checks (Optional)
-  test_sub_imsi: 'Test_Subscriber_IMSI'
+  #The maximum time to wait, in seconds, before discarding a diameter request.
+  diameter_request_timeout: ${HSS_DIAMETER_REQUEST_TIMEOUT:-3}
 
-  #Device Watchdog Request Interval (In Seconds - If set to 0 disabled)
-  device_watchdog_request_interval: 0
+  # Whether to send a DWR to connected peers.
+  send_dwr: ${HSS_SEND_DWR:-False}
 
-  #Async Queue Check Interval (In Seconds - If set to 0 disabled)
-  async_check_interval: 0
+  # How often to send a DWR to connected peers if enabled, in seconds.
+  send_dwr_interval: ${HSS_SEND_DWR_INTERVAL:-5}
+
+  #The amount of time, in seconds, before purging a disconnected client from the Active Diameter Peers key in redis.
+  active_diameter_peers_timeout: ${HSS_ACTIVE_DIAMETER_PEERS_TIMEOUT:-10}
+
+  #Prevent updates from being performed without a valid 'Provisioning-Key' in the header
+  lock_provisioning: ${HSS_LOCK_PROVISIONING:-False}
+
+  #Provisioning Key for this HSS, alias for an API key. Required to be present in the header of requests to this HSS' api, if lock_provisioning is True.
+  provisioning_key: "${HSS_PROVISIONING_KEY:-changeThisKeyInProduction}"
 
   #If enabled sends CLRs to old MME when new MME attaches active sub
-  CancelLocationRequest_Enabled: False
-
-  #Workaround for some MMEs to force an Insert Subscriber Data request to be sent immediately after ULA
-  Insert_Subscriber_Data_Force: False
-
-  #Default Initial Filter Criteria for IMS Subscribers
-  #Jinja Formatted Template, see the example for variables passed to it.
-  Default_iFC: 'default_ifc.xml'
+  CancelLocationRequest_Enabled: ${HSS_CANCEL_LOCATION_REQUEST_ENABLED:-False}
 
   #Default Sh User Data
-  Default_Sh_UserData: 'default_sh_user_data.xml'
-  
+  Default_Sh_UserData: "${HSS_DEFAULT_SH_USER_DATA:-default_sh_user_data.xml}"
+
+  #Whether to use an external socket service
+  use_external_socket_service: ${HSS_USE_EXTERNAL_SOCKET_SERVICE:-False}
+
+  #The Redis key used to store active diameter peers
+  diameter_peer_key: "${HSS_DIAMETER_PEER_KEY:-diameterPeers}"
+
+  # Send requests via a DRA (if connected) when a given peer can't be found
+  use_dra_fallback: ${HSS_USE_DRA_FALLBACK:-False}
+
+  # How long an emergency subscriber entry will last for in the table before expiring, in minutes.
+  emergency_subscriber_expiry: ${HSS_EMERGENCY_SUBSCRIBER_EXPIRY:-3600}
+
+  # Whether to send a Delete Subscriber Data Request to the Old MME on an Update Location Request.
+  send_dsr_on_mme_change: ${HSS_SEND_DSR_ON_MME_CHANGE:-False}
+
+  # Static Identifier for the subscriber context with the Delete Subscriber Data Request.
+  dsr_external_identifier: "${HSS_DSR_EXTERNAL_IDENTIFIER:-example}"
+
+  # Whether to ignore Purge UE Requests - leaving the subscriber state with the last served mme instead of null.
+  ignore_purge_ue_request: ${HSS_IGNORE_PURGE_UE_REQUEST:-False}
+
+  #S-CSCF Pool
+  scscf_pool:
+    - "${HSS_SCSCF_POOL:-scscf.ims.mnc001.mcc001.3gppnetwork.org}"
+
+  roaming:
+    outbound:
+      # Whether or not to a subscriber to connect to an undefined network when outbound roaming.
+      allow_undefined_networks: ${HSS_ROAMING_ALLOW_UNDEFINED_NETWORKS:-True}
+
+  # SCTP Socket Parameters
+  sctp:
+    rtoMax: ${HSS_SCTP_RTO_MAX:-5000}
+    rtoMin: ${HSS_SCTP_RTO_MIN:-500}
+    rtoInitial: ${HSS_SCTP_RTO_INITIAL:-1000}
+
+  gsup:
+    bind_ip: "${HSS_GSUP_BIND_IP:-0.0.0.0}"
+    bind_port: ${HSS_GSUP_BIND_PORT:-4222}
+
+api:
+  page_size: ${API_PAGE_SIZE:-200}
+  # Whether or not to return key-based data when querying the AUC. Disable in production systems.
+  enable_insecure_auc: ${API_ENABLE_INSECURE_AUC:-False}
+
+benchmarking:
+  # Whether to enable benchmark logging
+  enabled: ${BENCHMARKING_ENABLED:-True}
+  # How often to report, in seconds. Not all benchmarking supports interval reporting.
+  reporting_interval: ${BENCHMARKING_REPORTING_INTERVAL:-3600}
+
+eir:
+  imsi_imei_logging: ${EIR_IMSI_IMEI_LOGGING:-True}    #Store current IMEI / IMSI pair in backend
+  no_match_response: ${EIR_NO_MATCH_RESPONSE:-2}       #Greylist
+  store_offnet_imsi: ${EIR_STORE_OFFNET_IMSI:-False}  # Whether or not to store an IMEI / IMSI pair that doesn't exist in the AUC
+  simSwapNotification: ${EIR_SIM_SWAP_NOTIFICATION:-False} # If the IMEI for a stored IMSI/IMEI combo changes, notify the webhook endpoint
+  # Define an optional TAC csv file path
+  #tac_database_csv: '/etc/pyhss/tac_database.csv'
+
 logging:
-  level: DEBUG
+  level: "${LOGGING_LEVEL:-INFO}"
   logfiles:
-    hss_logging_file: log/hss.log
-    diameter_logging_file: log/diameter.log
-    database_logging_file: log/db.log
-  log_to_terminal: true
+    hss_logging_file: "${LOGGING_HSS_FILE:-/var/log/pyhss_hss.log}"
+    diameter_logging_file: "${LOGGING_DIAMETER_FILE:-/var/log/pyhss_diameter.log}"
+    geored_logging_file: "${LOGGING_GEORED_FILE:-/var/log/pyhss_geored.log}"
+    metric_logging_file: "${LOGGING_METRIC_FILE:-/var/log/pyhss_metrics.log}"
+  sqlalchemy_sql_echo: ${LOGGING_SQLALCHEMY_SQL_ECHO:-False}
+  sqlalchemy_pool_recycle: ${LOGGING_SQLALCHEMY_POOL_RECYCLE:-15}
+  sqlalchemy_pool_size: ${LOGGING_SQLALCHEMY_POOL_SIZE:-30}
+  sqlalchemy_max_overflow: ${LOGGING_SQLALCHEMY_MAX_OVERFLOW:-0}
 
 ## Database Parameters
-#Multiple database types are supported, and additional database can be added easily.
-#See ``databases.md`` for information on connecting to your database of choice, with your preferred schema.
+# PyHSS supports multiple database types. The default is SQLite, suitable for
+# development and small scale deployments. For big scale deployments, consider
+# using MySQL or PostgreSQL instead.
 database:
-  HSS_DB_TYPE:
-    server: HSS_DB_SERVER
-    username: HSS_DB_USERNAME
-    password: HSS_DB_PASSWORD
-    database: HSS_DB_DB
-    port: HSS_DB_PORT
+  db_type: "${DATABASE_TYPE:-sqlite}"  # sqlite | mysql | postgresql
+  server: "${DATABASE_SERVER:-127.0.0.1}"
+  username: "${DATABASE_USERNAME:-dbeaver}"
+  password: "${DATABASE_PASSWORD:-password}"
+  database: "${DATABASE_NAME:-/var/lib/pyhss/hss.db}"
 
-## Stats Parameters
+## External Webhook Notifications
+webhooks:
+  enabled: ${WEBHOOKS_ENABLED:-False}
+  endpoints:
+    - "${WEBHOOKS_ENDPOINT:-http://127.0.0.1:8181}"
+
+### Notifications to OCS on Credit Control Requests
+ocs:
+  enabled: ${OCS_ENABLED:-False}
+  endpoints:
+    - "${OCS_ENDPOINT:-http://127.0.0.1:8282}"
+
+## Geographic Redundancy Parameters
+geored:
+  enabled: ${GEORED_ENABLED:-False}
+  sync_actions: ["${GEORED_SYNC_ACTIONS:-HSS,IMS,PCRF,EIR}"]    #What event actions should be synced
+  endpoints:                         #List of PyHSS API Endpoints to update
+    - "${GEORED_ENDPOINT_1:-http://hss01.mnc001.mcc001.3gppnetwork.org:8080}"
+    - "${GEORED_ENDPOINT_2:-http://hss02.mnc001.mcc001.3gppnetwork.org:8080}"
+
+#Redis is required to run PyHSS. An instance running on a local network is recommended for production.
 redis:
-  enabled: False
-  clear_stats_on_boot: True
-  host: localhost
-  port: 6379
+  # Which connection type to attempt. Valid options are: tcp, unix, sentinel
+  # tcp - Connection via a standard TCP socket to a given host and port.
+  # unix - Connect to redis via a unix socket, provided by unixSocketPath.
+  # sentinel - Connect to one or more redis sentinel hosts.
+  connectionType: "${REDIS_CONNECTION_TYPE:-tcp}"
+  unixSocketPath: "${REDIS_UNIX_SOCKET_PATH:-/var/run/redis/redis-server.sock}"
+  host: "${REDIS_HOST:-localhost}"
+  port: ${REDIS_PORT:-6379}
 
+influxdb:
+  enabled: ${INFLUXDB_ENABLED:-False}
+  host: "${INFLUXDB_HOST:-127.0.0.1}"
+  port: ${INFLUXDB_PORT:-8086}
+  username: "${INFLUXDB_USERNAME:-exampleUser}"
+  password: "${INFLUXDB_PASSWORD:-examplePassword}"
+  database: "${INFLUXDB_DATABASE:-example}"
 
 snmp:
-  port: 1161
-  listen_address: 127.0.0.1
+  port: ${SNMP_PORT:-1161}
+  listen_address: "${SNMP_LISTEN_ADDRESS:-127.0.0.1}"

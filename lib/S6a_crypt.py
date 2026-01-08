@@ -1,3 +1,7 @@
+# Copyright 2019-2025 Nick <nick@nickvsnetworking.com>
+# Copyright 2023 David Kneipp <david@davidkneipp.com>
+# Copyright 2024 Lennart Rosam <hello@takuto.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 from comp128.comp128v1 import Comp128v1
 from comp128.comp128v23 import Comp128v23
 from milenage import Milenage
@@ -5,21 +9,10 @@ import binascii
 import logging
 import os
 import sys
-sys.path.append(os.path.realpath('../'))
-import yaml
 
-try:
-    with open("../config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
-except:
-    with open("config.yaml", 'r') as stream:
-        config = (yaml.safe_load(stream))
-
-# logtool = logtool.LogTool()
-# logtool.setup_logger('CryptoLogger', yaml_config['logging']['logfiles']['database_logging_file'], level=yaml_config['logging']['level'])
 CryptoLogger = logging.getLogger('CryptoLogger')
 
-CryptoLogger.info("Initialised Diameter Logger, importing database")
+CryptoLogger.info("Initialised CryptoLogger Logger")
 
 #The EUTRAN Authentication Vector generator is based on the one used in [Facebook Magma](https://github.com/facebookincubator/magma), which in turn is based off [OAI-CN](https://github.com/OPENAIRINTERFACE/openair-cn).
 
