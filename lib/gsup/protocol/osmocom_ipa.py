@@ -1,25 +1,7 @@
-"""
-/*
- * This file was copied & modified from
- * https://github.com/osmocom/python_osmo-python-tests/blob/master/osmopy/twisted_ipa.py
- *
- * Copyright (C) 2016-2018 sysmocom s.f.m.c. GmbH
- * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * All Rights Reserved
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-"""
-
+# This file was copied & modified from:
+# https://gitea.osmocom.org/cellular-infrastructure/osmo-python-tests/src/tag/0.3.0/osmopy/twisted_ipa.py
+# Copyright 2016-2018 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# SPDX-License-Identifier: GPL-3.0-or-later
 import struct
 
 class IPAError(RuntimeError):
