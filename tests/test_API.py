@@ -96,6 +96,7 @@ class AUC_Tests(unittest.TestCase):
     "opc": '44d51018f65affc04e6d56d699df3a76',
     "amf": "8000",
     "sqn": 99,
+    "sqn_ind_bitlen": None,
     'batch_name': None,
     'esim': False,
     'iccid': None,

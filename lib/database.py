@@ -5,11 +5,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from typing import Optional
 
+import sqlalchemy
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, ForeignKey, select, UniqueConstraint, DateTime, BigInteger, Text, DateTime, Float
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.engine.reflection import Inspector
+from sqlalchemy import create_engine
 from sqlalchemy.sql import desc, func
-from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker, relationship, Session, class_mapper
 from sqlalchemy.orm.attributes import History, get_history
 from sqlalchemy.orm import declarative_base
@@ -22,6 +21,7 @@ import uuid
 import socket
 import pprint
 import S6a_crypt
+from databaseSchema import DatabaseSchema
 from baseModels import SubscriberInfo, LocationInfo2G
 from gsup.protocol.ipa_peer import IPAPeerRole
 from messaging import RedisMessaging
@@ -29,9 +29,17 @@ import json
 import socket
 import traceback
 from pyhss_config import config
+from SQN import SQN
 
 
 Base = declarative_base()
+
+class DATABASE_SCHEMA_VERSION(Base):
+    __tablename__ = "database_schema_version"
+    upgrade_id = Column(Integer, primary_key=True, doc="Schema version")
+    comment = Column(String(512), doc="Notes about this version upgrade")
+    date = Column(DateTime(timezone=True), server_default=sqlalchemy.sql.func.now(), doc="When the upgrade was done")
+
 class APN(Base):
     __tablename__ = 'apn'
     apn_id = Column(Integer, primary_key=True, doc='Unique ID of APN')
@@ -62,7 +70,8 @@ class AUC(Base):
     ki = Column(String(32), doc='SIM Key - Authentication Key - Ki', nullable=False)
     opc = Column(String(32), doc='SIM Key - Network Operators key OPc', nullable=False)
     amf = Column(String(4), doc='Authentication Management Field', nullable=False)
-    sqn = Column(BigInteger, doc='Authentication sequence number')
+    sqn = Column(BigInteger, doc='Authentication sequence number (deprecated)')
+    sqn_ind_bitlen = Column(Integer, default=None, doc="Number of IND bits at lower SQN end (default is 5 if set to None)")
     iccid = Column(String(20), unique=True, doc='Integrated Circuit Card Identification Number')
     imsi = Column(String(18), unique=True, doc='International Mobile Subscriber Identity')
     batch_name = Column(String(20), doc='Name of SIM Batch')
@@ -283,6 +292,25 @@ class OPERATION_LOG_BASE(Base):
     table_name = Column('table_name', String(255))
     __mapper_args__ = {'polymorphic_on': table_name}
 
+class AUTH_SQN_IND(Base):
+    __tablename__ = "auth_sqn_ind"
+    ind_id = Column(Integer, primary_key=True)
+    client_name = Column(String(255), unique=True, nullable=False)
+
+class AUTH_SQN_SEQ(Base):
+    __tablename__ = "auth_sqn_seq"
+    __table_args__ = (
+        UniqueConstraint("auc_id", "ind_id"),
+    )
+    seq_id = Column(Integer, primary_key=True)
+    auc_id = Column(Integer, ForeignKey("auc.auc_id"))
+    ind_id = Column(Integer, ForeignKey("auth_sqn_ind.ind_id"))
+    seq = Column(BigInteger)
+
+    def __init__(self, auc_id, ind_id):
+        self.auc_id = auc_id
+        self.ind_id = ind_id
+
 class APN_OPERATION_LOG(OPERATION_LOG_BASE):
     __mapper_args__ = {'polymorphic_identity': 'apn'}
     apn = relationship("APN", back_populates="operation_logs")
@@ -356,7 +384,7 @@ class SUBSCRIBER_ATTRIBUTES_OPERATION_LOG(OPERATION_LOG_BASE):
 
 class Database:
 
-    def __init__(self, logTool, redisMessaging=None):
+    def __init__(self, logTool, redisMessaging=None, main_service: bool = False):
 
         self.redisUseUnixSocket = config.get('redis', {}).get('useUnixSocket', False)
         self.redisUnixSocketPath = config.get('redis', {}).get('unixSocketPath', '/var/run/redis/redis-server.sock')
@@ -395,13 +423,7 @@ class Database:
             pool_size=config['logging'].get('sqlalchemy_pool_size', 30),
             max_overflow=config['logging'].get('sqlalchemy_max_overflow', 0))
 
-        # Create database if it does not exist.
-        if not database_exists(self.engine.url):
-            self.logTool.log(service='Database', level='debug', message="Creating database", redisClient=self.redisMessaging)
-            create_database(self.engine.url)
-            Base.metadata.create_all(self.engine)
-        else:
-            self.logTool.log(service='Database', level='debug', message="Database already created", redisClient=self.redisMessaging)
+        DatabaseSchema(self.logTool, Base, self.engine, main_service)
 
         #Load IMEI TAC database into Redis if enabled
         if self.tacDatabasePath:
@@ -410,15 +432,6 @@ class Database:
         else:
             self.logTool.log(service='Database', level='info', message="Not loading EIR IMEI TAC Database as Redis not enabled or TAC CSV Database not set in config", redisClient=self.redisMessaging)
             self.tacData = {}
-
-        # Create individual tables if they do not exist
-        inspector = inspect(self.engine)
-        for table_name in Base.metadata.tables.keys():
-            if table_name not in inspector.get_table_names():
-                self.logTool.log(service='Database', level='debug', message=f"Creating table {table_name}", redisClient=self.redisMessaging)
-                Base.metadata.tables[table_name].create(bind=self.engine)
-            else:
-                self.logTool.log(service='Database', level='debug', message=f"Table {table_name} already exists", redisClient=self.redisMessaging)
 
     def load_IMEI_database_into_Redis(self):
         try:
@@ -1588,95 +1601,192 @@ class Database:
         self.safe_close(session)
         return Served_Subs
 
-    def Get_Vectors_AuC(self, auc_id, action, **kwargs):
-        self.logTool.log(service='Database', level='debug', message="Getting Vectors for auc_id " + str(auc_id) + " with action " + str(action), redisClient=self.redisMessaging)
+    def Get_AUTH_SQN_IND(self, client_name: str) -> int:
+        with Session(self.engine) as session:
+            result = session.query(AUTH_SQN_IND).filter(AUTH_SQN_IND.client_name == client_name).one_or_none()
+            if result:
+                ind = result.ind_id
+                self.logTool.log(
+                    service="Database",
+                    level="debug",
+                    message=f"Getting SQN IND for {client_name}: {ind} (previously assigned)",
+                    redisClient=self.redisMessaging,
+                )
+                return ind
+
+            new_row = AUTH_SQN_IND(client_name=client_name)
+            session.add(new_row)
+            session.commit()
+            ind = new_row.ind_id
+            self.logTool.log(
+                service="Database",
+                level="debug",
+                message=f"Getting SQN IND for {client_name}: {ind} (new)",
+                redisClient=self.redisMessaging,
+            )
+            return ind
+
+    def Get_AUTH_SQNs(self, auc_data: dict, ind: int, count: int) -> list[int]:
+        if count < 1:
+            raise RuntimeError("Get_AUTH_SQNs: count must be > 0")
+
+        ret = []
+        auc_id = auc_data["auc_id"]
+        ind_bitlen = auc_data["sqn_ind_bitlen"]
+
+        with Session(self.engine) as session:
+            # Get SEQ from database
+            seq_obj = session.query(AUTH_SQN_SEQ).filter_by(
+                auc_id=auc_id,
+                ind_id=ind,
+            ).one_or_none()
+            seq = seq_obj.seq if seq_obj else 0
+
+            # Generate SQNs with increased SEQ
+            sqn = SQN(seq, ind, ind_bitlen)
+            for i in range(count):
+                sqn.seq += 1
+                ret += [sqn.get()]
+                self.logTool.log(
+                    service="Database",
+                    level="debug",
+                    message=f"Get_AUTH_SQNs for auc_id={auc_id}: {sqn}",
+                )
+
+            # Update SEQ in database
+            if not seq_obj:
+                seq_obj = AUTH_SQN_SEQ(auc_id, ind)
+            seq_obj.seq = sqn.seq
+            session.merge(seq_obj)
+            session.commit()
+
+        return ret
+
+    def Get_AUTH_SQN(self, auc_data: dict, ind: int) -> int:
+        return self.Get_AUTH_SQNs(auc_data, ind, 1)[0]
+
+    def Get_Vectors_AuC_air(self, auc_id, plmn, ind):
+        self.logTool.log(service='Database', level='debug', message=f"Getting Vectors for auc_id {auc_id} with action air", redisClient=self.redisMessaging)
         key_data = self.GetObj(AUC, auc_id)
         vector_dict = {}
-        
-        if action == "air":
-            rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn']) 
-            vector_dict['rand'] = rand
-            vector_dict['xres'] = xres
-            vector_dict['autn'] = autn
-            vector_dict['kasme'] = kasme
 
-            #Incriment SQN
-            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
+        sqn = self.Get_AUTH_SQN(key_data, ind)
+        rand, xres, autn, kasme = S6a_crypt.generate_eutran_vector(key_data['ki'], key_data['opc'], key_data['amf'], sqn, plmn)
+        vector_dict['rand'] = rand
+        vector_dict['xres'] = xres
+        vector_dict['autn'] = autn
+        vector_dict['kasme'] = kasme
 
-            return vector_dict
+        return vector_dict
 
-        elif action == "sqn_resync":
-            self.logTool.log(service='Database', level='debug', message="Resync SQN", redisClient=self.redisMessaging)
-            rand = kwargs['rand']       
-            sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], kwargs['auts'], rand)
-            self.logTool.log(service='Database', level='debug', message="SQN from resync: " + str(sqn) + " SQN in DB is "  + str(key_data['sqn']) + "(Difference of " + str(int(sqn) - int(key_data['sqn'])) + ")", redisClient=self.redisMessaging)
-            self.Update_AuC(auc_id, sqn=sqn+100)
-            return
-        
-        elif action == "sip_auth":
-            rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
+    def Get_Vectors_AuC_sqn_resync(self, auc_id, auts, rand):
+        self.logTool.log(service='Database', level='debug', message=f"Getting Vectors for auc_id {auc_id} with action sqn_resync")
+        key_data = self.GetObj(AUC, auc_id)
+
+        self.logTool.log(service='Database', level='debug', message="Resync SQN")
+        sqn, mac_s = S6a_crypt.generate_resync_s6a(key_data['ki'], key_data['opc'], key_data['amf'], auts, rand)
+        ind_bitlen = key_data["sqn_ind_bitlen"]
+        sqn_obj = SQN.from_sqn(sqn, ind_bitlen)
+        self.logTool.log(service='Database', level='debug', message=f"New: {sqn_obj}")
+
+        with Session(self.engine) as session:
+            seq_obj = session.query(AUTH_SQN_SEQ).filter_by(
+                auc_id=auc_id,
+                ind_id=sqn_obj.ind,
+            ).one_or_none()
+            if seq_obj:
+                self.logTool.log(service='Database', level='debug', message=f"Old: {SQN(seq_obj.seq, seq_obj.ind_id, ind_bitlen)}")
+            else:
+                seq_obj = AUTH_SQN_SEQ(auc_id, sqn_obj.ind_id)
+            seq_obj.seq = sqn_obj.seq
+            session.merge(seq_obj)
+            session.commit()
+
+    def Get_Vectors_AuC_sip_auth(self, auc_id, plmn, ind):
+        self.logTool.log(service='Database', level='debug', message=f"Getting Vectors for auc_id {auc_id} with action auc_id", redisClient=self.redisMessaging)
+        key_data = self.GetObj(AUC, auc_id)
+        vector_dict = {}
+
+        sqn = self.Get_AUTH_SQN(key_data, ind)
+        rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], sqn, plmn)
+        self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
+        vector_dict['SIP_Authenticate'] = rand + autn
+        vector_dict['xres'] = xres
+        vector_dict['ck'] = ck
+        vector_dict['ik'] = ik
+
+        return vector_dict
+
+    def Get_Vectors_AuC_aka(self, auc_id, plmn, ind, count):
+        self.logTool.log(service='Database', level='debug', message=f"Getting {count} Vectors for auc_id {auc_id} with action aka", redisClient=self.redisMessaging)
+        key_data = self.GetObj(AUC, auc_id)
+        sqns = self.Get_AUTH_SQNs(key_data, ind, count)
+        vector_dict = {}
+        vector_list = []
+
+        for i in range(count):
+            rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], sqns[i], plmn)
             self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
             self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
-            vector_dict['SIP_Authenticate'] = rand + autn
-            vector_dict['xres'] = xres
-            vector_dict['ck'] = ck
-            vector_dict['ik'] = ik
-            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
-            return vector_dict
 
-        elif action == "aka":
-            rand, autn, xres, ck, ik = S6a_crypt.generate_maa_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
-            vector_list = []
-            self.logTool.log(service='Database', level='debug', message="Generating " + str(kwargs['requested_vectors']) + " vectors for GSM use", redisClient=self.redisMessaging)
-            while kwargs['requested_vectors'] != 0:
-                self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
-                self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
-
-                vector_dict['rand'] = binascii.hexlify(rand).decode("utf-8")
-                vector_dict['autn'] = binascii.hexlify(autn).decode("utf-8")
-                vector_dict['xres'] = binascii.hexlify(xres).decode("utf-8")
-                vector_dict['ck'] = binascii.hexlify(ck).decode("utf-8")
-                vector_dict['ik'] = binascii.hexlify(ik).decode("utf-8")
-
-                kwargs['requested_vectors'] = kwargs['requested_vectors'] - 1
-                vector_list.append(vector_dict)
-            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
-            return vector_list
-
-        elif action == "2g3g":
-            # Mask first bit of AMF
-            key_data['amf'] = '0' + key_data['amf'][1:]
-            vect = S6a_crypt.generate_2g3g_vector(key_data['ki'], key_data['opc'], key_data['amf'], int(key_data['sqn']), int(key_data['algo']))
-            vector_list = []
-            self.logTool.log(service='Database', level='debug', message="Generating " + str(kwargs['requested_vectors']) + " vectors for GSM use", redisClient=self.redisMessaging)
-            while kwargs['requested_vectors'] != 0:
-                kwargs['requested_vectors'] = kwargs['requested_vectors'] - 1
-                vector_list.append(vect)
-            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
-            return vector_list
-
-        elif action == "eap_aka":
-            rand, xres, autn, mac_a, ak = S6a_crypt.generate_eap_aka_vector(key_data['ki'], key_data['opc'], key_data['amf'], key_data['sqn'], kwargs['plmn'])
-            self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
-            self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
             vector_dict['rand'] = binascii.hexlify(rand).decode("utf-8")
             vector_dict['autn'] = binascii.hexlify(autn).decode("utf-8")
             vector_dict['xres'] = binascii.hexlify(xres).decode("utf-8")
-            vector_dict['mac'] = binascii.hexlify(mac_a).decode("utf-8")
-            vector_dict['ak'] = binascii.hexlify(ak).decode("utf-8")
-            self.Update_AuC(auc_id, sqn=key_data['sqn']+100)
-            return vector_dict
+            vector_dict['ck'] = binascii.hexlify(ck).decode("utf-8")
+            vector_dict['ik'] = binascii.hexlify(ik).decode("utf-8")
 
-        elif action == "Digest-MD5":
-            self.logTool.log(service='Database', level='debug', message="Generating Digest-MD5 Auth vectors", redisClient=self.redisMessaging)
-            self.logTool.log(service='Database', level='debug', message="key_data: " + str(key_data), redisClient=self.redisMessaging)
-            nonce = uuid.uuid4().hex
-            #nonce = "beef4d878f2642ed98afe491b943ca60"
-            vector_dict['nonce'] = nonce
-            vector_dict['SIP_Authenticate'] = key_data['ki']
-            return vector_dict
-        else:
-            self.logTool.log(service='Database', level='error', message="Invalid action: " + str(action), redisClient=self.redisMessaging)
+            vector_list.append(vector_dict)
+
+        return vector_list
+
+    def Get_Vectors_AuC_2g3g(self, auc_id, ind, count):
+        self.logTool.log(service='Database', level='debug', message=f"Getting {count} Vectors for auc_id {auc_id} with action 2g3g", redisClient=self.redisMessaging)
+        key_data = self.GetObj(AUC, auc_id)
+
+        # Mask first bit of AMF
+        key_data['amf'] = '0' + key_data['amf'][1:]
+
+        algo = int(key_data["algo"]) if key_data["algo"] is not None else 3
+        sqns = self.Get_AUTH_SQNs(key_data, ind, count)
+        vector_list = []
+
+        for i in range(count):
+            vect = S6a_crypt.generate_2g3g_vector(key_data['ki'], key_data['opc'], key_data['amf'], sqns[i], algo)
+            vector_list.append(vect)
+
+        return vector_list
+
+    def Get_Vectors_AuC_eap_aka(self, auc_id, plmn, ind):
+        self.logTool.log(service='Database', level='debug', message=f"Getting Vectors for auc_id {auc_id} with action eap_aka", redisClient=self.redisMessaging)
+        key_data = self.GetObj(AUC, auc_id)
+        sqn = self.Get_AUTH_SQN(key_data, ind)
+        vector_dict = {}
+
+        rand, xres, autn, mac_a, ak = S6a_crypt.generate_eap_aka_vector(key_data['ki'], key_data['opc'], key_data['amf'], sqn, plmn)
+        self.logTool.log(service='Database', level='debug', message="RAND is: " + str(rand), redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="AUTN is: " + str(autn), redisClient=self.redisMessaging)
+        vector_dict['rand'] = binascii.hexlify(rand).decode("utf-8")
+        vector_dict['autn'] = binascii.hexlify(autn).decode("utf-8")
+        vector_dict['xres'] = binascii.hexlify(xres).decode("utf-8")
+        vector_dict['mac'] = binascii.hexlify(mac_a).decode("utf-8")
+        vector_dict['ak'] = binascii.hexlify(ak).decode("utf-8")
+
+        return vector_dict
+
+    def Get_Vectors_AuC_digest_md5(self, auc_id):
+        self.logTool.log(service='Database', level='debug', message=f"Getting Vectors for auc_id {auc_id} with action Digest-MD5", redisClient=self.redisMessaging)
+        key_data = self.GetObj(AUC, auc_id)
+        vector_dict = {}
+
+        self.logTool.log(service='Database', level='debug', message="Generating Digest-MD5 Auth vectors", redisClient=self.redisMessaging)
+        self.logTool.log(service='Database', level='debug', message="key_data: " + str(key_data), redisClient=self.redisMessaging)
+        nonce = uuid.uuid4().hex
+        #nonce = "beef4d878f2642ed98afe491b943ca60"
+        vector_dict['nonce'] = nonce
+        vector_dict['SIP_Authenticate'] = key_data['ki']
+
+        return vector_dict
 
     def Get_Gsup_SubscriberInfo(self, imsi: str) -> SubscriberInfo:
         subscriber = self.Get_Subscriber(imsi=imsi)

@@ -31,6 +31,6 @@ lib/__pycache__/milenage.cpython-36.pyc
 pyhss.egg-info
 
 !tests/config.yaml
-tests/.pyhss.db
+tests/.pyhss*.db
 .venv
 hss.db

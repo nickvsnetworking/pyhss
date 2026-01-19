@@ -41,3 +41,14 @@ filterwarnings = [
 	# https://github.com/python/cpython/issues/135834
 	"ignore:The default datetime adapter is deprecated as of Python 3.12"
 ]
+
+[tool.ruff]
+line-length = 120
+include = [
+	"lib/SQN.py",
+	"lib/databaseSchema.py",
+	"lib/pyhss_config.py",
+	"tests/test_database_upgrade.py",
+	"tests/test_license_headers.py",
+	"tests/test_milenage.py",
+]

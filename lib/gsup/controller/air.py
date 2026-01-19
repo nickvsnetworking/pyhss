@@ -42,22 +42,22 @@ class AIRController(GsupController):
             subscriber = self._database.Get_Subscriber(imsi=imsi)
             rand = GsupMessageUtil.get_first_ie_by_name('rand', request_dict)
             auts = GsupMessageUtil.get_first_ie_by_name('auts', request_dict)
+            client_name = f"gsup:sernr={peer.tags['SERNR']}".rstrip("\x00")
+            ind = self._database.Get_AUTH_SQN_IND(client_name)
 
             resync_required = rand is not None and auts is not None
             if resync_required:
-                self._database.Get_Vectors_AuC(subscriber['auc_id'], 'sqn_resync', rand=rand, auts=auts.hex())
-
-            # Use request_vectors=1 as Get_Vectors_AuC currently doesn't
-            # increment SEQ for each requested vector:
-            # https://github.com/nickvsnetworking/pyhss/issues/266
-            vectors = []
-            for i in range(self.get_num_vectors_req(request_dict)):
-                vectors += self._database.Get_Vectors_AuC(subscriber['auc_id'], '2g3g', requested_vectors=1)
+                self._database.Get_Vectors_AuC_sqn_resync(subscriber['auc_id'], auts.hex(), rand)
 
             response_msg = ((GsupMessageBuilder()
                             .with_msg_type(MsgType.SEND_AUTH_INFO_RESULT))
                             .with_ie('imsi', imsi))
 
+            vectors = self._database.Get_Vectors_AuC_2g3g(
+                subscriber['auc_id'],
+                ind,
+                self.get_num_vectors_req(request_dict),
+            )
             for vector in vectors:
                 response_msg.with_ie('auth_tuple', [vector], False)
 
@@ -74,7 +74,7 @@ class AIRController(GsupController):
                 .build(),
             )
         except ValueError as e:
-            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi}")
+            await self._logger.logAsync(service='GSUP', level='WARN', message=f"Subscriber not found: {imsi}, {traceback.format_exc()}")
             await self._send_gsup_response(
                 peer,
                 GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
