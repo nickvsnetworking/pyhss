@@ -22,6 +22,14 @@ pyhss_env = {
 }
 
 
+def pytest_collection_modifyitems(session, config, items):
+    def by_slow(item):
+        return 0 if item.get_closest_marker("slow") is None else 1
+
+    # Run slow tests at the end
+    items.sort(key=by_slow, reverse=False)
+
+
 def wait_for_tcp_port(port, timeout=5):
     hostname = "127.0.0.1"
     start_time = time.time()
@@ -48,7 +56,7 @@ def create_test_db():
         print(f"Removing previous test DB: {test_db}")
         os.unlink(test_db)
 
-    db = Database(LogTool(config))
+    db = Database(LogTool(config), main_service=True)
     assert os.path.exists(test_db)
 
     db.CreateObj(APN, {

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Running services outside of the source tree.
 - Building PyHSS with `python3 -m build` and as debian package.
 - RAT restriction checking for subscribers.
+- Automatic database upgrades (from 1.0.1 or higher).
 
 ### Changed
 
@@ -63,6 +64,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQN Resync now propogates via Geored when enabled 
 - Renamed sh_profile to xcap_profile in ims_subscriber
 - Rebuilt keys using unique namespace for redis-sentinel / stateless compatibility.
+- The database schema was changed as follows. If you have a PyHSS database
+  created with version 1.0.0 that you would like to use with 1.0.1 or newer,
+  apply these changes manually. Newer versions of PyHSS have automatic database
+  migrations.
+<details>
+
+```diff
+--- a/release_1.0.0.sql
++++ b/release_1.0.1.sql
+@@ -13,6 +13,12 @@ CREATE TABLE apn (
+ 	arp_preemption_capability BOOLEAN,
+ 	arp_preemption_vulnerability BOOLEAN,
+ 	charging_rule_list VARCHAR(18),
++	nbiot BOOLEAN,
++	nidd_scef_id VARCHAR(512),
++	nidd_scef_realm VARCHAR(512),
++	nidd_mechanism INTEGER,
++	nidd_rds INTEGER,
++	nidd_preferred_data_mode INTEGER,
+ 	last_modified VARCHAR(100),
+ 	PRIMARY KEY (apn_id)
+ );
+@@ -80,22 +86,40 @@ CREATE TABLE eir_history (
+ 	PRIMARY KEY (imsi_imei_history_id),
+ 	UNIQUE (imsi_imei)
+ );
+ CREATE TABLE ims_subscriber (
+ 	ims_subscriber_id INTEGER NOT NULL,
+ 	msisdn VARCHAR(18),
+ 	msisdn_list VARCHAR(1200),
+ 	imsi VARCHAR(18),
+-	ifc_path VARCHAR(18),
++	ifc_path VARCHAR(512),
+ 	pcscf VARCHAR(512),
+ 	pcscf_realm VARCHAR(512),
+ 	pcscf_active_session VARCHAR(512),
+ 	pcscf_timestamp DATETIME,
+ 	pcscf_peer VARCHAR(512),
++	xcap_profile TEXT(12000),
+ 	sh_profile TEXT(12000),
+ 	scscf VARCHAR(512),
+ 	scscf_timestamp DATETIME,
+ 	scscf_realm VARCHAR(512),
+ 	scscf_peer VARCHAR(512),
++	sh_template_path VARCHAR(512),
+ 	last_modified VARCHAR(100),
+ 	PRIMARY KEY (ims_subscriber_id),
+ 	UNIQUE (msisdn)
+@@ -115,6 +139,9 @@ CREATE TABLE operation_log (
+ 	auc_id INTEGER,
+ 	subscriber_id INTEGER,
+ 	ims_subscriber_id INTEGER,
++	roaming_rule_id INTEGER,
++	roaming_network_id INTEGER,
++	emergency_subscriber_id INTEGER,
+ 	charging_rule_id INTEGER,
+ 	tft_id INTEGER,
+ 	eir_id INTEGER,
+@@ -127,12 +154,33 @@ CREATE TABLE operation_log (
+ 	FOREIGN KEY(auc_id) REFERENCES auc (auc_id),
+ 	FOREIGN KEY(subscriber_id) REFERENCES subscriber (subscriber_id),
+ 	FOREIGN KEY(ims_subscriber_id) REFERENCES ims_subscriber (ims_subscriber_id),
++	FOREIGN KEY(roaming_rule_id) REFERENCES roaming_rule (roaming_rule_id),
++	FOREIGN KEY(roaming_network_id) REFERENCES roaming_network (roaming_network_id),
++	FOREIGN KEY(emergency_subscriber_id) REFERENCES emergency_subscriber (emergency_subscriber_id),
+ 	FOREIGN KEY(charging_rule_id) REFERENCES charging_rule (charging_rule_id),
+ 	FOREIGN KEY(tft_id) REFERENCES tft (tft_id),
+ 	FOREIGN KEY(eir_id) REFERENCES eir (eir_id),
+ 	FOREIGN KEY(imsi_imei_history_id) REFERENCES eir_history (imsi_imei_history_id),
+ 	FOREIGN KEY(subscriber_attributes_id) REFERENCES subscriber_attributes (subscriber_attributes_id)
+ );
+ CREATE TABLE serving_apn (
+ 	serving_apn_id INTEGER NOT NULL,
+ 	subscriber_id INTEGER,
+@@ -160,6 +208,8 @@ CREATE TABLE subscriber (
+ 	ue_ambr_dl INTEGER,
+ 	ue_ambr_ul INTEGER,
+ 	nam INTEGER,
++	roaming_enabled BOOLEAN,
++	roaming_rule_list VARCHAR(512),
+ 	subscribed_rau_tau_timer INTEGER,
+ 	serving_mme VARCHAR(512),
+ 	serving_mme_timestamp DATETIME,
+```
+</details>
 
 ### Fixed
 

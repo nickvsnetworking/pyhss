@@ -13,13 +13,6 @@ from osmocom.gsup.message import MsgType, GsupMessage
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
 from gsup.protocol.osmocom_ipa import IPA
 
-from fixtures import (
-    create_test_db,
-    run_pyhss_gsup,
-    run_pyhss_hss,
-    run_redis,
-)
-
 
 class GSUPClient:
     def __init__(self, server_ip, server_port, identity='SGSN'):
