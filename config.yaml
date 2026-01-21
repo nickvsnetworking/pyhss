@@ -92,6 +92,15 @@ hss:
   gsup:
     bind_ip: "0.0.0.0"
     bind_port: 4222
+    # Simple 2G / 3G USSD support via GSUP.
+    # Define USSD codes and messages here. The %msisdn% and %imsi% variables can be used in messages.
+    ussd:
+      unknown_code_msg: "The USSD code you have entered is not recognized."
+      codes:
+        - code: "*#100#"
+          msg: "Your MSISDN is %msisdn%"
+        - code: "*#101#"
+          msg: "Your IMSI is %imsi%"
 
 api:
   page_size: 200
