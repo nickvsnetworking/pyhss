@@ -13,6 +13,7 @@ from gsup.controller.air import AIRController
 from gsup.controller.isr import ISRController, ISDTransaction
 from gsup.controller.noop import NoopController
 from gsup.controller.pur import PURController
+from gsup.controller.ss import SSController
 from gsup.controller.ulr import ULRTransaction, ULRController
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
 from gsup.protocol.ipa_peer import IPAPeer
@@ -37,6 +38,11 @@ class GsupRequestDispatcher:
                 MsgType.LOCATION_CANCEL_ERROR: NoopController(logger, database),
                 MsgType.AUTH_FAIL_REPORT: NoopController(logger, database),
                 MsgType.PURGE_MS_REQUEST: PURController(logger, database),
+
+                # USSD
+                MsgType.PROC_SS_REQUEST: SSController(logger, database),
+                MsgType.PROC_SS_ERROR: SSController(logger, database),
+                MsgType.PROC_SS_RESULT: SSController(logger, database),
         }
 
 
@@ -70,7 +76,6 @@ class GsupRequestDispatcher:
             MsgType.LOCATION_CANCEL_REQUEST: MsgType.LOCATION_CANCEL_ERROR,
             MsgType.MO_FORWARD_SM_REQUEST: MsgType.MO_FORWARD_SM_ERROR,
             MsgType.MT_FORWARD_SM_REQUEST: MsgType.MT_FORWARD_SM_ERROR,
-            MsgType.PROC_SS_REQUEST: MsgType.PROC_SS_ERROR,
             MsgType.READY_FOR_SM_REQUEST: MsgType.READY_FOR_SM_ERROR,
         }
 

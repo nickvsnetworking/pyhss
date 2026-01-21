@@ -25,3 +25,5 @@ tzlocal==4.3
 influxdb==5.3.1
 xmltodict==0.14.2
 StrEnum==0.4.15; python_version < '3.11'
+asn1tools==0.167.0
+smspdudecoder==2.2.0

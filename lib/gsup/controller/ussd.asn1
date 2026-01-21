@@ -1,0 +1,186 @@
+
+Foo DEFINITIONS ::= BEGIN
+
+MAP-OPERATION   ::= CHOICE {
+                            localValue OperationLocalvalue,
+                            globalValue OBJECT IDENTIFIER }
+
+
+GSMMAPOperationLocalvalue ::= INTEGER{
+    updateLocation (2),
+    cancelLocation (3),
+    provideRoamingNumber (4),
+    noteSubscriberDataModified (5),
+    resumeCallHandling (6),
+    insertSubscriberData (7),
+    deleteSubscriberData (8),
+    sendParameters (9),
+    registerSS (10),
+    eraseSS (11),
+    activateSS (12),
+    deactivateSS (13),
+    interrogateSS (14),
+    notifySS (16),
+    registerPassword (17),
+    getPassword (18),
+    processUnstructuredSS-Data (19),
+    processUnstructuredSS-Request (59)
+}
+
+OperationLocalvalue ::= GSMMAPOperationLocalvalue
+
+
+MAP-ERROR	::=	CHOICE {
+			localValue LocalErrorcode,
+			globalValue OBJECT IDENTIFIER }
+
+GSMMAPLocalErrorcode ::= INTEGER{
+	unknownSubscriber (1),
+	unknownBaseStation (2),
+	unknownMSC (3),
+	secureTransportError (4),
+	unidentifiedSubscriber (5),
+	absentSubscriberSM (6),
+	unknownEquipment (7),
+	roamingNotAllowed (8),
+	illegalSubscriber (9),
+	bearerServiceNotProvisioned (10),
+	teleserviceNotProvisioned (11),
+	illegalEquipment (12),
+	callBarred (13),
+	forwardingViolation (14),
+	cug-Reject (15),
+	illegalSS-Operation (16),
+	ss-ErrorStatus (17),
+	ss-NotAvailable (18),
+	ss-SubscriptionViolation (19),
+	ss-Incompatibility (20),
+	facilityNotSupported (21),
+	ongoingGroupCall (22),
+	invalidTargetBaseStation (23),
+	noRadioResourceAvailable (24),
+	noHandoverNumberAvailable (25),
+	subsequentHandoverFailure (26),
+	absentSubscriber (27),
+	incompatibleTerminal (28),
+	shortTermDenial (29),
+	longTermDenial (30),
+	subscriberBusyForMT-SMS (31),
+	sm-DeliveryFailure (32),
+	messageWaitingListFull (33),
+	systemFailure (34),
+	dataMissing (35),
+	unexpectedDataValue (36),
+	pw-RegistrationFailure (37),
+	negativePW-Check (38),
+	noRoamingNumberAvailable (39),
+	tracingBufferFull (40),
+	targetCellOutsideGroupCallArea (42),
+	numberOfPW-AttemptsViolation (43),
+	numberChanged (44),
+	busySubscriber (45),
+	noSubscriberReply (46),
+	forwardingFailed (47),
+	or-NotAllowed (48),
+	ati-NotAllowed (49),
+	noGroupCallNumberAvailable (50),
+	resourceLimitation (51),
+	unauthorizedRequestingNetwork (52),
+	unauthorizedLCSClient (53),
+	positionMethodFailure (54),
+	unknownOrUnreachableLCSClient (58),
+	mm-EventNotSupported (59),
+	atsi-NotAllowed (60),
+	atm-NotAllowed (61),
+	informationNotAvailable (62),
+	unknownAlphabet (71),
+	ussd-Busy (72)
+}
+
+LocalErrorcode ::= GSMMAPLocalErrorcode
+
+Component ::=   CHOICE {
+			invoke              [1] IMPLICIT Invoke,
+			returnResultLast    [2] IMPLICIT ReturnResult,
+			returnError         [3] IMPLICIT ReturnError,
+			-- TCAP adds returnResultNotLast to allow for the segmentation of a result.
+			returnResultNotLast [7] IMPLICIT ReturnResult
+}
+
+Invoke ::=      SEQUENCE {
+                invokeID            InvokeIdType,
+                linkedID            [0] InvokeIdType OPTIONAL,
+                opCode              MAP-OPERATION,
+                invokeparameter     InvokeParameter OPTIONAL
+}
+InvokeParameter ::= ANY
+
+ReturnResult ::=    SEQUENCE {
+                invokeID                InvokeIdType,
+                resultretres            SEQUENCE {
+                opCode                  MAP-OPERATION,
+                returnparameter         ReturnResultParameter OPTIONAL
+                } OPTIONAL
+            }
+ReturnResultParameter ::= ANY
+
+
+ReturnError ::= SEQUENCE {
+                invokeID                InvokeIdType,
+                errorCode               MAP-ERROR,
+                parameter               ReturnErrorParameter  OPTIONAL }
+
+ReturnErrorParameter ::= ANY
+
+
+InvokeIdType ::=    INTEGER (-128..127)
+
+
+ReturnResult ::=    SEQUENCE {
+                invokeID                InvokeIdType,
+                resultretres            SEQUENCE {
+                opCode                  MAP-OPERATION,
+                returnparameter         ReturnResultParameter OPTIONAL
+                } OPTIONAL
+            }
+
+ReturnResultParameter ::= ANY
+
+-- ANY is filled by the single ASN.1 data type following the keyword RESULT in the type definition
+-- of a particular operation.
+
+ReturnError ::= SEQUENCE {
+                invokeID                InvokeIdType,
+                errorCode               MAP-ERROR,
+                parameter               ReturnErrorParameter  OPTIONAL }
+
+ReturnErrorParameter ::= ANY
+
+
+InvokeIdType ::=    INTEGER (-128..127)
+
+
+
+    USSD-Arg ::= SEQUENCE {
+        ussd-DataCodingScheme USSD-DataCodingScheme,
+            ussd-String USSD-String,
+            ... ,
+            alertingPattern AlertingPattern OPTIONAL,
+            msisdn [0] ISDN-AddressString OPTIONAL }
+
+    USSD-Res ::= SEQUENCE {
+        ussd-DataCodingScheme USSD-DataCodingScheme,
+        ussd-String USSD-String,
+     ...}
+    USSD-DataCodingScheme ::= OCTET STRING (SIZE (1))
+
+    USSD-String ::= OCTET STRING (SIZE (1..maxUSSD-StringLength))
+
+    maxUSSD-StringLength INTEGER ::= 160
+    AlertingPattern ::= OCTET STRING (SIZE (1) )
+    ISDN-AddressString ::=
+    AddressString (SIZE (1..maxISDN-AddressLength))
+    maxISDN-AddressLength INTEGER ::= 9
+    AddressString ::= OCTET STRING (SIZE (1..maxAddressLength))
+    maxAddressLength INTEGER ::= 20
+END
