@@ -2,7 +2,8 @@
 # Copyright 2022-2025 Nick <nick@nickvsnetworking.com>
 # Copyright 2023-2025 David Kneipp <david@davidkneipp.com>
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
-# Copyright 2025 Lennart Rosam <hello@takuto.de>
+# Copyright 2025-2026 Lennart Rosam <hello@takuto.de>
+# Copyright 2025-2026 Alexander Couzens <lynxis@fe80.eu>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import sys
 import json
