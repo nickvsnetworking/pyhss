@@ -12,6 +12,7 @@ from database import Database
 from gsup.controller.abstract_controller import GsupController
 from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.controller.ulr import ULRTransaction
+from gsup.protocol.gsup_msg import GsupMessageUtil
 from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
 from logtool import LogTool
 
@@ -56,7 +57,7 @@ class ISDTransaction(AbstractTransaction):
         return self.__state == self.__TransactionState.END_STATE_ISR_RECEIVED
 
 class ISRController(GsupController):
-    def __init__(self, logger: LogTool, database: Database, ulr_transactions: Dict[str, ULRTransaction], isd_transactions: Dict[str, ISDTransaction], all_peers: Dict[str, IPAPeer]):
+    def __init__(self, logger: LogTool, database: Database, ulr_transactions: Dict[tuple[str, str], ULRTransaction], isd_transactions: Dict[tuple[str, str], ISDTransaction], all_peers: Dict[str, IPAPeer]):
         super().__init__(logger, database)
         self.__ulr_transactions = ulr_transactions
         self.__isd_transactions = isd_transactions
@@ -70,11 +71,14 @@ class ISRController(GsupController):
         await transaction.continue_invoke(message)
 
     def __find_transaction_for_imsi(self, message: GsupMessage, peer: IPAPeer) -> AbstractTransaction:
-        if peer.name in self.__ulr_transactions:
-            return self.__ulr_transactions[peer.name]
-        if peer.name in self.__isd_transactions:
-            return self.__isd_transactions[peer.name]
-        raise ValueError(f"No transaction found for peer {peer.name} during message {message.msg_type}")
+        imsi = GsupMessageUtil.get_first_ie_by_name('imsi', message.to_dict())
+        if imsi is None:
+            raise ValueError(f"Missing IMSI in GSUP message from {peer}. Cannot continue ISR handling.")
+        if (peer.name, imsi) in self.__ulr_transactions:
+            return self.__ulr_transactions[(peer.name, imsi)]
+        if (peer.name, imsi) in self.__isd_transactions:
+            return self.__isd_transactions[(peer.name, imsi)]
+        raise ValueError(f"No transaction found for peer {peer.name} + IMSI {imsi} during message {message.msg_type}")
 
     async def handle_subscriber_update(self, subscriber_info: SubscriberInfo):
         for location, domain, role in [
@@ -82,10 +86,11 @@ class ISRController(GsupController):
             (subscriber_info.location_info_2g.vlr, 'cs', IPAPeerRole.MSC),
             (subscriber_info.location_info_2g.sgsn, 'ps', IPAPeerRole.SGSN),
         ]:
+            imsi = subscriber_info.imsi
             peer = self.__find_ipa_peer_by_id(location, role)
             if peer is not None and peer.name not in self.__isd_transactions:
                 isd_transaction = ISDTransaction(subscriber_info, peer, domain, self._send_gsup_response)
-                self.__isd_transactions[peer.name] = isd_transaction
+                self.__isd_transactions[(peer.name, imsi)] = isd_transaction
                 await isd_transaction.begin_invoke()
 
 

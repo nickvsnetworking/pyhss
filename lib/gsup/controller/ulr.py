@@ -100,7 +100,7 @@ class ULRTransaction(AbstractTransaction):
 
 
 class ULRController(GsupController):
-    def __init__(self, logger: LogTool, database: Database, ulr_transactions: Dict[str, ULRTransaction], all_peers: Dict[str, IPAPeer]):
+    def __init__(self, logger: LogTool, database: Database, ulr_transactions: Dict[tuple[str, str], ULRTransaction], all_peers: Dict[str, IPAPeer]):
         super().__init__(logger, database)
         self.__ulr_transactions = ulr_transactions
         self.__all_ipa_peers = all_peers
@@ -159,7 +159,7 @@ class ULRController(GsupController):
                     raise ULRError(f"RAT {rat_type_to_check.value} not allowed for subscriber {imsi}", GMMCause.NO_SUIT_CELL_IN_LA)
 
             transaction = ULRTransaction(peer, message, self._send_gsup_response, self.__update_subscriber, subscriber_info)
-            self.__ulr_transactions[peer.name] = transaction
+            self.__ulr_transactions[(peer.name, imsi)] = transaction
             await transaction.begin_invoke()
         except ULRError as e:
             await self._logger.logAsync(service='GSUP', level='WARN', message=e.message)
