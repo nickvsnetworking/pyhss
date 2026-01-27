@@ -80,7 +80,7 @@ hss:
 
   roaming:
     inbound:
-      # How tofi handle unknown IMSIs when inbound roaming. Valid options are:
+      # How to handle unknown IMSIs when inbound roaming. Valid options are:
       #   IMSI_UNKNOWN - Reject the request with the "IMSI_UNKNOWN" error code.
       #   ROAMING_NOT_ALLOWED - Reject the request with the "ROAMING_NOT_ALLOWED" error code.
       # The latter is useful when operating a private network and public SIMs should not be allowed to connect.
