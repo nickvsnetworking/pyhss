@@ -79,6 +79,15 @@ hss:
     - 'scscf.ims.mnc001.mcc001.3gppnetwork.org'
 
   roaming:
+    inbound:
+      # How to handle unknown IMSIs when inbound roaming. Valid options are:
+      #   IMSI_UNKNOWN - Reject the request with the "IMSI_UNKNOWN" error code.
+      #   ROAMING_NOT_ALLOWED - Reject the request with the "ROAMING_NOT_ALLOWED" error code.
+      # The latter is useful when operating a private network and public SIMs should not be allowed to connect.
+      # "Roaming not allowed" will cause the UE to not try again on this network.
+      # "Imsi unknown" may cause the UE to believe that its subscription is invalid.
+      # For private networks, "ROAMING_NOT_ALLOWED" is recommended. Otherwise, use "IMSI_UNKNOWN".
+      reject_unknown_imsis_with: "ROAMING_NOT_ALLOWED"
     outbound:
       # Whether or not to a subscriber to connect to an undefined network when outbound roaming.
       allow_undefined_networks: True
