@@ -525,8 +525,12 @@ class Database:
         # Combine all changes into a single string with their types
         changes_string = '\r\n\r\n'.join(f"{column_name}: [{type(old_value).__name__}] {old_value} ----> [{type(new_value).__name__}] {new_value}" for column_name, old_value, new_value in changes)
 
+        # Do not use the nasty "or" expression, item_id may be 0
+        if item_id is None:
+            item_id = generated_id
+        
         change = OPERATION_LOG_BASE(
-            item_id=item_id or generated_id,
+            item_id=item_id,
             operation_id=operation_id,
             operation=operation,
             last_modified=datetime.datetime.now(tz=timezone.utc),
@@ -567,9 +571,6 @@ class Database:
                 if isinstance(obj, OPERATION_LOG_BASE):
                     continue  # Skip change log entries
 
-                item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
-                generated_id = None
-
                 #Avoid logging rollback operations
                 if operation == 'ROLLBACK':
                     return
@@ -578,6 +579,10 @@ class Database:
                 if operation == 'INSERT':
                     session.flush()
 
+                # Retrieve the attribute after session flush
+                item_id = getattr(obj, list(obj.__table__.primary_key.columns.keys())[0])
+                generated_id = None
+                
                 if operation == 'UPDATE':
                     changes = []
                     for attr in class_mapper(obj.__class__).column_attrs:
