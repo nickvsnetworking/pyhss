@@ -525,7 +525,7 @@ class Database:
         # Combine all changes into a single string with their types
         changes_string = '\r\n\r\n'.join(f"{column_name}: [{type(old_value).__name__}] {old_value} ----> [{type(new_value).__name__}] {new_value}" for column_name, old_value, new_value in changes)
 
-        # Do not use the nasty "or" expression
+        # Do not use the nasty "or" expression, item_id may be 0
         if item_id is None:
             item_id = generated_id
         
