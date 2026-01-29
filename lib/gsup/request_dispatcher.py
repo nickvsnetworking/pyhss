@@ -1,6 +1,6 @@
 # PyHSS GSUP Request dispatcher
-# Copyright 2025 Lennart Rosam <hello@takuto.de>
-# Copyright 2025 Alexander Couzens <lynxis@fe80.eu>
+# Copyright 2025-2026 Lennart Rosam <hello@takuto.de>
+# Copyright 2025-2026 Alexander Couzens <lynxis@fe80.eu>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from typing import Dict
 
@@ -22,8 +22,8 @@ from logtool import LogTool
 
 class GsupRequestDispatcher:
     def __init__(self, logger: LogTool, database: Database, all_peers: Dict[str, IPAPeer]):
-        self.__ulr_transactions: Dict[str, ULRTransaction] = dict()
-        self.__isd_transactions: Dict[str, ISDTransaction] = dict()
+        self.__ulr_transactions: Dict[tuple[str, str], ULRTransaction] = dict()
+        self.__isd_transactions: Dict[tuple[str, str], ISDTransaction] = dict()
         self.logger = logger
         self.database = database
         self.__all_peers = all_peers
@@ -42,13 +42,13 @@ class GsupRequestDispatcher:
 
     async def dispatch(self, peer: IPAPeer, request: GsupMessage):
         # clean up old transactions
-        ulr_to_remove = [peer_name for peer_name, trx in self.__ulr_transactions.items() if trx.is_finished()]
-        for peer_name in ulr_to_remove:
-            del self.__ulr_transactions[peer_name]
+        ulr_to_remove = [(peer_name, imsi) for (peer_name, imsi), trx in self.__ulr_transactions.items() if trx.is_finished()]
+        for peer_name, imsi in ulr_to_remove:
+            del self.__ulr_transactions[(peer_name, imsi)]
 
-        isd_to_remove = [peer_name for peer_name, trx in self.__isd_transactions.items() if trx.is_finished()]
-        for peer_name in isd_to_remove:
-            del self.__isd_transactions[peer_name]
+        isd_to_remove = [(peer_name, imsi) for (peer_name, imsi), trx in self.__isd_transactions.items() if trx.is_finished()]
+        for peer_name, imsi in isd_to_remove:
+            del self.__isd_transactions[(peer_name, imsi)]
 
         if request.msg_type in self.controller_mapping:
             await self.controller_mapping[request.msg_type].handle_message(peer, request)
