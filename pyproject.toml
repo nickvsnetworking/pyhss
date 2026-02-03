@@ -29,6 +29,9 @@ packages = [
 [tool.setuptools.package-dir]
 pyhss = ""
 
+[tool.setuptools.package-data]
+pyhss = ["*.asn1"]
+
 [tool.pytest.ini_options]
 addopts = "--tb=native"
 log_level = "DEBUG"
