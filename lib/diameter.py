@@ -1281,7 +1281,13 @@ class Diameter:
                             self.logTool.log(service='HSS', level='debug', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Successfully generated response: {response}", redisClient=self.redisMessaging)
                         except Exception as e:
                             self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Error generating response: {traceback.format_exc()}", redisClient=self.redisMessaging)
-                            return ''
+                            try:
+                                response = self.Respond_ResultCode(packet_vars, avps, 5012)
+                                self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Returning DIAMETER_UNABLE_TO_COMPLY (5012) due to unhandled error", redisClient=self.redisMessaging)
+                                return response
+                            except Exception as fallbackError:
+                                self.logTool.log(service='HSS', level='error', message=f"[diameter.py] [generateDiameterResponse] [{diameterApplication.get('requestAcronym', '')}] Failed to generate fallback error response: {traceback.format_exc()}", redisClient=self.redisMessaging)
+                                return ''
                         break
                     except Exception as e:
                         continue
@@ -3034,8 +3040,13 @@ class Diameter:
             username = self.get_avp_data(avps, 1)[0]                                                     
             username = binascii.unhexlify(username).decode('utf-8')
             self.logTool.log(service='HSS', level='debug', message="Username AVP is present, value is " + str(username), redisClient=self.redisMessaging)
-            imsi = username.split('@')[0]   #Strip Domain
-            domain = username.split('@')[1] #Get Domain Part
+            if '@' in username:
+                imsi = username.split('@')[0]
+                domain = username.split('@')[1]
+            else:
+                self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [Answer_16777216_300] [UAR] Username '{username}' missing '@' domain separator, using username as IMSI", redisClient=self.redisMessaging)
+                imsi = username
+                domain = binascii.unhexlify(self.OriginRealm).decode('utf-8')
             self.logTool.log(service='HSS', level='debug', message="Extracted imsi: " + str(imsi) + " now checking backend for this IMSI", redisClient=self.redisMessaging)
             ims_subscriber_details = self.database.Get_IMS_Subscriber(imsi=imsi)
         except Exception as E:
@@ -3291,9 +3302,16 @@ class Diameter:
         self.logTool.log(service='HSS', level='debug', message="Got MAR for public_identity : " + str(public_identity), redisClient=self.redisMessaging)
         username = self.get_avp_data(avps, 1)[0]
         username = binascii.unhexlify(username).decode('utf-8')
-        imsi = username.split('@')[0]   #Strip Domain
-        domain = username.split('@')[1] #Get Domain Part
         self.logTool.log(service='HSS', level='debug', message="Got MAR username: " + str(username), redisClient=self.redisMessaging)
+
+        if '@' in username:
+            imsi = username.split('@')[0]
+            domain = username.split('@')[1]
+        else:
+            self.logTool.log(service='HSS', level='warning', message=f"[diameter.py] [Answer_16777216_303] [MAR] Username '{username}' missing '@' domain separator, using OriginRealm as domain fallback", redisClient=self.redisMessaging)
+            imsi = username
+            domain = binascii.unhexlify(self.OriginRealm).decode('utf-8')
+
         auth_scheme = ''
 
         avp = ''                                                                                    #Initiate empty var AVP
