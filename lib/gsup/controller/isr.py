@@ -1,6 +1,6 @@
 # PyHSS GSUP Insert Subscriber Data Request Controller
-# Copyright 2025 Lennart Rosam <hello@takuto.de>
-# Copyright 2025 Alexander Couzens <lynxis@fe80.eu>
+# Copyright 2025-2026 Lennart Rosam <hello@takuto.de>
+# Copyright 2025-2026 Alexander Couzens <lynxis@fe80.eu>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from enum import IntEnum
 from typing import Dict, Callable, Awaitable, Optional
@@ -12,7 +12,8 @@ from database import Database
 from gsup.controller.abstract_controller import GsupController
 from gsup.controller.abstract_transaction import AbstractTransaction
 from gsup.controller.ulr import ULRTransaction
-from gsup.protocol.ipa_peer import IPAPeer
+from gsup.protocol.gsup_msg import GsupMessageUtil
+from gsup.protocol.ipa_peer import IPAPeer, IPAPeerRole
 from logtool import LogTool
 
 
@@ -22,7 +23,7 @@ class ISDTransaction(AbstractTransaction):
         ISD_REQUEST_SENT = 1
         END_STATE_ISR_RECEIVED = 2
 
-    def __init__(self, subscriber_info: SubscriberInfo, peer: IPAPeer, cn_domain: str, callback_send_response: Callable[[IPAPeer, GsupMessage], Awaitable[None]]):
+    def __init__(self, subscriber_info: SubscriberInfo, peer: IPAPeer, cn_domain: str, callback_send_response: Callable[[IPAPeer, GsupMessage], Awaitable[None]], logger: LogTool):
         super().__init__()
         self.__ipa_peer = peer
         self.__subscriber_info = subscriber_info
@@ -31,6 +32,7 @@ class ISDTransaction(AbstractTransaction):
 
         self._validate_cn_domain(cn_domain)
         self.__cn_domain = cn_domain
+        self.__logger = logger
 
     async def begin_invoke(self):
         if self.__state != self.__TransactionState.BEGIN_STATE_INITIAL:
@@ -44,8 +46,8 @@ class ISDTransaction(AbstractTransaction):
         if self.__state != self.__TransactionState.ISD_REQUEST_SENT:
             raise ValueError("ISD Transaction not in ISD_REQUEST_SENT state")
 
-        if message.msg_type != MsgType.INSERT_DATA_RESULT:
-            raise ValueError(f"ISD transaction was not successful. Got: {message.msg_type}")
+        if message.msg_type not in [MsgType.INSERT_DATA_RESULT, MsgType.INSERT_DATA_ERROR]:
+            self.__logger.log(service='GSUP', level='WARN', message=f"Received unexpected GSUP message type {message.msg_type.name} in ISD Transaction from peer {self.__ipa_peer.name}. Expected INSERT_DATA_RESULT or INSERT_DATA_ERROR.")
 
         self.__state = self.__TransactionState.END_STATE_ISR_RECEIVED
 
@@ -56,7 +58,7 @@ class ISDTransaction(AbstractTransaction):
         return self.__state == self.__TransactionState.END_STATE_ISR_RECEIVED
 
 class ISRController(GsupController):
-    def __init__(self, logger: LogTool, database: Database, ulr_transactions: Dict[str, ULRTransaction], isd_transactions: Dict[str, ISDTransaction], all_peers: Dict[str, IPAPeer]):
+    def __init__(self, logger: LogTool, database: Database, ulr_transactions: Dict[tuple[str, str], ULRTransaction], isd_transactions: Dict[tuple[str, str], ISDTransaction], all_peers: Dict[str, IPAPeer]):
         super().__init__(logger, database)
         self.__ulr_transactions = ulr_transactions
         self.__isd_transactions = isd_transactions
@@ -65,34 +67,38 @@ class ISRController(GsupController):
     async def handle_message(self, peer: IPAPeer, message: GsupMessage):
         transaction = self.__find_transaction_for_imsi(message, peer)
         if transaction.is_finished():
-            raise ValueError(f"ULR Transaction for peer {peer.name} is already finished")
+            raise ValueError(f"ISD Transaction for peer {peer.name} is already finished")
 
         await transaction.continue_invoke(message)
 
     def __find_transaction_for_imsi(self, message: GsupMessage, peer: IPAPeer) -> AbstractTransaction:
-        if peer.name in self.__ulr_transactions:
-            return self.__ulr_transactions[peer.name]
-        if peer.name in self.__isd_transactions:
-            return self.__isd_transactions[peer.name]
-        raise ValueError(f"No transaction found for peer {peer.name} during message {message.msg_type}")
+        imsi = GsupMessageUtil.get_first_ie_by_name('imsi', message.to_dict())
+        if imsi is None:
+            raise ValueError(f"Missing IMSI in GSUP message from {peer}. Cannot continue ISR handling.")
+        if (peer.name, imsi) in self.__ulr_transactions:
+            return self.__ulr_transactions[(peer.name, imsi)]
+        if (peer.name, imsi) in self.__isd_transactions:
+            return self.__isd_transactions[(peer.name, imsi)]
+        raise ValueError(f"No transaction found for peer {peer.name} + IMSI {imsi} during message {message.msg_type}")
 
     async def handle_subscriber_update(self, subscriber_info: SubscriberInfo):
-        for location, domain in [
-            (subscriber_info.location_info_2g.msc, 'cs'),
-            (subscriber_info.location_info_2g.vlr, 'cs'),
-            (subscriber_info.location_info_2g.sgsn, 'ps'),
+        for location, domain, role in [
+            (subscriber_info.location_info_2g.msc, 'cs', IPAPeerRole.MSC),
+            (subscriber_info.location_info_2g.vlr, 'cs', IPAPeerRole.MSC),
+            (subscriber_info.location_info_2g.sgsn, 'ps', IPAPeerRole.SGSN),
         ]:
-            peer = self.__find_ipa_peer_by_id(location)
+            imsi = subscriber_info.imsi
+            peer = self.__find_ipa_peer_by_id(location, role)
             if peer is not None and peer.name not in self.__isd_transactions:
-                isd_transaction = ISDTransaction(subscriber_info, peer, domain, self._send_gsup_response)
-                self.__isd_transactions[peer.name] = isd_transaction
+                isd_transaction = ISDTransaction(subscriber_info, peer, domain, self._send_gsup_response, self._logger)
+                self.__isd_transactions[(peer.name, imsi)] = isd_transaction
                 await isd_transaction.begin_invoke()
 
 
-    def __find_ipa_peer_by_id(self, peer_id: Optional[str]) -> Optional[IPAPeer]:
+    def __find_ipa_peer_by_id(self, peer_id: Optional[str], role: IPAPeerRole) -> Optional[IPAPeer]:
         if peer_id is None:
             return None
         for peer in self.__all_peers.values():
-            if peer.primary_id == peer_id:
+            if peer.primary_id == peer_id and peer.role == role:
                 return peer
         return None
