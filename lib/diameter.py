@@ -130,6 +130,13 @@ class Diameter:
 
         ]
 
+    @staticmethod
+    def get_unknown_imsi_reject_cause() -> int:
+        if config['hss']['roaming']['inbound']['reject_unknown_imsis_with'] == 'ROAMING_NOT_ALLOWED':
+            return 5004 # DIAMETER_ERROR_ROAMING_NOT_ALLOWED
+        return 5001 # DIAMETER_ERROR_USER_UNKNOWN
+
+
     #Generates rounding for calculating padding
     def myround(self, n, base=4):
         if(n > 0):
@@ -2244,7 +2251,7 @@ class Diameter:
                                             usePrefix=True, 
                                             prefixHostname=self.hostname, 
                                             prefixServiceName='metric')
-            #Handle if the subscriber is not present in HSS return "DIAMETER_ERROR_USER_UNKNOWN"
+            #Handle if the subscriber is not present in HSS return the appropriate error
             self.logTool.log(service='HSS', level='debug', message="Subscriber " + str(imsi) + " is unknown in database", redisClient=self.redisMessaging)
             avp = ''
             session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
@@ -2255,7 +2262,7 @@ class Diameter:
             #Experimental Result AVP(Response Code for Failure)
             avp_experimental_result = ''
             avp_experimental_result += self.generate_vendor_avp(266, 40, 10415, '')                         #AVP Vendor ID
-            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(5001, 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001)
+            avp_experimental_result += self.generate_avp(298, 40, self.int_to_hex(self.get_unknown_imsi_reject_cause(), 4))                 #AVP Experimental-Result-Code: DIAMETER_ERROR_USER_UNKNOWN (5001) or DIAMETER_ERROR_ROAMING_NOT_ALLOWED (5004)
             avp += self.generate_avp(297, 40, avp_experimental_result)                                      #AVP Experimental-Result(297)
             
             avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State

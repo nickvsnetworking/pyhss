@@ -13,6 +13,7 @@ from gsup.protocol.ipa_peer import IPAPeer
 from logtool import LogTool
 from utils import validate_imsi, InvalidIMSI
 
+from pyhss_config import config
 
 class AIRController(GsupController):
     def __init__(self, logger: LogTool, database: Database):
@@ -26,6 +27,13 @@ class AIRController(GsupController):
         if not ret or ret > max_num:
             return max_num
         return ret
+
+    @staticmethod
+    def _get_unknown_subscriber_reject_cause() -> GMMCause:
+        if config['hss']['roaming']['inbound']['reject_unknown_imsis_with'] == 'ROAMING_NOT_ALLOWED':
+            return GMMCause.ROAMING_NOTALLOWED
+        else:
+            return GMMCause.IMSI_UNKNOWN
 
     async def handle_message(self, peer: IPAPeer, message: GsupMessage):
         request_dict = message.to_dict()
@@ -79,7 +87,7 @@ class AIRController(GsupController):
                 peer,
                 GsupMessageBuilder().with_msg_type(MsgType.SEND_AUTH_INFO_ERROR)
                 .with_ie('imsi', imsi)
-                .with_ie('cause', GMMCause.IMSI_UNKNOWN.value)
+                .with_ie('cause', self._get_unknown_subscriber_reject_cause().value)
                 .build(),
             )
         except Exception as e:
