@@ -10,7 +10,7 @@ import os
 import random
 import ipaddress
 import jinja2
-from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER
+from database import Database, ROAMING_NETWORK, ROAMING_RULE, EMERGENCY_SUBSCRIBER, IMS_SUBSCRIBER
 from messaging import RedisMessaging
 from redis import Redis
 import datetime
@@ -3541,7 +3541,7 @@ class Diameter:
         #Push updated User Data into IMS Backend
         #Start with the Current User Data
         subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
-        self.database.UpdateObj(self.database.IMS_SUBSCRIBER, {'xcap_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
+        self.database.UpdateObj(IMS_SUBSCRIBER, {'xcap_profile': sh_user_data}, subscriber_ims_details['ims_subscriber_id'])
 
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
