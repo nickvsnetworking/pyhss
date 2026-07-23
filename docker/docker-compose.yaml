@@ -23,8 +23,8 @@ services:
       start_period: 3s
       start_interval: 0.1s
     depends_on:
-      redis:
-        condition: service_healthy
+      pyhss_hss:
+        condition: service_started
 
   pyhss_diameter:
     image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
@@ -60,7 +60,7 @@ services:
       - pyhss_logs:/opt/pyhss/logs
       - pyhss_sqlite:/var/lib/pyhss
     depends_on:
-      pyhss_diameter:
+      redis:
         condition: service_healthy
 
   pyhss_gsup:
@@ -83,8 +83,8 @@ services:
       start_period: 3s
       start_interval: 0.1s
     depends_on:
-      redis:
-        condition: service_healthy
+      pyhss_hss:
+        condition: service_started
 
   redis:
     image: "redis:7.0-alpine"
