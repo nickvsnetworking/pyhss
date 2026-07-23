@@ -100,6 +100,10 @@ api:
   # Whether or not to return key-based data when querying the AUC. Disable in production systems.
   enable_insecure_auc: False
 
+metric:
+  bind_ip: "127.0.0.1"
+  bind_port: 9191
+
 benchmarking:
   # Whether to enable benchmark logging
   enabled: True
