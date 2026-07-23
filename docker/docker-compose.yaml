@@ -22,6 +22,7 @@ services:
       retries: 5
       start_period: 3s
       start_interval: 0.1s
+    stop_grace_period: 1s
     depends_on:
       pyhss_hss:
         condition: service_started
@@ -45,6 +46,7 @@ services:
       retries: 5
       start_period: 3s
       start_interval: 0.1s
+    stop_grace_period: 1s
     depends_on:
       pyhss_api:
         condition: service_healthy
@@ -59,6 +61,7 @@ services:
     volumes:
       - pyhss_logs:/opt/pyhss/logs
       - pyhss_sqlite:/var/lib/pyhss
+    stop_grace_period: 1s
     depends_on:
       redis:
         condition: service_healthy
@@ -82,6 +85,7 @@ services:
       retries: 5
       start_period: 3s
       start_interval: 0.1s
+    stop_grace_period: 1s
     depends_on:
       pyhss_hss:
         condition: service_started
