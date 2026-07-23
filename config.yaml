@@ -94,6 +94,8 @@ hss:
     bind_port: 4222
 
 api:
+  bind_ip: "127.0.0.1"
+  bind_port: 8080
   page_size: 200
   # Whether or not to return key-based data when querying the AUC. Disable in production systems.
   enable_insecure_auc: False
