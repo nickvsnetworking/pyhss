@@ -10,6 +10,7 @@ jobs:
         python-version:
           - "3.9"  # Debian 10
           - "3.13"  # Debian 13
+          - "3.14"
 
     steps:
     - uses: actions/checkout@v6
