@@ -408,7 +408,7 @@ class DiameterService:
                 asyncio.create_task(self.inboundDataWorker(coroutineUuid=f'inboundDataWorker-{i}'))
 
             if host is None:
-                host=str(config.get('hss', {}).get('bind_ip', '0.0.0.0')[0])
+                host=str(config.get('hss', {}).get('bind_ip', '127.0.0.1')[0])
             
             if port is None:
                 port=int(config.get('hss', {}).get('bind_port', 3868))
