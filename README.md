@@ -157,6 +157,8 @@ python3 hssService.py
 python3 apiService.py
 ```
 
+By default these services bind to `127.0.0.1`; edit `bind_ip` in `config.yaml` if they need to be reachable from other hosts.
+
 All going well you'll have a functioning HSS at this point. For production use, systemd scripts are located in `./systemd`
 PyHSS API uses Flask, and can be configured with your favourite WSGI server.
 
