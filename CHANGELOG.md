@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Set the default database backend to SQLite.
+- Change the default bind IP from 0.0.0.0 to 127.0.0.1.
 
 ### Removed
 

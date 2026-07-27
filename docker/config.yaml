@@ -94,9 +94,15 @@ hss:
     bind_port: ${HSS_GSUP_BIND_PORT:-4222}
 
 api:
+  bind_ip: "${API_BIND_IP:-0.0.0.0}"
+  bind_port: ${API_BIND_PORT:-8080}
   page_size: ${API_PAGE_SIZE:-200}
   # Whether or not to return key-based data when querying the AUC. Disable in production systems.
   enable_insecure_auc: ${API_ENABLE_INSECURE_AUC:-False}
+
+metric:
+  bind_ip: "${METRIC_BIND_IP:-0.0.0.0}"
+  bind_port: ${METRIC_BIND_PORT:-9191}
 
 benchmarking:
   # Whether to enable benchmark logging
