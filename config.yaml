@@ -89,7 +89,7 @@ hss:
       # For private networks, "ROAMING_NOT_ALLOWED" is recommended. Otherwise, use "IMSI_UNKNOWN".
       reject_unknown_imsis_with: "ROAMING_NOT_ALLOWED"
     outbound:
-      # Whether or not to a subscriber to connect to an undefined network when outbound roaming.
+      # Whether or not to allow a subscriber to connect to an undefined network when outbound roaming.
       allow_undefined_networks: True
 
   # SCTP Socket Parameters
