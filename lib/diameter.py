@@ -132,7 +132,7 @@ class Diameter:
 
     @staticmethod
     def get_unknown_imsi_reject_cause() -> int:
-        if config['hss']['roaming']['inbound']['reject_unknown_imsis_with'] == 'ROAMING_NOT_ALLOWED':
+        if config.get('hss', {}).get('roaming', {}).get('inbound', {}).get('reject_unknown_imsis_with', 'IMSI_UNKNOWN') == 'ROAMING_NOT_ALLOWED':
             return 5004 # DIAMETER_ERROR_ROAMING_NOT_ALLOWED
         return 5001 # DIAMETER_ERROR_USER_UNKNOWN
 

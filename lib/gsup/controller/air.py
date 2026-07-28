@@ -30,7 +30,7 @@ class AIRController(GsupController):
 
     @staticmethod
     def _get_unknown_subscriber_reject_cause() -> GMMCause:
-        if config['hss']['roaming']['inbound']['reject_unknown_imsis_with'] == 'ROAMING_NOT_ALLOWED':
+        if config.get('hss', {}).get('roaming', {}).get('inbound', {}).get('reject_unknown_imsis_with', 'IMSI_UNKNOWN') == 'ROAMING_NOT_ALLOWED':
             return GMMCause.ROAMING_NOTALLOWED
         else:
             return GMMCause.IMSI_UNKNOWN
