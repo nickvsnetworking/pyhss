@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Building PyHSS with `python3 -m build` and as debian package.
 - RAT restriction checking for subscribers.
 - Automatic database upgrades (from 1.0.1 or higher).
+- Allow users to configure `hss.roaming.inbound.reject_unknown_imsis_with` to either `IMSI_UNKNOWN` (default) or `ROAMING_NOT_ALLOWED`.
 
 ### Changed
 
