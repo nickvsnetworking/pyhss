@@ -38,6 +38,12 @@ hss:
   gsup:
     bind_ip: "127.0.0.1"
     bind_port: 4222
+    ussd:
+      codes:
+        - code: "*#100#"
+          msg: "Your MSISDN is: %msisdn%"
+        - code: "*#101#"
+          msg: "Your IMSI is: %imsi%"
 
 api:
   page_size: 200

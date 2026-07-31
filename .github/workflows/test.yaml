@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.9"  # Debian 10
+          - "3.11"  # Debian 12
           - "3.13"  # Debian 13
           - "3.14"
 

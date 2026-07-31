@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyhss"
 version = "1.0.2"
+requires-python = ">=3.11"
 
 [project.scripts]
 pyhss_api = "pyhss.services.apiService:main"
@@ -29,6 +30,9 @@ packages = [
 [tool.setuptools.package-dir]
 pyhss = ""
 
+[tool.setuptools.package-data]
+"*" = ["*.asn1"]
+
 [tool.pytest.ini_options]
 addopts = "--tb=native"
 log_level = "DEBUG"
@@ -49,10 +53,13 @@ markers = [
 line-length = 120
 include = [
 	"lib/databaseSchema.py",
+	"lib/gsup/controller/ss.py",
+	"lib/gsup/protocol/gsup_msg.py",
 	"lib/pyhss_config.py",
 	"tests/test_database_upgrade_mariadb.py",
 	"tests/test_database_upgrade_postgresql.py",
 	"tests/test_database_upgrade_sqlite.py",
+	"tests/test_gsup_ussd.py",
 	"tests/test_license_headers.py",
 	"tests/test_milenage.py",
 ]
