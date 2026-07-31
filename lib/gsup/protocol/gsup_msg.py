@@ -1,6 +1,6 @@
 # PyHSS GSUP Message Builder - A factory class to create new GSUP Messages
-# Copyright 2025 Lennart Rosam <hello@takuto.de>
-# Copyright 2025 Alexander Couzens <lynxis@fe80.eu>
+# Copyright 2025-2026 Lennart Rosam <hello@takuto.de>
+# Copyright 2025-2026 Alexander Couzens <lynxis@fe80.eu>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from enum import Enum
 from osmocom.gsup.message import MsgType, GsupMessage
@@ -65,7 +65,7 @@ class GsupMessageBuilder:
         return self.with_ie('pdp_info', pdp_info, False)
 
     def build(self) -> GsupMessage:
-        if 'msg_type' == "":
+        if self.gsup_dict['msg_type'] == "":
             raise ValueError("msg_type is required")
         return GsupMessage.from_dict(self.gsup_dict)
 
@@ -89,6 +89,13 @@ class GsupMessageUtil:
             if ie_name in ie:
                 ies.append(ie)
         return ies
+
+    @staticmethod
+    def copy_field_to_builder(ie_name: str, message: dict, builder: GsupMessageBuilder):
+        """Copy a single IE from a message dict to a GsupMessageBuilder if present."""
+        field = GsupMessageUtil.get_first_ie_by_name(ie_name, message)
+        if field:
+            builder.with_ie(ie_name, field)
 
 
 # 3GPP TS 24.008 Chapter 10.5.5.14 / Table 10.5.147
