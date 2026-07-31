@@ -1,11 +1,7 @@
 # PyHSS RAT Technology restriction handling
 # Copyright 2025 Lennart Rosam <hello@takuto.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
-try:
-    from enum import StrEnum
-except ImportError:
-    # For Python versions < 3.11, use the strenum package
-    from strenum import StrEnum
+from enum import StrEnum
 
 from typing import Optional, Dict, List
 
