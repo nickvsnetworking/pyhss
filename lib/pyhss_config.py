@@ -1,9 +1,13 @@
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
+# Copyright 2026 Lennart Rosam <hello@takuto.de>
+# Copyright 2026 eta <eta@eta.st>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import os
 import sys
 import yaml
 from pathlib import Path
+
+from gsup.protocol.gsup_msg import GMMCause
 
 config = None
 
@@ -51,3 +55,10 @@ def validate_config():
 
 load_config()
 validate_config()
+
+
+def get_unknown_subscriber_2g_reject_cause() -> GMMCause:
+    if config.get('hss', {}).get('roaming', {}).get('inbound', {}).get('reject_unknown_imsis_with', 'IMSI_UNKNOWN') == 'ROAMING_NOT_ALLOWED':
+        return GMMCause.ROAMING_NOTALLOWED
+    else:
+        return GMMCause.IMSI_UNKNOWN
