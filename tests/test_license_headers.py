@@ -10,7 +10,7 @@ def file_has_headers(path):
     with open(path) as f:
         missing_copyright = True
         missing_license = True
-        for line in f.readlines():
+        for line in f:
             if missing_copyright and line.startswith("# Copyright "):
                 missing_copyright = False
             elif missing_license and line.startswith("# SPDX-License-Identifier: "):
