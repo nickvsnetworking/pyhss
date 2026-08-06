@@ -1,0 +1,21 @@
+name: Run linters
+
+on: [push, pull_request]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install ruff
+      run: |
+        pip install "ruff~=0.16.0"
+
+    - name: Run ruff check
+      run: |
+        ruff check
+
+    - name: Run ruff format --check
+      run: |
+        ruff format --check
