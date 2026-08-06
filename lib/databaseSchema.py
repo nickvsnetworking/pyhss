@@ -1,10 +1,11 @@
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
-import sqlalchemy
 import sys
 import time
+
+import sqlalchemy
 from sqlalchemy.engine import Engine
-from sqlalchemy_utils import database_exists, create_database
+from sqlalchemy_utils import create_database, database_exists
 
 
 class DatabaseSchema:

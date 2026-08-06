@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import os
 import sys
-import yaml
 from pathlib import Path
 
+import yaml
 from gsup.protocol.gsup_msg import GMMCause
 
 config = None

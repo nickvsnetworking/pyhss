@@ -3,15 +3,15 @@
 import glob
 import importlib
 import os
-import pytest
 import re
-import sqlglot
 import subprocess
+from pathlib import Path
 
+import pytest
+import sqlglot
 from conftest import wait_for_tcp_port
 from database import Database
 from logtool import LogTool
-from pathlib import Path
 from pyhss_config import config
 
 top_dir = Path(Path(__file__) / "../..").resolve()

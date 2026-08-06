@@ -1,11 +1,12 @@
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import os
-import pytest
 import re
 import sqlite3
 import subprocess
 from pathlib import Path
+
+import pytest
 from database import Database
 from logtool import LogTool
 from pyhss_config import config

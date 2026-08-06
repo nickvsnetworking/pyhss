@@ -7,11 +7,10 @@ from collections import OrderedDict
 from unittest import TestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from osmocom.gsup.message import GsupMessage, MsgType
-from smspdudecoder.codecs import GSM
-
 from gsup.controller.ss import USSD, SSController, UnknownUSSD
 from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
+from osmocom.gsup.message import GsupMessage, MsgType
+from smspdudecoder.codecs import GSM
 
 DEFAULT_TARGETS = {
     "*#100#": "Your MSISDN is: %msisdn%",

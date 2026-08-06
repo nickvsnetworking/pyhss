@@ -3,7 +3,8 @@
 # Copyright 2025-2026 Alexander Couzens <lynxis@fe80.eu>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from enum import Enum
-from osmocom.gsup.message import MsgType, GsupMessage
+
+from osmocom.gsup.message import GsupMessage, MsgType
 
 
 class GsupMessageBuilder:
