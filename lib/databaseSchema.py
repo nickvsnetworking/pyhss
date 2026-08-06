@@ -51,7 +51,7 @@ class DatabaseSchema:
                 result = conn.execute(sqlalchemy.text(sql)).fetchone()
                 if result:
                     ret = result[0]
-        except Exception:
+        except Exception:  # noqa: S110 - ignoring is fine; callers log on failure
             pass
         return ret
 

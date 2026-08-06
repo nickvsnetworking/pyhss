@@ -68,5 +68,4 @@ include = [
 ignore = [
 	"BLE001",  # https://docs.astral.sh/ruff/rules/blind-except/
 	"N999",    # https://docs.astral.sh/ruff/rules/invalid-module-name/
-	"S110",    # https://docs.astral.sh/ruff/rules/try-except-pass/
 ]
