@@ -36,6 +36,7 @@ jobs:
         pip install \
           -r requirements.txt \
           -r requirements-test.txt \
+          mysqlclient \
           psycopg2
 
     - name: Run PyHSS tests

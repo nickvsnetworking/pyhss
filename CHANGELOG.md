@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Set the default database backend to SQLite.
+- Remove mysqlclient from requirements.txt. If you want to use PyHSS with
+  MySQL, install mysqlclient or another MySQL/MariaDB library that SQLAlchemy
+  supports manually (see [DBAPI
+  Support](https://docs.sqlalchemy.org/en/latest/dialects/mysql.html#dialect-mysql)).
 - Change the default bind IP from 0.0.0.0 to 127.0.0.1.
 - Raise minimum Python version from 3.9 to 3.11.
 
