@@ -63,3 +63,9 @@ include = [
 	"tests/test_license_headers.py",
 	"tests/test_milenage.py",
 ]
+
+[tool.ruff.lint]
+ignore = [
+	"BLE001",  # https://docs.astral.sh/ruff/rules/blind-except/
+	"N999",    # https://docs.astral.sh/ruff/rules/invalid-module-name/
+]

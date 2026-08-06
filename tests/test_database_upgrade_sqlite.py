@@ -1,11 +1,12 @@
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import os
-import pytest
 import re
 import sqlite3
 import subprocess
 from pathlib import Path
+
+import pytest
 from database import Database
 from logtool import LogTool
 from pyhss_config import config
@@ -82,7 +83,10 @@ def sqlite_dump_and_compare_with_latest(tmpdir):
     current_sql, current_path = sqlite_dump(tmpdir)
 
     if current_sql != latest_sql:
-        subprocess.run(["git", "diff", "--no-index", "--color=always", latest_path, current_path])
+        subprocess.run(
+            ["git", "diff", "--no-index", "--color=always", latest_path, current_path],
+            check=False,
+        )
         print()
         print("ERROR: The database schema has changed. Please add upgrade logic as described here:")
         print("https://github.com/nickvsnetworking/pyhss/blob/master/docs/databases.md")

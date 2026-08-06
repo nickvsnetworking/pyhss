@@ -7,14 +7,15 @@ from collections import OrderedDict
 from unittest import TestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from gsup.controller.ss import USSD, SSController, UnknownUSSD
+from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
 from osmocom.gsup.message import GsupMessage, MsgType
 from smspdudecoder.codecs import GSM
 
-from gsup.controller.ss import USSD, SSController, UnknownUSSD
-from gsup.protocol.gsup_msg import GsupMessageBuilder, GsupMessageUtil
-
-DEFAULT_TARGETS = {"*#100#": "Your MSISDN is: %msisdn%",
-                   "*#101#": "Your IMSI is: %imsi%"}
+DEFAULT_TARGETS = {
+    "*#100#": "Your MSISDN is: %msisdn%",
+    "*#101#": "Your IMSI is: %imsi%",
+}
 DEFAULT_TARGETS_SINGLE = {"*#100#": "Your MSISDN is: %msisdn%"}
 DEFAULT_SUBSCRIBER = {"imsi": "262423403000001", "msisdn": "12345"}
 
@@ -30,9 +31,11 @@ def _build_controller(targets, subscriber_data=None):
     controller.targets = targets
     controller._sent_responses = []
     original_send = controller._send_gsup_response
+
     async def capture_send(peer, response):
         controller._sent_responses.append(response)
         await original_send(peer, response)
+
     controller._send_gsup_response = capture_send
     return controller
 
@@ -50,8 +53,7 @@ def _get_ie(response, name):
     return next((ie for ie in response.to_dict()["ies"] if name in ie), None)
 
 
-def _make_message_dict(imsi="262423403000001", session_state="start", session_id=1,
-                       supplementary_service_info=None):
+def _make_message_dict(imsi="262423403000001", session_state="start", session_id=1, supplementary_service_info=None):
     """Build a minimal GsupMessage dict for testing."""
     ies = []
     if imsi is not None:
@@ -112,8 +114,7 @@ class TestUSSDControllerInit(TestCase):
         }
         mock_config.get.return_value = {"gsup": {"ussd": ussd_config}}
         controller = SSController(logger=None, database=None)
-        expected_targets = {"*#100#": "MSISDN: %msisdn%",
-                            "*#101#": "IMSI: %imsi%"}
+        expected_targets = {"*#100#": "MSISDN: %msisdn%", "*#101#": "IMSI: %imsi%"}
         self.assertEqual(controller.targets, expected_targets)
 
 
@@ -121,8 +122,7 @@ class TestHandleMessage(TestCase):
     """Test handle_message entry point."""
 
     def _build(self):
-        return _build_controller(
-            DEFAULT_TARGETS, DEFAULT_SUBSCRIBER)
+        return _build_controller(DEFAULT_TARGETS, DEFAULT_SUBSCRIBER)
 
     def test_handle_message_missing_imsi(self):
         controller = self._build()
@@ -166,8 +166,7 @@ class TestHandleMessage(TestCase):
         controller = self._build()
         peer = _make_peer()
         ussd_data = _encode_ussd_invoke(4, "*#100#")
-        message = GsupMessage.from_dict(
-            _make_message_dict(session_id=None, supplementary_service_info=ussd_data))
+        message = GsupMessage.from_dict(_make_message_dict(session_id=None, supplementary_service_info=ussd_data))
         asyncio.run(controller.handle_message(peer, message))
 
         self.assertEqual(len(controller._sent_responses), 1)
@@ -355,8 +354,7 @@ class TestHandleUSSD(TestCase):
     """Test handle_ussd internal logic."""
 
     def test_handle_ussd_valid_invoke(self):
-        controller = _build_controller(
-            DEFAULT_TARGETS_SINGLE)
+        controller = _build_controller(DEFAULT_TARGETS_SINGLE)
         peer = _make_peer()
         subscriber = {"imsi": "262423403000001", "msisdn": "12345"}
         message = _make_message_dict()
@@ -371,8 +369,7 @@ class TestHandleUSSD(TestCase):
         self.assertEqual(decoded_response, "Your MSISDN is: 12345")
 
     def test_handle_ussd_invalid_op_code(self):
-        controller = _build_controller(
-            DEFAULT_TARGETS_SINGLE)
+        controller = _build_controller(DEFAULT_TARGETS_SINGLE)
         peer = _make_peer()
         subscriber = {"imsi": "262423403000001", "msisdn": "12345"}
         message = _make_message_dict()
@@ -392,8 +389,7 @@ class TestHandleUSSD(TestCase):
             asyncio.run(controller.handle_ussd(peer, message, subscriber, ussd_data))
 
     def test_handle_ussd_return_result_last(self):
-        controller = _build_controller(
-            DEFAULT_TARGETS_SINGLE)
+        controller = _build_controller(DEFAULT_TARGETS_SINGLE)
         peer = _make_peer()
         subscriber = {"imsi": "262423403000001", "msisdn": "12345"}
         message = _make_message_dict()
@@ -470,6 +466,7 @@ class TestStaticMethods(TestCase):
         decoded_str = GSM().decode(str(binascii.b2a_hex(ussd_arg["ussd-String"]), "utf-8"))
         self.assertEqual(decoded_str, answer)
 
+
 class TestMessageLengths(TestCase):
     """Test GSM encoding/decoding with different message lengths.
 
@@ -478,8 +475,7 @@ class TestMessageLengths(TestCase):
     """
 
     def test_short_message(self):
-        controller = _build_controller(
-            DEFAULT_TARGETS, "Code not recognized.")
+        controller = _build_controller(DEFAULT_TARGETS, "Code not recognized.")
         peer = _make_peer()
         ussd_data = _encode_ussd_invoke(1, "*#100#")
         message = _make_message_dict()
@@ -493,8 +489,7 @@ class TestMessageLengths(TestCase):
         self.assertEqual(decoded_response, "Your MSISDN is: 12345")
 
     def test_long_message(self):
-        controller = _build_controller(
-            DEFAULT_TARGETS, "Code not recognized.")
+        controller = _build_controller(DEFAULT_TARGETS, "Code not recognized.")
         peer = _make_peer()
         ussd_data = _encode_ussd_invoke(1, "*#100#")
         message = _make_message_dict()
@@ -514,8 +509,7 @@ class TestMessageLengths(TestCase):
             msg = "A" * length
             encoded = SSController.encode_ussd_arg(msg)
             ussd_arg = USSD.decode("USSD-Arg", encoded)
-            decoded = GSM().decode(str(binascii.b2a_hex(ussd_arg["ussd-String"]), "utf-8"),
-                                   strip_padding=True)
+            decoded = GSM().decode(str(binascii.b2a_hex(ussd_arg["ussd-String"]), "utf-8"), strip_padding=True)
             self.assertEqual(decoded, msg, f"Round-trip failed for length {length}")
 
 
