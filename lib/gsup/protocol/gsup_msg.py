@@ -8,8 +8,8 @@ from osmocom.gsup.message import MsgType, GsupMessage
 
 class GsupMessageBuilder:
     def __init__(self):
-        self.gsup_dict = dict()
-        self.gsup_dict["ies"] = list()
+        self.gsup_dict = {}
+        self.gsup_dict["ies"] = []
         self.gsup_dict["msg_type"] = ""
 
     def with_msg_type(self, msg_type: MsgType):

@@ -67,7 +67,6 @@ include = [
 [tool.ruff.lint]
 ignore = [
 	"BLE001",  # https://docs.astral.sh/ruff/rules/blind-except/
-	"C408",    # https://docs.astral.sh/ruff/rules/unnecessary-collection-call/
 	"FURB129", # https://docs.astral.sh/ruff/rules/readlines-in-for/
 	"I001",    # https://docs.astral.sh/ruff/rules/unsorted-imports/
 	"N999",    # https://docs.astral.sh/ruff/rules/invalid-module-name/
