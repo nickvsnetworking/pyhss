@@ -15,23 +15,33 @@ export PIP_VERBOSE=1
 %:
 	dh $@ --with python-virtualenv
 
-# Save space in the binary packages by uninstalling build-time depends
 override_dh_virtualenv:
-	dh_virtualenv --python python3
+# In order to be able to use debian-packaged dependencies, we cannot have exact
+# version requirements
+	sed 's/==.*//g' requirements.txt >requirements-without-versions.txt
+# Install pyhss and all vendored dependencies into a venv
+	dh_virtualenv \
+		--builtin-venv \
+		--python python3 \
+		--requirements=requirements-without-versions.txt \
+		--use-system-packages
+# Save space in the binary package by uninstalling build-time depends
 	debian/pyhss/opt/venvs/pyhss/bin/python \
 		-m pip \
 		uninstall \
 		--yes \
+		pip \
 		setuptools \
-		wheel \
-		pip
+		setuptools-scm \
+		vcs-versioning \
+		wheel
+# Run testsuite
+	( . debian/pyhss/opt/venvs/pyhss/bin/activate && \
+	  python3 -m pytest -xvv -m "not skip_packaging")
+# Clean up
+	rm requirements-without-versions.txt
 
 # dh_installsysusers needs to be explicitly called until debhelper-compat >= 14
 override_dh_install:
 	dh_install
 	dh_installsysusers
-
-override_dh_dwz:
-# Fails on the pip-installed so files due to missing debug symbols etc.
-override_dh_strip_nondeterminism:
-# Save ~1.5 min of time

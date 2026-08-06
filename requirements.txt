@@ -1,12 +1,15 @@
+# Requirements marked with 'vendor-in-deb' get fetched when running
+# debian/pyhss_download_deps.sh.
+
 aiohttp
 Flask==3.1.3
-flask_restx==1.3.2
+flask_restx==1.3.2  # vendor-in-deb
 Jinja2==3.1.2
 prometheus_client==0.16.0
 pycryptodomex==3.17
-pysctp==0.7.2
-pyosmocom==0.0.11
-comp128==1.0.0
+pysctp==0.7.2  # vendor-in-deb
+pyosmocom==0.0.11  # vendor-in-deb
+comp128==1.0.0  # vendor-in-deb
 pysnmp==4.4.12
 PyYAML
 redis==5.0.0
@@ -18,5 +21,5 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 influxdb==5.3.1
 
-asn1tools==0.167.0
-smspdudecoder==2.2.0
+asn1tools==0.167.0  # vendor-in-deb
+smspdudecoder==2.2.0  # vendor-in-deb
