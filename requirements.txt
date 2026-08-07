@@ -2,10 +2,8 @@ aiohttp
 Flask==3.1.3
 flask_restx==1.3.2
 Jinja2==3.1.2
-mongo==0.2.0
 prometheus_client==0.16.0
 pycryptodome==3.17
-pymongo==4.3.3
 pysctp==0.7.2
 pyosmocom==0.0.11
 comp128==1.0.0
