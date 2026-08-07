@@ -43,7 +43,14 @@ env = [
 filterwarnings = [
 	# Warning appears inside SQLAlchemy code, also might not make sense:
 	# https://github.com/python/cpython/issues/135834
-	"ignore:The default datetime adapter is deprecated as of Python 3.12"
+	"ignore:The default datetime adapter is deprecated as of Python 3.12",
+
+	# PyparsingDeprecationWarnings appearing inside asn1tools
+	"ignore:'delimitedList' deprecated - use 'DelimitedList'",
+	"ignore:'excludeChars' argument is deprecated, use 'exclude_chars'",
+	"ignore:'parseString' deprecated - use 'parse_string'",
+	"ignore:'setName' deprecated - use 'set_name'",
+	"ignore:'setParseAction' deprecated - use 'set_parse_action'",
 ]
 markers = [
     "slow",
