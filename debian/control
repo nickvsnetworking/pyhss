@@ -5,7 +5,6 @@ Maintainer: Oliver Smith <osmith@sysmocom.de>
 Build-Depends:
 	cython3,
 	debhelper-compat (= 13),
-	default-libmysqlclient-dev,
 	dh-virtualenv (>= 1.0),
 	libsctp-dev,
 	pkg-config,

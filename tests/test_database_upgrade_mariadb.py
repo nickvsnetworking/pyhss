@@ -1,5 +1,6 @@
 # Copyright 2025 sysmocom - s.f.m.c. GmbH <info@sysmocom.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
+import importlib
 import os
 import shlex
 import shutil
@@ -28,6 +29,10 @@ def run_mariadbd(tmpdir):
         if not shutil.which(program):
             pytest.skip(f"{program} is not installed")
             return
+    if not importlib.util.find_spec("MySQLdb"):
+        # SQLAlchemy needs MySQLdb to connect to MySQL/MariaDB servers
+        pytest.skip("python module MySQLdb (mysqlclient) is not installed")
+        return
 
     cmd = [
         "mariadb-install-db",

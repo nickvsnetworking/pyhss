@@ -5,8 +5,7 @@
 import asyncio
 import sys, os, json
 import time, uuid
-from datetime import datetime
-from tzlocal import get_localzone
+from datetime import datetime, UTC
 import sctp, socket
 
 sys.path.append(os.path.realpath(os.path.dirname(__file__) + "/../lib"))
@@ -19,6 +18,11 @@ from baseModels import Peer, InboundData, OutboundData
 import pydantic_core
 import traceback
 from pyhss_config import config
+
+
+def get_localzone():
+    return datetime.now(UTC).astimezone().tzinfo
+
 
 class DiameterService:
     """

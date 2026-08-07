@@ -9,18 +9,15 @@ pymongo==4.3.3
 pysctp==0.7.2
 pyosmocom==0.0.11
 comp128==1.0.0
-alembic
 pysnmp==4.4.12
 PyYAML
 redis==5.0.0
 Requests==2.31.0
 SQLAlchemy==2.0.44
 SQLAlchemy_Utils==0.41.1
-mysqlclient
 prometheus_flask_exporter
 pydantic==2.12.5
 pydantic_core==2.41.5
-tzlocal==4.3
 influxdb==5.3.1
 xmltodict==0.14.2
 
