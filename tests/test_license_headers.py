@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def file_has_headers(path):
     with open(path) as f:
@@ -22,6 +24,7 @@ def file_has_headers(path):
     return False
 
 
+@pytest.mark.skip_packaging
 def test_license_headers():
     top_dir = Path(Path(__file__) / "../..").resolve()
     extensions = [

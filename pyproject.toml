@@ -53,6 +53,7 @@ filterwarnings = [
 	"ignore:'setParseAction' deprecated - use 'set_parse_action'",
 ]
 markers = [
+    "skip_packaging",
     "slow",
 ]
 
