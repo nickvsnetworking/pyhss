@@ -48,6 +48,15 @@ class LogTool:
         self.redisMessagingAsync = RedisMessagingAsync(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.redisMessaging = RedisMessaging(host=self.redisHost, port=self.redisPort, useUnixSocket=self.redisUseUnixSocket, unixSocketPath=self.redisUnixSocketPath)
         self.hostname = socket.gethostname()
+        self.no_timestamp = os.environ.get("PYHSS_LOG_STDOUT_NO_TIMESTAMP") == "1"
+
+    def logStdout(self, timestamp, level, message):
+        if self.no_timestamp:
+            print(f"[{level.upper()}] {message}")
+            return
+
+        dateTimeString = datetime.fromtimestamp(timestamp).strftime("%m/%d/%Y %H:%M:%S %Z").strip()
+        print(f"[{dateTimeString}] [{level.upper()}] {message}")
     
     async def logAsync(self, service: str, level: str, message: str, redisClient=None) -> bool:
         """
@@ -60,8 +69,7 @@ class LogTool:
         if not messageLogLevelVerbosity <= configLogLevelVerbosity:
             return False
         timestamp = time.time()
-        dateTimeString = datetime.fromtimestamp(timestamp).strftime("%m/%d/%Y %H:%M:%S %Z").strip()
-        print(f"[{dateTimeString}] [{level.upper()}] {message}")
+        self.logStdout(timestamp, level, message)
         await(redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='log'))
         return True
     
@@ -76,8 +84,7 @@ class LogTool:
         if not messageLogLevelVerbosity <= configLogLevelVerbosity:
             return False
         timestamp = time.time()
-        dateTimeString = datetime.fromtimestamp(timestamp).strftime("%m/%d/%Y %H:%M:%S %Z").strip()
-        print(f"[{dateTimeString}] [{level.upper()}] {message}")
+        self.logStdout(timestamp, level, message)
         redisClient.sendLogMessage(serviceName=service.lower(), logLevel=level, logTimestamp=timestamp, message=message, logExpiry=60, usePrefix=True, prefixHostname=self.hostname, prefixServiceName='diameter')
         return True
 
