@@ -3,7 +3,6 @@
 import glob
 import importlib
 import os
-import re
 import subprocess
 from pathlib import Path
 
@@ -67,9 +66,6 @@ def postgresql_import(tmpdir, sql_file):
     with open(sql_path_temp, "w") as f:
         sql = sqlglot.transpile(sql, read="sqlite", write="postgres", pretty=True)
         sql = ";\n\n".join(sql) + ";\n"
-        # Workaround for https://github.com/tobymao/sqlglot/issues/6596
-        # Can be removed after sqlglot > v28.5.0 is released
-        sql = re.sub(r"(PRIMARY KEY\s*\(\s*\w+)(\s*NULLS\s+FIRST\s*\))", r"\1)", sql)
         f.write(sql)
 
     psql = glob.glob("/usr/lib/postgresql/*/bin/psql")
