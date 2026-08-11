@@ -138,6 +138,10 @@ eir:
 logging:
   level: "${LOGGING_LEVEL:-INFO}"
   logfiles:
+    # PyHSS logs can be viewed with journalctl when using the systemd services
+    # or "docker compose logs" when using docker. While this should be enough
+    # for most use cases, it is also possible to start the separate PyHSS
+    # logService that then logs to the files listed below.
     hss_logging_file: "${LOGGING_HSS_FILE:-/var/log/pyhss_hss.log}"
     diameter_logging_file: "${LOGGING_DIAMETER_FILE:-/var/log/pyhss_diameter.log}"
     geored_logging_file: "${LOGGING_GEORED_FILE:-/var/log/pyhss_geored.log}"
