@@ -20,6 +20,7 @@ jobs:
         DEB_BUILD_OPTIONS: noautodbgsym
       with:
         buildpackage-opts: --build=binary --no-sign
+        before-build-hook: debian/pyhss_download_deps.sh
 
     - name: Archive build artifacts
       uses: actions/upload-artifact@v4
