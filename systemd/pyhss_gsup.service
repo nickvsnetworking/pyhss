@@ -1,3 +1,4 @@
+# Optional GSUP message handler for interacting with 2G/3G Osmocom components.
 [Unit]
 Description=PyHSS GSUP Service
 PartOf=pyhss.service

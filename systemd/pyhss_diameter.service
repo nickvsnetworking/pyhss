@@ -1,3 +1,5 @@
+# Handling of receiving and sending of diameter messages, and diameter client
+# connection state.
 [Unit]
 Description=PyHSS Diameter Service
 PartOf=pyhss.service

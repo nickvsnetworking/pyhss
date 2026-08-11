@@ -1,3 +1,5 @@
+# Optional geographic redundancy service that may get removed in the future:
+# https://github.com/nickvsnetworking/pyhss/issues/334
 [Unit]
 Description=PyHSS Geored Service
 PartOf=pyhss.service

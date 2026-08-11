@@ -1,3 +1,5 @@
+# Optional legacy service that may get removed in the future:
+# https://github.com/nickvsnetworking/pyhss/issues/264
 [Unit]
 Description=PyHSS Database Service
 PartOf=pyhss.service

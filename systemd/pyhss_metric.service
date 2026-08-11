@@ -1,3 +1,4 @@
+# Optional service for exposing prometheus metrics.
 [Unit]
 Description=PyHSS Metric Service
 PartOf=pyhss.service

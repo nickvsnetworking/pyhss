@@ -1,3 +1,4 @@
+# Optional HTTP server providing an API for managing PyHSS.
 [Unit]
 Description=PyHSS API Service
 After=network.target
