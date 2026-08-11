@@ -1,14 +1,15 @@
 #!/usr/bin/make -f
 
-# This package uses dh_virtualenv to download dependencies with pip at package
-# build time. For building offline, download the dependencies to "debian/deps"
-# first as it is done in this script:
-# https://gitea.osmocom.org/osmocom/osmo-ci/src/branch/master/scripts/obs/data/pyhss_download_deps.sh
-ifneq ("$(wildcard debian/deps)","")
-export PIP_NO_INDEX=1
-export PIP_FIND_LINKS=debian/deps
+# This package uses dh_virtualenv to install package a venv with PyHSS and a
+# few vendored python packages that are not available in Debian. The vendored
+# packages get downloaded with debian/pyhss_download_deps.sh first, so they can
+# be part of the source package before performing the actual build offline.
+ifeq ("$(wildcard debian/deps)","")
+$(error debian/deps is missing, run debian/pyhss_download_deps.sh first)
 endif
 
+export PIP_NO_INDEX=1
+export PIP_FIND_LINKS=debian/deps
 export PIP_QUIET=0
 export PIP_VERBOSE=1
 
