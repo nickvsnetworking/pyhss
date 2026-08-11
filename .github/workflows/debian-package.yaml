@@ -11,25 +11,38 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        docker-image:
+          - "debian:13"
+          - "ubuntu:26.04"
 
     steps:
+    # Generate an artifact name from docker-image where : is replaced to avoid
+    # invalid artifact names. See also: https://stackoverflow.com/a/72726306
+    - name: Generate artifact name
+      env:
+        PYHSS_DEB_ARTIFACT: "debian-package-${{ matrix.docker-image }}"
+      run: echo "PYHSS_DEB_ARTIFACT=${PYHSS_DEB_ARTIFACT/:/-}" | tee -a "$GITHUB_ENV"
+
     - uses: actions/checkout@v3
 
     - uses: jtdor/build-deb-action@v1
       env:
         DEB_BUILD_OPTIONS: noautodbgsym
       with:
+        docker-image: ${{ matrix.docker-image }}
         buildpackage-opts: --build=binary --no-sign
         before-build-hook: debian/pyhss_download_deps.sh
 
     - name: Archive build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: debian-package
+        name: "${{ env.PYHSS_DEB_ARTIFACT }}"
         path: "debian/artifacts/*.deb"
 
   release:
-    name: Upload Debian package to GitHub Release
+    name: Upload Debian packages to GitHub Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -43,11 +56,19 @@ jobs:
           echo "repository=${{ github.repository }}"
           echo "actor=${{ github.actor }}"
           echo "ref=${{ github.ref }}"
-      - name: Download Debian package artifact
+      - name: Download Debian package artifacts
         uses: actions/download-artifact@v4
         with:
-          name: debian-package
+          pattern: debian-package-*
           path: debian/artifacts
+      - name: Rename Debian package artifacts
+        # old: debian-package-debian-13/pyhss_1.0.2_amd64.deb
+        # new: debian-package-debian-13_pyhss_1.0.2_amd64.deb
+        run: |
+          cd debian/artifacts
+          for i in */*.deb; do
+            mv -v "$i" "$(dirname "$i")_$(basename "$i")"
+          done
       - name: Upload .deb to GitHub Release
         uses: ncipollo/release-action@v1
         with:
