@@ -4,6 +4,8 @@
 [Unit]
 Description=PyHSS HSS Service
 PartOf=pyhss.service
+Requires=redis-server.service
+After=redis-server.service
 
 [Service]
 Environment="PYTHONUNBUFFERED=1"

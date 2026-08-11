@@ -2,6 +2,8 @@
 [Unit]
 Description=PyHSS API Service
 After=network.target
+Requires=pyhss_hss.service
+After=pyhss_hss.service
 
 [Service]
 Environment="PYTHONUNBUFFERED=1"
