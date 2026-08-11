@@ -4,6 +4,7 @@ import glob
 import importlib
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -41,9 +42,20 @@ def run_postgresql(tmpdir):
 
     try:
         wait_for_tcp_port(postgresql_port)
-        cmd = [createdb[0], "-h127.0.0.1", f"-p{postgresql_port}", "-Uuser", "hss"]
-        print(f"+ {cmd}")
-        subprocess.run(cmd, check=True)
+        tries = 5
+        for i in range(tries):
+            cmd = [createdb[0], "-h127.0.0.1", f"-p{postgresql_port}", "-Uuser", "hss"]
+            print(f"+ {cmd}")
+            createdb_proc = subprocess.run(cmd, check=False)
+            if createdb_proc.returncode == 0:
+                break
+            print(f"createdb failed ({i + 1}/{tries}) with returncode: {createdb_proc.returncode}")
+            if i + 1 < tries:
+                print("Database might still be starting up, trying again in 1s…")
+                time.sleep(1)
+            else:
+                print("Giving up")
+                raise RuntimeError("createdb failed!")
         yield
     finally:
         proc.kill()
