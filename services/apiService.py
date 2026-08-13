@@ -24,6 +24,7 @@ from logtool import LogTool
 from diameter import Diameter
 from messaging import RedisMessaging
 from baseModels import SubscriberInfo
+from version import pyhss_version
 import database
 from pyhss_config import config
 
@@ -81,9 +82,12 @@ EMERGENCY_SUBSCRIBER = database.EMERGENCY_SUBSCRIBER
 
 
 apiService.wsgi_app = ProxyFix(apiService.wsgi_app)
-api = Api(apiService, version='1.0', title=f'{siteName + " - " if siteName else ""}{originHostname} - PyHSS OAM API',
-    description='Restful API for working with PyHSS',
-    doc='/docs/'
+api = Api(
+    apiService,
+    version=pyhss_version,
+    title=f"{siteName + ' - ' if siteName else ''}{originHostname} - PyHSS OAM API",
+    description="Restful API for working with PyHSS",
+    doc="/docs/",
 )
 
 ns_apn = api.namespace('apn', description='PyHSS APN Functions')
