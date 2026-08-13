@@ -3,6 +3,7 @@
 # * pyhss_geored.service: disabled in the default config
 # * pyhss_log.service: using systemd's journal instead
 # * pyhss.service: meta-service making assumptions about what services are used
+/systemd/pyhss_api.service /lib/systemd/system/
 /systemd/pyhss_diameter.service /lib/systemd/system/
 /systemd/pyhss_gsup.service /lib/systemd/system/
 /systemd/pyhss_hss.service /lib/systemd/system/
