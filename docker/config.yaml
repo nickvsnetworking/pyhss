@@ -19,7 +19,7 @@ hss:
   ProductName: "${HSS_PRODUCT_NAME:-pyHSS}"
 
   #Name of the Site, shown in API
-  site_name: "${HSS_SITE_NAME:-Sydney}"
+  site_name: "${HSS_SITE_NAME:-}"
 
   #Your Home Mobile Country Code (Used for PLMN calcluation)
   MCC: "${HSS_MCC:-001}"
