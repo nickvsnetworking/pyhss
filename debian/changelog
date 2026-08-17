@@ -1,3 +1,340 @@
+pyhss (2.0.0) unstable; urgency=medium
+
+  [ Dragos Vingarzan ]
+  * small fix in case the username is checked against MSISDN and it's prefixed by a +
+
+  [ davidkneipp ]
+  * Staging - use pydantic for base model structure
+  * Refactor complete pending AAR test
+  * Staging - Initial commit
+  * Added pcrf/pcrf_subscriber_list, fixed duplicate_ips
+  * incoming and outgoing communication barring support in UDA
+  * Remove type declaration
+  * Reply with valid UDA on MSISDN not found
+  * Support for influxdb v1
+  * Store MCC and MNC as tags
+  * Add influxdb to requirements.txt
+  * Query IP on AAR if service URN not present
+  * Working IP-based lookup
+  * Initialize apnId in parent scope
+  * Fix for apnId not being set
+  * Support for geored-based IP lookup on AAR
+  * Handle exception in ipServingApn lookup
+  * Additional logging
+  * Additional logging
+  * Add timeout to requests
+  * Parse call forwarding data in UDA
+  * Remove unused import
+  * Support for multiple diameter messages in single frame
+  * CEA Support for external socket service
+  * Accompanying fixes for socket_service/CEA
+  * Return Unknown and not None on unknown peer type
+  * Fallback DRA support
+  * DRA fallback fix
+  * Improved support for DRA fallback, incl. RAR
+  * Undefined variable fix for emergency calling
+  * Clear expired emergency subscribers, duplicate detection, TFT fix
+  * DB UPDATED: Subscriber location information
+  * Log fixes
+  * Check if session ID matches stored session on CCR-T before wiping state
+  * Fix call to Get_Serving_APN
+  * Fix clr_subscriber
+  * Geored support for subscriber location
+  * Working DSR on MME change
+  * Remove redundant IMS subscriber lookup on CLR when IMSI used
+  * Feedback on unconnected peer for CLR
+  * Race condition fix: Only clear serving APN when session ID matches
+  * Improved logging
+
+  [ Runamook ]
+  * Fix attach without charging rules in the DB
+
+  [ nickvsnetworking ]
+  * Fix Sh UDA
+  * Support for multiple IMS dedicated bearers, differentiated by the SessionID on the Rx
+  * Log for ReAuth requests for emergency calls
+  * Logging in getting emergency subscriber
+  * Fixes for GBR bearers for Video
+  * Server Assignment sanity checking
+  * Generated Alembic and renamed functions to make generic 2G not just GSUP_
+  * Add missing fields to subscriber table in database migration
+
+  [ Victor Seva ]
+  * tools/view_stats.py: exit properly when no info is on Redis
+  * services/databaseService: support postgresql
+  * diameter: don't fail if charging_rule.precedence is not defined
+
+  [ jmasterfunk84 ]
+  * CLR Issue on New Subscriber
+
+  [ omnitouch ]
+  * Assorted fixes, local HSS lookup for STA
+  * Config option to ignore Purge UE Request changes to DB
+  * Remove webhookPeers length check - support for OCS only notifications
+
+  [ Nick ]
+  * Fix "Push Charging Rules" API Endpoint
+  * Update Dockerfile
+  * Update Dockerfile
+  * Update Dockerfile
+  * Lock to PyYAML==5.4.1
+  * Update requirements.txt
+  * Update Dockerfile
+  * Hotfix - AKA for Vector Generation API
+  * Use latest pyosmocom
+  * Handle Private Identity as Public Identity
+  * Handle Private Identity as Public Identity
+  * Handle Private Identity as Public Identity
+
+  [ Alexander Couzens ]
+  * lib/diameter: add protocol comments to Command/Request list
+  * database.py: add support for sqlite
+  * apiService: drop a lot of print()
+  * apiService: Update: use db object for ISD
+  * ISR: consider the role of the peer
+  * GSUP: ISD: allow to receive ISD Errors
+  * feat(2g): implement USSD support
+
+  [ Ali Jomeiy ]
+  * Fix dockerfile throw the application changes
+  * remove extra files
+  * update docker compose
+  * Update Dockerfile: remove extra WORKDIR command
+
+  [ Lennart Rosam ]
+  * Implement GSUP support
+  * feat(docker): one container per service
+  * feat(docker): add docker ignore file
+  * docs(docker): Document docker compose + configuration
+  * docs(changelog): Add docker images in the unreleased section
+  * chore(ci): delete unused workflow file
+  * fix(ci): Update CI commands to build the new image
+  * fix(docker): Ensure irrelevant dirs are omitted
+  * fix(docker): Ensure log directory is app writable
+  * chore(docker): improve IDE experience
+  * docs(readme): Document how to run through the IDE in docker
+  * FIXUP Readme
+  * refactor(gsup): make SubscriberInfo generic + fix APNs
+  * refactor(ulr): use generic base transaction
+  * refactor(ulr): centralize ISD creation
+  * chore(ulr): fix imports + typehints
+  * feat(gsup): Update subscriber on change
+  * fix: use monotonic clock
+  * fix(gsup): always add CN domain to ISD
+  * fix(gsup): add stack trace to log
+  * fix(gsup): use APN DB ID as PDP context id
+  * fix(gsup): only include imsi IE once in ULA
+  * chore(gsup): move CN IE to end
+  * feat(ci): publish debian packages on release
+  * Revert "github: temporarily disable publishing debian pkg"
+  * fix(debian): use correct tag scheme
+  * feat(gsup): implement RAT restriction check
+  * feat(diameter): implement RAT restriction
+  * fix(diameter): remove incorrect kwargs
+  * fix(diameter): use the orign hostname as redis key
+  * fix: install strenum on earlier python versions
+  * fix: consistent behavior if RAT type IE is missing
+  * fix: find ulr / isd trx with imsi + peer
+  * fix: transaction name in log message
+  * chore(spdx): update copyright
+  * docs(readme): note default bind address for native install
+  * chore(.gitignore): Ignore Jetbrains IDE files
+  * feat: implement inbound roaming reject
+  * fix: Typo
+  * fix(config): correct typo in outbound roaming comment
+  * docs: note reject_unknown_imsis_with in CHANGELOG
+  * feat: add config validation at startup
+  * fix: default roaming reject cause to IMSI_UNKNOWN
+  * test: add unit tests for config validation
+  * feat(python): raise minimum Python version to 3.11
+
+  [ Carsten Bock ]
+  * Pre-Emption-Vulnerability should not be mandatory as per Spec
+
+  [ Oliver Smith ]
+  * lib/__pycache__: remove
+  * systemd: set PYTHONUNBUFFERED=1
+  * systemd/pyhss_gsup: set PYTHONUNBUFFERED=1
+  * GSUP: SAI/UL: set cause for invalid/unknown IMSI
+  * tools/hss_Async_client: fix parsing config twice
+  * lib/S6a_crypt: remove unused config loading
+  * tools/MIB_generator: remove unused config loading
+  * tools/databaseUpgrade/alembic/env: config -> alembic_config
+  * Rework loading of config.yaml
+  * lib/milenage: remove unused sys.path.append
+  * Fix running services outside of source tree
+  * services: add main() functions
+  * pyproject.toml: new file
+  * lib/S26a_crypt: fix call to comp128v3()
+  * systemd/pyhss_gsup.service: fix description
+  * systemd/pyhss_gsup.service: fix description
+  * GSUP: SAI: send correct amount of auth vectors
+  * requirements.txt: upgrade SQLAlchemy
+  * lib/gsup/controller/ulr: add traceback to GSUP err
+  * requirements.txt: set pyosmocom==0.0.11
+  * GSUP: fix responding to unhandled requests
+  * GSUP: Update Location Request: no destination name
+  * systemd: remove extra empty line before [Service]
+  * systemd/pyhss_api.service: move API service here
+  * docs/API: update command for starting API service
+  * debian: initial
+  * github: add workflow for the debian package
+  * GSUP: don't merge pdp_info IEs
+  * GSUP: msg builder with pdp: remove empty qos
+  * github: temporarily disable publishing debian pkg
+  * tests: add pytest configs and fixtures
+  * tests/test_Diameter: fix test_A_Instantiate
+  * tests/test_Diameter: rework test_B_Recv_AIR
+  * tests/test_gsup_air: run with pytest
+  * tests/test_gsup_air: add asserts for response msgs
+  * tests/test_API: rename from tests_API
+  * tests/test_API: remove 'global log' line
+  * tests/test_API: use pytest fixtures
+  * tests/test_API: use localhost:8080
+  * tests/test_API: compare without last_modified
+  * tests/test_API: APN_Tests: update payload
+  * tests/test_API: AUC_Tests: add missing algo
+  * tests/test_API: unset unittest.TestCase.maxDiff
+  * tests/test_API: Subscriber: update payload
+  * tests/test_API: GeoRed_MME: update payload
+  * tests/test_API: GeoRed_MME: fix patch payloads
+  * tests/test_API: GeoRed_IMS: update payload
+  * services/apiService: fix error code paths
+  * tests/test_database: split from lib/database
+  * tests/test_database: fix call to Database()
+  * tests/test_database: create auc: use bytes.hex
+  * lib/database: fix declarative_base warning
+  * lib/database: fix inspector warning
+  * lib/database: fix Query.get() warning
+  * README: describe how to run tests
+  * gitignore: add .venv
+  * github/workflows/test: new workflow
+  * tests/fixtures: proper error if redis is not installed
+  * tests: remove code for running standalone
+  * config: remove unused hss.test_sub_imsi
+  * config: remove unused hss.SLh_enabled
+  * config: remove duplicate hss.client_socket_timeout
+  * config: remove unused hss.Insert_Subscriber_Data_Force
+  * config: remove unused prometheus section
+  * config: remove unused hss.Default_iFC
+  * config: remove unused redis.sentinel
+  * lib/{lte,milenage}: update copyright and license
+  * treewide: update copyright and license lines
+  * tests: add new license headers test
+  * tests/test_API: ChargingRule: remove last_modified
+  * README: link to matrix room
+  * config: remove readCache{Enabled,Interval} options
+  * config: database: default to sqlite
+  * tests/config: remove DB server, username, password
+  * tests/config: remove redis/sentinel options
+  * README: update supported databases
+  * CHANGELOG: make formatting consistent
+  * CHANGELOG: update
+  * gitignore: add hss.db
+  * lib/rat: update license header
+  * docker: use sqlite
+  * docker/docker-compose: speed up start checks
+  * services: add #!/usr/bin/env python3
+  * tests/conftest.py: rename from fixtures.py
+  * pyproject.toml: add ruff options
+  * DB: let only the main service create/upgrade it
+  * tests: add database_upgrade_sqlite
+  * DB: add database_schema_version table
+  * DB: rework logic for initializing an empty db
+  * DB: upgrade from 1.0.1
+  * DB: refuse start with schema below release 1.0.1
+  * DB: handle NULL in auc.algo
+  * tests: add database_upgrade_mariadb
+  * tests: add database_upgrade_postgresql
+  * CHANGELOG: mention automatic db upgrades
+  * docs/database: document how to change the schema
+  * tools/databaseUpgrade: remove
+  * CI: test: install mariadb, postgresql
+  * lib/gsup: update license headers
+  * requirements: update pydantic/pydantic_core
+  * CI: run 'apt-get update' before installing pkgs
+  * docker/docker-compose: fix startup order
+  * docker/docker-compose: speed up shutdown
+  * requirements: upgrade flask for python 3.14 compat
+  * github/workflows/test: add python 3.14
+  * config: default: bind diameter/gsup to 127.0.0.1
+  * services/apiService: bind to 127.0.0.1 by default
+  * services/metricService: bind to 127.0.0.1 by default
+  * CHANGELOG: mention new default bind IP
+  * lib/pyhss_config: format with ruff
+  * tests/test_gsup_ussd: format with ruff
+  * lib/gsup/controller/ss: format with ruff
+  * lib/gsup/protocol/gsup_msg: format with ruff
+  * pyproject: ruff: ignore new failing default rules
+  * lib/gsup/protocol/gsup_msg: fix C408
+  * tests/test_license_headers: fix FURB129
+  * treewide: fix I001 in files we lint with ruff
+  * tests/test_database_upgrade_sqlite: fix PLW1510
+  * lib/databaseSchema: ignore S110
+  * github: add lint workflow
+  * requirements: remove alembic
+  * requirements: remove mysqlclient
+  * requirements: remove tzlocal
+  * pyproject: ignore new warnings from asn1tools
+  * tests: postgres: remove obsolete workaround
+  * tests: postgres: try createdb multiple times
+  * lib/mongodb_insert_subscriber: remove
+  * lib/milenage: use Cryptodome instead of Crypto
+  * tests/test_license_headers: remove leftover code
+  * tests: license_headers: add skip_packaging marker
+  * requirements: remove xmltodict
+  * debian: update packaging
+  * debian/rules: never download packages during build
+  * github/workflows/debian-package: run pyhss_download_deps.sh
+  * github/workflows/debian-package: add ubuntu 26.04
+  * github/workflows: use latest actions versions
+  * github/workflows: make permissions + names consistent
+  * tests: verify debian/control runtime deps blocks
+  * config: add comment for logfiles section
+  * docker/docker-compose: remove pyhss_logs volume
+  * systemd: fix duplicate timestamp in logs
+  * services/apiService: redirect from / to /docs
+  * services/apiService: display real PyHSS version
+  * docs/release: document how to make a release
+  * config: change default site name to empty string
+  * README: add gsupService
+  * systemd: add comments on top of service files
+  * systemd: ensure proper startup order
+  * debian/pyhss.install: add missing pyhss_api.service
+
+  [ Carsten ]
+  * Subscription-Id is 0..* according to 3GPP TS 29.212 (e.g. Open5GS sends IMSI AND End-User-E164), so just look for Type IMSI
+
+  [ Gavin Holtzapple ]
+  * Update databases.md
+
+  [ Andreas Eversberg ]
+  * Corrected encoding of MSISDN IE
+
+  [ Bjoern ]
+  * Add SQN resync to REST api
+  * fix typo on log init message
+
+  [ Robin Rhee ]
+  * Refactor item_id retrieval logic in operation logging
+  * Update lib/database.py
+
+  [ Alexander Kuleshov ]
+  * tools/Diameter_client: fix instantiation of Diameter class
+  * diameter: fix malformed ULA for subscribers without MSISDN
+
+  [ Sai Asish Y ]
+  * Fix UnboundLocalError in UAR handler when username decode fails
+
+  [ Kumar ]
+  * Add missing Result-Code AVP to Answer_16777217_307
+  * fix(diameter): resolve AttributeError on IMS_SUBSCRIBER in Answer_16777217_307
+
+  [ eta ]
+  * feat(2g): roaming reject cause for ULR
+
+ -- Oliver Smith <osmith@sysmocom.de>  Mon, 17 Aug 2026 10:46:08 +0200
+
 pyhss (1.0.2) unstable; urgency=medium
 
   * debian: initial
