@@ -1,3 +1,5 @@
+# Optional service for writing to log files. Consider reading logs through
+# journalctl instead.
 [Unit]
 Description=PyHSS Log Service
 PartOf=pyhss.service

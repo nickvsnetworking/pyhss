@@ -1,6 +1,10 @@
+# Handling of receiving and sending of diameter messages, and diameter client
+# connection state.
 [Unit]
 Description=PyHSS Diameter Service
 PartOf=pyhss.service
+Requires=pyhss_hss.service
+After=pyhss_hss.service
 
 [Service]
 Environment="PYTHONUNBUFFERED=1"

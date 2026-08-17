@@ -1,6 +1,9 @@
+# Optional service for exposing prometheus metrics.
 [Unit]
 Description=PyHSS Metric Service
 PartOf=pyhss.service
+Requires=pyhss_hss.service
+After=pyhss_hss.service
 
 [Service]
 Environment="PYTHONUNBUFFERED=1"

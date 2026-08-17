@@ -1,3 +1,7 @@
+# Legacy meta-service with possibly outdated assumptions on which database
+# (mysql, default is now sqlite and postgres is also supported) and services
+# (log and geored are typically not needed) are being used. Consider running
+# individual services that you actually want to have in your setup instead.
 [Unit]
 Description=PyHSS
 After=network-online.target mysql.service
