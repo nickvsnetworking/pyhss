@@ -13,7 +13,6 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - pyhss_logs:/opt/pyhss/logs
       - pyhss_sqlite:/var/lib/pyhss
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/oam/ping"]
@@ -37,7 +36,6 @@ services:
     ports:
       - "127.0.0.1:3868:3868"
     volumes:
-      - pyhss_logs:/opt/pyhss/logs
       - pyhss_sqlite:/var/lib/pyhss
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "3868"]
@@ -59,7 +57,6 @@ services:
       CONTAINER_ROLE: "hss"
     container_name: "pyhss_hss"
     volumes:
-      - pyhss_logs:/opt/pyhss/logs
       - pyhss_sqlite:/var/lib/pyhss
     stop_grace_period: 1s
     depends_on:
@@ -76,7 +73,6 @@ services:
     ports:
       - "127.0.0.1:4222:4222"
     volumes:
-      - pyhss_logs:/opt/pyhss/logs
       - pyhss_sqlite:/var/lib/pyhss
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "4222"]
@@ -108,5 +104,4 @@ services:
 
 volumes:
   redis_data:
-  pyhss_logs:
   pyhss_sqlite:
