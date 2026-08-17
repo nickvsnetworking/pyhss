@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyhss"
-version = "1.0.2"
+dynamic = ["version"]
 requires-python = ">=3.11"
 
 [project.scripts]
@@ -26,6 +26,9 @@ packages = [
 	"pyhss.services",
 	"pyhss.tools",
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "pyhss.lib.version.pyhss_version"}
 
 [tool.setuptools.package-dir]
 pyhss = ""
@@ -63,6 +66,7 @@ include = [
 	"lib/gsup/controller/ss.py",
 	"lib/gsup/protocol/gsup_msg.py",
 	"lib/pyhss_config.py",
+	"lib/version.py",
 	"tests/test_database_upgrade_mariadb.py",
 	"tests/test_database_upgrade_postgresql.py",
 	"tests/test_database_upgrade_sqlite.py",
