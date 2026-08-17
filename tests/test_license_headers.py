@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def file_has_headers(path):
     with open(path) as f:
@@ -22,6 +24,7 @@ def file_has_headers(path):
     return False
 
 
+@pytest.mark.skip_packaging
 def test_license_headers():
     top_dir = Path(Path(__file__) / "../..").resolve()
     extensions = [
@@ -33,10 +36,6 @@ def test_license_headers():
     for ext in extensions:
         pattern = os.path.join(top_dir, f"**/*.{ext}")
         for i in glob.glob(pattern, recursive=True):
-            if os.path.relpath(i, top_dir).startswith("tools/databaseUpgrade"):
-                # Will be removed in this PR, not worth adjusting:
-                # https://github.com/nickvsnetworking/pyhss/pull/297
-                continue
             if not file_has_headers(i):
                 missing += [i]
 

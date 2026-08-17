@@ -1,24 +1,121 @@
+# This package uses dh-virtualenv to install PyHSS and a few vendored packages
+# into a venv. Where possible, the native debian package should be preferred,
+# so this debian package stays small, and the build dependencies and time do
+# not become unreasonable.
+
+# Lists of dependencies:
+# - requirements.txt in this repo
+# - https://github.com/python-restx/flask-restx/blob/master/requirements/install.pip
+# - https://gitea.osmocom.org/osmocom/pyosmocom/src/branch/master/requirements.txt
+# - https://github.com/eerimoq/asn1tools/blob/master/setup.py
+# - https://github.com/syenchuk/smspdudecoder/blob/master/requirements.txt
+# - https://github.com/dsch/gsm0338/blob/master/pyproject.toml
+
 Source: pyhss
 Section: devel
 Priority: optional
 Maintainer: Oliver Smith <osmith@sysmocom.de>
 Build-Depends:
-	cython3,
-	debhelper-compat (= 13),
-	dh-virtualenv (>= 1.0),
+###############################################################################
+### RUNTIME DEPS START ########################################################
+###############################################################################
+# Make sure these are the same in Build-Depends: and Depends:, so they get    #
+# installed at build time (for running the testsuite) and when installing the #
+# final package.                                                              #
+###############################################################################
+# pyhss runtime deps
+	python3-aiohttp,
+	python3-flask,
+	python3-influxdb,
+	python3-jinja2,
+	python3-prometheus-client,
+	python3-prometheus-flask-exporter,
+	python3-pycryptodome,
+	python3-pydantic,
+	python3-pysnmp4,
+	python3-redis,
+	python3-requests,
+	python3-sqlalchemy,
+	python3-sqlalchemy-utils,
+	python3-yaml,
+	redis-server,
+# flask-restx runtime deps
+	python3-aniso8601,
+	python3-jsonschema,
+	python3-referencing,
+	python3-werkzeug,
+# asn1tools runtime deps
+	python3-asn1crypto,
+	python3-bitstruct,
+	python3-pyparsing,
+# smspdudecoder runtime deps
+	python3-bitstring,
+	python3-pytz,
+# pyosmocom runtime deps
+	python3-construct,
+###############################################################################
+### RUNTIME DEPS END ##########################################################
+###############################################################################
+# pyhss test deps
+	python3-pytest,
+	python3-pytest-env,
+	python3-sqlglot,
+# py-sctp build deps
 	libsctp-dev,
 	pkg-config,
-	python3-build,
 	python3-dev,
+# dh-virtualenv related
+	dh-virtualenv (>= 1.0),
+	python3-venv,
 	python3-pip,
-	python3-setuptools,
+# misc
+	debhelper-compat (= 13),
 Standards-Version: 4.7.0
 
 Package: pyhss
 Architecture: any
 Depends:
-	${python3:Depends},
+###############################################################################
+### RUNTIME DEPS START ########################################################
+###############################################################################
+# Make sure these are the same in Build-Depends: and Depends:, so they get    #
+# installed at build time (for running the testsuite) and when installing the #
+# final package.                                                              #
+###############################################################################
+# pyhss runtime deps
+	python3-aiohttp,
+	python3-flask,
+	python3-influxdb,
+	python3-jinja2,
+	python3-prometheus-client,
+	python3-prometheus-flask-exporter,
+	python3-pycryptodome,
+	python3-pydantic,
+	python3-pysnmp4,
+	python3-redis,
+	python3-requests,
+	python3-sqlalchemy,
+	python3-sqlalchemy-utils,
+	python3-yaml,
+	redis-server,
+# flask-restx runtime deps
+	python3-aniso8601,
+	python3-jsonschema,
+	python3-referencing,
+	python3-werkzeug,
+# asn1tools runtime deps
+	python3-asn1crypto,
+	python3-bitstruct,
+	python3-pyparsing,
+# smspdudecoder runtime deps
+	python3-bitstring,
+	python3-pytz,
+# pyosmocom runtime deps
+	python3-construct,
+###############################################################################
+### RUNTIME DEPS END ##########################################################
+###############################################################################
+# misc
 	${misc:Depends},
-	redis,
 	systemd-sysusers,
 Description: Python Home Subscriber Server implementing Diameter / 3GPP Interfaces

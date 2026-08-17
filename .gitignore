@@ -35,3 +35,4 @@ pyhss.egg-info
 tests/.pyhss*.db
 .venv
 hss.db
+debian/deps
