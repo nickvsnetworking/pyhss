@@ -248,10 +248,15 @@ class DiameterService:
     async def readInboundData(self, reader, clientAddress: str, clientPort: str, socketTimeout: int, coroutineUuid: str) -> bool:
         """
         Reads incoming data from a connected client. Data is sent to a shared memory-based queue, to be polled and processed by a worker coroutine.
-        Terminates the connection if the client disconnects, the queue fills or another exception occurs.
+        Each queue entry holds one complete Diameter message.
+        Terminates the connection if the client disconnects, the queue fills, a Diameter header is invalid or another exception occurs.
         """
         await(self.logTool.logAsync(service='Diameter', level='debug', message=f"[Diameter] [readInboundData] [{coroutineUuid}] New connection from {clientAddress} on port {clientPort}"))
         clientConnection = f"{clientAddress}-{clientPort}"
+        # TCP is a byte stream: a read can end inside a Diameter message, or hold several.
+        # Keep the unconsumed bytes per connection and queue only complete messages,
+        # framed by the 3-byte Message Length in the Diameter header (RFC 6733 section 3).
+        streamBuffer = bytearray()
         while True:
             try:
 
@@ -260,13 +265,22 @@ class DiameterService:
                 if reader.at_eof():
                     return False
 
-                if len(inboundData) > 0:
-                    inboundData = InboundData(SenderIp=clientAddress,
-                                              SenderPort=clientPort,
-                                              InitialReceiveTimestamp=time.time_ns(),
-                                              InboundHex=inboundData.hex())
-                    
-                    self.sharedQueue.put_nowait(inboundData)
+                streamBuffer += inboundData
+                while len(streamBuffer) >= 20:
+                    messageLength = int.from_bytes(streamBuffer[1:4], 'big')
+                    if streamBuffer[0] != 1 or messageLength < 20:
+                        await(self.logTool.logAsync(service='Diameter', level='warning', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Invalid Diameter header from {clientAddress} on port {clientPort} (version {streamBuffer[0]}, length {messageLength}), closing connection."))
+                        return False
+                    if len(streamBuffer) < messageLength:
+                        break
+                    diameterMessage = bytes(streamBuffer[:messageLength])
+                    del streamBuffer[:messageLength]
+                    inboundMessage = InboundData(SenderIp=clientAddress,
+                                                 SenderPort=clientPort,
+                                                 InitialReceiveTimestamp=time.time_ns(),
+                                                 InboundHex=diameterMessage.hex())
+
+                    self.sharedQueue.put_nowait(inboundMessage)
 
             except Exception as e:
                 await(self.logTool.logAsync(service='Diameter', level='info', message=f"[Diameter] [readInboundData] [{coroutineUuid}] Socket Exception for {clientAddress} on port {clientPort}, closing connection.\n{e}"))
