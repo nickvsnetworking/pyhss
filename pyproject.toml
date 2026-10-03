@@ -72,6 +72,7 @@ include = [
 	"tests/test_database_upgrade_postgresql.py",
 	"tests/test_database_upgrade_sqlite.py",
 	"tests/test_debian_control.py",
+	"tests/test_diameter_service_framing.py",
 	"tests/test_diameter_service_peers.py",
 	"tests/test_diameter_errors.py",
 	"tests/test_gsup_ussd.py",

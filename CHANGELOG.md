@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix `RuntimeError: dictionary changed size during iteration` in the diameter service when peers connect or disconnect while `activePeers` is being iterated ([#310](https://github.com/nickvsnetworking/pyhss/issues/310)).
 - Answer Diameter requests that carry a missing or malformed AVP with an error Result-Code ([#308](https://github.com/nickvsnetworking/pyhss/issues/308)).
-
+- Fix Diameter requests that were lost when a message was split across TCP reads: the diameter service now queues only complete messages, framed by the Message Length in the Diameter header ([#341](https://github.com/nickvsnetworking/pyhss/pull/341)).
 
 ## [2.0.0] - 2026-08-17
 
