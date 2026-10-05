@@ -96,3 +96,66 @@ class Diameter_Tests(unittest.TestCase):
         for kwargs in ({"imsi": "505931111111116", "msisdn": None}, {"imsi": "505931111111116"}):
             packet = self.__class__.diameter_inst.Request_16777217_306(**kwargs)
             bytes.fromhex(packet)
+
+    def _decode_sh_udr(self, user_identity_avp):
+        # Builds a UDR around the given User-Identity AVP and decodes it, like diameterService does
+        diameter_inst = self.__class__.diameter_inst
+        avp = diameter_inst.generate_avp(263, 40, b"pcscf;1;app_sh".hex())
+        avp += diameter_inst.generate_avp(264, 40, diameter_inst.OriginHost)
+        avp += diameter_inst.generate_avp(296, 40, diameter_inst.OriginRealm)
+        avp += user_identity_avp
+        packet = diameter_inst.generate_diameter_packet("01", "c0", 306, 16777217, "00000001", "00000001", avp)
+        return diameter_inst.decode_diameter_packet(packet)
+
+    def _user_identity(self, msisdn=None, public_identity=None):
+        diameter_inst = self.__class__.diameter_inst
+        content = ""
+        if msisdn is not None:
+            content += diameter_inst.generate_vendor_avp(701, "c0", 10415, diameter_inst.TBCD_encode(msisdn))
+        if public_identity is not None:
+            content += diameter_inst.generate_vendor_avp(601, "c0", 10415, public_identity.encode().hex())
+        return diameter_inst.generate_vendor_avp(700, "c0", 10415, content)
+
+    def test_D_Sh_identities_msisdn_then_public_identity(self):
+        # Both identities are returned, MSISDN first, so a failed MSISDN lookup can fall back
+        _, avps = self._decode_sh_udr(self._user_identity(
+            msisdn="4917012345678", public_identity="sip:262423403000001@ims.mnc001.mcc001.3gppnetwork.org"))
+        self.assertEqual(self.__class__.diameter_inst.getShUserIdentities(avps),
+                         [("msisdn", "4917012345678"), ("imsi", "262423403000001")])
+
+    def test_D_Sh_identities_tel_uri(self):
+        # The + is kept, Get_IMS_Subscriber matches the MSISDN with or without it
+        _, avps = self._decode_sh_udr(self._user_identity(public_identity="tel:+4917012345678"))
+        self.assertEqual(self.__class__.diameter_inst.getShUserIdentities(avps), [("msisdn", "+4917012345678")])
+
+    def test_D_Sh_lookup_falls_back_to_public_identity(self):
+        # A Public-Identity next to an unknown MSISDN must still find the subscriber
+        class FakeDatabase:
+            def Get_IMS_Subscriber(self, **kwargs):
+                if "imsi" not in kwargs:
+                    raise ValueError("No row was found")
+                return {"imsi": kwargs["imsi"]}
+
+            def Get_Subscriber(self, **kwargs):
+                return self.Get_IMS_Subscriber(**kwargs)
+
+        diameter_inst = self.__class__.diameter_inst
+        database = diameter_inst.database
+        diameter_inst.database = FakeDatabase()
+        try:
+            ims_subscriber, subscriber = diameter_inst.getShSubscriber(
+                [("msisdn", "4917012345678"), ("imsi", "262423403000001")])
+        finally:
+            diameter_inst.database = database
+        self.assertEqual(ims_subscriber, {"imsi": "262423403000001"})
+        self.assertEqual(subscriber, {"imsi": "262423403000001"})
+
+    def test_D_Sh_UDR_ungrouped_user_identity_is_rejected(self):
+        # A User-Identity carrying the MSISDN directly instead of sub-AVPs gets 5004 and Failed-AVP
+        diameter_inst = self.__class__.diameter_inst
+        raw_msisdn = diameter_inst.TBCD_encode("4917012345678")
+        packet_vars, avps = self._decode_sh_udr(diameter_inst.generate_vendor_avp(700, "c0", 10415, raw_msisdn))
+        _, answer_avps = diameter_inst.decode_diameter_packet(diameter_inst.Answer_16777217_306(packet_vars, avps))
+        self.assertEqual(diameter_inst.get_avp_data(answer_avps, 268), [diameter_inst.int_to_hex(5004, 4)])
+        failed_avp = diameter_inst.get_avp_data(answer_avps, 279)[0]
+        self.assertEqual([(a["avp_code"], a["misc_data"]) for a in failed_avp], [(700, raw_msisdn)])

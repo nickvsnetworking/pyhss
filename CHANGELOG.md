@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix unit tests and run them with pytest in CI.
 - Let services/apiService return HTTP status code 500 on errors instead of 200.
+- Find a subscriber by MSISDN whether it is stored with or without a leading
+  `+`. The lookup is in `Get_Subscriber()` and `Get_IMS_Subscriber()`, so it
+  applies to every MSISDN lookup: Cx, Rx AAR, Sh UDR and PUR, and the REST
+  endpoints `/subscriber/msisdn/<msisdn>` and
+  `/ims_subscriber/ims_subscriber_msisdn/<msisdn>`.
+- Sh UDR: accept `tel:` URIs in Public-Identity, and fall back to
+  Public-Identity when the MSISDN lookup fails.
+- Sh UDR: reject a User-Identity that is not a grouped AVP with
+  DIAMETER_INVALID_AVP_VALUE (5004) and Failed-AVP.
 
 ## [1.0.2] - 2024-07-03
 
