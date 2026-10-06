@@ -135,11 +135,11 @@ class RedisMessaging:
 
     def awaitBulkMessage(self, key: str, count: int=100, usePrefix: bool=False, prefixHostname: str='unknown', prefixServiceName: str='common'):
         """
-        Blocks until one or more messages are received at the given key, then returns the amount of messages specified by count.
+        Blocks until one or more messages are received at the given key, then returns up to count messages, oldest first.
         """
         try:
             key = self.handlePrefix(key=key, usePrefix=usePrefix, prefixHostname=prefixHostname, prefixServiceName=prefixServiceName)
-            message =  self.redisClient.blmpop(0, 1, key, direction='RIGHT', count=count)
+            message =  self.redisClient.blmpop(0, 1, key, direction='LEFT', count=count)
             return message
         except Exception as e:
             print(traceback.format_exc())
