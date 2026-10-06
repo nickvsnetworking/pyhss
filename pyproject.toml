@@ -76,6 +76,7 @@ include = [
 	"tests/test_diameter_service_peers.py",
 	"tests/test_gsup_ussd.py",
 	"tests/test_license_headers.py",
+	"tests/test_messaging_queue_order.py",
 	"tests/test_milenage.py",
 ]
 
