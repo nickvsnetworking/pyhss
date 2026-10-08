@@ -20,9 +20,9 @@ MESSAGES = [f"request-{i}" for i in range(5)]
 @pytest.fixture
 def redis_messaging(run_redis):
     messaging = RedisMessaging()
+    # run_redis is shared by the whole session: start from an empty queue even if an earlier test failed
     messaging.deleteQueue(QUEUE, **PREFIX)
     yield messaging
-    messaging.deleteQueue(QUEUE, **PREFIX)
 
 
 def _messages(reply):
