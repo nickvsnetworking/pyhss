@@ -281,3 +281,21 @@ def test_database(create_test_db):
 
     print("\n\n\n")
     print(database.Generate_JSON_Model_for_Flask(SUBSCRIBER))
+
+
+def test_get_subscriber_by_msisdn_with_or_without_plus(create_test_db):
+    # Sh sends the MSISDN as TBCD digits, but it may be provisioned in E.164 with a leading +
+    database = Database(LogTool(config))
+    assert database.Get_Subscriber(msisdn="+100")["msisdn"] == "100"
+
+    ims_subscriber = database.CreateObj(IMS_SUBSCRIBER, {
+        "msisdn": "+4917012345678",
+        "msisdn_list": "+4917012345678",
+        "imsi": "262423403000099",
+        "ifc_path": "default_ifc.xml",
+    })
+    try:
+        assert database.Get_IMS_Subscriber(msisdn="4917012345678")["imsi"] == "262423403000099"
+        assert database.Get_IMS_Subscriber(msisdn="+4917012345678")["imsi"] == "262423403000099"
+    finally:
+        database.DeleteObj(IMS_SUBSCRIBER, ims_subscriber["ims_subscriber_id"])

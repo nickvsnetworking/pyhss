@@ -3337,6 +3337,75 @@ class Diameter:
         response = self.generate_diameter_packet("01", "40", 304, 16777216, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
         return response
 
+    #Strips the URI scheme, parameters and domain from a Public-Identity, leaving the bare IMSI or MSISDN
+    def getPublicIdentityDigits(self, public_identity: str) -> str:
+        public_identity = str(public_identity).strip()
+        for uriScheme in ['sips:', 'sip:', 'tel:']:
+            if public_identity.lower().startswith(uriScheme):
+                public_identity = public_identity[len(uriScheme):]
+                break
+        #Strip any URI parameters or headers, such as ;user=phone
+        public_identity = public_identity.split(';')[0].split('?')[0]
+        #Strip the domain part, if present
+        public_identity = public_identity.split('@')[0]
+        return public_identity
+
+    #Returns the identities carried in the User-Identity AVP of an Sh request, as a list of
+    #(identity_type, value) tuples in lookup order: MSISDN (701) first, then Public-Identity (601).
+    #identity_type is 'imsi' or 'msisdn'. The list is empty if no usable identity is present.
+    #Raises ValueError if User-Identity is present but not a grouped AVP.
+    def getShUserIdentities(self, avps) -> list:
+        identities = []
+
+        try:
+            user_identity_avp = self.get_avp_data(avps, 700)[0]
+        except IndexError:
+            self.logTool.log(service='HSS', level='debug', message="No User-Identity AVP present - This request is invalid", redisClient=self.redisMessaging)
+            return identities
+        if not isinstance(user_identity_avp, list):
+            raise ValueError('User-Identity is not a grouped AVP')
+
+        try:
+            msisdn = self.get_avp_data(user_identity_avp, 701)[0]
+            self.logTool.log(service='HSS', level='debug', message="Got raw MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
+            msisdn = self.TBCD_decode(msisdn)
+            self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
+            identities.append(('msisdn', msisdn))
+        except Exception:
+            self.logTool.log(service='HSS', level='debug', message="No MSISDN present in User-Identity", redisClient=self.redisMessaging)
+
+        #TS 29.328 allows Public-Identity in place of, or alongside, MSISDN
+        try:
+            public_identity = self.get_avp_data(user_identity_avp, 601)[0]
+            public_identity = binascii.unhexlify(public_identity).decode('utf-8')
+            self.logTool.log(service='HSS', level='debug', message="Got public_identity : " + str(public_identity), redisClient=self.redisMessaging)
+            public_identity = self.getPublicIdentityDigits(public_identity)
+
+            #TS 23.003 section 2.2 allows IMSIs shorter than 15 digits. These are treated as an
+            #MSISDN here and will not be found by IMSI. Known limitation, accepted for now.
+            if len(public_identity) == 15 and public_identity.isdigit():
+                self.logTool.log(service='HSS', level='debug', message="Got IMSI from Public-Identity: " + str(public_identity), redisClient=self.redisMessaging)
+                identities.append(('imsi', public_identity))
+            else:
+                self.logTool.log(service='HSS', level='debug', message="Got MSISDN from Public-Identity: " + str(public_identity), redisClient=self.redisMessaging)
+                identities.append(('msisdn', public_identity))
+        except Exception:
+            self.logTool.log(service='HSS', level='debug', message="No Public-Identity present in User-Identity", redisClient=self.redisMessaging)
+
+        return identities
+
+    #Looks up the subscriber for each identity in turn and returns (ims_subscriber, subscriber)
+    #for the first one found, or (None, None) if none matches.
+    def getShSubscriber(self, identities) -> tuple:
+        for identity_type, identity in identities:
+            try:
+                subscriber_ims_details = self.database.Get_IMS_Subscriber(**{identity_type: identity})
+                subscriber_details = self.database.Get_Subscriber(**{identity_type: identity})
+                return subscriber_ims_details, subscriber_details
+            except Exception as e:
+                self.logTool.log(service='HSS', level='debug', message=f"No subscriber found for {identity_type} {identity}: {e}", redisClient=self.redisMessaging)
+        return None, None
+
     #3GPP Sh User-Data Answer
     def Answer_16777217_306(self, packet_vars, avps):
         avp = ''                                                                                    #Initiate empty var AVP                                                                                           #Session-ID
@@ -3348,42 +3417,18 @@ class Diameter:
         subscriberIsBarred = False
         username = None
         subscriber_ims_details = None
+        subscriber_details = None
+        invalid_user_identity = None
+
         try:
-            user_identity_avp = self.get_avp_data(avps, 700)[0]
-            
-            #Try to get MSISDN
-            try:
-                msisdn = self.get_avp_data(user_identity_avp, 701)[0]                                                         #Get MSISDN from AVP in request
-                self.logTool.log(service='HSS', level='debug', message="Got raw MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)
-                msisdn = self.TBCD_decode(msisdn)
-                self.logTool.log(service='HSS', level='debug', message="Got MSISDN with value " + str(msisdn), redisClient=self.redisMessaging)            
-                subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
-                subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
-            except:
-            #Try to get the IMSI from the Public Identity
-                public_identity = self.get_avp_data(avps, 601)[0]
-                public_identity = binascii.unhexlify(public_identity).decode('utf-8')
-                self.logTool.log(service='HSS', level='debug', message="Got public_identity : " + str(public_identity), redisClient=self.redisMessaging)
-                if "sip:" in public_identity:
-                    public_identity = public_identity.replace("sip:", "")
-                
-                if "@" in public_identity:
-                    imsi = public_identity.split('@')[0]   #Strip Domain
-                    domain = public_identity.split('@')[1] #Get Domain Part
-                    public_identity = imsi
-                
-                if len(public_identity) == 15:
-                    imsi = public_identity
-                    self.logTool.log(service='HSS', level='debug', message="Got IMSI: " + str(imsi), redisClient=self.redisMessaging)                                                              
-                    subscriber_ims_details = self.database.Get_IMS_Subscriber(imsi=imsi)
-                    subscriber_details = self.database.Get_Subscriber(imsi=imsi)
-                else:
-                    msisdn = public_identity
-                    self.logTool.log(service='HSS', level='debug', message="Got msisdn : " + str(msisdn), redisClient=self.redisMessaging)
-                    subscriber_ims_details = self.database.Get_IMS_Subscriber(msisdn=msisdn)
-                    subscriber_details = self.database.Get_Subscriber(msisdn=msisdn)
-        except:
-            self.logTool.log(service='HSS', level='debug', message="No User Identity present - This request is invalid", redisClient=self.redisMessaging)
+            identities = self.getShUserIdentities(avps)
+            subscriber_ims_details, subscriber_details = self.getShSubscriber(identities)
+            for identity_type, identity in identities:
+                if identity_type == 'msisdn' and msisdn is None:
+                    msisdn = identity
+        except ValueError as e:
+            self.logTool.log(service='HSS', level='debug', message=f"Rejecting Sh User-Data-Request: {e}", redisClient=self.redisMessaging)
+            invalid_user_identity = next((avp_object for avp_object in avps if int(avp_object['avp_code']) == 700), None)
 
         session_id = self.get_avp_data(avps, 263)[0]                                                     #Get Session-ID
         avp += self.generate_avp(263, 40, session_id)                                                    #Set session ID to received session ID
@@ -3392,6 +3437,17 @@ class Diameter:
         avp += self.generate_avp(277, 40, "00000001")                                                    #Auth-Session-State (No state maintained)
         
         avp += self.generate_avp(260, 40, "0000010a4000000c000028af000001024000000c01000001")            #Vendor-Specific-Application-ID for Cx
+
+        if invalid_user_identity is not None:
+            #DIAMETER_INVALID_AVP_VALUE (5004), with the User-Identity as received in Failed-AVP
+            if invalid_user_identity['vendor_id'] != '':
+                failed_avp = self.generate_vendor_avp(700, invalid_user_identity['avp_flags'], invalid_user_identity['vendor_id'], invalid_user_identity['misc_data'])
+            else:
+                failed_avp = self.generate_avp(700, invalid_user_identity['avp_flags'], invalid_user_identity['misc_data'])
+            avp += self.generate_avp(268, 40, self.int_to_hex(5004, 4))                                  #Result-Code
+            avp += self.generate_avp(279, 40, failed_avp)                                                #Failed-AVP
+            response = self.generate_diameter_packet("01", "40", 306, 16777217, packet_vars['hop-by-hop-identifier'], packet_vars['end-to-end-identifier'], avp)     #Generate Diameter packet
+            return response
 
         if subscriber_ims_details is not None:
                 try:
