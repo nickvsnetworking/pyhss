@@ -1,3 +1,24 @@
+pyhss (2.0.1) unstable; urgency=medium
+
+  [ phatlc ]
+  * diameterService: iterate over a snapshot of activePeers
+  * tests: add diameterService activePeers churn tests
+
+  [ Sig-thd ]
+  * diameterService: frame inbound Diameter messages across TCP reads
+  * tests: add diameterService framing tests
+  * messaging: take queued messages oldest first
+  * tests: check the order of awaitBulkMessage()
+  * tests: empty the queue once, before each queue-order test
+
+  [ Kumar ]
+  * fix(diameter): make MSISDN lookup more robust
+
+  [ Lennart Rosam ]
+  * fix(deps): pin bitstring below 5
+
+ -- Oliver Smith <osmith@sysmocom.de>  Wed, 14 Oct 2026 08:44:38 +0200
+
 pyhss (2.0.0) unstable; urgency=medium
 
   [ Dragos Vingarzan ]

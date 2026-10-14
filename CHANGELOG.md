@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-14
+
 ### Fixed
 
 - Fix `RuntimeError: dictionary changed size during iteration` in the diameter
@@ -29,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Public-Identity when the MSISDN lookup fails.
 - Sh UDR: reject a User-Identity that is not a grouped AVP with
   DIAMETER_INVALID_AVP_VALUE (5004) and Failed-AVP.
+- Dependencies: pin bitstring to <5 as the recently released version 5 is
+  incompatible with smspdudecoder 2.2.0
 
 ## [2.0.0] - 2026-08-17
 
@@ -255,3 +259,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.0.1]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.1
 [1.0.2]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.2
 [2.0.0]: https://github.com/nickvsnetworking/pyhss/releases/tag/2.0.0
+[2.0.1]: https://github.com/nickvsnetworking/pyhss/releases/tag/2.0.1
