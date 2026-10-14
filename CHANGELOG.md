@@ -7,18 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-14
+
 ### Fixed
 
-- Fix `RuntimeError: dictionary changed size during iteration` in the diameter service when peers connect or disconnect while `activePeers` is being iterated ([#310](https://github.com/nickvsnetworking/pyhss/issues/310)).
-- Fix Diameter requests that were lost when a message was split across TCP reads: the diameter service now queues only complete messages, framed by the Message Length in the Diameter header ([#341](https://github.com/nickvsnetworking/pyhss/pull/341)).
-- Fix inbound Diameter requests being processed newest first: the HSS service now takes them from the queue in the order they arrived, so under load the oldest request no longer waits for the whole backlog ([#342](https://github.com/nickvsnetworking/pyhss/pull/342)).
+- Fix `RuntimeError: dictionary changed size during iteration` in the diameter
+  service when peers connect or disconnect while `activePeers` is being
+  iterated ([#310](https://github.com/nickvsnetworking/pyhss/issues/310)).
+- Fix Diameter requests that were lost when a message was split across TCP
+  reads: the diameter service now queues only complete messages, framed by the
+  Message Length in the Diameter header
+  ([#341](https://github.com/nickvsnetworking/pyhss/pull/341)).
+- Fix inbound Diameter requests being processed newest first: the HSS service
+  now takes them from the queue in the order they arrived, so under load the
+  oldest request no longer waits for the whole backlog
+  ([#342](https://github.com/nickvsnetworking/pyhss/pull/342)).
+- Find a subscriber by MSISDN whether it is stored with or without a leading
+  `+`. The lookup is in `Get_Subscriber()` and `Get_IMS_Subscriber()`, so it
+  applies to every MSISDN lookup: Cx, Rx AAR, Sh UDR and PUR, and the REST
+  endpoints `/subscriber/msisdn/<msisdn>` and
+  `/ims_subscriber/ims_subscriber_msisdn/<msisdn>`.
+- Sh UDR: accept `tel:` URIs in Public-Identity, and fall back to
+  Public-Identity when the MSISDN lookup fails.
+- Sh UDR: reject a User-Identity that is not a grouped AVP with
+  DIAMETER_INVALID_AVP_VALUE (5004) and Failed-AVP.
+- Dependencies: pin bitstring to <5 as the recently released version 5 is
+  incompatible with smspdudecoder 2.2.0
 
 ## [2.0.0] - 2026-08-17
 
 ### Added
 
 - 2G / 3G support via Osmocom GSUP.
-- Support for running PyHSS services in Docker containers and provide official Docker images.
+- Support for running PyHSS services in Docker containers and provide official
+  Docker images.
 - Database types postgresql and sqlite.
 - Config loading from `/etc/pyhss/config.yaml`, `/usr/share/pyhss/config.yaml`,
   the `PYHSS_CONFIG` env var, or (old behavior) `config.yaml` at the top of the
@@ -27,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Building PyHSS with `python3 -m build` and as debian package.
 - RAT restriction checking for subscribers.
 - Automatic database upgrades (from 1.0.1 or higher).
-- Allow users to configure `hss.roaming.inbound.reject_unknown_imsis_with` to either `IMSI_UNKNOWN` (default) or `ROAMING_NOT_ALLOWED`.
+- Allow users to configure `hss.roaming.inbound.reject_unknown_imsis_with` to
+  either `IMSI_UNKNOWN` (default) or `ROAMING_NOT_ALLOWED`.
 
 ### Changed
 
@@ -50,15 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix unit tests and run them with pytest in CI.
 - Let services/apiService return HTTP status code 500 on errors instead of 200.
-- Find a subscriber by MSISDN whether it is stored with or without a leading
-  `+`. The lookup is in `Get_Subscriber()` and `Get_IMS_Subscriber()`, so it
-  applies to every MSISDN lookup: Cx, Rx AAR, Sh UDR and PUR, and the REST
-  endpoints `/subscriber/msisdn/<msisdn>` and
-  `/ims_subscriber/ims_subscriber_msisdn/<msisdn>`.
-- Sh UDR: accept `tel:` URIs in Public-Identity, and fall back to
-  Public-Identity when the MSISDN lookup fails.
-- Sh UDR: reject a User-Identity that is not a grouped AVP with
-  DIAMETER_INVALID_AVP_VALUE (5004) and Failed-AVP.
 
 ## [1.0.2] - 2024-07-03
 
@@ -183,14 +197,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for CLR-based PCSCF restoration via `/pcrf/pcscf_restoration` and `/pcrf/pcscf_restoration_subscriber` in API.
+- Support for CLR-based PCSCF restoration via `/pcrf/pcscf_restoration` and
+  `/pcrf/pcscf_restoration_subscriber` in API.
 - Optional immediateReattach parameter in Request_16777251_317, via CLR-Flags
 - Sh-IMS-Data and IMSPrivateUserIdentity to default_sh_user_data.xml
-- Optional config parameter `api.enable_insecure_auc` to allow retrieval of AuC keys through API
+- Optional config parameter `api.enable_insecure_auc` to allow retrieval of AuC
+  keys through API
 - sh_template_path in ims_subscriber
 - generateUpgade.sh for generating alembic upgrade scripts
-- Control of outbound roaming S6a AIR and ULA responses through roaming_rule and roaming_network objects.
-- Roaming management on a per-subscriber basis, through subscriber.roaming_enabled and subscriber.roaming_rule_list.
+- Control of outbound roaming S6a AIR and ULA responses through roaming_rule
+  and roaming_network objects.
+- Roaming management on a per-subscriber basis, through
+  subscriber.roaming_enabled and subscriber.roaming_rule_list.
 - Support for Gx and Rx auth of unknown subscribers attaching via SOS.
 - Preliminary support for SCTP.
 - Additional prometheus metrics.
@@ -221,13 +239,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logtool no longer handles metric processing
 - Updated config.yaml
 - Gx CCR-T now flushes PGW / IMS data, depending on Called-Station-Id
-- Benchmarked capability of at least ~500 diameter requests per second with a response time of under 2 seconds on a local network.
+- Benchmarked capability of at least ~500 diameter requests per second with a
+  response time of under 2 seconds on a local network.
 
 ### Fixed
 
  - Memory leaking in diameter.py
  - Gx CCA now supports apn inside a plmn based uri
- - AVP_Preemption_Capability and AVP_Preemption_Vulnerability now presents correctly in all diameter messages
+ - AVP_Preemption_Capability and AVP_Preemption_Vulnerability now presents
+   correctly in all diameter messages
  - Crash when webhook or geored endpoints enabled and no peers defined
  - CPU overutilization on all services
 
@@ -239,3 +259,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.0.1]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.1
 [1.0.2]: https://github.com/nickvsnetworking/pyhss/releases/tag/1.0.2
 [2.0.0]: https://github.com/nickvsnetworking/pyhss/releases/tag/2.0.0
+[2.0.1]: https://github.com/nickvsnetworking/pyhss/releases/tag/2.0.1
