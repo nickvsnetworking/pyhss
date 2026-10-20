@@ -159,3 +159,25 @@ class Diameter_Tests(unittest.TestCase):
         self.assertEqual(diameter_inst.get_avp_data(answer_avps, 268), [diameter_inst.int_to_hex(5004, 4)])
         failed_avp = diameter_inst.get_avp_data(answer_avps, 279)[0]
         self.assertEqual([(a["avp_code"], a["misc_data"]) for a in failed_avp], [(700, raw_msisdn)])
+
+    def test_E_Cx_identities_with_uri_parameters(self):
+        # A SIP or tel URI may carry parameters; the digits must still match the subscriber
+        class FakeDatabase:
+            def Get_IMS_Subscriber(self, **kwargs):
+                assert kwargs.get("msisdn") == "4917012345678"
+                return {"imsi": "262423403000001", "msisdn": kwargs["msisdn"]}
+
+        diameter_inst = self.__class__.diameter_inst
+        database = diameter_inst.database
+        diameter_inst.database = FakeDatabase()
+        try:
+            for username in (
+                "sip:4917012345678;phone-context=ims.mnc001.mcc001.3gppnetwork.org@ims.mnc001.mcc001.3gppnetwork.org",
+                "tel:+4917012345678;phone-context=ims.mnc001.mcc001.3gppnetwork.org",
+                "sip:4917012345678@ims.mnc001.mcc001.3gppnetwork.org;user=phone",
+            ):
+                with self.subTest(username=username):
+                    details = diameter_inst.Get_IMS_Subscriber_Details_from_AVP(username.encode().hex())
+                    self.assertEqual(details["msisdn"], "4917012345678")
+        finally:
+            diameter_inst.database = database

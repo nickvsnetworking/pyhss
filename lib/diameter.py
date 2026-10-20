@@ -1659,8 +1659,8 @@ class Diameter:
         #Feed the Username AVP with Tel URI, SIP URI and either MSISDN or IMSI and this returns user data
         username = binascii.unhexlify(username).decode('utf-8')
         self.logTool.log(service='HSS', level='debug', message="Username AVP is present, value is " + str(username), redisClient=self.redisMessaging)
-        username = username.split('@')[0]   #Strip Domain to get User part
-        username = username[4:]             #Strip tel: or sip: prefix
+        #Strip scheme, URI parameters and domain, leaving the bare IMSI or MSISDN
+        username = self.getPublicIdentityDigits(username)
         #Determine if dealing with IMSI or MSISDN
         if (len(username) == 15) or (len(username) == 16):
             self.logTool.log(service='HSS', level='debug', message="We have an IMSI: " + str(username), redisClient=self.redisMessaging)

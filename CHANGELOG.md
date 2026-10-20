@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Find a subscriber by MSISDN when the Cx Username AVP is a SIP or tel
+  URI with parameters (e.g. `;phone-context=`, `;user=phone`): the
+  identity is now parsed the same way as in Sh UDR, so the digits reach
+  the lookup. Previously the parameters stayed attached, the lookup
+  failed with `Experimental-Result-Code` 5001, and the LIA had no
+  `Server-Name` for the I-CSCF to route to.
+
 ## [2.0.1] - 2026-10-14
 
 ### Fixed
