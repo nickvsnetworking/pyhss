@@ -38,6 +38,7 @@ override_dh_virtualenv:
 		wheel
 # Run testsuite
 	( . debian/pyhss/opt/venvs/pyhss/bin/activate && \
+	  export "PATH=$$PWD/debian/pyhss/opt/venvs/pyhss/bin:$$PATH" && \
 	  python3 -m pytest -xvv -m "not skip_packaging")
 # Clean up
 	rm requirements-without-versions.txt
