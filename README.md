@@ -11,7 +11,6 @@ This includes support for acting as:
  - VoLTE HSS
  - Equipment Identity Register (EIR)
  - PCRF
- - Generate BSF Credentials
  - Gateway Mobile Location Centre 
 
 Supported database backends are `MySQL`, `PostgreSQL` and `SQLite`, all provisioned through a Swagger based [RESTful API](docs/API.md) for easy, safe CRUD operations on the subscriber data.
@@ -31,7 +30,6 @@ The underlying library - ``diameter.py`` can be easily worked with to add suppor
 * Cx - For P/S/I/E-CSCF Authentication and Routing (Ie User-Authentication-Request, Location-Information-Request)
 * SLh - For Location of Subscriber MME from GMLC (Ie LCS-Routing-Info-Answer Request)
 * Sh - For Application Servers to IMS & XCAP Data
-* Zh/Zn - For generating GBA Credentials
 * Gx Credit Control Answer / Re-Auth Request including installing Charging Rules on demand
 
 
