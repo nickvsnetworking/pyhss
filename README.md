@@ -69,7 +69,8 @@ This will start the following services, bound to 127.0.0.1 to avoid exposing the
  - PyHSS API Service (Port 8080/tcp)
  - PyHSS GSUP Service (Port 4222/tcp)
  - Redis (Port 6379/tcp)
- - MySQL (Port 3306/tcp)
+
+Subscriber data is stored in an SQLite database on the `pyhss_sqlite` volume.
 
 For production, just pull the following image:
 
