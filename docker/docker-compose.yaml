@@ -1,7 +1,7 @@
 services:
 
   pyhss_api:
-    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    image: ghcr.io/pyhss/pyhss/pyhss:development
     build:
       context: ../
       dockerfile: docker/Dockerfile
@@ -27,7 +27,7 @@ services:
         condition: service_started
 
   pyhss_diameter:
-    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    image: ghcr.io/pyhss/pyhss/pyhss:development
     env_file:
         - ../docker/.env
     environment:
@@ -50,7 +50,7 @@ services:
         condition: service_healthy
 
   pyhss_hss:
-    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    image: ghcr.io/pyhss/pyhss/pyhss:development
     env_file:
         - ../docker/.env
     environment:
@@ -64,7 +64,7 @@ services:
         condition: service_healthy
 
   pyhss_gsup:
-    image: ghcr.io/nickvsnetworking/pyhss/pyhss:development
+    image: ghcr.io/pyhss/pyhss/pyhss:development
     env_file:
         - ../docker/.env
     container_name: "pyhss_gsup"

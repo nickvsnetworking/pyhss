@@ -75,7 +75,7 @@ Subscriber data is stored in an SQLite database on the `pyhss_sqlite` volume.
 For production, just pull the following image:
 
 ```shell
-docker pull ghcr.io/nickvsnetworking/pyhss/pyhss:latest
+docker pull ghcr.io/pyhss/pyhss/pyhss:latest
 ```
 
 The `latest` tag is automatically built from current master.  For configuration, please reference `docker/config.yaml`.
@@ -98,7 +98,7 @@ See the `docker/docker-compose.yaml` file for an example of how to set this up. 
 
 Should you desire to run / debug PyHSS through your IDE like PyCharm to Run / Debug services through docker, you can.
 
-1. Create a Python interpreter on docker (not docker compose) that uses the image `ghcr.io/nickvsnetworking/pyhss/pyhss:development`
+1. Create a Python interpreter on docker (not docker compose) that uses the image `ghcr.io/pyhss/pyhss/pyhss:development`
 2. Prepare the docker image by running `cd docker && docker compose build`. You'll need to rebuild only if requirements.txt changes.
 3. Create a Run configuration for each script:
    * Select the docker interpreter as runtime
