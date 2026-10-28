@@ -41,4 +41,13 @@ pip download \
 	--no-deps \
 	-r "$REQ_TXT"
 
+# Create a dummy "tzdata" package so the build doesn't fail with debian's
+# python3-dateutil >= 3.0.0-2:
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1152361
+tar \
+	-C debian/deps-dummy \
+	-czf debian/deps/tzdata-9999.99.99.tar.gz \
+	tzdata-9999.99.99
+echo "Saved ./debian/deps/tzdata-9999.99.99.tar.gz (dummy)"
+
 echo "Done"
